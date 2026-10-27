@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_preview:
+        description: Publish the verified Android APK to the development preview release
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -16,6 +21,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'
@@ -29,7 +36,7 @@ jobs:
         run: |
           curl --fail --location https://github.com/gotson/komga/releases/download/1.29.1/komga-1.29.1.jar --output /tmp/komga.jar
           python3 tool/komga_smoke.py --jar /tmp/komga.jar
-      - run: flutter build apk --debug --target-platform android-arm64
+      - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:
           name: android-debug
@@ -51,3 +58,67 @@ jobs:
         with:
           name: windows
           path: build/windows/x64/runner/Release/
+  publish_android_preview:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
+    needs: android
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: android-development-preview
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: v0.1.0-dev.1
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-debug
+      - name: Prepare and verify the development preview assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv app-debug.apk KMReader-0.1.0-android-debug.apk
+          sha256sum KMReader-0.1.0-android-debug.apk > SHA256SUMS.txt
+          gh api "repos/$GH_REPO/releases" > releases.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          releases = json.loads(Path('releases.json').read_text())
+          release = next(r for r in releases if r['tag_name'] == os.environ['RELEASE_TAG'])
+          if not release['draft'] or release['assets']:
+              raise SystemExit('Publish only to the prepared empty draft; existing releases and assets are preserved.')
+          Path('release-id.txt').write_text(str(release['id']))
+          Path('release-notes.md').write_text(f'''Development preview of KMReader for Android and Windows. Full functional and visual parity is still in progress.
+
+          Download `KMReader-0.1.0-android-debug.apk` in Assets below. Android 7.0 or newer (API 24) is required. The universal APK includes ARMv7, ARM64 and x86_64 and is signed with the GitHub runner's development debug key.
+
+          Built from `{os.environ['GITHUB_SHA']}` by GitHub Actions after static analysis, the full test suite and a real Komga integration test passed. No physical Android device test was performed. Windows binaries are not included in this preview; see the separate Windows job for its build result.
+
+          See `docs/PARITY.md` for remaining features. `docs/VALIDATION.md` records the earlier local build; this CI build has its own checksum in `SHA256SUMS.txt`.
+
+          The repository is private. Sign into an authorized GitHub account in your browser before downloading.
+          ''')
+          PY
+      - name: Upload assets, verify their digest and publish the preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" KMReader-0.1.0-android-debug.apk SHA256SUMS.txt
+          release_id=$(cat release-id.txt)
+          gh api "repos/$GH_REPO/releases/$release_id" > uploaded-release.json
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          release = json.loads(Path('uploaded-release.json').read_text())
+          for name in ['KMReader-0.1.0-android-debug.apk', 'SHA256SUMS.txt']:
+              asset = next(a for a in release['assets'] if a['name'] == name)
+              with Path(name).open('rb') as stream:
+                  digest = 'sha256:' + hashlib.file_digest(stream, 'sha256').hexdigest()
+              if asset['state'] != 'uploaded' or asset['size'] != Path(name).stat().st_size or asset['digest'] != digest:
+                  raise SystemExit(f'Uploaded asset verification failed: {name}')
+          print('Both release assets match GitHub SHA256 digests.')
+          PY
+          gh release edit "$RELEASE_TAG" --target "$GITHUB_SHA" --notes-file release-notes.md --draft=false --prerelease --latest=false
