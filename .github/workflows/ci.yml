@@ -81,6 +81,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Reserve disk space for the emulator and Android build
+        run: |
+          # This job uses neither .NET, Haskell nor CodeQL. Only the disposable
+          # runner's preinstalled toolchains are removed; the checkout is kept.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/ghc /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -108,7 +114,8 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disk-size: 4096M
+          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
             adb shell cmd overlay enable --user 0 com.android.internal.display.cutout.emulation.tall
