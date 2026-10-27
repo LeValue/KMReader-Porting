@@ -14,7 +14,8 @@ Validated in the prepared Linux cloud workspace with Flutter 3.47.8, Dart
 | Android `apksigner verify --verbose` | Verified APK Signature Scheme v2, one signer |
 | Android `zipalign -c -P 16 4` | Passed |
 | APK contents | Flutter, PDFium and SQLite native libraries present for all three ABIs |
-| Windows build/device execution | Not run on this Linux host |
+| Windows release build and automated tests | Passed on a GitHub Windows runner; see remote evidence below |
+| Windows app interaction | Not run |
 | Android device/emulator execution | Not run; no device or accelerated emulator available |
 
 The real-server test uses a disposable Komga 1.29.1 with synthetic books. It
@@ -49,7 +50,23 @@ integrity, not target-device behavior.
 
 The [parity matrix](PARITY.md) tracks missing functionality. Exact visual
 matching has not been established against an Apple-host screenshot baseline.
-Windows compilation, secure storage on both target systems, real-device reader
+Secure storage on both target systems, real-device reader
 behavior, accessibility, background work and performance still require target
 testing. This report records local checks; subsequent remote build results must
 be verified separately in GitHub Actions.
+
+## Remote Windows evidence
+
+The Windows job for source commit
+`3e5a7e03a81636e3da304b9723ae6abf9a3972eb` successfully completed dependency
+resolution, static analysis, the automated test suite, `flutter build windows
+--release`, and artifact upload:
+
+https://github.com/LeValue/KMReader-Porting/actions/runs/40469392697/job/122072544496
+
+The downloaded `windows` artifact (ID `12717309125`, 19,170,395 bytes) was inspected
+as a ZIP. It includes a PE `kmreader.exe`, `flutter_windows.dll`, PDFium and SQLite
+DLLs, and the compiled Dart AOT asset. This establishes compilation and bundle
+contents, not manual interaction with the installed app. The Android setup job
+in that initial run failed on the retired SDK `tools` package; the workflow now
+requests `platform-tools` explicitly.

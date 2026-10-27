@@ -22,7 +22,7 @@ flutter run -d <android-device-id>
 ```
 
 On Windows, run `flutter run -d windows`. CI is configured for Android and
-Windows, but has not been executed remotely during this implementation task.
+Windows; see [validation results](docs/VALIDATION.md) for observed remote checks.
 In the prepared Codex environment, initialize each shell with:
 
 ```sh

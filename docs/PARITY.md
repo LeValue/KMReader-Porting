@@ -39,8 +39,9 @@ test passed.
 Screenshots at mobile and desktop sizes are review artifacts. There is no
 Apple-host screenshot baseline, so exact visual parity has not been verified.
 The current Linux machine cannot run a Windows build or an accelerated Android
-emulator. Windows CI is checked in but remains unrun until the code is pushed
-to a repository with Actions enabled. Device-native secure storage, accessibility,
+emulator. Windows compilation and automated tests have now passed on a GitHub
+Windows runner; see `VALIDATION.md` for the specific job and bundle inspection.
+Device-native secure storage, accessibility,
 background behavior, performance, and Windows interactions need target testing.
 
 This is a development implementation, not a claim of a finished perfect port.
