@@ -7,6 +7,11 @@ The core browsing, reading, download, and progress workflow is implemented.
 [parity matrix](docs/PARITY.md) for gaps and validation limits.
 Current build and test evidence is recorded in [validation results](docs/VALIDATION.md).
 
+The Android development APK is available in the
+[v0.1.0-dev.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.1.0-dev.1).
+Sign into a GitHub account with access to this private repository before downloading.
+In the release's **Assets**, select `KMReader-0.1.0-android-debug.apk`.
+
 ## Development
 
 Use Flutter **3.47.8** / Dart **3.13.7**. Android builds require Java 21, SDK/Build

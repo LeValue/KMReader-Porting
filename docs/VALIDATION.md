@@ -70,3 +70,29 @@ DLLs, and the compiled Dart AOT asset. This establishes compilation and bundle
 contents, not manual interaction with the installed app. The Android setup job
 in that initial run failed on the retired SDK `tools` package; the workflow now
 requests `platform-tools` explicitly.
+
+## Published Android preview
+
+The corrected workflow completed its Android, Windows, and preview-publishing
+jobs successfully:
+
+https://github.com/LeValue/KMReader-Porting/actions/runs/40469954248
+
+The Android job passed formatting, analysis, the automated suite, the separate
+real Komga integration test, and universal debug APK compilation. The publishing
+job uploaded both assets, compared their sizes and SHA256 digests with GitHub's
+metadata, and then published the prerelease. The actual published APK was
+downloaded back to the cloud workspace and independently passed SHA256,
+`apksigner` v2 signature, and 16 KiB ZIP alignment checks. Flutter, PDFium and
+SQLite libraries were confirmed for ARMv7, ARM64 and x86_64.
+
+- Release: https://github.com/LeValue/KMReader-Porting/releases/tag/v0.1.0-dev.1
+- Source: `39988b1c7e279b0c9c76038bd3b5ffa6211e431b`
+- Asset: `KMReader-0.1.0-android-debug.apk`
+- Size: 198,405,673 bytes
+- SHA256: `657d84ddbd74d4d6f3bff0ae8c6ffd0c1f5bf978e4f36714d374538e41227303`
+
+This is a separate CI build with the runner's development signing key; its
+checksum differs from the earlier local APK documented above. GitHub login with
+repository access is required to download from this private repository. Target
+device interaction and complete functional/visual parity remain unverified.
