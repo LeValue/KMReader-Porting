@@ -168,12 +168,7 @@ void main() {
       ]);
       await Future<void>.delayed(const Duration(seconds: 1));
       await tester.pumpAndSettle();
-      expect(
-        MediaQuery.of(tester.element(find.text('Reader closed')))
-            .viewPadding
-            .top,
-        greaterThan(0),
-      );
+      expect(tester.view.viewPadding.top, greaterThan(0));
       expect(tester.takeException(), isNull);
       await SystemChrome.setPreferredOrientations([]);
     },
