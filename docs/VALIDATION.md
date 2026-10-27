@@ -117,3 +117,16 @@ This build installs alongside 0.1.0; it does not overwrite that app's storage.
 The user reported successful real-server connection and comic/ebook reading
 with 0.1.0, while also reporting UI lag. This optimized build still requires
 fresh performance and behavior acceptance on the user's device.
+
+The complete CI workflow for source
+`fc5b32be6c613eb936696134cb598b40037f950b` succeeded for Android, Windows, and
+preview publication:
+
+https://github.com/LeValue/KMReader-Porting/actions/runs/40482167262
+
+The exact signed APK was published at
+https://github.com/LeValue/KMReader-Porting/releases/tag/v0.2.0-preview.1,
+downloaded back through GitHub, and independently checked against its SHA256,
+retained certificate, non-debuggable manifest, AOT/native libraries for all
+three ABIs, APK signature and 16 KiB ZIP alignment. The downloaded file matches
+the local artifact listed above byte for byte.
