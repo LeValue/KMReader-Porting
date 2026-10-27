@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../core/models.dart';
+import '../../core/api.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
@@ -45,6 +46,44 @@ class _ReaderPageState extends State<ReaderPage> {
   bool _loadingDimensions = false;
   bool _dimensionsLoaded = false;
   bool _initialPartPending = false;
+  Json _seriesMetadata = {};
+  bool _loadingSeries = false;
+  Future<void> _loadSeriesDirection() async {
+    if (_loadingSeries ||
+        _seriesMetadata.isNotEmpty ||
+        widget.book.format != 'comic' ||
+        widget.book.seriesId.isEmpty ||
+        !_session.preferences.useSeriesDirection) {
+      return;
+    }
+    _loadingSeries = true;
+    try {
+      final series = object(
+        await widget.repository.get(
+          '/api/v1/series/${Uri.encodeComponent(widget.book.seriesId)}',
+          cacheFirst: true,
+          cacheKey: 'detail:series:${widget.book.seriesId}',
+        ),
+      );
+      if (!mounted) return;
+      _seriesMetadata = object(series['metadata']);
+      if (_session.preferences.useSeriesDirection) {
+        final resolved = seriesReaderPreferences(
+          _session.preferences,
+          _seriesMetadata,
+        );
+        if (resolved.mode != _session.preferences.mode ||
+            resolved.direction != _session.preferences.direction) {
+          _configure(resolved);
+        }
+      }
+    } on ApiFailure {
+      /* Existing reader defaults remain available offline. */
+    } finally {
+      _loadingSeries = false;
+    }
+  }
+
   bool get _split =>
       _session.preferences.mode == ReadingMode.paged &&
       ['auto', 'ltr', 'rtl'].contains(_session.preferences.splitWide) &&
@@ -221,10 +260,25 @@ class _ReaderPageState extends State<ReaderPage> {
       'reader:${widget.book.id}',
     );
     final defaults = widget.repository.store.setting<dynamic>('readerDefault');
+    final initial = object(json ?? defaults);
+    if (json != null && !initial.containsKey('useSeriesDirection')) {
+      initial['useSeriesDirection'] = false;
+    }
+    _seriesMetadata = object(
+      object(
+        widget.repository.store.cached(
+          widget.repository.profile.id,
+          'detail:series:${widget.book.seriesId}',
+        ),
+      )['metadata'],
+    );
     _session = ReadingSession(
       count: widget.book.pages,
       initialPage: widget.book.completed ? 1 : widget.book.page,
-      preferences: ReaderPreferences.fromJson(object(json ?? defaults)),
+      preferences: seriesReaderPreferences(
+        ReaderPreferences.fromJson(initial),
+        _seriesMetadata,
+      ),
       incognito: widget.incognito,
       onCommit: (page) => widget.repository.setProgress(widget.book, page),
     );
@@ -238,6 +292,7 @@ class _ReaderPageState extends State<ReaderPage> {
         _verticalReady = true;
         _preload();
         if (_session.preferences.splitWide != 'none') _loadDimensions();
+        _loadSeriesDirection();
       }
     });
   }
@@ -296,6 +351,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _configure(ReaderPreferences preferences) {
+    preferences = seriesReaderPreferences(preferences, _seriesMetadata);
     final old = _pages;
     setState(() {
       _verticalReady = false;
@@ -313,6 +369,11 @@ class _ReaderPageState extends State<ReaderPage> {
       _verticalReady = true;
       if (mounted) _preload();
       if (mounted && preferences.splitWide != 'none') _loadDimensions();
+      if (mounted &&
+          preferences.useSeriesDirection &&
+          _seriesMetadata.isEmpty) {
+        _loadSeriesDirection();
+      }
     });
   }
 
@@ -387,9 +448,18 @@ class _ReaderPageState extends State<ReaderPage> {
                             ReadingMode.webtoon => 'Webtoon',
                           }),
                           selected: p.mode == mode,
-                          onSelected: (_) => apply(p.copy(mode: mode)),
+                          onSelected: (_) => apply(
+                            p.copy(mode: mode, useSeriesDirection: false),
+                          ),
                         ),
                     ],
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Use Series Reading Direction')),
+                    value: p.useSeriesDirection,
+                    onChanged: (value) =>
+                        apply(p.copy(useSeriesDirection: value)),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -400,6 +470,7 @@ class _ReaderPageState extends State<ReaderPage> {
                         direction: v
                             ? ReadingDirection.rtl
                             : ReadingDirection.ltr,
+                        useSeriesDirection: false,
                       ),
                     ),
                   ),

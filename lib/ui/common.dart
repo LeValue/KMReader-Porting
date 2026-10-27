@@ -137,7 +137,7 @@ class FailureView extends StatelessWidget {
         children: [
           const Icon(CupertinoIcons.exclamationmark_circle, size: 44),
           const SizedBox(height: 16),
-          Text(error.toString(), textAlign: TextAlign.center),
+          Text(tr(context, error.toString()), textAlign: TextAlign.center),
           const SizedBox(height: 20),
           FilledButton(onPressed: retry, child: Text(tr(context, 'Retry'))),
         ],

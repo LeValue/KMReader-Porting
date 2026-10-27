@@ -163,7 +163,10 @@ void main() {
             }
             if (request.url.path.contains('/pages/') ||
                 request.url.path.endsWith('/thumbnail')) {
-              return http.Response.bytes([1, 2, 3], 200);
+              return http.Response.bytes(
+                File('test/fixtures/page.png').readAsBytesSync(),
+                200,
+              );
             }
             return http.Response(
               jsonEncode({
@@ -216,7 +219,10 @@ void main() {
         expect(repository.pageFile('book', page).existsSync(), isTrue);
       }
       repository.setOffline(true);
-      expect(await repository.page('book', 5), [1, 2, 3]);
+      expect(
+        await repository.page('book', 5),
+        File('test/fixtures/page.png').readAsBytesSync(),
+      );
       await repository.removeDownload('book');
       expect(store.download(profile.id, 'book'), isNull);
     });

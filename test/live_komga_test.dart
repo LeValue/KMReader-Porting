@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:http/http.dart' as http;
 
@@ -91,6 +92,14 @@ void main() {
         expect(search.items.length, 1);
         final comic = search.items.single.book;
         expect(comic.pages, 3);
+        final pageMetadata = (await api.request(
+          '/api/v1/books/${comic.id}/pages',
+        ) as List).map(object).toList();
+        expect(text(pageMetadata[1]['mediaType']), contains('tiff'));
+        expect(
+          text(pageMetadata[2]['mediaType']),
+          anyOf(contains('jp2'), contains('jpeg2000')),
+        );
         final series = await repository.catalog('series');
         expect(series.items, isNotEmpty);
         final children = await repository.catalog(
@@ -104,6 +113,20 @@ void main() {
         expect(store.download(profile.id, comic.id)!['status'], 'ready');
         repository.setOffline(true);
         expect((await repository.page(comic.id, 3)).take(4), [137, 80, 78, 71]);
+        for (final entry in {
+          2: [0, 255, 0, 255],
+          3: [0, 0, 255, 255],
+        }.entries) {
+          final bytes = await repository.page(comic.id, entry.key);
+          final codec = await ui.instantiateImageCodec(bytes);
+          final frame = await codec.getNextFrame();
+          final pixels = await frame.image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          );
+          expect(pixels!.buffer.asUint8List().take(4), entry.value);
+          frame.image.dispose();
+          codec.dispose();
+        }
         repository.setProgress(comic, 2);
         expect(repository.pendingCount, 1);
         expect((await repository.book(comic.id)).page, 2);

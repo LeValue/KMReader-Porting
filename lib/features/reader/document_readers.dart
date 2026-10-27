@@ -1,16 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
-import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'epub_document.dart';
+import 'pdf_reader.dart';
 
 class DocumentReader extends StatefulWidget {
   const DocumentReader({
@@ -56,7 +57,7 @@ class _DocumentReaderState extends State<DocumentReader> {
         );
       }
       return widget.book.format == 'pdf'
-          ? _PdfReader(
+          ? PdfReader(
               file: snapshot.data!,
               repository: widget.repository,
               book: widget.book,
@@ -69,173 +70,6 @@ class _DocumentReaderState extends State<DocumentReader> {
               incognito: widget.incognito,
             );
     },
-  );
-}
-
-class _PdfReader extends StatefulWidget {
-  const _PdfReader({
-    required this.file,
-    required this.repository,
-    required this.book,
-    required this.incognito,
-  });
-  final File file;
-  final Repository repository;
-  final Book book;
-  final bool incognito;
-  @override
-  State<_PdfReader> createState() => _PdfReaderState();
-}
-
-class _PdfReaderState extends State<_PdfReader> {
-  final _controller = PdfViewerController();
-  late PdfTextSearcher _searcher;
-  bool _ready = false, _search = false;
-  int _page = 1;
-  @override
-  void initState() {
-    super.initState();
-    _page = widget.book.completed
-        ? 1
-        : widget.book.page.clamp(1, widget.book.pages.clamp(1, 1000000));
-    _searcher = PdfTextSearcher(_controller);
-  }
-
-  @override
-  void dispose() {
-    _searcher.dispose();
-    super.dispose();
-  }
-
-  Future<void> _outline() async {
-    if (!_controller.isReady) return;
-    final nodes = await _controller.document.loadOutline();
-    if (!mounted) return;
-    Widget node(PdfOutlineNode item) => item.children.isEmpty
-        ? ListTile(
-            title: Text(item.title),
-            onTap: () {
-              Navigator.pop(context);
-              _controller.goToDest(item.dest);
-            },
-          )
-        : ExpansionTile(
-            title: Text(item.title),
-            children: [
-              if (item.dest != null)
-                ListTile(
-                  title: Text(tr(context, 'Go to Page')),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _controller.goToDest(item.dest);
-                  },
-                ),
-              ...item.children.map(node),
-            ],
-          );
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => nodes.isEmpty
-          ? const EmptyView(title: 'No Table of Contents')
-          : ListView(children: nodes.map(node).toList()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.book.title),
-      actions: [
-        if (widget.incognito) const Icon(CupertinoIcons.eye_slash),
-        IconButton(
-          tooltip: tr(context, 'Search'),
-          onPressed: () => setState(() => _search = !_search),
-          icon: const Icon(CupertinoIcons.search),
-        ),
-        IconButton(
-          tooltip: tr(context, 'Table of Contents'),
-          onPressed: _outline,
-          icon: const Icon(CupertinoIcons.list_bullet),
-        ),
-      ],
-    ),
-    body: Column(
-      children: [
-        if (_search)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: tr(context, 'Search'),
-                    ),
-                    onChanged: (v) => _searcher.startTextSearch(v),
-                  ),
-                ),
-                ListenableBuilder(
-                  listenable: _searcher,
-                  builder: (_, _) => Text(
-                    '${(_searcher.currentIndex ?? -1) + 1}/${_searcher.matches.length}',
-                  ),
-                ),
-                IconButton(
-                  onPressed: _searcher.goToPrevMatch,
-                  icon: const Icon(CupertinoIcons.chevron_up),
-                ),
-                IconButton(
-                  onPressed: _searcher.goToNextMatch,
-                  icon: const Icon(CupertinoIcons.chevron_down),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: PdfViewer.file(
-            widget.file.path,
-            controller: _controller,
-            initialPageNumber: _page,
-            params: PdfViewerParams(
-              pagePaintCallbacks: [_searcher.pageTextMatchPaintCallback],
-              onViewerReady: (document, controller) {
-                if (mounted) setState(() => _ready = true);
-              },
-              onPageChanged: (page) {
-                if (!_ready || page == null || !mounted) return;
-                setState(() => _page = page);
-                if (!widget.incognito) {
-                  widget.repository.setProgress(widget.book, page);
-                }
-              },
-            ),
-          ),
-        ),
-        if (_ready)
-          SafeArea(
-            top: false,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Slider(
-                    min: 1,
-                    max: _controller.pageCount.clamp(2, 1000000).toDouble(),
-                    value: _page.toDouble(),
-                    onChanged: _controller.pageCount > 1
-                        ? (v) => _controller.goToPage(pageNumber: v.round())
-                        : null,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Text('$_page / ${_controller.pageCount}'),
-                ),
-              ],
-            ),
-          ),
-      ],
-    ),
   );
 }
 
@@ -260,7 +94,20 @@ class _EpubReaderState extends State<_EpubReader> {
   final ScrollController _scroll = ScrollController(keepScrollOffset: false);
   late _EpubWidgetFactory _htmlFactory;
   int _contentGeneration = 0;
-  String? _pendingAnchor;
+  String? _pendingAnchor, _auxiliaryPath;
+  double _auxiliaryProgress = 0;
+  String get _currentPath =>
+      _auxiliaryPath ?? _document!.chapters[_chapter].path;
+  String? _htmlPath;
+  String _html = '';
+  String get _currentHtml {
+    if (_htmlPath != _currentPath) {
+      _html = utf8.decode(_document!.resource(_currentPath));
+      _htmlPath = _currentPath;
+    }
+    return _html;
+  }
+
   int _chapter = 0;
   double _fontSize = 19, _progress = 0;
   String _theme = 'sepia', _font = 'serif';
@@ -368,7 +215,10 @@ class _EpubReaderState extends State<_EpubReader> {
       if (!mounted || factory != _htmlFactory) return;
       if (!found) _scroll.jumpTo(0);
     } else {
-      _scroll.jumpTo(_progress * _scroll.position.maxScrollExtent);
+      _scroll.jumpTo(
+        (_auxiliaryPath == null ? _progress : _auxiliaryProgress) *
+            _scroll.position.maxScrollExtent,
+      );
     }
     if (!mounted || factory != _htmlFactory) return;
     _pendingAnchor = null;
@@ -382,6 +232,12 @@ class _EpubReaderState extends State<_EpubReader> {
 
   void _scrolled() {
     if (_restoring || !_scroll.hasClients) return;
+    if (_auxiliaryPath != null) {
+      _auxiliaryProgress = _scroll.position.maxScrollExtent <= 0
+          ? 0
+          : (_scroll.offset / _scroll.position.maxScrollExtent).clamp(0, 1);
+      return;
+    }
     _progress = _scroll.position.maxScrollExtent <= 0
         ? 0
         : (_scroll.offset / _scroll.position.maxScrollExtent).clamp(0, 1);
@@ -424,6 +280,7 @@ class _EpubReaderState extends State<_EpubReader> {
     _debounce?.cancel();
     _save();
     setState(() {
+      _auxiliaryPath = null;
       _chapter = chapter.clamp(0, _document!.chapters.length - 1);
       _progress = 0;
       _pendingAnchor = fragment;
@@ -434,15 +291,45 @@ class _EpubReaderState extends State<_EpubReader> {
     });
   }
 
-  bool _followLink(String url) {
+  bool _navigate(EpubLocation location) {
     final doc = _document;
-    if (doc == null) return false;
-    try {
-      final location = EpubDocument.locate(doc.chapters[_chapter].path, url);
-      final index = doc.chapters.indexWhere((c) => c.path == location.path);
-      if (index < 0) return false;
+    if (doc == null || !doc.isReadingResource(location.path)) return false;
+    final index = doc.chapters.indexWhere(
+      (chapter) => chapter.path == location.path,
+    );
+    if (index >= 0) {
       _go(index, fragment: location.fragment);
-      return true;
+    } else {
+      _debounce?.cancel();
+      _save();
+      setState(() {
+        _auxiliaryPath = location.path;
+        _auxiliaryProgress = 0;
+        _pendingAnchor = location.fragment;
+        _contentGeneration++;
+        _createFactory();
+        _restoring = true;
+        _positionDirty = false;
+      });
+    }
+    return true;
+  }
+
+  void _returnToReading() {
+    setState(() {
+      _auxiliaryPath = null;
+      _pendingAnchor = null;
+      _contentGeneration++;
+      _createFactory();
+      _restoring = true;
+      _positionDirty = false;
+    });
+  }
+
+  bool _followLink(String url) {
+    if (_document == null) return false;
+    try {
+      return _navigate(EpubDocument.locate(_currentPath, url));
     } on FormatException {
       return false;
     }
@@ -461,10 +348,13 @@ class _EpubReaderState extends State<_EpubReader> {
   void _retry() {
     _document?.close();
     _document = null;
+    _htmlPath = null;
+    _html = '';
     setState(() {
       _restoring = true;
       _positionDirty = false;
       _pendingAnchor = null;
+      _auxiliaryPath = null;
       _contentGeneration++;
       _createFactory();
       _future = _open();
@@ -475,15 +365,13 @@ class _EpubReaderState extends State<_EpubReader> {
     final doc = _document;
     if (doc == null) return;
     void navigate(EpubLocation location) {
-      final index = doc.chapters.indexWhere((c) => c.path == location.path);
-      if (index < 0) return;
+      if (!doc.isReadingResource(location.path)) return;
       Navigator.pop(context);
-      _go(index, fragment: location.fragment);
+      _navigate(location);
     }
 
     bool current(EpubNavigationEntry entry) =>
-        entry.location?.path == doc.chapters[_chapter].path ||
-        entry.children.any(current);
+        entry.location?.path == _currentPath || entry.children.any(current);
     Widget node(EpubNavigationEntry entry) => entry.children.isEmpty
         ? ListTile(
             title: Text(entry.title),
@@ -523,61 +411,69 @@ class _EpubReaderState extends State<_EpubReader> {
     super.dispose();
   }
 
-  void _settings() => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (context) => StatefulBuilder(
-      builder: (context, update) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(tr(context, 'Text Size')),
-              Slider(
-                value: _fontSize,
-                min: 12,
-                max: 36,
-                onChanged: (v) {
-                  _changeText(() => _fontSize = v);
-                  update(() {});
-                  _save();
-                },
-              ),
-              Wrap(
-                spacing: 12,
-                children: [
-                  for (final t in ['white', 'sepia', 'black'])
-                    ChoiceChip(
-                      label: Text(tr(context, t)),
-                      selected: _theme == t,
-                      onSelected: (_) {
-                        _changeText(() => _theme = t);
-                        update(() {});
-                        _save();
-                      },
+  void _settings() {
+    var draftSize = _fontSize;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(tr(context, 'Text Size')),
+                Slider(
+                  value: draftSize,
+                  min: 12,
+                  max: 36,
+                  onChanged: (v) {
+                    update(() => draftSize = v);
+                  },
+                  onChangeEnd: (v) {
+                    _changeText(() => _fontSize = v);
+                  },
+                ),
+                Wrap(
+                  spacing: 12,
+                  children: [
+                    for (final t in ['white', 'sepia', 'black'])
+                      ChoiceChip(
+                        label: Text(tr(context, t)),
+                        selected: _theme == t,
+                        onSelected: (_) {
+                          _changeText(() => _theme = t);
+                          update(() {});
+                          _save();
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'serif', label: Text('Serif')),
+                    ButtonSegment(
+                      value: 'sans-serif',
+                      label: Text('Sans Serif'),
                     ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'serif', label: Text('Serif')),
-                  ButtonSegment(value: 'sans-serif', label: Text('Sans Serif')),
-                ],
-                selected: {_font},
-                onSelectionChanged: (v) {
-                  _changeText(() => _font = v.first);
-                  update(() {});
-                  _save();
-                },
-              ),
-            ],
+                  ],
+                  selected: {_font},
+                  onSelectionChanged: (v) {
+                    _changeText(() => _font = v.first);
+                    update(() {});
+                    _save();
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: switch (_theme) {
@@ -589,6 +485,12 @@ class _EpubReaderState extends State<_EpubReader> {
       title: Text(widget.book.title),
       actions: [
         if (widget.incognito) const Icon(CupertinoIcons.eye_slash),
+        if (_auxiliaryPath != null)
+          IconButton(
+            tooltip: tr(context, 'Back to Reading'),
+            onPressed: _returnToReading,
+            icon: const Icon(CupertinoIcons.arrow_uturn_left),
+          ),
         IconButton(
           tooltip: tr(context, 'Text Settings'),
           onPressed: _settings,
@@ -625,7 +527,7 @@ class _EpubReaderState extends State<_EpubReader> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 720),
                       child: HtmlWidget(
-                        doc.chapter(_chapter),
+                        _currentHtml,
                         key: ValueKey(_contentGeneration),
                         factoryBuilder: () => _htmlFactory,
                         textStyle: TextStyle(
@@ -642,7 +544,7 @@ class _EpubReaderState extends State<_EpubReader> {
                           if (src == null) return null;
                           try {
                             final path = EpubDocument.resolve(
-                              doc.chapters[_chapter].path,
+                              _currentPath,
                               src,
                             );
                             return Image.memory(
@@ -684,7 +586,9 @@ class _EpubReaderState extends State<_EpubReader> {
                   ),
                   Expanded(
                     child: Text(
-                      doc.chapters[_chapter].title,
+                      _auxiliaryPath == null
+                          ? doc.chapters[_chapter].title
+                          : tr(context, 'Supplementary Content'),
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

@@ -34,6 +34,37 @@ class _WideRepository extends FixtureRepository {
 
 void main() {
   test(
+    'series direction is inherited without replacing explicit reader choices',
+    () {
+      const base = ReaderPreferences(background: 'sepia', preload: 'lowMemory');
+      final rtl = seriesReaderPreferences(base, {
+        'readingDirection': 'RIGHT_TO_LEFT',
+      });
+      expect(rtl.direction, ReadingDirection.rtl);
+      expect(rtl.mode, ReadingMode.paged);
+      expect(rtl.background, 'sepia');
+      expect(rtl.preload, 'lowMemory');
+      expect(
+        seriesReaderPreferences(base, {'readingDirection': 'WEBTOON'}).mode,
+        ReadingMode.webtoon,
+      );
+      expect(
+        seriesReaderPreferences(base, {'readingDirection': 'VERTICAL'}).mode,
+        ReadingMode.vertical,
+      );
+      final manual = base.copy(useSeriesDirection: false);
+      expect(
+        identical(
+          seriesReaderPreferences(manual, {
+            'readingDirection': 'RIGHT_TO_LEFT',
+          }),
+          manual,
+        ),
+        isTrue,
+      );
+    },
+  );
+  test(
     'tap zone layouts and inversion match upstream grid and T-split rules',
     () {
       const previous = TapAction.previous,

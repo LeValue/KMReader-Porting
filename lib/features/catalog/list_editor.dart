@@ -192,6 +192,7 @@ class _ListEditorState extends State<ListEditor> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: TextField(
                   controller: _name,
+                  enabled: !_busy,
                   decoration: InputDecoration(labelText: tr(context, 'Name')),
                   onChanged: (_) => setState(() => _dirty = true),
                 ),
@@ -201,6 +202,7 @@ class _ListEditorState extends State<ListEditor> {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   child: TextField(
                     controller: _summary,
+                    enabled: !_busy,
                     maxLines: 2,
                     decoration: InputDecoration(
                       labelText: tr(context, 'Summary'),

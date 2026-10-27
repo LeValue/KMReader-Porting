@@ -140,7 +140,7 @@ class CatalogItem {
       text(object(json['metadata'])['title'], text(json['name']));
   String get subtitle => kind == 'books'
       ? text(json['seriesTitle'])
-      : '${integer(json['booksCount'], (json['bookIds'] as List?)?.length ?? 0)}';
+      : '${integer(json[kind == 'collections' ? 'seriesCount' : 'booksCount'], (json[kind == 'collections' ? 'seriesIds' : 'bookIds'] as List?)?.length ?? 0)}';
   String get thumbnail => '/api/v1/$kind/${Uri.encodeComponent(id)}/thumbnail';
   Book get book => Book(json);
 }
@@ -178,6 +178,7 @@ class ReaderPreferences {
     this.preload = 'balanced',
     this.animate = true,
     this.splitWide = 'none',
+    this.useSeriesDirection = true,
   });
   final ReadingMode mode;
   final ReadingDirection direction;
@@ -187,6 +188,7 @@ class ReaderPreferences {
   final String tapMode, tapInversion, preload;
   final bool animate;
   final String splitWide;
+  final bool useSeriesDirection;
   factory ReaderPreferences.fromJson(Json j) => ReaderPreferences(
     mode: ReadingMode.values.firstWhere(
       (v) => v.name == j['mode'],
@@ -204,6 +206,7 @@ class ReaderPreferences {
     preload: text(j['preload'], 'balanced'),
     animate: j['animate'] != false,
     splitWide: text(j['splitWide'], 'none'),
+    useSeriesDirection: j['useSeriesDirection'] != false,
   );
   Json toJson() => {
     'mode': mode.name,
@@ -217,6 +220,7 @@ class ReaderPreferences {
     'preload': preload,
     'animate': animate,
     'splitWide': splitWide,
+    'useSeriesDirection': useSeriesDirection,
   };
   ReaderPreferences copy({
     ReadingMode? mode,
@@ -230,6 +234,7 @@ class ReaderPreferences {
     String? preload,
     bool? animate,
     String? splitWide,
+    bool? useSeriesDirection,
   }) => ReaderPreferences(
     mode: mode ?? this.mode,
     direction: direction ?? this.direction,
@@ -242,5 +247,32 @@ class ReaderPreferences {
     preload: preload ?? this.preload,
     animate: animate ?? this.animate,
     splitWide: splitWide ?? this.splitWide,
+    useSeriesDirection: useSeriesDirection ?? this.useSeriesDirection,
   );
+}
+
+ReaderPreferences seriesReaderPreferences(
+  ReaderPreferences preferences,
+  Json metadata,
+) {
+  if (!preferences.useSeriesDirection) return preferences;
+  return switch (text(metadata['readingDirection']).trim().toUpperCase()) {
+    'LEFT_TO_RIGHT' => preferences.copy(
+      direction: ReadingDirection.ltr,
+      mode: ReadingMode.paged,
+    ),
+    'RIGHT_TO_LEFT' => preferences.copy(
+      direction: ReadingDirection.rtl,
+      mode: ReadingMode.paged,
+    ),
+    'VERTICAL' => preferences.copy(
+      direction: ReadingDirection.ltr,
+      mode: ReadingMode.vertical,
+    ),
+    'WEBTOON' => preferences.copy(
+      direction: ReadingDirection.ltr,
+      mode: ReadingMode.webtoon,
+    ),
+    _ => preferences,
+  };
 }

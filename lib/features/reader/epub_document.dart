@@ -171,12 +171,19 @@ class EpubDocument {
     List<EpubChapter> chapters,
     String Function(String) read,
   ) {
-    final chapterPaths = chapters.map((c) => c.path).toSet();
+    final chapterPaths = {
+      ...chapters.map((c) => c.path),
+      ...manifest.values.where(_htmlResource),
+    };
     EpubLocation? target(String from, String? href) {
       if (href == null) return null;
       try {
         final location = locate(from, href);
-        return chapterPaths.contains(location.path) ? location : null;
+        if (!chapterPaths.contains(location.path)) return null;
+        read(
+          location.path,
+        ); // Reject missing archive entries before exposing a destination.
+        return location;
       } on FormatException {
         return null;
       }
@@ -324,6 +331,17 @@ class EpubDocument {
     }
     return item.content;
   }
+
+  static bool _htmlResource(String path) => const [
+    '.xhtml',
+    '.html',
+    '.htm',
+  ].contains(p.posix.extension(path).toLowerCase());
+
+  bool isReadingResource(String path) =>
+      (chapters.any((chapter) => chapter.path == path) ||
+          _htmlResource(path)) &&
+      archive.findFile(path) != null;
 
   String chapter(int index) => utf8.decode(resource(chapters[index].path));
   void close() => _input.closeSync();

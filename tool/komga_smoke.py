@@ -59,7 +59,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix='kmreader-live-') as td:
         root = Path(td); library = root/'library'; series = library/'Synthetic Series'; series.mkdir(parents=True)
         with zipfile.ZipFile(series/'Synthetic Comic.cbz', 'w') as z:
-            for i, color in enumerate([(255,0,0),(0,255,0),(0,0,255)],1): z.writestr(f'{i:03d}.png', png(color))
+            fixtures=Path(__file__).resolve().parent.parent/'test'/'fixtures'
+            z.writestr('001.png',png((255,0,0)))
+            z.writestr('002.tiff',(fixtures/'page.tiff').read_bytes())
+            z.writestr('003.jp2',(fixtures/'page.jp2').read_bytes())
             z.writestr('ComicInfo.xml','<ComicInfo><Title>Synthetic Comic</Title><Series>Synthetic Series</Series><Number>1</Number></ComicInfo>')
         epub(series/'Synthetic EPUB.epub'); pdf(series/'Synthetic PDF.pdf')
         with socket.socket() as sock: sock.bind(('127.0.0.1',0)); port = sock.getsockname()[1]
