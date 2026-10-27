@@ -61,7 +61,7 @@ class KomgaApi {
 
   Map<String, String> get headers => {
     'Accept': 'application/json',
-    'User-Agent': 'KMReader-Porting/0.4.1',
+    'User-Agent': 'KMReader-Porting/0.5.0',
     if (_credential.isNotEmpty)
       if (authentication == Authentication.apiKey)
         'X-API-Key': _credential

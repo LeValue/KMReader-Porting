@@ -147,3 +147,35 @@ finger, zoom reset, desktop wheel zoom, reuse of the rendered subtree, deferred
 progress, full viewport size with simulated insets, vertical recycling, and
 system-UI ownership/restoration. Physical Android frame times and OEM system-bar
 behavior still require target-device acceptance.
+
+## 0.5.0 notch handling and remaining reader preferences
+
+Android reports stable system-bar and physical display-cutout insets separately.
+Reader titles, controls and sheets use their maximum even if Flutter reports zero
+padding after immersive mode hides the bars. EPUB/PDF AppBars receive the same
+safe MediaQuery. The comic surface excludes only the actual notch, retaining
+system-bar space; users can explicitly extend page content into the cutout.
+Rotation replaces the old edges rather than accumulating portrait padding.
+The global-layout observer is reader-scoped and emits only changed inset maps;
+it does not replace Flutter's rendering-view WindowInsets listener.
+
+Optional border cropping follows upstream conservative/aggressive pixel thresholds,
+padding and retained-area safeguards. It decodes an analysis raster at 40% or less,
+capped at 1024 pixels on its longest edge. The pixel scan runs in an isolate;
+original encoded files remain untouched, and layout clips the original image
+without encoding a second full-size PNG. Analysis futures are weakly associated
+with shared byte objects, so reused adjacent pages avoid repeated analysis without
+an unbounded cache. The disabled default bypasses analysis entirely.
+
+Double-tap zoom is configurable from 1x to 8x. The dashboard's seven ordinary
+sections now match upstream section types and card-size choices. Recently Released
+uses a calendar-day month cutoff to preserve query-cache reuse throughout a day.
+Changing a card style reuses catalog data. The optional Read Lists in Progress
+section and other matrix gaps remain separate outstanding work.
+
+The local suite passes 96 tests plus one deliberately skipped live case. New
+checks cover zero Flutter padding, physical-to-logical inset conversion, landscape
+notches, opt-in full-display content with protected controls, document AppBars,
+actual cropped pixels, vertical crop geometry, configured double-tap zoom,
+month-end cutoffs, and card-style persistence without HTTP refetches.
+These checks do not measure frame times or validate OEM window behavior on a phone.

@@ -1,5 +1,18 @@
 # Development validation
 
+## 0.5.0 notch-safe readers and dashboard — local verification
+
+Formatting and static analysis pass. The suite passes **96 tests**, with the live
+Komga test deliberately skipped in that run. Physical notch insets are tested with
+zero Flutter padding, conversion from physical pixels, rotation to a side notch,
+protected chrome with explicit cutout extension, and document AppBar titles.
+Border-crop tests check safety thresholds and actual displayed pixels, including
+vertical geometry; double-tap scale, section queries and cached card-style changes
+are covered. Real-server integration and target builds are in progress.
+
+The broader port remains incomplete; the remaining work is recorded in
+[PARITY.md](PARITY.md). Automated geometry is not physical OEM/device acceptance.
+
 ## 0.4.1 preview — verified comic-reader fixes
 
 Source: `9332ee4bf67fcfa11db645b3941b4c5ae03c15a1`. All three jobs passed in

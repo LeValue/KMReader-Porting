@@ -18,6 +18,7 @@ import 'tap_zones.dart';
 import 'page_parts.dart';
 import 'reader_viewport.dart';
 import 'reader_display.dart';
+import 'page_crop.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -514,7 +515,7 @@ class _ReaderPageState extends State<ReaderPage> {
         }
 
         final p = _session.preferences;
-        return SafeArea(
+        return ReaderSafeArea(
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -635,6 +636,17 @@ class _ReaderPageState extends State<ReaderPage> {
                       }
                     },
                   ),
+                  if (Theme.of(context).platform == TargetPlatform.android)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(tr(context, 'Use Display Cutout')),
+                      subtitle: Text(
+                        tr(context, 'Allow the page behind the camera notch'),
+                      ),
+                      value: p.extendIntoCutout,
+                      onChanged: (value) =>
+                          apply(p.copy(extendIntoCutout: value)),
+                    ),
                   for (final setting in ['tapMode', 'tapInversion', 'preload'])
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -702,6 +714,52 @@ class _ReaderPageState extends State<ReaderPage> {
                         }
                       },
                     ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Border Cropping')),
+                    subtitle: Text(
+                      tr(
+                        context,
+                        {
+                          'disabled': 'Disabled',
+                          'conservative': 'Conservative',
+                          'aggressive': 'Aggressive',
+                        }[p.borderCrop]!,
+                      ),
+                    ),
+                    onTap: () async {
+                      final value = await chooseValue(
+                        context,
+                        title: 'Border Cropping',
+                        selected: p.borderCrop,
+                        choices: const {
+                          'disabled': 'Disabled',
+                          'conservative': 'Conservative',
+                          'aggressive': 'Aggressive',
+                        },
+                      );
+                      if (value != null && mounted && context.mounted) {
+                        apply(p.copy(borderCrop: value));
+                      }
+                    },
+                  ),
+                  Text(tr(context, 'Double Tap Zoom Scale')),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Slider(
+                          value: p.doubleTapZoom,
+                          min: 1,
+                          max: 8,
+                          divisions: 14,
+                          label: '${p.doubleTapZoom.toStringAsFixed(1)}×',
+                          onChanged: (value) =>
+                              apply(p.copy(doubleTapZoom: value)),
+                        ),
+                      ),
+                      Text('${p.doubleTapZoom.toStringAsFixed(1)}×'),
+                    ],
+                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(tr(context, 'Page Turn Animation')),
@@ -749,11 +807,13 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   Widget build(BuildContext context) {
     if (widget.book.format != 'comic') {
-      return DocumentReader(
-        repository: widget.repository,
-        book: widget.book,
-        load: _document,
-        incognito: widget.incognito,
+      return ReaderDisplay(
+        child: DocumentReader(
+          repository: widget.repository,
+          book: widget.book,
+          load: _document,
+          incognito: widget.incognito,
+        ),
       );
     }
     final settings = _session.preferences;
@@ -803,140 +863,145 @@ class _ReaderPageState extends State<ReaderPage> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: NotificationListener<ScrollNotification>(
-                onNotification: _scrollNotification,
-                child: widget.book.pages == 0
-                    ? EmptyView(
-                        title: 'No Pages',
-                        message: 'This book has no readable pages.',
-                        icon: CupertinoIcons.book,
-                      )
-                    : settings.mode == ReadingMode.paged
-                    ? LayoutBuilder(
-                        builder: (context, constraints) => ReaderViewport(
-                          controller: _zoom,
-                          onContact: () => _gesturePage = _pages.hasClients
-                              ? (_pages.page ?? 0).round()
-                              : _viewIndex,
-                          onPinch: () {
-                            if (_pages.hasClients) {
-                              _pages.jumpToPage(_gesturePage);
-                            }
-                          },
-                          startScroll: (details) => _pages.hasClients
-                              ? _pages.position.drag(details, () {})
-                              : null,
-                          onActivityChanged: _activity,
-                          onZoomSettled: _zoomSettled,
-                          onTap: (point) => _tap(point, constraints.biggest),
-                          onWheel: (delta) {
-                            if (!_scrolling && delta != 0) {
-                              _turn(delta.sign.toInt());
-                            }
-                          },
-                          child: PageView.builder(
-                            key: ValueKey(modeKey),
-                            controller: _pages,
-                            physics: const NeverScrollableScrollPhysics(),
-                            allowImplicitScrolling: true,
-                            reverse: settings.direction == ReadingDirection.rtl,
-                            itemCount: _viewCount,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _resetZoom();
-                                _partIndex = index;
-                                _session.go(
-                                  _split
-                                      ? _parts[index].page
-                                      : index * _session.step + 1,
-                                );
-                              });
-                              _settled();
-                            },
-                            itemBuilder: (context, index) {
-                              if (_split) {
-                                final part = _parts[index];
-                                return _PageImage(
-                                  repository: widget.repository,
-                                  book: widget.book,
-                                  page: part.page,
-                                  half: part.half,
-                                  halfAspect: part.aspect,
-                                  decodeZoom: index == _viewIndex
-                                      ? _decodeZoom
-                                      : 1,
-                                  preferences: settings,
-                                  onReady: () {
-                                    _readyPages.add(part.page);
-                                    _commitIfReady();
-                                  },
-                                );
+              child: ReaderPageSurface(
+                extendIntoCutout: settings.extendIntoCutout,
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _scrollNotification,
+                  child: widget.book.pages == 0
+                      ? EmptyView(
+                          title: 'No Pages',
+                          message: 'This book has no readable pages.',
+                          icon: CupertinoIcons.book,
+                        )
+                      : settings.mode == ReadingMode.paged
+                      ? LayoutBuilder(
+                          builder: (context, constraints) => ReaderViewport(
+                            controller: _zoom,
+                            doubleTapZoom: settings.doubleTapZoom,
+                            onContact: () => _gesturePage = _pages.hasClients
+                                ? (_pages.page ?? 0).round()
+                                : _viewIndex,
+                            onPinch: () {
+                              if (_pages.hasClients) {
+                                _pages.jumpToPage(_gesturePage);
                               }
-                              final page = index * _session.step + 1;
-                              final children = [
-                                for (
-                                  var i = page;
-                                  i < page + _session.step &&
-                                      i <= widget.book.pages;
-                                  i++
-                                )
-                                  Expanded(
-                                    child: _PageImage(
-                                      repository: widget.repository,
-                                      book: widget.book,
-                                      page: i,
-                                      decodeZoom: index == _viewIndex
-                                          ? _decodeZoom
-                                          : 1,
-                                      preferences: settings,
-                                      onReady: () {
-                                        _readyPages.add(i);
-                                        _commitIfReady();
-                                      },
-                                    ),
-                                  ),
-                              ];
-                              return Row(
-                                textDirection:
-                                    settings.direction == ReadingDirection.rtl
-                                    ? TextDirection.rtl
-                                    : TextDirection.ltr,
-                                children: children,
-                              );
                             },
-                          ),
-                        ),
-                      )
-                    : ScrollablePositionedList.builder(
-                        key: ValueKey(modeKey),
-                        itemScrollController: _scroll,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemPositionsListener: _positions,
-                        initialScrollIndex: _session.page - 1,
-                        itemCount: widget.book.pages,
-                        itemBuilder: (context, index) => GestureDetector(
-                          onTap: () => setState(() => _controls = !_controls),
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              bottom: settings.mode == ReadingMode.webtoon
-                                  ? 0
-                                  : 12,
-                            ),
-                            child: _PageImage(
-                              repository: widget.repository,
-                              book: widget.book,
-                              page: index + 1,
-                              preferences: settings,
-                              vertical: true,
-                              onActivityChanged: _activity,
-                              onReady: () {
-                                _readyPages.add(index + 1);
-                                _commitIfReady();
+                            startScroll: (details) => _pages.hasClients
+                                ? _pages.position.drag(details, () {})
+                                : null,
+                            onActivityChanged: _activity,
+                            onZoomSettled: _zoomSettled,
+                            onTap: (point) => _tap(point, constraints.biggest),
+                            onWheel: (delta) {
+                              if (!_scrolling && delta != 0) {
+                                _turn(delta.sign.toInt());
+                              }
+                            },
+                            child: PageView.builder(
+                              key: ValueKey(modeKey),
+                              controller: _pages,
+                              physics: const NeverScrollableScrollPhysics(),
+                              allowImplicitScrolling: true,
+                              reverse:
+                                  settings.direction == ReadingDirection.rtl,
+                              itemCount: _viewCount,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _resetZoom();
+                                  _partIndex = index;
+                                  _session.go(
+                                    _split
+                                        ? _parts[index].page
+                                        : index * _session.step + 1,
+                                  );
+                                });
+                                _settled();
+                              },
+                              itemBuilder: (context, index) {
+                                if (_split) {
+                                  final part = _parts[index];
+                                  return _PageImage(
+                                    repository: widget.repository,
+                                    book: widget.book,
+                                    page: part.page,
+                                    half: part.half,
+                                    halfAspect: part.aspect,
+                                    decodeZoom: index == _viewIndex
+                                        ? _decodeZoom
+                                        : 1,
+                                    preferences: settings,
+                                    onReady: () {
+                                      _readyPages.add(part.page);
+                                      _commitIfReady();
+                                    },
+                                  );
+                                }
+                                final page = index * _session.step + 1;
+                                final children = [
+                                  for (
+                                    var i = page;
+                                    i < page + _session.step &&
+                                        i <= widget.book.pages;
+                                    i++
+                                  )
+                                    Expanded(
+                                      child: _PageImage(
+                                        repository: widget.repository,
+                                        book: widget.book,
+                                        page: i,
+                                        decodeZoom: index == _viewIndex
+                                            ? _decodeZoom
+                                            : 1,
+                                        preferences: settings,
+                                        onReady: () {
+                                          _readyPages.add(i);
+                                          _commitIfReady();
+                                        },
+                                      ),
+                                    ),
+                                ];
+                                return Row(
+                                  textDirection:
+                                      settings.direction == ReadingDirection.rtl
+                                      ? TextDirection.rtl
+                                      : TextDirection.ltr,
+                                  children: children,
+                                );
                               },
                             ),
                           ),
+                        )
+                      : ScrollablePositionedList.builder(
+                          key: ValueKey(modeKey),
+                          itemScrollController: _scroll,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemPositionsListener: _positions,
+                          initialScrollIndex: _session.page - 1,
+                          itemCount: widget.book.pages,
+                          itemBuilder: (context, index) => GestureDetector(
+                            onTap: () => setState(() => _controls = !_controls),
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                bottom: settings.mode == ReadingMode.webtoon
+                                    ? 0
+                                    : 12,
+                              ),
+                              child: _PageImage(
+                                repository: widget.repository,
+                                book: widget.book,
+                                page: index + 1,
+                                preferences: settings,
+                                vertical: true,
+                                onActivityChanged: _activity,
+                                onReady: () {
+                                  _readyPages.add(index + 1);
+                                  _commitIfReady();
+                                },
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                ),
               ),
             ),
             if (_controls)
@@ -946,7 +1011,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 right: 0,
                 child: ColoredBox(
                   color: Colors.black.withValues(alpha: .85),
-                  child: SafeArea(
+                  child: ReaderSafeArea(
                     bottom: false,
                     child: Row(
                       children: [
@@ -1001,7 +1066,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 right: 0,
                 child: ColoredBox(
                   color: Colors.black.withValues(alpha: .85),
-                  child: SafeArea(
+                  child: ReaderSafeArea(
                     top: false,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1103,7 +1168,17 @@ class _PageImage extends StatefulWidget {
 
 class _PageImageState extends State<_PageImage>
     with AutomaticKeepAliveClientMixin {
-  late Future<Uint8List> _future;
+  late Future<(Uint8List, PageCrop?)> _future;
+  Future<(Uint8List, PageCrop?)> _load({bool refresh = false}) async {
+    final bytes = refresh
+        ? await widget.repository.image(
+            '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages/${widget.page}',
+            refresh: true,
+          )
+        : await widget.repository.page(widget.book.id, widget.page);
+    return (bytes, await pageCrop(bytes, widget.preferences.borderCrop));
+  }
+
   final _transform = TransformationController();
   bool _reported = false;
   double _verticalStart = 0, _verticalDecode = 1;
@@ -1113,7 +1188,7 @@ class _PageImageState extends State<_PageImage>
   @override
   void initState() {
     super.initState();
-    _future = widget.repository.page(widget.book.id, widget.page);
+    _future = _load();
   }
 
   @override
@@ -1127,16 +1202,17 @@ class _PageImageState extends State<_PageImage>
     super.didUpdateWidget(old);
     if (old.page != widget.page ||
         old.book.id != widget.book.id ||
-        old.half != widget.half) {
+        old.half != widget.half ||
+        old.preferences.borderCrop != widget.preferences.borderCrop) {
       _reported = false;
-      _future = widget.repository.page(widget.book.id, widget.page);
+      _future = _load();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final content = FutureBuilder<Uint8List>(
+    final content = FutureBuilder<(Uint8List, PageCrop?)>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -1146,7 +1222,7 @@ class _PageImageState extends State<_PageImage>
               error: snapshot.error!,
               retry: () => setState(() {
                 _reported = false;
-                _future = widget.repository.page(widget.book.id, widget.page);
+                _future = _load();
               }),
             ),
           );
@@ -1157,8 +1233,17 @@ class _PageImageState extends State<_PageImage>
             child: const Center(child: CircularProgressIndicator.adaptive()),
           );
         }
+        final crop = snapshot.data!.$2;
+        final halfAspect = crop == null ? widget.halfAspect : crop.aspect / 2;
+        final fit = widget.vertical
+            ? BoxFit.fitWidth
+            : switch (widget.preferences.fit) {
+                'fitWidth' => BoxFit.fitWidth,
+                'cover' => BoxFit.cover,
+                _ => BoxFit.contain,
+              };
         final image = Image.memory(
-          snapshot.data!,
+          snapshot.data!.$1,
           cacheWidth:
               (MediaQuery.sizeOf(context).width *
                       MediaQuery.devicePixelRatioOf(context) *
@@ -1167,13 +1252,7 @@ class _PageImageState extends State<_PageImage>
                   .ceil()
                   .clamp(1, 4096),
           width: double.infinity,
-          fit: widget.vertical
-              ? BoxFit.fitWidth
-              : switch (widget.preferences.fit) {
-                  'fitWidth' => BoxFit.fitWidth,
-                  'cover' => BoxFit.cover,
-                  _ => BoxFit.contain,
-                },
+          fit: crop == null ? fit : BoxFit.fill,
           gaplessPlayback: true,
           frameBuilder: (context, child, frame, synchronous) {
             if ((frame != null || synchronous) && !_reported) {
@@ -1186,24 +1265,25 @@ class _PageImageState extends State<_PageImage>
           },
           errorBuilder: (context, error, stack) => FailureView(
             error: error,
-            retry: () => setState(
-              () => _future = widget.repository.image(
-                '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages/${widget.page}',
-                refresh: true,
-              ),
-            ),
+            retry: () => setState(() {
+              _reported = false;
+              _future = _load(refresh: true);
+            }),
           ),
         );
+        final cropped = crop == null
+            ? image
+            : PageCropView(crop: crop, fit: fit, child: image);
         return RotatedBox(
           quarterTurns: widget.preferences.rotation,
           child: widget.half == 0
-              ? image
+              ? cropped
               : LayoutBuilder(
                   builder: (context, constraints) {
                     final width = constraints.maxWidth
-                        .clamp(0, constraints.maxHeight * widget.halfAspect)
+                        .clamp(0, constraints.maxHeight * halfAspect)
                         .toDouble();
-                    final height = width / widget.halfAspect;
+                    final height = width / halfAspect;
                     return Center(
                       child: SizedBox(
                         width: width,
@@ -1220,7 +1300,7 @@ class _PageImageState extends State<_PageImage>
                             child: SizedBox(
                               width: width * 2,
                               height: height,
-                              child: image,
+                              child: cropped,
                             ),
                           ),
                         ),
@@ -1235,6 +1315,7 @@ class _PageImageState extends State<_PageImage>
     ScrollPosition? position() => Scrollable.maybeOf(context)?.position;
     return ReaderViewport(
       controller: _transform,
+      doubleTapZoom: widget.preferences.doubleTapZoom,
       axis: Axis.vertical,
       onContact: () => _verticalStart = position()?.pixels ?? 0,
       onPinch: () => position()?.jumpTo(_verticalStart),

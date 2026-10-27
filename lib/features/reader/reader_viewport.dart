@@ -19,6 +19,7 @@ class ReaderViewport extends StatefulWidget {
     this.onActivityChanged,
     this.onZoomSettled,
     this.onWheel,
+    this.doubleTapZoom = 2,
   });
   final TransformationController controller;
   final Widget child;
@@ -29,6 +30,7 @@ class ReaderViewport extends StatefulWidget {
   final ValueChanged<bool>? onActivityChanged;
   final ValueChanged<double>? onZoomSettled;
   final ValueChanged<double>? onWheel;
+  final double doubleTapZoom;
   @override
   State<ReaderViewport> createState() => _ReaderViewportState();
 }
@@ -123,7 +125,7 @@ class _ReaderViewportState extends State<ReaderViewport>
     final translation = _initial.getTranslation();
     final anchor =
         (_origin - Offset(translation.x, translation.y)) / initialScale;
-    final scale = (initialScale * details.scale).clamp(1.0, 6.0);
+    final scale = (initialScale * details.scale).clamp(1.0, 8.0);
     widget.controller.value = _matrix(
       scale,
       details.localFocalPoint - anchor * scale,
@@ -146,7 +148,7 @@ class _ReaderViewportState extends State<ReaderViewport>
 
   Future<void> _toggleZoom() async {
     _animation.stop();
-    final scale = _scale > 1.001 ? 1.0 : 2.0;
+    final scale = _scale > 1.001 ? 1.0 : widget.doubleTapZoom.clamp(1.0, 8.0);
     final end = _matrix(scale, _doubleTap * (1 - scale));
     _matrixAnimation = Matrix4Tween(
       begin: widget.controller.value,
@@ -191,7 +193,7 @@ class _ReaderViewportState extends State<ReaderViewport>
               ? event.scale
               : math.exp(-(event as PointerScrollEvent).scrollDelta.dy / 200);
           final anchor = (event.localPosition - Offset(t.x, t.y)) / _scale;
-          final scale = (_scale * change).clamp(1.0, 6.0);
+          final scale = (_scale * change).clamp(1.0, 8.0);
           _animation.stop();
           widget.onActivityChanged?.call(true);
           widget.controller.value = _matrix(

@@ -9,7 +9,7 @@ import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/reader_page.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
-import 'package:sqlite3/sqlite3.dart';
+import 'package:sqlite3/sqlite3.dart' show sqlite3;
 
 import 'widget_test.dart' show FixtureRepository;
 
@@ -331,6 +331,176 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 100));
   });
+
+  testWidgets(
+    'hidden bars retain notch insets for title, buttons and reader sheets',
+    (tester) async {
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(ReaderDisplay.channel, (call) async {
+        return {
+          'left': 0,
+          'top': 108,
+          'right': 0,
+          'bottom': 72,
+          'cutoutTop': 108,
+        };
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(ReaderDisplay.channel, null),
+      );
+      Widget reader(Size size, {bool extend = false}) => MaterialApp(
+        home: MediaQuery(
+          // Reproduces Android clearing Flutter's padding in immersive mode.
+          data: MediaQueryData(size: size, devicePixelRatio: 3),
+          child: ReaderDisplay(
+            child: Scaffold(
+              body: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ReaderPageSurface(
+                      extendIntoCutout: extend,
+                      child: const ColoredBox(
+                        key: ValueKey('page'),
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: ReaderSafeArea(
+                      bottom: false,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            key: const ValueKey('close'),
+                            onPressed: () {},
+                            icon: const Icon(Icons.close),
+                          ),
+                          const Expanded(
+                            child: Text('Comic title', key: ValueKey('title')),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: ReaderSafeArea(
+                      top: false,
+                      child: SizedBox(key: ValueKey('footer'), height: 48),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(reader(const Size(800, 600)));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const ValueKey('page'))),
+        const Rect.fromLTWH(0, 36, 800, 564),
+      );
+      expect(tester.getTopLeft(find.byKey(const ValueKey('close'))).dy, 36);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('title'))).dy,
+        greaterThanOrEqualTo(36),
+      );
+      expect(
+        tester.getBottomRight(find.byKey(const ValueKey('footer'))).dy,
+        576,
+      );
+
+      tester.binding.channelBuffers.push(
+        ReaderDisplay.channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('readerInsets', {
+            'left': 132,
+            'top': 0,
+            'right': 24,
+            'bottom': 36,
+            'cutoutLeft': 132,
+          }),
+        ),
+        (_) {},
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('close'))),
+        const Offset(44, 0),
+      );
+      expect(
+        tester.getBottomRight(find.byKey(const ValueKey('footer'))),
+        const Offset(792, 588),
+      );
+      expect(
+        tester.getRect(find.byKey(const ValueKey('page'))),
+        const Rect.fromLTWH(44, 0, 756, 600),
+      );
+      await tester.pumpWidget(reader(const Size(800, 600), extend: true));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const ValueKey('page'))),
+        const Rect.fromLTWH(0, 0, 800, 600),
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('close'))).dx,
+        44,
+        reason: 'Opting into cutout content must never move controls under hardware',
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    'document-reader app bars receive native safe insets with hidden system bars',
+    (tester) async {
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        ReaderDisplay.channel,
+        (_) async => {
+          'left': 0,
+          'top': 48,
+          'right': 0,
+          'bottom': 24,
+          'cutoutTop': 48,
+        },
+      );
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(ReaderDisplay.channel, null),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(800, 600)),
+            child: ReaderDisplay(
+              child: Scaffold(
+                appBar: AppBar(title: const Text('EPUB / PDF title')),
+                body: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('EPUB / PDF title')).dy,
+        greaterThanOrEqualTo(48),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
 
   testWidgets(
     'Android reader display restores system UI after the last reader closes',
