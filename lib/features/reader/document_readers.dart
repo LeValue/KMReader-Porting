@@ -12,6 +12,7 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'epub_document.dart';
 import 'pdf_reader.dart';
+import 'reader_display.dart';
 
 class DocumentReader extends StatefulWidget {
   const DocumentReader({
@@ -396,7 +397,7 @@ class _EpubReaderState extends State<_EpubReader> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => SafeArea(
+      builder: (_) => ReaderSafeArea(
         child: ListView(children: doc.tableOfContents.map(node).toList()),
       ),
     );
@@ -417,7 +418,7 @@ class _EpubReaderState extends State<_EpubReader> {
       context: context,
       showDragHandle: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, update) => SafeArea(
+        builder: (context, update) => ReaderSafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -513,99 +514,104 @@ class _EpubReaderState extends State<_EpubReader> {
           return const Center(child: CircularProgressIndicator.adaptive());
         }
         final doc = snapshot.data!;
-        return Column(
-          children: [
-            Expanded(
-              child: SelectionArea(
-                child: SingleChildScrollView(
-                  controller: _scroll,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 20,
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: HtmlWidget(
-                        _currentHtml,
-                        key: ValueKey(_contentGeneration),
-                        factoryBuilder: () => _htmlFactory,
-                        textStyle: TextStyle(
-                          fontSize: _fontSize,
-                          height: 1.65,
-                          fontFamily: _font,
-                          color: _theme == 'black'
-                              ? const Color(0xffe8e4dc)
-                              : const Color(0xff262321),
+        return SafeArea(
+          top: false,
+          bottom: false,
+          child: Column(
+            children: [
+              Expanded(
+                child: SelectionArea(
+                  child: SingleChildScrollView(
+                    controller: _scroll,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 20,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: HtmlWidget(
+                          _currentHtml,
+                          key: ValueKey(_contentGeneration),
+                          factoryBuilder: () => _htmlFactory,
+                          textStyle: TextStyle(
+                            fontSize: _fontSize,
+                            height: 1.65,
+                            fontFamily: _font,
+                            color: _theme == 'black'
+                                ? const Color(0xffe8e4dc)
+                                : const Color(0xff262321),
+                          ),
+                          customWidgetBuilder: (element) {
+                            if (element.localName != 'img') return null;
+                            final src = element.attributes['src'];
+                            if (src == null) return null;
+                            try {
+                              final path = EpubDocument.resolve(
+                                _currentPath,
+                                src,
+                              );
+                              return Image.memory(
+                                doc.resource(path),
+                                cacheWidth:
+                                    ((MediaQuery.sizeOf(context).width - 56)
+                                                .clamp(1, 720) *
+                                            MediaQuery.devicePixelRatioOf(
+                                              context,
+                                            ) *
+                                            2)
+                                        .ceil()
+                                        .clamp(1, 4096),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) =>
+                                    Text(element.attributes['alt'] ?? 'Image'),
+                              );
+                            } catch (_) {
+                              return Text(
+                                element.attributes['alt'] ??
+                                    'Image unavailable',
+                              );
+                            }
+                          },
+                          onTapUrl: _followLink,
                         ),
-                        customWidgetBuilder: (element) {
-                          if (element.localName != 'img') return null;
-                          final src = element.attributes['src'];
-                          if (src == null) return null;
-                          try {
-                            final path = EpubDocument.resolve(
-                              _currentPath,
-                              src,
-                            );
-                            return Image.memory(
-                              doc.resource(path),
-                              cacheWidth:
-                                  ((MediaQuery.sizeOf(context).width - 56)
-                                              .clamp(1, 720) *
-                                          MediaQuery.devicePixelRatioOf(
-                                            context,
-                                          ) *
-                                          2)
-                                      .ceil()
-                                      .clamp(1, 4096),
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) =>
-                                  Text(element.attributes['alt'] ?? 'Image'),
-                            );
-                          } catch (_) {
-                            return Text(
-                              element.attributes['alt'] ?? 'Image unavailable',
-                            );
-                          }
-                        },
-                        onTapUrl: _followLink,
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            SafeArea(
-              top: false,
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: tr(context, 'Previous Chapter'),
-                    onPressed: _chapter > 0 ? () => _go(_chapter - 1) : null,
-                    icon: const Icon(CupertinoIcons.chevron_left),
-                  ),
-                  Expanded(
-                    child: Text(
-                      _auxiliaryPath == null
-                          ? doc.chapters[_chapter].title
-                          : tr(context, 'Supplementary Content'),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              ReaderSafeArea(
+                top: false,
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: tr(context, 'Previous Chapter'),
+                      onPressed: _chapter > 0 ? () => _go(_chapter - 1) : null,
+                      icon: const Icon(CupertinoIcons.chevron_left),
                     ),
-                  ),
-                  Text('${_chapter + 1} / ${doc.chapters.length}'),
-                  IconButton(
-                    tooltip: tr(context, 'Next Chapter'),
-                    onPressed: _chapter < doc.chapters.length - 1
-                        ? () => _go(_chapter + 1)
-                        : null,
-                    icon: const Icon(CupertinoIcons.chevron_right),
-                  ),
-                ],
+                    Expanded(
+                      child: Text(
+                        _auxiliaryPath == null
+                            ? doc.chapters[_chapter].title
+                            : tr(context, 'Supplementary Content'),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text('${_chapter + 1} / ${doc.chapters.length}'),
+                    IconButton(
+                      tooltip: tr(context, 'Next Chapter'),
+                      onPressed: _chapter < doc.chapters.length - 1
+                          ? () => _go(_chapter + 1)
+                          : null,
+                      icon: const Icon(CupertinoIcons.chevron_right),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     ),

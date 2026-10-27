@@ -614,5 +614,53 @@
   "Fill Screen": {
     "en": "Fill Screen",
     "it": "Riempi schermo (ritaglia)"
+  },
+  "Card Style": {
+    "en": "Card Style",
+    "it": "Stile schede",
+    "de": "Kartenstil",
+    "fr": "Style des cartes",
+    "ja": "カードスタイル",
+    "ko": "카드 스타일",
+    "zh-Hans": "卡片样式",
+    "zh-Hant": "卡片樣式",
+    "ru": "Стиль карточек",
+    "es": "Estilo de tarjetas"
+  },
+  "dashboard.recentlyReleasedBooks": {
+    "en": "Recently Released Books",
+    "it": "Libri pubblicati di recente",
+    "de": "Kürzlich veröffentlichte Bücher",
+    "fr": "Livres sortis récemment",
+    "ja": "最近リリースされた本",
+    "ko": "최근 출시된 책",
+    "zh-Hans": "最近发布的书籍",
+    "zh-Hant": "最近發布的書籍",
+    "ru": "Недавно выпущенные книги",
+    "es": "Libros publicados recientemente"
+  },
+  "Use Display Cutout": {
+    "en": "Use Display Cutout",
+    "it": "Usa area della notch",
+    "de": "Displayausschnitt verwenden",
+    "fr": "Utiliser la zone de l’encoche",
+    "ja": "画面の切り欠き領域を使用",
+    "ko": "화면 노치 영역 사용",
+    "zh-Hans": "使用刘海区域",
+    "zh-Hant": "使用瀏海區域",
+    "ru": "Использовать область выреза",
+    "es": "Usar zona de la muesca"
+  },
+  "Allow the page behind the camera notch": {
+    "en": "Allow the page behind the camera notch",
+    "it": "Estendi la pagina sotto la notch della fotocamera",
+    "de": "Seite hinter dem Kameraausschnitt anzeigen",
+    "fr": "Étendre la page sous l’encoche de la caméra",
+    "ja": "カメラの切り欠き部分にもページを表示",
+    "ko": "카메라 노치 뒤까지 페이지 확장",
+    "zh-Hans": "允许页面延伸至摄像头刘海区域",
+    "zh-Hant": "允許頁面延伸至相機瀏海區域",
+    "ru": "Разрешить странице заходить под вырез камеры",
+    "es": "Extender la página bajo la muesca de la cámara"
   }
 }

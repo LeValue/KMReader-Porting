@@ -179,6 +179,9 @@ class ReaderPreferences {
     this.animate = true,
     this.splitWide = 'none',
     this.useSeriesDirection = true,
+    this.borderCrop = 'disabled',
+    this.doubleTapZoom = 2,
+    this.extendIntoCutout = false,
   });
   final ReadingMode mode;
   final ReadingDirection direction;
@@ -189,6 +192,9 @@ class ReaderPreferences {
   final bool animate;
   final String splitWide;
   final bool useSeriesDirection;
+  final String borderCrop;
+  final double doubleTapZoom;
+  final bool extendIntoCutout;
   factory ReaderPreferences.fromJson(Json j) => ReaderPreferences(
     mode: ReadingMode.values.firstWhere(
       (v) => v.name == j['mode'],
@@ -207,6 +213,15 @@ class ReaderPreferences {
     animate: j['animate'] != false,
     splitWide: text(j['splitWide'], 'none'),
     useSeriesDirection: j['useSeriesDirection'] != false,
+    borderCrop: ['conservative', 'aggressive'].contains(j['borderCrop'])
+        ? j['borderCrop'] as String
+        : 'disabled',
+    doubleTapZoom:
+        (j['doubleTapZoom'] is num
+                ? (j['doubleTapZoom'] as num).toDouble()
+                : 2.0)
+            .clamp(1, 8),
+    extendIntoCutout: j['extendIntoCutout'] == true,
   );
   Json toJson() => {
     'mode': mode.name,
@@ -221,6 +236,9 @@ class ReaderPreferences {
     'animate': animate,
     'splitWide': splitWide,
     'useSeriesDirection': useSeriesDirection,
+    'borderCrop': borderCrop,
+    'doubleTapZoom': doubleTapZoom,
+    'extendIntoCutout': extendIntoCutout,
   };
   ReaderPreferences copy({
     ReadingMode? mode,
@@ -235,6 +253,9 @@ class ReaderPreferences {
     bool? animate,
     String? splitWide,
     bool? useSeriesDirection,
+    String? borderCrop,
+    double? doubleTapZoom,
+    bool? extendIntoCutout,
   }) => ReaderPreferences(
     mode: mode ?? this.mode,
     direction: direction ?? this.direction,
@@ -248,6 +269,9 @@ class ReaderPreferences {
     animate: animate ?? this.animate,
     splitWide: splitWide ?? this.splitWide,
     useSeriesDirection: useSeriesDirection ?? this.useSeriesDirection,
+    borderCrop: borderCrop ?? this.borderCrop,
+    doubleTapZoom: doubleTapZoom ?? this.doubleTapZoom,
+    extendIntoCutout: extendIntoCutout ?? this.extendIntoCutout,
   );
 }
 

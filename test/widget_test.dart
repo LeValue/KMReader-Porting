@@ -233,7 +233,26 @@ void main() {
         isEmpty,
         reason: 'Unvisited tabs must not start network requests',
       );
-      expect(requests.length, 5);
+      expect(requests.length, 7);
+      for (final style in ['Medium', 'Horizontal']) {
+        await tester.tap(find.byTooltip('Card Style').first);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(CheckedPopupMenuItem<String>, style),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          app.store.setting<String>(
+            'dashboardCard:fixture:dashboard.keepReading',
+          ),
+          style.toLowerCase(),
+        );
+        expect(
+          requests.length,
+          7,
+          reason: 'Changing card presentation must reuse cached results',
+        );
+      }
       await tester.tap(find.text('All Libraries'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Comics'));
@@ -331,7 +350,7 @@ void main() {
       await tester.pumpAndSettle();
       final order = app.store.setting<List<dynamic>>('dashboardOrder:fixture');
       expect(order, isNotNull);
-      expect(order!.length, 5);
+      expect(order!.length, 7);
       expect(order.first, isNot('dashboard.keepReading'));
       expect(
         requests.length,

@@ -13,6 +13,7 @@ import 'package:kmreader/core/store.dart';
 import 'package:kmreader/core/catalog_tools.dart';
 import 'package:kmreader/core/reading_stats.dart';
 import 'package:kmreader/features/catalog/metadata_editor.dart';
+import 'package:kmreader/features/catalog/dashboard.dart';
 import 'package:kmreader/features/settings/library_editor.dart';
 import 'package:kmreader/features/reader/epub_document.dart';
 
@@ -134,6 +135,44 @@ void main() {
         await repository.sync();
         expect(repository.pendingCount, 0);
         expect((await api.book(comic.id)).page, 2);
+        final continuing = DashboardQuery(
+          'dashboard.keepReading',
+          libraryId: comic.libraryId,
+        );
+        final continuingPage = await repository.catalog(
+          continuing.kind,
+          condition: continuing.condition,
+          sort: continuing.sort,
+          size: 12,
+          force: true,
+        );
+        expect(continuingPage.items.map((item) => item.id), contains(comic.id));
+        final released = DashboardQuery(
+          'dashboard.recentlyReleasedBooks',
+          libraryId: comic.libraryId,
+        );
+        await repository.catalog(
+          released.kind,
+          condition: released.condition,
+          sort: released.sort,
+          size: 12,
+          force: true,
+        );
+        final read = DashboardQuery(
+          'dashboard.recentlyReadBooks',
+          libraryId: comic.libraryId,
+        );
+        final readPage = await repository.catalog(
+          read.kind,
+          condition: read.condition,
+          sort: read.sort,
+          size: 12,
+          force: true,
+        );
+        expect(
+          readPage.items.map((item) => item.id),
+          isNot(contains(comic.id)),
+        );
         final scoped = await repository.catalog(
           'books',
           condition: {

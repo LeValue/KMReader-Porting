@@ -350,7 +350,7 @@ class SettingsPage extends StatelessWidget {
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: 'KMReader',
-                  applicationVersion: '0.4.1',
+                  applicationVersion: '0.5.0',
                   applicationLegalese: 'Based on KMReader by everpcpc (MIT).\nPorting for Android and Windows.',
                 ),
               ),

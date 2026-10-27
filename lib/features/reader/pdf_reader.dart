@@ -12,6 +12,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'pdf_preferences.dart';
+import 'reader_display.dart';
 
 class PdfReader extends StatefulWidget {
   const PdfReader({
@@ -214,7 +215,7 @@ class _PdfReaderState extends State<PdfReader> {
             refresh(() {});
           }
 
-          return SafeArea(
+          return ReaderSafeArea(
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -407,221 +408,223 @@ class _PdfReaderState extends State<PdfReader> {
         ),
       ],
     ),
-    body: Column(
-      children: [
-        if (_search && _searcher != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: tr(context, 'Search'),
+    body: SafeArea(
+      top: false,
+      bottom: false,
+      child: Column(
+        children: [
+          if (_search && _searcher != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: tr(context, 'Search'),
+                      ),
+                      onChanged: (v) => _searcher!.startTextSearch(v),
                     ),
-                    onChanged: (v) => _searcher!.startTextSearch(v),
                   ),
-                ),
-                ListenableBuilder(
-                  listenable: _searcher!,
-                  builder: (_, _) => Text(
-                    '${(_searcher!.currentIndex ?? -1) + 1}/${_searcher!.matches.length}',
+                  ListenableBuilder(
+                    listenable: _searcher!,
+                    builder: (_, _) => Text(
+                      '${(_searcher!.currentIndex ?? -1) + 1}/${_searcher!.matches.length}',
+                    ),
                   ),
-                ),
-                IconButton(
-                  onPressed: _searcher!.goToPrevMatch,
-                  icon: const Icon(CupertinoIcons.chevron_up),
-                ),
-                IconButton(
-                  onPressed: _searcher!.goToNextMatch,
-                  icon: const Icon(CupertinoIcons.chevron_down),
-                ),
-              ],
+                  IconButton(
+                    onPressed: _searcher!.goToPrevMatch,
+                    icon: const Icon(CupertinoIcons.chevron_up),
+                  ),
+                  IconButton(
+                    onPressed: _searcher!.goToNextMatch,
+                    icon: const Icon(CupertinoIcons.chevron_down),
+                  ),
+                ],
+              ),
             ),
-          ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final viewport = constraints.biggest;
-              if (_viewport != viewport) {
-                _viewport = viewport;
-                _reflow();
-              }
-              return Focus(
-                autofocus: true,
-                onKeyEvent: (node, event) {
-                  if (event is! KeyDownEvent || !_ready) {
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final viewport = constraints.biggest;
+                if (_viewport != viewport) {
+                  _viewport = viewport;
+                  _reflow();
+                }
+                return Focus(
+                  autofocus: true,
+                  onKeyEvent: (node, event) {
+                    if (event is! KeyDownEvent || !_ready) {
+                      return KeyEventResult.ignored;
+                    }
+                    final key = event.logicalKey;
+                    final next = _preferences.rtl
+                        ? LogicalKeyboardKey.arrowLeft
+                        : LogicalKeyboardKey.arrowRight;
+                    final previous = _preferences.rtl
+                        ? LogicalKeyboardKey.arrowRight
+                        : LogicalKeyboardKey.arrowLeft;
+                    if (key == next || key == LogicalKeyboardKey.pageDown) {
+                      _goTo(_page + 1);
+                      return KeyEventResult.handled;
+                    }
+                    if (key == previous || key == LogicalKeyboardKey.pageUp) {
+                      _goTo(_page - 1);
+                      return KeyEventResult.handled;
+                    }
                     return KeyEventResult.ignored;
-                  }
-                  final key = event.logicalKey;
-                  final next = _preferences.rtl
-                      ? LogicalKeyboardKey.arrowLeft
-                      : LogicalKeyboardKey.arrowRight;
-                  final previous = _preferences.rtl
-                      ? LogicalKeyboardKey.arrowRight
-                      : LogicalKeyboardKey.arrowLeft;
-                  if (key == next || key == LogicalKeyboardKey.pageDown) {
-                    _goTo(_page + 1);
-                    return KeyEventResult.handled;
-                  }
-                  if (key == previous || key == LogicalKeyboardKey.pageUp) {
-                    _goTo(_page - 1);
-                    return KeyEventResult.handled;
-                  }
-                  return KeyEventResult.ignored;
-                },
-                child: Listener(
-                  onPointerSignal: (_) => _snap(),
-                  child: PdfViewer.file(
-                    widget.file.path,
-                    passwordProvider: _password,
-                    controller: _controller,
-                    initialPageNumber: _page,
-                    params: PdfViewerParams(
-                      sizeDelegateProvider:
-                          const PdfViewerSizeDelegateProviderLegacy(
-                            useAlternativeFitScaleAsMinScale: false,
-                            minScale: .05,
+                  },
+                  child: Listener(
+                    onPointerSignal: (_) => _snap(),
+                    child: PdfViewer.file(
+                      widget.file.path,
+                      passwordProvider: _password,
+                      controller: _controller,
+                      initialPageNumber: _page,
+                      params: PdfViewerParams(
+                        sizeDelegateProvider:
+                            const PdfViewerSizeDelegateProviderLegacy(
+                              useAlternativeFitScaleAsMinScale: false,
+                              minScale: .05,
+                            ),
+                        layoutPages: (pages, params) {
+                          final layout = PdfReaderLayout(
+                            sizes: [
+                              for (final page in pages)
+                                Size(page.width, page.height),
+                            ],
+                            preferences: _preferences,
+                            viewport: _viewport,
+                            margin: params.margin,
+                          );
+                          _layout = layout;
+                          return PdfPageLayout(
+                            pageLayouts: layout.pages,
+                            documentSize: layout.documentSize,
+                          );
+                        },
+                        calculateCurrentPageNumber:
+                            (visible, pages, controller) => _layout
+                                ?.nearestPage(visible, preferred: _focusedPage),
+                        enableKeyboardNavigation: false,
+                        backgroundColor: switch (_preferences.background) {
+                          'black' => Colors.black,
+                          'sepia' => const Color(0xffe8dcc3),
+                          _ => const Color(0xffeeeeee),
+                        },
+                        pageImageColorFilter: switch (_preferences.background) {
+                          'black' => const ColorFilter.matrix([
+                            -1,
+                            0,
+                            0,
+                            0,
+                            255,
+                            0,
+                            -1,
+                            0,
+                            0,
+                            255,
+                            0,
+                            0,
+                            -1,
+                            0,
+                            255,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                          ]),
+                          'sepia' => const ColorFilter.mode(
+                            Color(0xfff4ecd8),
+                            BlendMode.modulate,
                           ),
-                      layoutPages: (pages, params) {
-                        final layout = PdfReaderLayout(
-                          sizes: [
-                            for (final page in pages)
-                              Size(page.width, page.height),
-                          ],
-                          preferences: _preferences,
-                          viewport: _viewport,
-                          margin: params.margin,
-                        );
-                        _layout = layout;
-                        return PdfPageLayout(
-                          pageLayouts: layout.pages,
-                          documentSize: layout.documentSize,
-                        );
-                      },
-                      calculateCurrentPageNumber:
-                          (visible, pages, controller) => _layout?.nearestPage(
-                            visible,
-                            preferred: _focusedPage,
-                          ),
-                      enableKeyboardNavigation: false,
-                      backgroundColor: switch (_preferences.background) {
-                        'black' => Colors.black,
-                        'sepia' => const Color(0xffe8dcc3),
-                        _ => const Color(0xffeeeeee),
-                      },
-                      pageImageColorFilter: switch (_preferences.background) {
-                        'black' => const ColorFilter.matrix([
-                          -1,
-                          0,
-                          0,
-                          0,
-                          255,
-                          0,
-                          -1,
-                          0,
-                          0,
-                          255,
-                          0,
-                          0,
-                          -1,
-                          0,
-                          255,
-                          0,
-                          0,
-                          0,
-                          1,
-                          0,
-                        ]),
-                        'sepia' => const ColorFilter.mode(
-                          Color(0xfff4ecd8),
-                          BlendMode.modulate,
-                        ),
-                        _ => null,
-                      },
-                      scrollHorizontallyByMouseWheel:
-                          _preferences.presentation.resolved(_viewport) ==
-                          PdfPresentation.singlePaged,
-                      onInteractionStart: (_) => _snapTimer?.cancel(),
-                      onInteractionEnd: (_) => _snap(),
-                      pagePaintCallbacks: [
-                        if (_searcher != null)
-                          _searcher!.pageTextMatchPaintCallback,
-                      ],
-                      onViewerReady: (document, controller) {
-                        if (!mounted) return;
-                        if (!identical(_searchDocument, document)) {
-                          _searcher?.dispose();
-                          _searcher = PdfTextSearcher(_controller);
-                          _lastSearchMatch = null;
-                          _searcher!.addListener(_searchMoved);
-                          _searchDocument = document;
-                        }
-                        setState(() => _ready = true);
-                        _reflow();
-                      },
-                      onPageChanged: (page) {
-                        if (!_ready ||
-                            page == null ||
-                            !mounted ||
-                            _reconfiguring ||
-                            _navigating) {
-                          return;
-                        }
-                        setState(() => _page = page);
-                        _focusedPage = page;
-                        if (!widget.incognito) {
-                          widget.repository.setProgress(widget.book, page);
-                        }
-                      },
+                          _ => null,
+                        },
+                        scrollHorizontallyByMouseWheel:
+                            _preferences.presentation.resolved(_viewport) ==
+                            PdfPresentation.singlePaged,
+                        onInteractionStart: (_) => _snapTimer?.cancel(),
+                        onInteractionEnd: (_) => _snap(),
+                        pagePaintCallbacks: [
+                          if (_searcher != null)
+                            _searcher!.pageTextMatchPaintCallback,
+                        ],
+                        onViewerReady: (document, controller) {
+                          if (!mounted) return;
+                          if (!identical(_searchDocument, document)) {
+                            _searcher?.dispose();
+                            _searcher = PdfTextSearcher(_controller);
+                            _lastSearchMatch = null;
+                            _searcher!.addListener(_searchMoved);
+                            _searchDocument = document;
+                          }
+                          setState(() => _ready = true);
+                          _reflow();
+                        },
+                        onPageChanged: (page) {
+                          if (!_ready ||
+                              page == null ||
+                              !mounted ||
+                              _reconfiguring ||
+                              _navigating) {
+                            return;
+                          }
+                          setState(() => _page = page);
+                          _focusedPage = page;
+                          if (!widget.incognito) {
+                            widget.repository.setProgress(widget.book, page);
+                          }
+                        },
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (_ready)
-          SafeArea(
-            top: false,
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: tr(context, 'Previous Page'),
-                  onPressed: _page > 1 ? () => _goTo(_page - 1) : null,
-                  icon: const Icon(CupertinoIcons.chevron_left),
-                ),
-                Expanded(
-                  child: Slider(
-                    min: 1,
-                    max: _controller.pageCount.clamp(2, 1000000).toDouble(),
-                    value: _page
-                        .clamp(1, _controller.pageCount.clamp(2, 1000000))
-                        .toDouble(),
-                    onChanged: _controller.pageCount > 1
-                        ? (v) => setState(() => _page = v.round())
-                        : null,
-                    onChangeEnd: (value) => _goTo(value.round()),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: TextButton(
-                    onPressed: _jump,
-                    child: Text('$_page / ${_controller.pageCount}'),
-                  ),
-                ),
-                IconButton(
-                  tooltip: tr(context, 'Next Page'),
-                  onPressed: _page < _controller.pageCount
-                      ? () => _goTo(_page + 1)
-                      : null,
-                  icon: const Icon(CupertinoIcons.chevron_right),
-                ),
-              ],
+                );
+              },
             ),
           ),
-      ],
+          if (_ready)
+            ReaderSafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: tr(context, 'Previous Page'),
+                    onPressed: _page > 1 ? () => _goTo(_page - 1) : null,
+                    icon: const Icon(CupertinoIcons.chevron_left),
+                  ),
+                  Expanded(
+                    child: Slider(
+                      min: 1,
+                      max: _controller.pageCount.clamp(2, 1000000).toDouble(),
+                      value: _page
+                          .clamp(1, _controller.pageCount.clamp(2, 1000000))
+                          .toDouble(),
+                      onChanged: _controller.pageCount > 1
+                          ? (v) => setState(() => _page = v.round())
+                          : null,
+                      onChangeEnd: (value) => _goTo(value.round()),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: TextButton(
+                      onPressed: _jump,
+                      child: Text('$_page / ${_controller.pageCount}'),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: tr(context, 'Next Page'),
+                    onPressed: _page < _controller.pageCount
+                        ? () => _goTo(_page + 1)
+                        : null,
+                    icon: const Icon(CupertinoIcons.chevron_right),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     ),
   );
 }

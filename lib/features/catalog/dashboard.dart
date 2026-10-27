@@ -10,10 +10,78 @@ import 'catalog_page.dart';
 const dashboardSections = [
   'dashboard.keepReading',
   'dashboard.onDeck',
+  'dashboard.recentlyReleasedBooks',
   'dashboard.recentlyAddedBooks',
   'dashboard.recentlyAddedSeries',
   'dashboard.recentlyUpdatedSeries',
+  'dashboard.recentlyReadBooks',
 ];
+
+const dashboardCardKinds = {
+  'large': 'dashboard.cardKind.large',
+  'medium': 'dashboard.cardKind.medium',
+  'small': 'dashboard.cardKind.small',
+  'horizontal': 'dashboard.cardKind.horizontal',
+};
+
+/// Shared by the dashboard and See All, so their filters cannot diverge.
+class DashboardQuery {
+  DashboardQuery(this.title, {this.libraryId, DateTime? now})
+    : now = now ?? DateTime.now();
+  final String title;
+  final String? libraryId;
+  final DateTime now;
+  String get kind => title.endsWith('Series') ? 'series' : 'books';
+  String? get path => switch (title) {
+    'dashboard.onDeck' => '/api/v1/books/ondeck',
+    'dashboard.recentlyAddedSeries' => '/api/v1/series/new',
+    'dashboard.recentlyUpdatedSeries' => '/api/v1/series/updated',
+    _ => null,
+  };
+  String get sort => switch (title) {
+    'dashboard.keepReading' ||
+    'dashboard.recentlyReadBooks' => 'readProgress.readDate,desc',
+    'dashboard.onDeck' => 'metadata.titleSort,asc',
+    'dashboard.recentlyReleasedBooks' => 'metadata.releaseDate,desc',
+    'dashboard.recentlyUpdatedSeries' => 'lastModified,desc',
+    _ => 'created,desc',
+  };
+  Json? get condition {
+    final values = <Json>[
+      if (title == 'dashboard.keepReading' ||
+          title == 'dashboard.recentlyReadBooks')
+        {
+          'readStatus': {
+            'operator': 'is',
+            'value': title == 'dashboard.keepReading' ? 'IN_PROGRESS' : 'READ',
+          },
+        },
+      if (title == 'dashboard.recentlyReleasedBooks')
+        {
+          'releaseDate': {
+            'operator': 'after',
+            'dateTime': _cutoff.toUtc().toIso8601String(),
+          },
+        },
+      if (libraryId != null)
+        {
+          'libraryId': {'operator': 'is', 'value': libraryId},
+        },
+    ];
+    return values.isEmpty
+        ? null
+        : values.length == 1
+        ? values.single
+        : {'allOf': values};
+  }
+
+  DateTime get _cutoff {
+    // Calendar-day cutoff, including March 31 -> February 28/29.
+    // Stable during the day so background refresh can reuse the query cache.
+    final last = DateTime(now.year, now.month, 0).day;
+    return DateTime(now.year, now.month - 1, now.day > last ? last : now.day);
+  }
+}
 
 class Dashboard extends StatelessWidget {
   const Dashboard({super.key, required this.repository});
@@ -154,36 +222,31 @@ class _DashboardSection extends StatelessWidget {
   final Repository repository;
   final String title;
   final String? libraryId;
-  String get kind => title.endsWith('Series') ? 'series' : 'books';
-  String? get path => switch (title) {
-    'dashboard.onDeck' => '/api/v1/books/ondeck',
-    'dashboard.recentlyAddedSeries' => '/api/v1/series/new',
-    'dashboard.recentlyUpdatedSeries' => '/api/v1/series/updated',
-    _ => null,
-  };
-  String get sort => switch (title) {
-    'dashboard.keepReading' => 'readProgress.lastModified,desc',
-    'dashboard.onDeck' => 'metadata.titleSort,asc',
-    'dashboard.recentlyUpdatedSeries' => 'lastModified,desc',
-    _ => 'created,desc',
-  };
-  Json? get condition {
-    final values = [
-      if (title == 'dashboard.keepReading')
-        {
-          'readStatus': {'operator': 'is', 'value': 'IN_PROGRESS'},
-        },
-      if (libraryId != null)
-        {
-          'libraryId': {'operator': 'is', 'value': libraryId},
-        },
-    ];
-    return values.isEmpty
-        ? null
-        : values.length == 1
-        ? values.first
-        : {'allOf': values};
+  DashboardQuery get query =>
+      DashboardQuery(title, libraryId: libraryId, now: repository.cacheClock());
+  String get kind => query.kind;
+  String? get path => query.path;
+  String get sort => query.sort;
+  Json? get condition => query.condition;
+  String get cardKind {
+    final saved = repository.store.setting<String>(
+      'dashboardCard:${repository.profile.id}:$title',
+    );
+    if (dashboardCardKinds.containsKey(saved)) return saved!;
+    return switch (title) {
+      'dashboard.keepReading' => 'horizontal',
+      'dashboard.recentlyReadBooks' ||
+      'dashboard.recentlyAddedSeries' => 'small',
+      _ => 'large',
+    };
   }
+
+  double cardWidth(BuildContext context) => switch (cardKind) {
+    'horizontal' => 250,
+    'medium' => 116,
+    'small' => MediaQuery.sizeOf(context).width >= 900 ? 100 : 80,
+    _ => MediaQuery.sizeOf(context).width >= 900 ? 132 : 152,
+  };
 
   @override
   Widget build(BuildContext context) => AsyncPanel<CatalogPage>(
@@ -208,6 +271,26 @@ class _DashboardSection extends StatelessWidget {
                   tr(context, title),
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: tr(context, 'Card Style'),
+                initialValue: cardKind,
+                onSelected: (value) {
+                  repository.store.setSetting(
+                    'dashboardCard:${repository.profile.id}:$title',
+                    value,
+                  );
+                  repository.catalogChanges.value++;
+                },
+                itemBuilder: (_) => [
+                  for (final entry in dashboardCardKinds.entries)
+                    CheckedPopupMenuItem(
+                      value: entry.key,
+                      checked: cardKind == entry.key,
+                      child: Text(tr(context, entry.value)),
+                    ),
+                ],
+                icon: const Icon(CupertinoIcons.ellipsis, size: 18),
               ),
               TextButton(
                 onPressed: () => Navigator.push(
@@ -252,11 +335,9 @@ class _DashboardSection extends StatelessWidget {
           )
         else
           SizedBox(
-            height: title == 'dashboard.keepReading'
+            height: cardKind == 'horizontal'
                 ? 122
-                : MediaQuery.sizeOf(context).width >= 900
-                ? 252
-                : 292,
+                : cardWidth(context) * 1.5 + 64,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -264,11 +345,11 @@ class _DashboardSection extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(width: 16),
               itemBuilder: (context, index) {
                 final item = result.items[index];
-                if (title == 'dashboard.keepReading') {
+                if (cardKind == 'horizontal') {
                   return _ContinueCard(repository: repository, item: item);
                 }
                 return SizedBox(
-                  width: MediaQuery.sizeOf(context).width >= 900 ? 132 : 152,
+                  width: cardWidth(context),
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: RepaintBoundary(
@@ -331,10 +412,11 @@ class _ContinueCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 11),
                     ),
                     const SizedBox(height: 12),
-                    LinearProgressIndicator(
-                      value: repository.overlay(item.book).fraction,
-                      minHeight: 3,
-                    ),
+                    if (item.kind == 'books')
+                      LinearProgressIndicator(
+                        value: repository.overlay(item.book).fraction,
+                        minHeight: 3,
+                      ),
                   ],
                 ),
               ),
