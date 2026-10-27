@@ -1,22 +1,45 @@
 # Development validation
 
-## 0.4.0 reader compatibility — local checks
+## 0.4.0 preview — verified release
 
-Formatting and static analysis passed. The full local suite passed **85 tests**;
-the live-server test was deliberately skipped in that suite and passed separately
-against disposable Komga 1.29.1. That integration now mixes PNG, TIFF and JPEG2000
-in a comic and checks actual offline image decoding after download.
+Source: `f23eaa42ec5713df1ce4f66d03c0124c9817690e`. All three jobs passed in
+[workflow 40553979764](https://github.com/LeValue/KMReader-Porting/actions/runs/40553979764).
+The [published preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.4.0-preview.1) contains the verified Android and Windows files.
+The locally signed APK's application/native sources match this commit; subsequent
+delivery-tool changes were checked not to modify those sources before dispatch.
 
-New native PDFium widget coverage includes mixed-size spread geometry, complete
-spread fitting, cached series RTL, layout/theme changes without progress writes,
-normal/incognito page navigation, AES-128 wrong-password retry, text search and
-search/page retention after resizing. EPUB tests navigate supplementary notes
-outside the linear spine, return without changing canonical progress, and preserve
-the scroll fraction across font and font-size changes. Existing download fixtures
-now use an actual generated PNG rather than arbitrary non-image bytes.
+| Check | Observed result |
+| --- | --- |
+| Formatting and static analysis | Passed |
+| Full automated suite | 85 passed and one live test deliberately skipped, locally and on both CI platforms |
+| Separate real Komga 1.29.1 integration | Passed locally and in Android CI; mixed PNG/TIFF/JPEG2000 comic decoded offline |
+| Android release compilation | Passed locally and independently in CI |
+| Windows release compilation | Passed in CI |
+| Native Windows startup | Window rendered the welcome screen and remained running in an isolated profile |
+| Published downloads | Both downloaded again; SHA256 manifest and GitHub REST digests matched |
+| Android integrity | Same retained certificate, version 0.4.0/code 4, nondebuggable manifest, AOT/SQLite/PDFium in all three ABIs, 16 KiB alignment |
+| Windows portable bundle | x64 PE, AOT, SQLite, PDFium and MSVC runtime; every published file matched the CI artifact |
 
-Android release compilation and remote Windows verification for this version
-are pending; the verified 0.3.0 artifacts below remain the previous release.
+Android: package `dev.levalue.kmreader.preview`, 90,533,968 bytes,
+SHA256 `b3b06a59f52eebfb457aaa0ecdb5c69607c5b9df1b06e1180c520599b2fc9bdf`.
+
+Windows ZIP: 19,961,165 bytes,
+SHA256 `8064f7b9e6da0c36064874e06cf30eec225e84c612d1508d3663414907aefb5e`.
+The release tag points to the exact workflow source above.
+
+Native PDFium widget tests cover mixed-size spreads, complete spread fitting,
+cached series RTL, layout/theme changes without progress writes, normal/incognito
+navigation, AES-128 wrong-password retry, actual text search and result/page
+retention after viewport changes. EPUB tests navigate supplementary notes outside
+the linear spine, return without changing canonical progress, and preserve the
+scroll fraction across font and font-size changes. Download fixtures use a real
+generated PNG rather than arbitrary non-image bytes.
+
+![Native Windows startup](screenshots/windows-startup-0.4.png)
+
+These checks do not establish complete functional/visual parity or phone frame
+times. Physical Android and manual Windows interaction, vault/background behavior,
+AI/OCR and the other gaps in [PARITY.md](PARITY.md) still require work.
 
 ## 0.3.0 preview — verified release
 
