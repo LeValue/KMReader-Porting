@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show compute;
 
 import 'models.dart';
 
@@ -137,7 +138,9 @@ class KomgaApi {
     );
     if (bytes.isEmpty) return null;
     try {
-      return jsonDecode(utf8.decode(bytes));
+      return bytes.length > 256 * 1024
+          ? await compute(_decodeJson, bytes)
+          : _decodeJson(bytes);
     } on FormatException {
       throw const ApiFailure('The server returned an unexpected response.');
     }
@@ -232,3 +235,5 @@ class KomgaApi {
     _client.close();
   }
 }
+
+dynamic _decodeJson(Uint8List bytes) => jsonDecode(utf8.decode(bytes));

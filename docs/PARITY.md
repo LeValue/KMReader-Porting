@@ -7,15 +7,16 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | --- | --- | --- |
 | Authentication | Password, API key, first-server claim, account-scoped profiles, OS credential vault | Device biometrics/Windows Hello; device-level vault validation |
 | Server management | Add, reconnect, switch, remove; isolated caches/files/outbox | More server editing and protection options |
-| Dashboard | Keep Reading, On Deck, new books/series, updated series; hide sections | Reordering, all card styles, library scopes, read-list continuation section |
+| Dashboard | Keep Reading, On Deck, new books/series, updated series; hide/reorder sections, persistent library scope, matching See All filters/sort, compact empty sections | All card styles, read-list continuation section |
 | Catalog | Paginated series/books, submitted search, library browser, sort and read-status filters | Advanced metadata filters, saved filters, batch selection and actions |
 | Details and lists | Covers, metadata/summary, read/unread, collections/read lists, adding entries and creating lists from entries | Metadata editor, list editing/pinning/reordering, smart lists |
-| Comic reader | Paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, tap zones, keyboard, resume, incognito, next book/list continuation | Curl/cover animations, border cropping, splitting wide pages, configurable tap presets, preload profiles |
+| Comic reader | Paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, tap zones, keyboard, resume, incognito, next book/list continuation, bounded prioritized neighbor preloading/decoding | Curl/cover animations, border cropping, splitting wide pages, configurable tap presets, configurable preload profiles |
 | PDF | PDFium viewer, text search/highlights, outline, jump/resume, original-file offline reading | All presentation/spread/quality modes, DIVINA alternative, encrypted-document UX |
 | EPUB | ZIP/OPF spine, scrolling HTML, hierarchical EPUB 3 nav/EPUB 2 NCX with spine fallback, chapter/section hyperlinks, text size/font/theme, position-preserving text changes, local position, canonical remote progression | Paged/curl/cover, columns, embedded fonts, navigation to non-spine resources, exact CSS/layout parity, robust image-layout restoration |
 | Downloads | Streaming source files, comic pages, disk persistence, retry/cancel/remove, offline reading | Background OS jobs, per-series/list policies, queue limits, archive pages on demand, cache quotas/cleanup UX |
 | Progress | Durable coalesced outbox, revision acknowledgements, retained failures, newer-remote conflict resolution | More multi-device/reconnect/device-clock stress tests; parity for every reader transition |
 | Live updates | SSE subscription, debounced refresh and reconnect | Full event-specific invalidation and real SSE acceptance tests |
+| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, conditional media revalidation, quotas for cached document originals, advanced preload policies |
 | Settings | Theme, original ten-language catalog, dashboard sections, offline mode, downloads, server info | Some new labels/errors still need translations; full upstream preference surface |
 | API keys | List, create/copy and revoke | Active-key indication and automatic key creation on password login |
 | Administration | Queue library scan, analyze and metadata refresh | Library creation/editing, metadata editor, duplicate detection, logs, sessions/tasks, komf |

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:kmreader/core/api.dart';
@@ -9,6 +11,19 @@ import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/epub_document.dart';
 
+class _CountingClient extends http.BaseClient {
+  final _inner = http.Client();
+  int requests = 0;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    requests++;
+    return _inner.send(request);
+  }
+
+  @override
+  void close() => _inner.close();
+}
+
 void main() {
   final url = Platform.environment['KMREADER_TEST_URL'];
   test(
@@ -16,9 +31,11 @@ void main() {
     () async {
       final directory = Directory.systemTemp.createTempSync('kmreader-client-');
       final store = LocalStore(sqlite3.open('${directory.path}/test.sqlite'));
+      final client = _CountingClient();
       final api = KomgaApi(
         Uri.parse(url!),
         authentication: Authentication.password,
+        client: client,
         credential: base64Encode(
           utf8.encode(
             '${Platform.environment['KMREADER_TEST_EMAIL']}:${Platform.environment['KMREADER_TEST_PASSWORD']}',
@@ -42,8 +59,27 @@ void main() {
         directory: directory,
       );
       try {
+        final cold = Stopwatch()..start();
         final books = await repository.catalog('books');
+        cold.stop();
         expect(books.total, 3);
+        final requestsBeforeWarm = client.requests;
+        final warmTimes = <int>[];
+        for (var i = 0; i < 20; i++) {
+          final watch = Stopwatch()..start();
+          expect((await repository.catalog('books')).total, books.total);
+          warmTimes.add(watch.elapsedMicroseconds);
+        }
+        expect(
+          client.requests,
+          requestsBeforeWarm,
+          reason:
+              'Twenty warm catalog visits must avoid twenty HTTP round trips',
+        );
+        warmTimes.sort();
+        stdout.writeln(
+          'Real Komga loopback cache probe: cold=${cold.elapsedMicroseconds}us, warm median=${warmTimes[10]}us, 20 repeat visits / 0 extra HTTP requests. Not a phone FPS benchmark.',
+        );
         final search = await repository.catalog(
           'books',
           search: 'Synthetic Comic',
@@ -71,6 +107,21 @@ void main() {
         await repository.sync();
         expect(repository.pendingCount, 0);
         expect((await api.book(comic.id)).page, 2);
+        final scoped = await repository.catalog(
+          'books',
+          condition: {
+            'allOf': [
+              {
+                'libraryId': {'operator': 'is', 'value': comic.libraryId},
+              },
+              {
+                'readStatus': {'operator': 'is', 'value': 'IN_PROGRESS'},
+              },
+            ],
+          },
+          size: 12,
+        );
+        expect(scoped.items.map((item) => item.id), contains(comic.id));
         repository.setOffline(true);
         repository.setProgress(comic, 0, reset: true);
         repository.offline = false;

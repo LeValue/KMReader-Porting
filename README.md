@@ -8,9 +8,12 @@ The core browsing, reading, download, and progress workflow is implemented.
 Current build and test evidence is recorded in [validation results](docs/VALIDATION.md).
 
 The Android development APK is available in the
-[v0.1.0-dev.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.1.0-dev.1).
+[v0.2.0-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.2.0-preview.1).
 Sign into a GitHub account with access to this private repository before downloading.
-In the release's **Assets**, select `KMReader-0.1.0-android-debug.apk`.
+In the release's **Assets**, select `KMReader-0.2.0-android-preview.apk`.
+This optimized build installs as **KMReader Preview** alongside the original
+debug preview. See [performance changes](docs/PERFORMANCE.md) for cache behavior,
+test evidence and device-validation limits.
 
 ## Development
 

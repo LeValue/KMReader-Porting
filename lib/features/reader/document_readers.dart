@@ -289,7 +289,7 @@ class _EpubReaderState extends State<_EpubReader> {
     _theme = text(settings['theme'], 'sepia');
     _font = text(settings['font'], 'serif');
     _progress = ((settings['progress'] as num?)?.toDouble() ?? 0).clamp(0, 1);
-    final doc = EpubDocument.open(widget.file.path);
+    final doc = await EpubDocument.openAsync(widget.file.path);
     if (!mounted) {
       doc.close();
       throw const FileSystemException('Reader closed.');
@@ -647,6 +647,15 @@ class _EpubReaderState extends State<_EpubReader> {
                             );
                             return Image.memory(
                               doc.resource(path),
+                              cacheWidth:
+                                  ((MediaQuery.sizeOf(context).width - 56)
+                                              .clamp(1, 720) *
+                                          MediaQuery.devicePixelRatioOf(
+                                            context,
+                                          ) *
+                                          2)
+                                      .ceil()
+                                      .clamp(1, 4096),
                               fit: BoxFit.contain,
                               errorBuilder: (_, _, _) =>
                                   Text(element.attributes['alt'] ?? 'Image'),

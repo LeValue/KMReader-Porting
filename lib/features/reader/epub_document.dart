@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 import 'package:html/parser.dart' as html;
 import 'package:html/dom.dart' as dom;
+import 'package:flutter/foundation.dart';
 
 class EpubChapter {
   EpubChapter(this.path, this.title);
@@ -41,6 +41,23 @@ class EpubDocument {
   final List<EpubChapter> chapters;
   final String title;
   final List<EpubNavigationEntry> tableOfContents;
+
+  static Future<EpubDocument> openAsync(String file) async {
+    final index = await compute(_inspectEpub, file);
+    final input = InputFileStream(file);
+    try {
+      return EpubDocument._(
+        input,
+        ZipDecoder().decodeStream(input, verify: true),
+        index.$1,
+        index.$2,
+        index.$3,
+      );
+    } catch (_) {
+      input.closeSync();
+      rethrow;
+    }
+  }
 
   static String resolve(String from, String href) => locate(from, href).path;
 
@@ -108,24 +125,39 @@ class EpubDocument {
       )) {
         final href = manifest[e.getAttribute('idref')];
         if (href == null) continue;
-        final heading = html
-            .parse(read(href))
-            .querySelector('h1,h2,title')
-            ?.text
-            .trim();
-        chapters.add(
-          EpubChapter(
-            href,
-            heading == null || heading.isEmpty
-                ? '${chapters.length + 1}'
-                : heading,
-          ),
-        );
+        chapters.add(EpubChapter(href, '${chapters.length + 1}'));
       }
       if (chapters.isEmpty) {
         throw const FormatException('This EPUB contains no readable chapters.');
       }
-      final contents = _navigation(elements, manifest, chapters, read);
+      var contents = _navigation(elements, manifest, chapters, read);
+      final titles = <String, String>{};
+      void collect(List<EpubNavigationEntry> entries) {
+        for (final entry in entries) {
+          if (entry.location != null) {
+            titles.putIfAbsent(entry.location!.path, () => entry.title);
+          }
+          collect(entry.children);
+        }
+      }
+
+      collect(contents);
+      for (var i = 0; i < chapters.length; i++) {
+        final path = chapters[i].path;
+        final heading =
+            titles[path] ??
+            html.parse(read(path)).querySelector('h1,h2,title')?.text.trim();
+        chapters[i] = EpubChapter(
+          path,
+          heading == null || heading.isEmpty ? '${i + 1}' : heading,
+        );
+      }
+      if (contents.isEmpty) {
+        contents = [
+          for (final c in chapters)
+            EpubNavigationEntry(c.title, EpubLocation(c.path)),
+        ];
+      }
       return EpubDocument._(input, archive, chapters, title, contents);
     } catch (_) {
       input.closeSync();
@@ -282,10 +314,7 @@ class EpubDocument {
         // EPUB 2 navigation is optional when the spine is usable.
       }
     }
-    return [
-      for (final c in chapters)
-        EpubNavigationEntry(c.title, EpubLocation(c.path)),
-    ];
+    return [];
   }
 
   Uint8List resource(String path) {
@@ -298,4 +327,15 @@ class EpubDocument {
 
   String chapter(int index) => utf8.decode(resource(chapters[index].path));
   void close() => _input.closeSync();
+}
+
+(List<EpubChapter>, String, List<EpubNavigationEntry>) _inspectEpub(
+  String file,
+) {
+  final doc = EpubDocument.open(file);
+  try {
+    return (doc.chapters, doc.title, doc.tableOfContents);
+  } finally {
+    doc.close();
+  }
 }

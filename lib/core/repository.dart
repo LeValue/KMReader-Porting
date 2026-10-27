@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'api.dart';
 import 'models.dart';
 import 'store.dart';
+import 'cache.dart';
 
 class Repository extends ChangeNotifier {
   Repository({
@@ -30,13 +31,55 @@ class Repository extends ChangeNotifier {
   int revision = 0;
   int contentRevision = 0;
   int progressRevision = 0;
+  int cacheRevision = 0;
+  Timer? _cacheEvents;
+  final catalogChanges = ValueNotifier<int>(0);
+  final _queries = <String, Future<dynamic>>{};
+  final _storedBookBatches = Expando<bool>();
+  final _queryValues = WeightedCache<String, dynamic>(
+    maxWeight: 8 * 1024 * 1024,
+    weight: (value) => jsonEncode(value).length * 2,
+  );
+  final _queryDates = <String, DateTime>{};
+  final _bytes = WeightedCache<String, Uint8List>(
+    maxWeight: 32 * 1024 * 1024,
+    weight: (value) => value.length,
+  );
+  final _imageRequests = ImageRequests();
+  DateTime _invalidated = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _cacheTrim;
+  DateTime _lastTrim = DateTime.fromMillisecondsSinceEpoch(0);
+  Directory get imageDirectory =>
+      Directory(p.join(directory.path, profile.id, 'cache'));
+  void _scheduleTrim() {
+    if (_disposed ||
+        _cacheTrim != null ||
+        DateTime.now().difference(_lastTrim) < const Duration(minutes: 1)) {
+      return;
+    }
+    _cacheTrim = Timer(const Duration(seconds: 2), () async {
+      _cacheTrim = null;
+      _lastTrim = DateTime.now();
+      try {
+        await trimMediaCache(imageDirectory, 512 * 1024 * 1024);
+      } on FileSystemException {
+        /* Caching must not interrupt reading. */
+      }
+    });
+  }
+
+  Future<void> clearImageCache() async {
+    _bytes.clear();
+    await trimMediaCache(imageDirectory, 0);
+    changed();
+  }
+
   String? syncFailure;
   final Map<String, Json> conflicts = {};
   Timer? _eventReconnect;
-  final Map<String, Future<Uint8List>> _images = {};
   final Map<String, double> downloading = {};
   final Set<String> _cancelled = {};
-  int get pendingCount => store.pending(profile.id).length;
+  int get pendingCount => store.pendingCount(profile.id);
   bool get closed => _disposed;
   String fileKey(String key) => sha256.convert(utf8.encode(key)).toString();
   File cachedFile(String key) =>
@@ -59,7 +102,9 @@ class Repository extends ChangeNotifier {
   }
 
   void refreshContent() {
+    _invalidated = DateTime.now();
     contentRevision++;
+    catalogChanges.value++;
     changed();
   }
 
@@ -68,33 +113,67 @@ class Repository extends ChangeNotifier {
     String method = 'GET',
     dynamic body,
     Map<String, dynamic>? query,
+    bool cacheFirst = false,
+    bool force = false,
+    String? cacheKey,
   }) async {
-    final key = jsonEncode([path, method, body, query]);
-    if (!offline) {
-      try {
-        final value = await api.request(
-          path,
-          method: method,
-          body: body,
-          query: query,
-        );
-        store.cache(profile.id, key, value);
-        return value;
-      } on ApiFailure catch (e) {
-        if (!e.offline && (e.status == null || e.status! < 500)) rethrow;
-        final cached = store.cached(profile.id, key);
-        if (cached != null) return cached;
-        rethrow;
-      }
-    }
-    final cached = store.cached(profile.id, key);
-    if (cached == null) {
+    final key = cacheKey ?? jsonEncode([path, method, body, query]);
+    final memory = _queryValues[key];
+    final cached = memory ?? store.cached(profile.id, key);
+    if (memory == null && cached != null) _queryValues.put(key, cached);
+    if (offline) {
+      if (cached != null) return cached;
       throw const ApiFailure(
         'This content has not been saved for offline use.',
         offline: true,
       );
     }
-    return cached;
+    Future<dynamic> fetch({bool background = false}) =>
+        _queries.putIfAbsent(key, () async {
+          try {
+            final value = await api.request(
+              path,
+              method: method,
+              body: body,
+              query: query,
+            );
+            if (_disposed) return value;
+            final different =
+                background && jsonEncode(cached) != jsonEncode(value);
+            store.cache(profile.id, key, value);
+            _queryValues.put(key, value);
+            _queryDates[key] = DateTime.now();
+            if (_queryDates.length > 256) {
+              _queryDates.remove(_queryDates.keys.first);
+            }
+            if (different) {
+              cacheRevision++;
+              _cacheEvents ??= Timer(const Duration(milliseconds: 50), () {
+                _cacheEvents = null;
+                if (!_disposed) catalogChanges.value++;
+              });
+            }
+            return value;
+          } finally {
+            _queries.remove(key);
+          }
+        });
+    if (cacheFirst && cached != null && !force) {
+      final date = _queryDates[key] ?? store.cachedAt(profile.id, key);
+      if (date == null ||
+          date.isBefore(_invalidated) ||
+          DateTime.now().difference(date) > const Duration(seconds: 30)) {
+        unawaited(fetch(background: true).catchError((Object _) => cached));
+      }
+      return cached;
+    }
+    try {
+      return await fetch();
+    } on ApiFailure catch (e) {
+      if (!e.offline && (e.status == null || e.status! < 500)) rethrow;
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
 
   Book overlay(Book book) {
@@ -107,7 +186,7 @@ class Repository extends ChangeNotifier {
     if (remoteDate != null &&
         localDate != null &&
         remoteDate.isAfter(localDate) &&
-        !store.pending(profile.id).any((r) => r['book'] == book.id)) {
+        !store.isPending(profile.id, book.id)) {
       return book;
     }
     return book.withProgress(local);
@@ -120,6 +199,9 @@ class Repository extends ChangeNotifier {
     String sort = 'metadata.titleSort,asc',
     Json? condition,
     String? path,
+    bool force = false,
+    int size = 40,
+    String? libraryId,
   }) async {
     final data = await get(
       path ?? '/api/v1/$kind/list',
@@ -132,19 +214,25 @@ class Repository extends ChangeNotifier {
           : null,
       query: {
         'page': page,
-        'size': 40,
+        'size': size,
+        'library_id': ?libraryId,
         if (!(path?.contains('/readlists/') == true &&
             path?.endsWith('/books') == true))
           'sort': sort,
         if (path != null && search != null && search.isNotEmpty)
           'search': search,
       },
+      cacheFirst: true,
+      force: force,
     );
     final result = CatalogPage.parse(kind, data);
     if (kind != 'books') return result;
+    if ((data is Map || data is List) && _storedBookBatches[data] != true) {
+      store.cacheBooks(profile.id, result.items);
+      _storedBookBatches[data] = true;
+    }
     return CatalogPage(
       result.items.map((v) {
-        store.cache(profile.id, 'book:${v.id}', v.json);
         return CatalogItem(kind, overlay(v.book).json);
       }).toList(),
       result.last,
@@ -167,8 +255,15 @@ class Repository extends ChangeNotifier {
       result = Book(object(value));
     } else {
       try {
-        result = await api.book(id);
-        store.cache(profile.id, 'book:$id', result.json);
+        result = Book(
+          object(
+            await get(
+              '/api/v1/books/${Uri.encodeComponent(id)}',
+              cacheFirst: true,
+              cacheKey: 'book:$id',
+            ),
+          ),
+        );
       } on ApiFailure catch (e) {
         if (!e.offline) rethrow;
         final cached = store.cached(profile.id, 'book:$id');
@@ -179,29 +274,63 @@ class Repository extends ChangeNotifier {
     return overlay(result);
   }
 
-  Future<Uint8List> image(String path, {bool refresh = false}) {
-    if (refresh) _images.remove(path);
-    return _images.putIfAbsent(path, () async {
-      try {
-        final file = cachedFile(path);
-        if (!refresh && await file.exists()) return await file.readAsBytes();
-        if (offline) {
-          throw const ApiFailure('Image unavailable offline.', offline: true);
+  Future<Uint8List> image(String path, {bool refresh = false}) =>
+      _image(path, refresh: refresh);
+  Future<Uint8List> _image(
+    String path, {
+    bool refresh = false,
+    bool speculative = false,
+  }) {
+    if (refresh) _bytes.remove(path);
+    final cached = _bytes[path];
+    if (!refresh && cached != null) return SynchronousFuture(cached);
+    return _imageRequests.run(path, () async {
+      final file = cachedFile(path);
+      if (!refresh && await file.exists()) {
+        try {
+          final bytes = await file.readAsBytes();
+          unawaited(
+            file.setLastModified(DateTime.now()).catchError((Object _) => file),
+          );
+          _bytes.put(path, bytes);
+          return bytes;
+        } on FileSystemException {
+          // A concurrent trim can remove an entry between lookup and read.
         }
-        final bytes = await api.bytes(path);
-        await file.parent.create(recursive: true);
-        await file.writeAsBytes(bytes, flush: true);
-        return bytes;
-      } finally {
-        _images.remove(path);
       }
-    });
+      if (offline) {
+        throw const ApiFailure('Image unavailable offline.', offline: true);
+      }
+      final bytes = await api.bytes(path);
+      await file.parent.create(recursive: true);
+      final partial = File('${file.path}.part');
+      await partial.writeAsBytes(bytes);
+      await partial.rename(file.path);
+      if (!_disposed) _bytes.put(path, bytes);
+      _scheduleTrim();
+      return bytes;
+    }, speculative: speculative);
   }
 
   Future<Uint8List> page(String id, int page) async {
+    final path = '/api/v1/books/${Uri.encodeComponent(id)}/pages/$page';
+    final memory = _bytes[path];
+    if (memory != null) return memory;
     final file = pageFile(id, page);
-    if (await file.exists()) return file.readAsBytes();
-    return image('/api/v1/books/${Uri.encodeComponent(id)}/pages/$page');
+    if (await file.exists()) {
+      final bytes = await file.readAsBytes();
+      _bytes.put(path, bytes);
+      return bytes;
+    }
+    return image(path);
+  }
+
+  Future<Uint8List> prefetchPage(String id, int number) async {
+    if (await pageFile(id, number).exists()) return page(id, number);
+    return _image(
+      '/api/v1/books/${Uri.encodeComponent(id)}/pages/$number',
+      speculative: true,
+    );
   }
 
   void setProgress(Book book, int page, {bool? completed, bool reset = false}) {
@@ -214,6 +343,7 @@ class Repository extends ChangeNotifier {
       if (reset) 'reset': true,
     });
     progressRevision++;
+    catalogChanges.value++;
     changed();
     unawaited(sync());
   }
@@ -253,6 +383,8 @@ class Repository extends ChangeNotifier {
         },
       },
     });
+    progressRevision++;
+    catalogChanges.value++;
     changed();
     unawaited(sync());
   }
@@ -530,12 +662,18 @@ class Repository extends ChangeNotifier {
 
   @override
   void dispose() {
+    _cacheEvents?.cancel();
+    _cacheTrim?.cancel();
     _disposed = true;
     _events?.cancel();
     _refreshTimer?.cancel();
     _reconnect?.cancel();
     _eventReconnect?.cancel();
     _cancelled.addAll(downloading.keys);
+    _imageRequests.close();
+    _bytes.clear();
+    _queryValues.clear();
+    catalogChanges.dispose();
     api.close();
     super.dispose();
   }
