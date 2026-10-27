@@ -1,5 +1,19 @@
 # Development validation
 
+## 0.4.1 comic interaction — local verification
+
+Formatting and static analysis passed. The local suite passed **90 tests**, with
+the separate live Komga case intentionally skipped. New gesture tests exercise
+LTR/RTL paging, pinch starting after a swipe crosses the midpoint, rollback
+without progress writes, pan with the remaining finger, zoom reset, desktop
+wheel zoom, reuse of the rendered subtree and vertical item recycling. Fullscreen
+widget checks verify full viewport geometry, protected controls and Android
+system-UI ownership/restoration. The native Android window implementation still
+requires target-device/OEM acceptance; physical phone frame times are not measured.
+
+Signed Android compilation and Android/Windows CI for this preview are in progress.
+The verified 0.4.0 release below remains the previous published build.
+
 ## 0.4.0 preview — verified release
 
 Source: `f23eaa42ec5713df1ce4f66d03c0124c9817690e`. All three jobs passed in

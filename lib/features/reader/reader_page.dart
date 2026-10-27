@@ -16,6 +16,8 @@ import 'document_readers.dart';
 import 'reading_session.dart';
 import 'tap_zones.dart';
 import 'page_parts.dart';
+import 'reader_viewport.dart';
+import 'reader_display.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -36,12 +38,86 @@ class ReaderPage extends StatefulWidget {
 class _ReaderPageState extends State<ReaderPage> {
   late ReadingSession _session;
   late PageController _pages;
+  final _zoom = TransformationController();
+  int _gesturePage = 0;
+  double _decodeZoom = 1;
+  bool _scrolling = false, _interacting = false;
+  Timer? _settleTimer;
+  ThemeData? _readerTheme;
+  Brightness? _readerBrightness;
+
+  void _activity(bool active) {
+    _interacting = active;
+    if (active) {
+      _settleTimer?.cancel();
+      _preloadTimer?.cancel();
+      _preloadGeneration++;
+    } else {
+      _settled();
+    }
+  }
+
+  void _settled() {
+    if (_scrolling || _interacting || !mounted) return;
+    _settleTimer?.cancel();
+    _settleTimer = Timer(const Duration(milliseconds: 40), () {
+      if (!mounted || _scrolling || _interacting) return;
+      _rememberPart();
+      _commitIfReady();
+      _preload();
+    });
+  }
+
+  bool _scrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (notification is ScrollStartNotification) {
+      _scrolling = true;
+      _settleTimer?.cancel();
+      _preloadTimer?.cancel();
+      _preloadGeneration++;
+    } else if (notification is ScrollEndNotification) {
+      _scrolling = false;
+      _settled();
+    }
+    return false;
+  }
+
+  void _zoomSettled(double scale) {
+    final decode = scale > 1.1 ? 2.0 : 1.0;
+    if (mounted && decode != _decodeZoom) setState(() => _decodeZoom = decode);
+  }
+
+  void _resetZoom() {
+    _zoom.value = Matrix4.identity();
+    _decodeZoom = 1;
+  }
+
+  void _tap(Offset point, Size size) {
+    if (_zoom.value.getMaxScaleOnAxis() > 1.001) {
+      setState(() => _controls = !_controls);
+      return;
+    }
+    switch (tapAction(
+      point.dx / size.width,
+      point.dy / size.height,
+      _session.preferences,
+    )) {
+      case TapAction.previous:
+        _turn(-1);
+      case TapAction.next:
+        _turn(1);
+      case TapAction.controls:
+        setState(() => _controls = !_controls);
+    }
+  }
+
   final _scroll = ItemScrollController();
   final _positions = ItemPositionsListener.create();
   bool _controls = true, _verticalReady = false;
   final Set<int> _readyPages = {};
   List<Json> _dimensions = [];
   List<PagePart> _parts = [];
+  Set<int> _splitPages = {};
   int _partIndex = 0, _geometryRevision = 0;
   bool _loadingDimensions = false;
   bool _dimensionsLoaded = false;
@@ -145,6 +221,10 @@ class _ReaderPageState extends State<ReaderPage> {
   void _rebuildParts(ReaderPreferences p) {
     final oldHalf = _parts.elementAtOrNull(_partIndex)?.half ?? 0;
     _parts = pageParts(widget.book.pages, _dimensions, p);
+    _splitPages = _parts
+        .where((part) => part.half != 0)
+        .map((part) => part.page)
+        .toSet();
     var index = _parts.indexWhere(
       (part) => part.page == _session.page && part.half == oldHalf,
     );
@@ -169,6 +249,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _turn(int delta) {
+    _resetZoom();
     if (!_split) {
       _go(_session.page + delta * _session.step);
       return;
@@ -190,14 +271,13 @@ class _ReaderPageState extends State<ReaderPage> {
   void _preload() {
     _preloadTimer?.cancel();
     final generation = ++_preloadGeneration;
-    if (widget.book.format != 'comic') return;
+    if (widget.book.format != 'comic' || _scrolling || _interacting) return;
     final anchor = _session.page;
     final window = preloadWindow(_session.preferences.preload);
     _preloadTimer = Timer(const Duration(milliseconds: 80), () async {
       final width =
           (MediaQuery.sizeOf(context).width *
-                  MediaQuery.devicePixelRatioOf(context) *
-                  2)
+                  MediaQuery.devicePixelRatioOf(context))
               .ceil()
               .clamp(1, 4096);
       final candidates = [
@@ -214,7 +294,11 @@ class _ReaderPageState extends State<ReaderPage> {
           );
           if (!mounted || generation != _preloadGeneration) return;
           await precacheImage(
-            ResizeImage.resizeIfNeeded(width, null, MemoryImage(bytes)),
+            ResizeImage.resizeIfNeeded(
+              (width * (_splitPages.contains(page) ? 2 : 1)).clamp(1, 4096),
+              null,
+              MemoryImage(bytes),
+            ),
             context,
             onError: (_, _) {},
           );
@@ -226,6 +310,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _commitIfReady() {
+    if (_scrolling || _interacting) return;
     if (['auto', 'ltr', 'rtl'].contains(_session.preferences.splitWide) &&
         !_dimensionsLoaded) {
       return;
@@ -301,6 +386,8 @@ class _ReaderPageState extends State<ReaderPage> {
   void dispose() {
     _preloadGeneration++;
     _preloadTimer?.cancel();
+    _settleTimer?.cancel();
+    _zoom.dispose();
     _focus.dispose();
     _pages.dispose();
     _positions.itemPositions.removeListener(_onScroll);
@@ -319,21 +406,21 @@ class _ReaderPageState extends State<ReaderPage> {
           ..sort((a, b) => a.index.compareTo(b.index));
     if (visible.isNotEmpty && visible.first.index + 1 != _session.page) {
       setState(() => _session.go(visible.first.index + 1));
-      _preload();
-      _commitIfReady();
+      _settled();
     }
   }
 
   void _go(int page) {
+    _resetZoom();
     _session.go(page);
     if (_split) {
       _partIndex = _parts.indexWhere((part) => part.page == _session.page);
     }
-    _preload();
     if (_session.preferences.mode == ReadingMode.paged && _pages.hasClients) {
       if (!_session.preferences.animate) {
         _pages.jumpToPage(_viewIndex);
         setState(() {});
+        _settled();
         return;
       }
       _pages.animateToPage(
@@ -348,11 +435,14 @@ class _ReaderPageState extends State<ReaderPage> {
       );
     }
     setState(() {});
+    _settled();
   }
 
   void _configure(ReaderPreferences preferences) {
     preferences = seriesReaderPreferences(preferences, _seriesMetadata);
     final old = _pages;
+    _resetZoom();
+    _scrolling = false;
     setState(() {
       _verticalReady = false;
       _session.configure(preferences);
@@ -515,12 +605,35 @@ class _ReaderPageState extends State<ReaderPage> {
                       }
                     },
                   ),
-                  SwitchListTile(
+                  ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Fit Width')),
-                    value: p.fit == 'fitWidth',
-                    onChanged: (v) =>
-                        apply(p.copy(fit: v ? 'fitWidth' : 'contain')),
+                    title: Text(tr(context, 'Page Fit')),
+                    subtitle: Text(
+                      tr(
+                        context,
+                        {
+                              'contain': 'Fit Page',
+                              'fitWidth': 'Fit Width',
+                              'cover': 'Fill Screen',
+                            }[p.fit] ??
+                            'Fit Page',
+                      ),
+                    ),
+                    onTap: () async {
+                      final fit = await chooseValue(
+                        context,
+                        title: 'Page Fit',
+                        selected: p.fit,
+                        choices: {
+                          'contain': 'Fit Page',
+                          'fitWidth': 'Fit Width',
+                          'cover': 'Fill Screen',
+                        },
+                      );
+                      if (fit != null && mounted && context.mounted) {
+                        apply(p.copy(fit: fit));
+                      }
+                    },
                   ),
                   for (final setting in ['tapMode', 'tapInversion', 'preload'])
                     ListTile(
@@ -653,167 +766,188 @@ class _ReaderPageState extends State<ReaderPage> {
         '${settings.mode}:${settings.spread}:${settings.direction}:${settings.splitWide}:$_geometryRevision';
     final scaffold = Scaffold(
       backgroundColor: background,
-      body: SafeArea(
-        child: Focus(
-          focusNode: _focus,
-          onKeyEvent: (node, event) {
-            if (event is! KeyDownEvent) return KeyEventResult.ignored;
-            final key = event.logicalKey;
-            if (key == LogicalKeyboardKey.escape) {
-              Navigator.maybePop(context);
-              return KeyEventResult.handled;
-            }
-            if (key == LogicalKeyboardKey.space) {
-              setState(() => _controls = !_controls);
-              return KeyEventResult.handled;
-            }
-            final rtl = settings.direction == ReadingDirection.rtl;
-            if (key == LogicalKeyboardKey.arrowDown ||
-                key == LogicalKeyboardKey.pageDown ||
-                key ==
-                    (rtl
-                        ? LogicalKeyboardKey.arrowLeft
-                        : LogicalKeyboardKey.arrowRight)) {
-              _turn(1);
-              return KeyEventResult.handled;
-            }
-            if (key == LogicalKeyboardKey.arrowUp ||
-                key == LogicalKeyboardKey.pageUp ||
-                key ==
-                    (rtl
-                        ? LogicalKeyboardKey.arrowRight
-                        : LogicalKeyboardKey.arrowLeft)) {
-              _turn(-1);
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: Stack(
-            children: [
-              if (widget.book.pages == 0)
-                EmptyView(
-                  title: 'No Pages',
-                  message: 'This book has no readable pages.',
-                  icon: CupertinoIcons.book,
-                )
-              else if (settings.mode == ReadingMode.paged)
-                LayoutBuilder(
-                  builder: (context, constraints) => GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTapUp: (details) {
-                      final action = tapAction(
-                        details.localPosition.dx / constraints.maxWidth,
-                        details.localPosition.dy / constraints.maxHeight,
-                        settings,
-                      );
-                      switch (action) {
-                        case TapAction.previous:
-                          _turn(-1);
-                        case TapAction.next:
-                          _turn(1);
-                        case TapAction.controls:
-                          setState(() => _controls = !_controls);
-                      }
-                    },
-                    child: PageView.builder(
-                      key: ValueKey(modeKey),
-                      controller: _pages,
-                      reverse: settings.direction == ReadingDirection.rtl,
-                      itemCount: _viewCount,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _partIndex = index;
-                          _session.go(
-                            _split
-                                ? _parts[index].page
-                                : index * _session.step + 1,
-                          );
-                        });
-                        _rememberPart();
-                        _preload();
-                        _commitIfReady();
-                      },
-                      itemBuilder: (context, index) {
-                        if (_split) {
-                          final part = _parts[index];
-                          return _PageImage(
-                            repository: widget.repository,
-                            book: widget.book,
-                            page: part.page,
-                            half: part.half,
-                            halfAspect: part.aspect,
-                            preferences: settings,
-                            onReady: () {
-                              _readyPages.add(part.page);
-                              _commitIfReady();
+      body: Focus(
+        focusNode: _focus,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          final key = event.logicalKey;
+          if (key == LogicalKeyboardKey.escape) {
+            Navigator.maybePop(context);
+            return KeyEventResult.handled;
+          }
+          if (key == LogicalKeyboardKey.space) {
+            setState(() => _controls = !_controls);
+            return KeyEventResult.handled;
+          }
+          final rtl = settings.direction == ReadingDirection.rtl;
+          if (key == LogicalKeyboardKey.arrowDown ||
+              key == LogicalKeyboardKey.pageDown ||
+              key ==
+                  (rtl
+                      ? LogicalKeyboardKey.arrowLeft
+                      : LogicalKeyboardKey.arrowRight)) {
+            _turn(1);
+            return KeyEventResult.handled;
+          }
+          if (key == LogicalKeyboardKey.arrowUp ||
+              key == LogicalKeyboardKey.pageUp ||
+              key ==
+                  (rtl
+                      ? LogicalKeyboardKey.arrowRight
+                      : LogicalKeyboardKey.arrowLeft)) {
+            _turn(-1);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _scrollNotification,
+                child: widget.book.pages == 0
+                    ? EmptyView(
+                        title: 'No Pages',
+                        message: 'This book has no readable pages.',
+                        icon: CupertinoIcons.book,
+                      )
+                    : settings.mode == ReadingMode.paged
+                    ? LayoutBuilder(
+                        builder: (context, constraints) => ReaderViewport(
+                          controller: _zoom,
+                          onContact: () => _gesturePage = _pages.hasClients
+                              ? (_pages.page ?? 0).round()
+                              : _viewIndex,
+                          onPinch: () {
+                            if (_pages.hasClients) {
+                              _pages.jumpToPage(_gesturePage);
+                            }
+                          },
+                          startScroll: (details) => _pages.hasClients
+                              ? _pages.position.drag(details, () {})
+                              : null,
+                          onActivityChanged: _activity,
+                          onZoomSettled: _zoomSettled,
+                          onTap: (point) => _tap(point, constraints.biggest),
+                          onWheel: (delta) {
+                            if (!_scrolling && delta != 0) {
+                              _turn(delta.sign.toInt());
+                            }
+                          },
+                          child: PageView.builder(
+                            key: ValueKey(modeKey),
+                            controller: _pages,
+                            physics: const NeverScrollableScrollPhysics(),
+                            allowImplicitScrolling: true,
+                            reverse: settings.direction == ReadingDirection.rtl,
+                            itemCount: _viewCount,
+                            onPageChanged: (index) {
+                              setState(() {
+                                _resetZoom();
+                                _partIndex = index;
+                                _session.go(
+                                  _split
+                                      ? _parts[index].page
+                                      : index * _session.step + 1,
+                                );
+                              });
+                              _settled();
                             },
-                          );
-                        }
-                        final page = index * _session.step + 1;
-                        final children = [
-                          for (
-                            var i = page;
-                            i < page + _session.step && i <= widget.book.pages;
-                            i++
-                          )
-                            Expanded(
-                              child: _PageImage(
-                                repository: widget.repository,
-                                book: widget.book,
-                                page: i,
-                                preferences: settings,
-                                onReady: () {
-                                  _readyPages.add(i);
-                                  _commitIfReady();
-                                },
-                              ),
+                            itemBuilder: (context, index) {
+                              if (_split) {
+                                final part = _parts[index];
+                                return _PageImage(
+                                  repository: widget.repository,
+                                  book: widget.book,
+                                  page: part.page,
+                                  half: part.half,
+                                  halfAspect: part.aspect,
+                                  decodeZoom: index == _viewIndex
+                                      ? _decodeZoom
+                                      : 1,
+                                  preferences: settings,
+                                  onReady: () {
+                                    _readyPages.add(part.page);
+                                    _commitIfReady();
+                                  },
+                                );
+                              }
+                              final page = index * _session.step + 1;
+                              final children = [
+                                for (
+                                  var i = page;
+                                  i < page + _session.step &&
+                                      i <= widget.book.pages;
+                                  i++
+                                )
+                                  Expanded(
+                                    child: _PageImage(
+                                      repository: widget.repository,
+                                      book: widget.book,
+                                      page: i,
+                                      decodeZoom: index == _viewIndex
+                                          ? _decodeZoom
+                                          : 1,
+                                      preferences: settings,
+                                      onReady: () {
+                                        _readyPages.add(i);
+                                        _commitIfReady();
+                                      },
+                                    ),
+                                  ),
+                              ];
+                              return Row(
+                                textDirection:
+                                    settings.direction == ReadingDirection.rtl
+                                    ? TextDirection.rtl
+                                    : TextDirection.ltr,
+                                children: children,
+                              );
+                            },
+                          ),
+                        ),
+                      )
+                    : ScrollablePositionedList.builder(
+                        key: ValueKey(modeKey),
+                        itemScrollController: _scroll,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemPositionsListener: _positions,
+                        initialScrollIndex: _session.page - 1,
+                        itemCount: widget.book.pages,
+                        itemBuilder: (context, index) => GestureDetector(
+                          onTap: () => setState(() => _controls = !_controls),
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              bottom: settings.mode == ReadingMode.webtoon
+                                  ? 0
+                                  : 12,
                             ),
-                        ];
-                        return Row(
-                          textDirection:
-                              settings.direction == ReadingDirection.rtl
-                              ? TextDirection.rtl
-                              : TextDirection.ltr,
-                          children: children,
-                        );
-                      },
-                    ),
-                  ),
-                )
-              else
-                ScrollablePositionedList.builder(
-                  key: ValueKey(modeKey),
-                  itemScrollController: _scroll,
-                  itemPositionsListener: _positions,
-                  initialScrollIndex: _session.page - 1,
-                  itemCount: widget.book.pages,
-                  itemBuilder: (context, index) => GestureDetector(
-                    onTap: () => setState(() => _controls = !_controls),
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        bottom: settings.mode == ReadingMode.webtoon ? 0 : 12,
+                            child: _PageImage(
+                              repository: widget.repository,
+                              book: widget.book,
+                              page: index + 1,
+                              preferences: settings,
+                              vertical: true,
+                              onActivityChanged: _activity,
+                              onReady: () {
+                                _readyPages.add(index + 1);
+                                _commitIfReady();
+                              },
+                            ),
+                          ),
+                        ),
                       ),
-                      child: _PageImage(
-                        repository: widget.repository,
-                        book: widget.book,
-                        page: index + 1,
-                        preferences: settings,
-                        vertical: true,
-                        onReady: () {
-                          _readyPages.add(index + 1);
-                          _commitIfReady();
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              if (_controls)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: ColoredBox(
-                    color: Colors.black.withValues(alpha: .85),
+              ),
+            ),
+            if (_controls)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: .85),
+                  child: SafeArea(
+                    bottom: false,
                     child: Row(
                       children: [
                         IconButton(
@@ -843,6 +977,14 @@ class _ReaderPageState extends State<ReaderPage> {
                           ),
                         IconButton(
                           color: Colors.white,
+                          tooltip: tr(context, 'Full Screen'),
+                          onPressed: () => setState(() => _controls = false),
+                          icon: const Icon(
+                            CupertinoIcons.arrow_up_left_arrow_down_right,
+                          ),
+                        ),
+                        IconButton(
+                          color: Colors.white,
                           onPressed: _settings,
                           tooltip: tr(context, 'Reader Settings'),
                           icon: const Icon(CupertinoIcons.slider_horizontal_3),
@@ -851,13 +993,16 @@ class _ReaderPageState extends State<ReaderPage> {
                     ),
                   ),
                 ),
-              if (_controls && widget.book.pages > 0)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: ColoredBox(
-                    color: Colors.black.withValues(alpha: .85),
+              ),
+            if (_controls && widget.book.pages > 0)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: .85),
+                  child: SafeArea(
+                    top: false,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -911,16 +1056,21 @@ class _ReaderPageState extends State<ReaderPage> {
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
+    final brightness = settings.background == 'black'
+        ? Brightness.dark
+        : Brightness.light;
+    if (_readerTheme == null || brightness != _readerBrightness) {
+      _readerBrightness = brightness;
+      _readerTheme = appTheme(brightness);
+    }
     return Theme(
-      data: appTheme(
-        settings.background == 'black' ? Brightness.dark : Brightness.light,
-      ),
-      child: scaffold,
+      data: _readerTheme!,
+      child: ReaderDisplay(child: scaffold),
     );
   }
 }
@@ -935,6 +1085,8 @@ class _PageImage extends StatefulWidget {
     this.vertical = false,
     this.half = 0,
     this.halfAspect = 1,
+    this.decodeZoom = 1,
+    this.onActivityChanged,
   });
   final Repository repository;
   final Book book;
@@ -943,15 +1095,21 @@ class _PageImage extends StatefulWidget {
   final VoidCallback onReady;
   final bool vertical;
   final int half;
-  final double halfAspect;
+  final double halfAspect, decodeZoom;
+  final ValueChanged<bool>? onActivityChanged;
   @override
   State<_PageImage> createState() => _PageImageState();
 }
 
-class _PageImageState extends State<_PageImage> {
+class _PageImageState extends State<_PageImage>
+    with AutomaticKeepAliveClientMixin {
   late Future<Uint8List> _future;
   final _transform = TransformationController();
   bool _reported = false;
+  double _verticalStart = 0, _verticalDecode = 1;
+  bool _gestureActive = false;
+  @override
+  bool get wantKeepAlive => widget.vertical && _gestureActive;
   @override
   void initState() {
     super.initState();
@@ -976,106 +1134,124 @@ class _PageImageState extends State<_PageImage> {
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List>(
-    future: _future,
-    builder: (context, snapshot) {
-      if (snapshot.hasError) {
-        return SizedBox(
-          height: widget.vertical ? 300 : null,
-          child: FailureView(
-            error: snapshot.error!,
-            retry: () => setState(() {
-              _reported = false;
-              _future = widget.repository.page(widget.book.id, widget.page);
-            }),
-          ),
-        );
-      }
-      if (!snapshot.hasData) {
-        return SizedBox(
-          height: widget.vertical ? 400 : null,
-          child: const Center(child: CircularProgressIndicator.adaptive()),
-        );
-      }
-      final image = Image.memory(
-        snapshot.data!,
-        cacheWidth:
-            (MediaQuery.sizeOf(context).width *
-                    MediaQuery.devicePixelRatioOf(context) *
-                    2)
-                .ceil()
-                .clamp(1, 4096),
-        width: double.infinity,
-        fit: widget.vertical
-            ? BoxFit.fitWidth
-            : widget.preferences.fit == 'fitWidth'
-            ? BoxFit.fitWidth
-            : BoxFit.contain,
-        gaplessPlayback: true,
-        frameBuilder: (context, child, frame, synchronous) {
-          if ((frame != null || synchronous) && !_reported) {
-            _reported = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) widget.onReady();
-            });
-          }
-          return child;
-        },
-        errorBuilder: (context, error, stack) => FailureView(
-          error: error,
-          retry: () => setState(
-            () => _future = widget.repository.image(
-              '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages/${widget.page}',
-              refresh: true,
+  Widget build(BuildContext context) {
+    super.build(context);
+    final content = FutureBuilder<Uint8List>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return SizedBox(
+            height: widget.vertical ? 300 : null,
+            child: FailureView(
+              error: snapshot.error!,
+              retry: () => setState(() {
+                _reported = false;
+                _future = widget.repository.page(widget.book.id, widget.page);
+              }),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return SizedBox(
+            height: widget.vertical ? 400 : null,
+            child: const Center(child: CircularProgressIndicator.adaptive()),
+          );
+        }
+        final image = Image.memory(
+          snapshot.data!,
+          cacheWidth:
+              (MediaQuery.sizeOf(context).width *
+                      MediaQuery.devicePixelRatioOf(context) *
+                      (widget.vertical ? _verticalDecode : widget.decodeZoom) *
+                      (widget.half == 0 ? 1 : 2))
+                  .ceil()
+                  .clamp(1, 4096),
+          width: double.infinity,
+          fit: widget.vertical
+              ? BoxFit.fitWidth
+              : switch (widget.preferences.fit) {
+                  'fitWidth' => BoxFit.fitWidth,
+                  'cover' => BoxFit.cover,
+                  _ => BoxFit.contain,
+                },
+          gaplessPlayback: true,
+          frameBuilder: (context, child, frame, synchronous) {
+            if ((frame != null || synchronous) && !_reported) {
+              _reported = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) widget.onReady();
+              });
+            }
+            return child;
+          },
+          errorBuilder: (context, error, stack) => FailureView(
+            error: error,
+            retry: () => setState(
+              () => _future = widget.repository.image(
+                '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages/${widget.page}',
+                refresh: true,
+              ),
             ),
           ),
-        ),
-      );
-      return GestureDetector(
-        onDoubleTap: () => _transform.value = _transform.value.isIdentity()
-            ? (Matrix4.identity()..scaleByDouble(2, 2, 1, 1))
-            : Matrix4.identity(),
-        child: InteractiveViewer(
-          transformationController: _transform,
-          minScale: 1,
-          maxScale: 6,
-          child: RotatedBox(
-            quarterTurns: widget.preferences.rotation,
-            child: widget.half == 0
-                ? image
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.maxWidth
-                          .clamp(0, constraints.maxHeight * widget.halfAspect)
-                          .toDouble();
-                      final height = width / widget.halfAspect;
-                      return Center(
-                        child: SizedBox(
-                          width: width,
-                          height: height,
-                          child: ClipRect(
-                            child: OverflowBox(
-                              alignment: widget.half == 1
-                                  ? Alignment.centerLeft
-                                  : Alignment.centerRight,
-                              minWidth: width * 2,
-                              maxWidth: width * 2,
-                              minHeight: height,
-                              maxHeight: height,
-                              child: SizedBox(
-                                width: width * 2,
-                                height: height,
-                                child: image,
-                              ),
+        );
+        return RotatedBox(
+          quarterTurns: widget.preferences.rotation,
+          child: widget.half == 0
+              ? image
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth
+                        .clamp(0, constraints.maxHeight * widget.halfAspect)
+                        .toDouble();
+                    final height = width / widget.halfAspect;
+                    return Center(
+                      child: SizedBox(
+                        width: width,
+                        height: height,
+                        child: ClipRect(
+                          child: OverflowBox(
+                            alignment: widget.half == 1
+                                ? Alignment.centerLeft
+                                : Alignment.centerRight,
+                            minWidth: width * 2,
+                            maxWidth: width * 2,
+                            minHeight: height,
+                            maxHeight: height,
+                            child: SizedBox(
+                              width: width * 2,
+                              height: height,
+                              child: image,
                             ),
                           ),
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ),
-      );
-    },
-  );
+                      ),
+                    );
+                  },
+                ),
+        );
+      },
+    );
+    if (!widget.vertical) return RepaintBoundary(child: content);
+    ScrollPosition? position() => Scrollable.maybeOf(context)?.position;
+    return ReaderViewport(
+      controller: _transform,
+      axis: Axis.vertical,
+      onContact: () => _verticalStart = position()?.pixels ?? 0,
+      onPinch: () => position()?.jumpTo(_verticalStart),
+      startScroll: (details) => position()?.drag(details, () {}),
+      onActivityChanged: (active) {
+        _gestureActive = active;
+        updateKeepAlive();
+        widget.onActivityChanged?.call(active);
+      },
+      onZoomSettled: (scale) {
+        final decode = scale > 1.1 ? 2.0 : 1.0;
+        if (mounted && decode != _verticalDecode) {
+          setState(() => _verticalDecode = decode);
+        }
+      },
+      onWheel: (delta) => position()?.pointerScroll(delta),
+      child: content,
+    );
+  }
 }

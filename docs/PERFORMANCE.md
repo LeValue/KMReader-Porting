@@ -122,3 +122,28 @@ Native PDF widget tests exercise real PDFium, including AES-128 password retry,
 text search, result retention across viewport changes, whole-spread fitting and
 canonical focus on the last spread without falsely advancing to the last page.
 These checks do not substitute for frame-time or touch/zoom acceptance on a phone.
+
+## 0.4.1 comic gestures and immersive Android reading
+
+A single recognizer now arbitrates one-finger paging, multi-touch zoom and zoomed
+panning. A second contact cancels an unfinished page turn even after crossing
+the midpoint; the remaining finger cannot restart paging until all contacts lift.
+Mouse-wheel zoom is retained. Vertical items stay alive during an active drag.
+
+Adjacent pager items are prepared before a turn. Normal raster decoding targets
+physical display width instead of twice that width for unsplit pages (one quarter
+of decoded pixel area for uncapped images). Split wide pages retain the extra
+width needed to display each half sharply. Only the visible page requests zoom headroom after
+the gesture ends, with gapless image replacement. Page subtrees and reader theme
+are reused; progress writes and additional preload work wait for scrolling to stop.
+
+Android uses WindowInsetsController on API 30+ and immersive sticky flags on older
+versions, with reader-specific cutout handling and restoration on exit. Page content
+extends to the viewport edges while SafeArea surrounds controls only. Full Screen
+hides controls; the separate Fill Screen choice explicitly crops page edges.
+
+Gesture tests cover LTR/RTL paging, late pinch cancellation, pan after lifting one
+finger, zoom reset, desktop wheel zoom, reuse of the rendered subtree, deferred
+progress, full viewport size with simulated insets, vertical recycling, and
+system-UI ownership/restoration. Physical Android frame times and OEM system-bar
+behavior still require target-device acceptance.
