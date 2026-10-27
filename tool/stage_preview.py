@@ -24,7 +24,7 @@ def main():
     packed = lzma.compress(data, preset=6)
     encoded = base64.b64encode(packed).decode('ascii')
     # GitHub counts the encoded JSON request too, not just the stored blob.
-    if len(encoded) >= 90 * 1024 * 1024:
+    if len(encoded) >= 48_000_000:
         raise SystemExit('Encoded APK exceeds the Git blob request budget; do not split or commit it.')
     git_hash = hashlib.sha1(b'blob ' + str(len(packed)).encode() + b'\0' + packed).hexdigest()
     with tempfile.TemporaryDirectory(prefix='kmreader-preview-') as temporary:
