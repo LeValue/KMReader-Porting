@@ -1,18 +1,43 @@
 # Development validation
 
-## 0.4.1 comic interaction — local verification
+## 0.4.1 preview — verified comic-reader fixes
 
-Formatting and static analysis passed. The local suite passed **90 tests**, with
-the separate live Komga case intentionally skipped. New gesture tests exercise
-LTR/RTL paging, pinch starting after a swipe crosses the midpoint, rollback
-without progress writes, pan with the remaining finger, zoom reset, desktop
-wheel zoom, reuse of the rendered subtree and vertical item recycling. Fullscreen
-widget checks verify full viewport geometry, protected controls and Android
-system-UI ownership/restoration. The native Android window implementation still
-requires target-device/OEM acceptance; physical phone frame times are not measured.
+Source: `9332ee4bf67fcfa11db645b3941b4c5ae03c15a1`. All three jobs passed in
+[workflow 40578135866](https://github.com/LeValue/KMReader-Porting/actions/runs/40578135866).
+The [published preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.4.1-preview.1) contains the verified Android and Windows files.
 
-Signed Android compilation and Android/Windows CI for this preview are in progress.
-The verified 0.4.0 release below remains the previous published build.
+| Check | Observed result |
+| --- | --- |
+| Formatting and static analysis | Passed |
+| Full automated suites | 90 passed and one live test deliberately skipped, locally and on Linux/Windows CI |
+| Separate real Komga integration | Passed in Android CI |
+| Android release compilation | Passed locally and independently in CI, including the native immersive-window handler |
+| Windows release compilation/startup | Passed in CI; welcome window rendered in an isolated profile |
+| Published downloads | Downloaded again; SHA256 manifest and GitHub asset digests matched |
+| Android integrity | Same retained certificate, version 0.4.1/code 5, release AOT/SQLite/PDFium in all three ABIs and 16 KiB alignment |
+| Windows portable bundle | x64 PE, AOT, native engines and MSVC runtime; every published file matched the CI artifact |
+
+Android: 90,534,136 bytes,
+SHA256 `2fba6a5a42b73b636e0af3ac6e7b0f683b5a41556764af49e4c201a18aa8f3bc`.
+
+Windows ZIP: 19,967,519 bytes,
+SHA256 `be231c0b66545f11733e66972653f1f96c43b99e624999950d5046190ae3ddaa`.
+The release tag points to the exact workflow source above.
+
+New tests exercise LTR/RTL paging, a second finger arriving after a swipe crosses
+the midpoint, rollback without progress writes, remaining-finger pan, zoom reset,
+desktop wheel zoom, reuse of the rendered subtree, vertical item recycling,
+full viewport geometry with safe controls and Android system-UI ownership.
+Existing wide-page pixel and semantic-progress checks continue to pass with the
+decode target used for split pages. All three signed AOT snapshots were checked
+for the new reader-display channel and differ from 0.4.0.
+
+![Native Windows startup](screenshots/windows-startup-0.4.1.png)
+
+The user reported a successful quick Windows 0.4.0 smoke test. That feedback is
+not exhaustive Windows acceptance. Physical Android frame times, touch behavior
+and OEM system-bar/cutout behavior still require device validation. The broader
+port remains incomplete; see [PARITY.md](PARITY.md).
 
 ## 0.4.0 preview — verified release
 
