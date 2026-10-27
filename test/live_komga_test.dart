@@ -9,6 +9,10 @@ import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
+import 'package:kmreader/core/catalog_tools.dart';
+import 'package:kmreader/core/reading_stats.dart';
+import 'package:kmreader/features/catalog/metadata_editor.dart';
+import 'package:kmreader/features/settings/library_editor.dart';
 import 'package:kmreader/features/reader/epub_document.dart';
 
 class _CountingClient extends http.BaseClient {
@@ -197,6 +201,133 @@ void main() {
           ),
         );
         expect(next['id'], pdf.id);
+        final tools = CatalogTools(repository);
+        final metadata = metadataPatch(
+          'books',
+          comic.metadata,
+          {
+            'tags': ['Porting Test'],
+            'tagsLock': true,
+          },
+          {'tags', 'tagsLock'},
+        );
+        await tools.updateMetadata('books', comic.id, metadata);
+        final edited = await api.book(comic.id);
+        expect(edited.metadata['tags'], ['porting test']);
+        expect(edited.metadata['tagsLock'], isTrue);
+        final nested = CatalogFilter(
+          entries: [
+            {'field': 'tag', 'operator': 'is', 'value': 'Porting Test'},
+            {
+              'any': true,
+              'entries': [
+                {'field': 'title', 'operator': 'contains', 'value': 'Comic'},
+                {'field': 'oneShot', 'operator': 'isTrue'},
+              ],
+            },
+          ],
+        );
+        final filtered = await repository.catalog(
+          'books',
+          condition: nested.condition('books'),
+          force: true,
+        );
+        expect(filtered.items.map((b) => b.id), [comic.id]);
+        await tools.updateList('readlists', text(list['id']), list, {
+          'name': 'Edited order',
+          'bookIds': [pdf.id, comic.id],
+        });
+        final reordered = await repository.catalog(
+          'books',
+          path: '/api/v1/readlists/${list['id']}/books',
+          force: true,
+        );
+        expect(reordered.items.map((b) => b.id), [pdf.id, comic.id]);
+        repository.setOffline(true);
+        repository.markBooks([comic], true);
+        repository.offline = false;
+        await repository.sync(force: true);
+        expect(repository.pendingCount, 0, reason: repository.syncFailure);
+        final readOnly = await repository.catalog(
+          'books',
+          path: '/api/v1/readlists/${list['id']}/books',
+          condition: {
+            'readStatus': {'operator': 'is', 'value': 'READ'},
+          },
+          force: true,
+        );
+        expect(readOnly.items.map((b) => b.id), [comic.id]);
+        final stats = await ReadingStats(repository).load();
+        expect(stats['source'], 'local');
+        expect(object(stats['summary'])['totalBooks'], 3);
+        expect(
+          object(stats['summary'])['booksCompletedReading'],
+          greaterThanOrEqualTo(1),
+        );
+        final collection = object(
+          await api.request(
+            '/api/v1/collections',
+            method: 'POST',
+            body: {
+              'name': 'Collection Test',
+              'ordered': true,
+              'seriesIds': [comic.seriesId],
+            },
+          ),
+        );
+        await tools.updateList(
+          'collections',
+          text(collection['id']),
+          collection,
+          {'name': 'Edited Collection'},
+        );
+        expect(
+          (await tools.list('collections', text(collection['id'])))['name'],
+          'Edited Collection',
+        );
+        await tools.deleteList('collections', text(collection['id']));
+        final emptyFolder = await Directory('${directory.path}/empty-library')
+            .create();
+        final newLibrary = object(
+          await api.request(
+            '/api/v1/libraries',
+            method: 'POST',
+            body: libraryPatch(
+              defaultLibrary()..addAll({
+                'name': 'Editor Test',
+                'root': emptyFolder.path,
+                'scanInterval': 'DISABLED',
+              }),
+              null,
+            ),
+          ),
+        );
+        await api.request(
+          '/api/v1/libraries/${newLibrary['id']}',
+          method: 'PATCH',
+          body: libraryPatch({
+            ...newLibrary,
+            'name': 'Edited Library',
+          }, newLibrary),
+        );
+        expect(
+          object(
+            await api.request('/api/v1/libraries/${newLibrary['id']}'),
+          )['name'],
+          'Edited Library',
+        );
+        await api.request(
+          '/api/v1/libraries/${newLibrary['id']}',
+          method: 'DELETE',
+        );
+        final events = object(
+          await api.request(
+            '/api/v1/history',
+            query: {'size': 10, 'sort': 'timestamp,desc'},
+          ),
+        );
+        expect(events['content'], isA<List>());
+        await tools.deleteList('readlists', text(list['id']));
         final key = object(
           await api.request(
             '/api/v2/users/me/api-keys',

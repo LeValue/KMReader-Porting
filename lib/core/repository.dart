@@ -79,8 +79,34 @@ class Repository extends ChangeNotifier {
   Timer? _eventReconnect;
   final Map<String, double> downloading = {};
   final Set<String> _cancelled = {};
+  final _downloadQueue = <Book>[];
+  final _downloadTasks = <String, Completer<void>>{};
+  final _downloadAborts = <String, Completer<void>>{};
+  int get downloadConcurrency =>
+      (store.setting<int>('downloadConcurrency') ?? 2).clamp(1, 3);
+  void setDownloadConcurrency(int value) {
+    store.setSetting('downloadConcurrency', value.clamp(1, 3));
+    _pumpDownloads();
+    changed();
+  }
+
+  bool queued(String id) =>
+      _downloadQueue.any((b) => b.id == id) ||
+      !downloading.containsKey(id) &&
+          [
+            'queued',
+            'downloading',
+          ].contains(store.download(profile.id, id)?['status']);
   int get pendingCount => store.pendingCount(profile.id);
   bool get closed => _disposed;
+  void _cancelEvents() {
+    final subscription = _events;
+    _events = null;
+    if (subscription != null) {
+      unawaited(subscription.cancel().catchError((Object _) {}));
+    }
+  }
+
   String fileKey(String key) => sha256.convert(utf8.encode(key)).toString();
   File cachedFile(String key) =>
       File(p.join(directory.path, profile.id, 'cache', fileKey(key)));
@@ -102,7 +128,37 @@ class Repository extends ChangeNotifier {
   }
 
   void refreshContent() {
+    if (_disposed) return;
     _invalidated = DateTime.now();
+    contentRevision++;
+    catalogChanges.value++;
+    changed();
+  }
+
+  late final Set<String> _removed =
+      (store.setting<List<dynamic>>('removed:${profile.id}') ?? [])
+          .whereType<String>()
+          .toSet();
+  void rememberItem(CatalogItem item) {
+    if (_disposed) return;
+    final key = item.kind == 'books'
+        ? 'book:${item.id}'
+        : 'detail:${item.kind}:${item.id}';
+    store.cache(profile.id, key, item.json);
+    _queryValues.put(key, item.json);
+    _queryDates[key] = DateTime.now();
+  }
+
+  void removeCatalogItem(String kind, String id) {
+    if (_disposed) return;
+    _removed.add('$kind:$id');
+    store.setSetting('removed:${profile.id}', _removed.toList());
+    store.deleteCache(profile.id, 'detail:$kind:$id');
+    refreshContent();
+  }
+
+  void localCatalogChanged() {
+    if (_disposed) return;
     contentRevision++;
     catalogChanges.value++;
     changed();
@@ -203,10 +259,25 @@ class Repository extends ChangeNotifier {
     int size = 40,
     String? libraryId,
   }) async {
+    String? readStatus(Json? condition) {
+      if (condition == null) return null;
+      final status = object(condition['readStatus']);
+      if (status['operator'] == 'is') return text(status['value']);
+      for (final child in condition['allOf'] as List? ?? []) {
+        final found = readStatus(object(child));
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    final searchEndpoint =
+        path == null ||
+        path.startsWith('/api/v1/smart-lists/') &&
+            (path.endsWith('/books') || path.endsWith('/series'));
     final data = await get(
       path ?? '/api/v1/$kind/list',
-      method: path == null ? 'POST' : 'GET',
-      body: path == null
+      method: searchEndpoint ? 'POST' : 'GET',
+      body: searchEndpoint
           ? {
               'condition': ?condition,
               if (search != null && search.isNotEmpty) 'fullTextSearch': search,
@@ -215,17 +286,28 @@ class Repository extends ChangeNotifier {
       query: {
         'page': page,
         'size': size,
+        if (path?.contains('/readlists/') == true &&
+            path?.endsWith('/books') == true)
+          'read_status': readStatus(condition),
         'library_id': ?libraryId,
         if (!(path?.contains('/readlists/') == true &&
             path?.endsWith('/books') == true))
-          'sort': sort,
+          'sort': sortQuery(kind, sort),
         if (path != null && search != null && search.isNotEmpty)
           'search': search,
       },
       cacheFirst: true,
       force: force,
     );
-    final result = CatalogPage.parse(kind, data);
+    final parsed = CatalogPage.parse(kind, data);
+    final kept = parsed.items
+        .where((item) => !_removed.contains('$kind:${item.id}'))
+        .toList();
+    final result = CatalogPage(
+      kept,
+      parsed.last,
+      (parsed.total - (parsed.items.length - kept.length)).clamp(0, 1 << 31),
+    );
     if (kind != 'books') return result;
     if ((data is Map || data is List) && _storedBookBatches[data] != true) {
       store.cacheBooks(profile.id, result.items);
@@ -335,12 +417,37 @@ class Repository extends ChangeNotifier {
 
   void setProgress(Book book, int page, {bool? completed, bool reset = false}) {
     if (_disposed) return;
-    if (page < 1 && !reset || page > book.pages && book.pages > 0) return;
+    if (page < 1 && !reset && completed != true ||
+        page > book.pages && book.pages > 0) {
+      return;
+    }
     store.recordProgress(profile.id, book.id, {
       'page': page,
       'completed': completed ?? (book.pages > 0 && page == book.pages),
       'lastModified': DateTime.now().toUtc().toIso8601String(),
+      if (completed == true ||
+          completed == null && book.pages > 0 && page == book.pages)
+        'readDate': DateTime.now().toUtc().toIso8601String(),
       if (reset) 'reset': true,
+    });
+    progressRevision++;
+    catalogChanges.value++;
+    changed();
+    unawaited(sync());
+  }
+
+  void markBooks(Iterable<Book> books, bool read) {
+    if (_disposed) return;
+    final timestamp = DateTime.now().toUtc().toIso8601String();
+    store.recordProgressBatch(profile.id, {
+      for (final book in books)
+        book.id: {
+          'page': read ? book.pages : 0,
+          'completed': read,
+          if (read) 'readDate': timestamp,
+          'lastModified': timestamp,
+          if (!read) 'reset': true,
+        },
     });
     progressRevision++;
     catalogChanges.value++;
@@ -512,7 +619,10 @@ class Repository extends ChangeNotifier {
               method: value['reset'] == true ? 'DELETE' : 'PATCH',
               body: value['reset'] == true
                   ? null
-                  : {'page': value['page'], 'completed': value['completed']},
+                  : {
+                      if (integer(value['page']) > 0) 'page': value['page'],
+                      'completed': value['completed'],
+                    },
             );
           }
           if (_disposed) return;
@@ -560,12 +670,15 @@ class Repository extends ChangeNotifier {
   void setOffline(bool value) {
     offline = value;
     if (offline) {
+      for (final id in downloading.keys.toList()) {
+        cancelDownload(id);
+      }
       _eventReconnect?.cancel();
-      _events?.cancel();
-      _events = null;
+      _cancelEvents();
     } else {
       unawaited(sync());
       listen();
+      _pumpDownloads();
     }
     changed();
   }
@@ -573,7 +686,10 @@ class Repository extends ChangeNotifier {
   void listen() {
     if (_disposed || offline || _events != null) return;
     _events = api.events().listen(
-      (_) {
+      (type) {
+        if (type == 'TaskQueueStatus') {
+          return;
+        }
         _refreshTimer?.cancel();
         _refreshTimer = Timer(
           const Duration(milliseconds: 600),
@@ -595,28 +711,100 @@ class Repository extends ChangeNotifier {
     );
   }
 
-  Future<void> download(Book book) async {
-    if (downloading.containsKey(book.id)) return;
+  Future<void> download(Book book) {
+    if (_disposed) {
+      return Future.error(
+        const ApiFailure('The server connection was closed.'),
+      );
+    }
+    final existing = _downloadTasks[book.id];
+    if (existing != null) return existing.future;
+    final task = Completer<void>();
+    _downloadTasks[book.id] = task;
+    _downloadQueue.add(book);
+    store.saveDownload(profile.id, book, 'queued');
+    changed();
+    _pumpDownloads();
+    return task.future;
+  }
+
+  void resumeDownloads() {
+    for (final row in store.downloads(profile.id)) {
+      if (['queued', 'downloading'].contains(row['status'])) {
+        unawaited(
+          download(Book(object(row['book']))).catchError((Object _) {}),
+        );
+      }
+    }
+  }
+
+  void _pumpDownloads() {
+    if (_disposed || offline) return;
+    while (downloading.length < downloadConcurrency &&
+        _downloadQueue.isNotEmpty) {
+      final book = _downloadQueue.removeAt(0);
+      final task = _downloadTasks[book.id]!;
+      unawaited(
+        _downloadBook(book)
+            .then<void>(
+              (_) {
+                if (!task.isCompleted) task.complete();
+              },
+              onError: (Object e, StackTrace stack) {
+                if (!task.isCompleted) task.completeError(e, stack);
+              },
+            )
+            .whenComplete(() {
+              _downloadTasks.remove(book.id);
+              _pumpDownloads();
+            }),
+      );
+    }
+  }
+
+  Future<void> _downloadBook(Book book) async {
     _cancelled.remove(book.id);
+    final abort = Completer<void>();
+    _downloadAborts[book.id] = abort;
     downloading[book.id] = 0;
     store.saveDownload(profile.id, book, 'downloading');
     changed();
     try {
       try {
-        await image('/api/v1/books/${Uri.encodeComponent(book.id)}/thumbnail');
+        await Future.any([
+          image('/api/v1/books/${Uri.encodeComponent(book.id)}/thumbnail'),
+          abort.future.then<Uint8List>(
+            (_) => throw const ApiFailure('Download cancelled.'),
+          ),
+        ]);
       } catch (_) {}
-      await api.download(
-        '/api/v1/books/${Uri.encodeComponent(book.id)}/file',
-        bookFile(book),
-        progress: (count, total) {
-          downloading[book.id] = total == null || total == 0
-              ? 0
-              : count / total * .5;
-          changed();
-        },
-        cancelled: () => _cancelled.contains(book.id),
-      );
+      if (_cancelled.contains(book.id) || _disposed) {
+        throw const ApiFailure('Download cancelled.');
+      }
+      if (!await bookFile(book).exists()) {
+        await api.download(
+          '/api/v1/books/${Uri.encodeComponent(book.id)}/file',
+          bookFile(book),
+          progress: (count, total) {
+            downloading[book.id] = total == null || total == 0
+                ? 0
+                : count / total * .5;
+            changed();
+          },
+          cancelled: () => _cancelled.contains(book.id),
+          abortTrigger: abort.future,
+        );
+      }
       if (book.format == 'comic') {
+        try {
+          await get(
+            '/api/v1/books/${Uri.encodeComponent(book.id)}/pages',
+            cacheFirst: true,
+          );
+        } catch (_) {
+          /* Page dimensions are optional; page downloads still work. */
+        }
+        var lastNotification = DateTime.fromMillisecondsSinceEpoch(0);
         for (var i = 1; i <= book.pages; i++) {
           if (_cancelled.contains(book.id) || _disposed) {
             throw const ApiFailure('Download cancelled.');
@@ -627,31 +815,66 @@ class Repository extends ChangeNotifier {
               '/api/v1/books/${Uri.encodeComponent(book.id)}/pages/$i',
               page,
               cancelled: () => _cancelled.contains(book.id),
+              abortTrigger: abort.future,
             );
           }
           downloading[book.id] = .5 + .5 * i / book.pages;
-          changed();
+          if (DateTime.now().difference(lastNotification).inMilliseconds >=
+                  100 ||
+              i == book.pages) {
+            changed();
+            lastNotification = DateTime.now();
+          }
         }
       }
       var size = 0;
+      if (_cancelled.contains(book.id) || _disposed) {
+        throw const ApiFailure('Download cancelled.');
+      }
       await for (final file in bookDirectory(book.id).list()) {
-        if (file is File) size += await file.length();
+        if (file is File &&
+            !file.path.endsWith('.part') &&
+            !file.path.endsWith('.part.json')) {
+          size += await file.length();
+        }
       }
       if (!_disposed) store.saveDownload(profile.id, book, 'ready', size: size);
     } catch (e) {
       if (!_disposed) {
-        store.saveDownload(profile.id, book, 'failed', error: e.toString());
+        store.saveDownload(
+          profile.id,
+          book,
+          _cancelled.contains(book.id) ? 'cancelled' : 'failed',
+          error: e.toString(),
+        );
       }
       rethrow;
     } finally {
       downloading.remove(book.id);
+      _downloadAborts.remove(book.id);
       changed();
     }
   }
 
-  void cancelDownload(String id) => _cancelled.add(id);
+  void cancelDownload(String id) {
+    _cancelled.add(id);
+    final abort = _downloadAborts[id];
+    if (abort != null && !abort.isCompleted) abort.complete();
+    if (downloading.containsKey(id)) return;
+    _downloadQueue.removeWhere((b) => b.id == id);
+    final task = _downloadTasks.remove(id);
+    if (task != null && !task.isCompleted) {
+      task.completeError(const ApiFailure('Download cancelled.'));
+    }
+    final row = store.download(profile.id, id);
+    if (row != null && ['queued', 'downloading'].contains(row['status'])) {
+      store.saveDownload(profile.id, Book(object(row['book'])), 'cancelled');
+    }
+    changed();
+  }
+
   Future<void> removeDownload(String id) async {
-    if (downloading.containsKey(id)) {
+    if (downloading.containsKey(id) || _downloadQueue.any((b) => b.id == id)) {
       throw const ApiFailure('Cancel the active download first.');
     }
     final dir = bookDirectory(id);
@@ -665,11 +888,23 @@ class Repository extends ChangeNotifier {
     _cacheEvents?.cancel();
     _cacheTrim?.cancel();
     _disposed = true;
-    _events?.cancel();
+    _cancelEvents();
     _refreshTimer?.cancel();
     _reconnect?.cancel();
     _eventReconnect?.cancel();
     _cancelled.addAll(downloading.keys);
+    for (final abort in _downloadAborts.values) {
+      if (!abort.isCompleted) abort.complete();
+    }
+    for (final book in _downloadQueue) {
+      final task = _downloadTasks.remove(book.id);
+      if (task != null && !task.isCompleted) {
+        task.completeError(
+          const ApiFailure('The server connection was closed.'),
+        );
+      }
+    }
+    _downloadQueue.clear();
     _imageRequests.close();
     _bytes.clear();
     _queryValues.clear();

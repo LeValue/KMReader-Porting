@@ -18,7 +18,11 @@ class ReadingSession extends ChangeNotifier {
   int page;
   int _committed;
   int get step =>
-      preferences.spread && preferences.mode == ReadingMode.paged ? 2 : 1;
+      preferences.spread &&
+          preferences.mode == ReadingMode.paged &&
+          preferences.splitWide == 'none'
+      ? 2
+      : 1;
   int get itemIndex => (page - 1) ~/ step;
   int get itemCount => (count / step).ceil();
   bool get atEnd => page + step > count;

@@ -6,8 +6,12 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 
-Future<String?> askName(BuildContext context, String title) async {
-  final field = TextEditingController();
+Future<String?> askName(
+  BuildContext context,
+  String title, {
+  String? initial,
+}) async {
+  final field = TextEditingController(text: initial);
   try {
     return await showDialog<String>(
       context: context,
@@ -29,7 +33,7 @@ Future<String?> askName(BuildContext context, String title) async {
                 Navigator.pop(context, field.text.trim());
               }
             },
-            child: Text(tr(context, 'Create')),
+            child: Text(tr(context, initial == null ? 'Create' : 'Save')),
           ),
         ],
       ),
@@ -44,6 +48,13 @@ Future<void> addToList(
   Repository repository,
   String kind,
   String entryId,
+) => addEntriesToList(context, repository, kind, [entryId]);
+
+Future<void> addEntriesToList(
+  BuildContext context,
+  Repository repository,
+  String kind,
+  List<String> entryIds,
 ) async {
   try {
     final data = await repository.api.request(
@@ -84,7 +95,7 @@ Future<void> addToList(
           'name': name,
           'ordered': true,
           if (kind == 'readlists') 'summary': '',
-          idsKey: [entryId],
+          idsKey: entryIds,
         },
       );
     } else {
@@ -95,7 +106,7 @@ Future<void> addToList(
       );
       final ids = <String>{
         ...(current[idsKey] as List? ?? []).map((v) => '$v'),
-        entryId,
+        ...entryIds,
       };
       await repository.api.request(
         '/api/v1/$kind/${Uri.encodeComponent(selected)}',

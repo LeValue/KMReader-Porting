@@ -8,11 +8,14 @@ The core browsing, reading, download, and progress workflow is implemented.
 Current build and test evidence is recorded in [validation results](docs/VALIDATION.md).
 
 The Android development APK is available in the
-[v0.2.0-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.2.0-preview.1).
+[v0.3.0-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.3.0-preview.1).
 Sign into a GitHub account with access to this private repository before downloading.
-In the release's **Assets**, select `KMReader-0.2.0-android-preview.apk`.
+In the release's **Assets**, select `KMReader-0.3.0-android-preview.apk`.
 This optimized build installs as **KMReader Preview** alongside the original
-debug preview. See [performance changes](docs/PERFORMANCE.md) for cache behavior,
+debug preview, and updates the 0.2.0 Preview while retaining its local data.
+The same release includes `KMReader-0.3.0-windows-x64-preview.zip`: extract the
+whole folder and run `KMReader/kmreader.exe` on Windows 10/11 x64. The MSVC runtime
+is bundled; the portable Windows build is not Authenticode signed. See [performance changes](docs/PERFORMANCE.md) for cache behavior,
 test evidence and device-validation limits.
 
 ## Development
@@ -99,3 +102,7 @@ or demo account are bundled.
 MIT; see [LICENSE](LICENSE). Original copyright and artwork attribution are
 preserved. Flutter dependencies register their notices in the in-app license
 screen; original reference notices remain in `assets/upstream-licenses.json`.
+
+For an isolated local profile or CI startup check, set `KMREADER_DATA_DIR` to
+a writable application-data directory before launching. It never changes the
+normal profile unless explicitly configured.

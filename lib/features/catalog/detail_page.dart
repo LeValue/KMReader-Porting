@@ -10,14 +10,83 @@ import '../../ui/strings.dart';
 import '../reader/reader_page.dart';
 import 'catalog_page.dart';
 import 'list_actions.dart';
+import 'list_editor.dart';
+import 'metadata_editor.dart';
+import '../../core/catalog_tools.dart';
 
 class DetailPage extends StatelessWidget {
   const DetailPage({super.key, required this.repository, required this.item});
   final Repository repository;
   final CatalogItem item;
   @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: repository.catalogChanges,
+    builder: (context, _) {
+      final key = item.kind == 'books'
+          ? 'book:${item.id}'
+          : 'detail:${item.kind}:${item.id}';
+      final cached = repository.store.cached(repository.profile.id, key);
+      final current = cached == null
+          ? item
+          : CatalogItem(item.kind, object(cached), readListId: item.readListId);
+      return _DetailContent(repository: repository, item: current);
+    },
+  );
+}
+
+class _DetailContent extends StatelessWidget {
+  const _DetailContent({required this.repository, required this.item});
+  final Repository repository;
+  final CatalogItem item;
+  @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(item.title)),
+    appBar: AppBar(
+      title: Text(item.title),
+      actions: [
+        if (item.kind == 'readlists' || item.kind == 'collections')
+          IconButton(
+            tooltip: tr(
+              context,
+              CatalogTools(repository).pinned(item.kind).contains(item.id)
+                  ? 'Unpin'
+                  : 'Pin',
+            ),
+            onPressed: () => CatalogTools(repository).pin(item.kind, item.id),
+            icon: Icon(
+              CatalogTools(repository).pinned(item.kind).contains(item.id)
+                  ? CupertinoIcons.pin_fill
+                  : CupertinoIcons.pin,
+            ),
+          ),
+        if (repository.profile.admin)
+          IconButton(
+            tooltip: tr(context, 'Edit'),
+            onPressed: () async {
+              if (item.kind == 'books' || item.kind == 'series') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        MetadataEditor(repository: repository, item: item),
+                  ),
+                );
+              } else {
+                final result = await Navigator.push<String>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ListEditor(repository: repository, item: item),
+                  ),
+                );
+                if (result == 'deleted' && context.mounted) {
+                  Navigator.pop(context);
+                }
+              }
+            },
+            icon: const Icon(CupertinoIcons.pencil),
+          ),
+      ],
+    ),
     body: item.kind == 'books'
         ? ListenableBuilder(
             listenable: repository.catalogChanges,

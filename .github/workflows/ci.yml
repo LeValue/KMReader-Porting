@@ -64,13 +64,21 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build windows --release
+      - name: Launch the native Windows app in an isolated profile
+        shell: pwsh
+        run: ./tool/windows_startup_smoke.ps1 -Executable build/windows/x64/runner/Release/kmreader.exe -OutputDirectory "${{ runner.temp }}/windows-startup"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-startup
+          path: ${{ runner.temp }}/windows-startup/*.png
       - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: build/windows/x64/runner/Release/
   publish_android_preview:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
-    needs: android
+    needs: [android, windows]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -81,7 +89,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: v0.2.0-preview.1
+      RELEASE_TAG: v0.3.0-preview.1
       PREVIEW_BLOB: ${{ inputs.preview_blob }}
       PREVIEW_SHA256: ${{ inputs.preview_sha256 }}
     steps:
@@ -117,13 +125,13 @@ jobs:
           digest = hashlib.sha256(content).hexdigest()
           if digest != os.environ['PREVIEW_SHA256']:
               raise SystemExit('APK SHA256 mismatch')
-          name = 'KMReader-0.2.0-android-preview.apk'
+          name = 'KMReader-0.3.0-android-preview.apk'
           Path(name).write_bytes(content)
           Path('SHA256SUMS.txt').write_text(digest + '  ' + name + '\n')
           PYCODE
           sdk_tools="$ANDROID_HOME/build-tools/36.0.0"
-          "$sdk_tools/apksigner" verify --verbose --print-certs KMReader-0.2.0-android-preview.apk > apk-signature.txt
-          "$sdk_tools/zipalign" -c -P 16 4 KMReader-0.2.0-android-preview.apk
+          "$sdk_tools/apksigner" verify --verbose --print-certs KMReader-0.3.0-android-preview.apk > apk-signature.txt
+          "$sdk_tools/zipalign" -c -P 16 4 KMReader-0.3.0-android-preview.apk
           python3 - <<'PYCODE'
           from pathlib import Path
           expected = Path('tool/preview-certificate.sha256').read_text().strip()
@@ -141,36 +149,62 @@ jobs:
           if not release['draft'] or release['assets']:
               raise SystemExit('Publish only to the prepared empty draft; existing assets are preserved.')
           Path('release-id.txt').write_text(str(release['id']))
-          Path('release-notes.md').write_text(f'''Optimized KMReader 0.2.0 development preview for Android.
+          Path('release-notes.md').write_text(f'''KMReader 0.3.0 development preview for Android and Windows.
 
-          Download `KMReader-0.2.0-android-preview.apk` in Assets. This is an AOT-compiled release-mode APK, not a debug build. It supports Android 7.0+ and ARMv7, ARM64 and x86_64.
+          Download `KMReader-0.3.0-android-preview.apk` in Assets. This is an AOT-compiled release-mode APK, not a debug build. It supports Android 7.0+ and ARMv7, ARM64 and x86_64.
 
           It installs as **KMReader Preview** (`dev.levalue.kmreader.preview`) alongside the first debug preview, preserving that app's local data. Connect your Komga account in the new app. Future optimized previews use the same retained development certificate.
 
-          Changes include a bounded memory/disk image cache, cached catalogs with background revalidation, prioritized page preloading and decoding, lazy tab loading, fewer database writes and widget rebuilds, background EPUB indexing, library-scoped/reorderable dashboard sections and refined selection menus.
+          Changes include nested metadata filters, saved searches, batch actions and metadata editing, list membership editing/reordering/pinning, server smart lists on compatible kmrs servers, reading history/statistics, library creation/editing, validated API-key login, bounded download queues with safe HTTP range resume, configurable reader tap/preload profiles and wide-page splitting.
+
+          For Windows 10/11 x64, download `KMReader-0.3.0-windows-x64-preview.zip`, extract the whole folder and start `KMReader/kmreader.exe`. The portable bundle includes the MSVC runtime. It is not Authenticode signed. CI builds and launches the native Windows window in an isolated profile; this startup check does not establish complete device/visual parity.
 
           Source: `{os.environ['GITHUB_SHA']}`. The signed APK was built and validated locally from this source; CI independently passed tests, real Komga integration and optimized Android compilation before publishing. SHA256, signing-certificate and alignment checks were repeated on the exact uploaded APK. Windows compilation is a separate job in the same workflow.
 
           This remains a development port: full functional/visual parity and device performance acceptance are still in progress. See docs/PARITY.md and docs/PERFORMANCE.md. Sign into an authorized GitHub account to download from this private repository.
           ''')
           PYCODE
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: windows-bundle
+      - name: Package the Windows portable build
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib, zipfile
+          from pathlib import Path
+          root = Path('windows-bundle')
+          required = ['kmreader.exe', 'flutter_windows.dll', 'data/app.so']
+          if any(not (root / name).is_file() for name in required):
+              raise SystemExit('Incomplete Windows application bundle')
+          if not list(root.glob('vcruntime140*.dll')):
+              raise SystemExit('MSVC runtime is missing from the portable Windows bundle')
+          target = Path('KMReader-0.3.0-windows-x64-preview.zip')
+          with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
+              for file in sorted(root.rglob('*')):
+                  if file.is_file():
+                      archive.write(file, 'KMReader/' + file.relative_to(root).as_posix())
+          with Path('SHA256SUMS.txt').open('a') as checksums:
+              checksums.write(hashlib.sha256(target.read_bytes()).hexdigest() + '  ' + target.name + '\n')
+          PYCODE
       - name: Upload assets, verify their digest and publish the preview
         shell: bash
         run: |
           set -euo pipefail
-          gh release upload "$RELEASE_TAG" KMReader-0.2.0-android-preview.apk SHA256SUMS.txt
+          gh release upload "$RELEASE_TAG" KMReader-0.3.0-android-preview.apk KMReader-0.3.0-windows-x64-preview.zip SHA256SUMS.txt
           release_id=$(cat release-id.txt)
           gh api "repos/$GH_REPO/releases/$release_id" > uploaded-release.json
           python3 - <<'PYCODE'
           import hashlib, json
           from pathlib import Path
           release = json.loads(Path('uploaded-release.json').read_text())
-          for name in ['KMReader-0.2.0-android-preview.apk', 'SHA256SUMS.txt']:
+          for name in ['KMReader-0.3.0-android-preview.apk', 'KMReader-0.3.0-windows-x64-preview.zip', 'SHA256SUMS.txt']:
               asset = next(a for a in release['assets'] if a['name'] == name)
               with Path(name).open('rb') as stream:
                   digest = 'sha256:' + hashlib.file_digest(stream, 'sha256').hexdigest()
               if asset['state'] != 'uploaded' or asset['size'] != Path(name).stat().st_size or asset['digest'] != digest:
                   raise SystemExit(f'Uploaded asset verification failed: {name}')
-          print('Both release assets match GitHub SHA256 digests.')
+          print('All release assets match GitHub SHA256 digests.')
           PYCODE
           gh release edit "$RELEASE_TAG" --target "$GITHUB_SHA" --notes-file release-notes.md --draft=false --prerelease --latest=false

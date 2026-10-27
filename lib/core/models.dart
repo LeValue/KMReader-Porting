@@ -4,6 +4,31 @@ import 'package:crypto/crypto.dart';
 
 typedef Json = Map<String, dynamic>;
 
+List<String> serverSort(String kind, String value) =>
+    value.split('|').map((part) {
+      final pieces = part.split(',');
+      final field = kind == 'books'
+          ? ({
+                  'metadata.titleSort': 'metadata.title',
+                  'created': 'createdDate',
+                  'lastModified': 'lastModifiedDate',
+                }[pieces.first] ??
+                pieces.first)
+          : pieces.first;
+      return [field, ...pieces.skip(1)].join(',');
+    }).toList();
+Object sortQuery(String kind, String value) {
+  final fields = serverSort(kind, value);
+  return fields.length == 1 ? fields.single : fields;
+}
+
+String sortFields(String kind, String value) => serverSort(kind, value)
+    .map((part) {
+      final end = part.lastIndexOf(',');
+      return end < 0 ? part : part.substring(0, end);
+    })
+    .join('|');
+
 Json object(dynamic value) =>
     value is Map ? Map<String, dynamic>.from(value) : {};
 int integer(dynamic value, [int fallback = 0]) =>
@@ -38,10 +63,16 @@ class ServerProfile {
     required this.email,
     required this.authentication,
     this.admin = false,
+    this.apiKeyId,
+    this.managedKey = false,
+    this.userId,
   });
   final String id, name, url, email;
   final Authentication authentication;
   final bool admin;
+  final String? apiKeyId;
+  final bool managedKey;
+  final String? userId;
   factory ServerProfile.fromJson(Json j) => ServerProfile(
     id: j['id'],
     name: j['name'],
@@ -49,6 +80,9 @@ class ServerProfile {
     email: j['email'],
     authentication: Authentication.values.byName(j['authentication']),
     admin: j['admin'] == true,
+    apiKeyId: j['apiKeyId'] as String?,
+    managedKey: j['managedKey'] == true,
+    userId: j['userId'] as String?,
   );
   Json toJson() => {
     'id': id,
@@ -57,6 +91,9 @@ class ServerProfile {
     'email': email,
     'authentication': authentication.name,
     'admin': admin,
+    'apiKeyId': apiKeyId,
+    'managedKey': managedKey,
+    'userId': userId,
   };
   static String identity(Uri url, String userId) =>
       sha256.convert(utf8.encode('$url\n$userId')).toString();
@@ -84,7 +121,11 @@ class Book {
             text(json['name']).toLowerCase().endsWith('.epub')
       ? 'epub'
       : 'comic';
-  double get fraction => pages == 0 ? 0 : (page / pages).clamp(0, 1);
+  double get fraction => completed
+      ? 1
+      : pages == 0
+      ? 0
+      : (page / pages).clamp(0, 1);
   Book withProgress(Json? progress) =>
       Book({...json, 'readProgress': progress});
 }
@@ -132,12 +173,20 @@ class ReaderPreferences {
     this.rotation = 0,
     this.background = 'black',
     this.fit = 'contain',
+    this.tapMode = 'default',
+    this.tapInversion = 'auto',
+    this.preload = 'balanced',
+    this.animate = true,
+    this.splitWide = 'none',
   });
   final ReadingMode mode;
   final ReadingDirection direction;
   final bool spread;
   final int rotation;
   final String background, fit;
+  final String tapMode, tapInversion, preload;
+  final bool animate;
+  final String splitWide;
   factory ReaderPreferences.fromJson(Json j) => ReaderPreferences(
     mode: ReadingMode.values.firstWhere(
       (v) => v.name == j['mode'],
@@ -150,6 +199,11 @@ class ReaderPreferences {
     rotation: integer(j['rotation']),
     background: text(j['background'], 'black'),
     fit: text(j['fit'], 'contain'),
+    tapMode: text(j['tapMode'], 'default'),
+    tapInversion: text(j['tapInversion'], 'auto'),
+    preload: text(j['preload'], 'balanced'),
+    animate: j['animate'] != false,
+    splitWide: text(j['splitWide'], 'none'),
   );
   Json toJson() => {
     'mode': mode.name,
@@ -158,6 +212,11 @@ class ReaderPreferences {
     'rotation': rotation,
     'background': background,
     'fit': fit,
+    'tapMode': tapMode,
+    'tapInversion': tapInversion,
+    'preload': preload,
+    'animate': animate,
+    'splitWide': splitWide,
   };
   ReaderPreferences copy({
     ReadingMode? mode,
@@ -166,6 +225,11 @@ class ReaderPreferences {
     int? rotation,
     String? background,
     String? fit,
+    String? tapMode,
+    String? tapInversion,
+    String? preload,
+    bool? animate,
+    String? splitWide,
   }) => ReaderPreferences(
     mode: mode ?? this.mode,
     direction: direction ?? this.direction,
@@ -173,5 +237,10 @@ class ReaderPreferences {
     rotation: rotation ?? this.rotation,
     background: background ?? this.background,
     fit: fit ?? this.fit,
+    tapMode: tapMode ?? this.tapMode,
+    tapInversion: tapInversion ?? this.tapInversion,
+    preload: preload ?? this.preload,
+    animate: animate ?? this.animate,
+    splitWide: splitWide ?? this.splitWide,
   );
 }

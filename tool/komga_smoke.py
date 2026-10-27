@@ -53,6 +53,7 @@ def pdf(path):
 
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument('--jar', type=Path, required=True)
+    parser.add_argument('--startup-timeout', type=int, default=300)
     args = parser.parse_args()
     assert hashlib.sha256(args.jar.read_bytes()).hexdigest() == 'e9cafae1ec6d0d117c2375fff9ecb737ed384eede2afea9716bcb555d96ea834', 'Expected official Komga 1.29.1 SHA256'
     with tempfile.TemporaryDirectory(prefix='kmreader-live-') as td:
@@ -68,13 +69,13 @@ def main():
             if authorization: h['Authorization'] = authorization
             data = json.dumps(body).encode() if body is not None else None
             if data is not None: h['Content-Type'] = 'application/json'
-            with opener.open(urllib.request.Request(f'http://127.0.0.1:{port}{path}',data=data,headers=h,method=method),timeout=10) as r:
+            with opener.open(urllib.request.Request(f'http://127.0.0.1:{port}{path}',data=data,headers=h,method=method),timeout=60 if path=='/api/v1/claim' and method=='POST' else 30) as r:
                 data = r.read(); return json.loads(data) if data else None
         with (root/'server.log').open('w') as log:
             server = subprocess.Popen(['java','-Xmx768m','-XX:ActiveProcessorCount=2','-jar',str(args.jar.resolve()),
                 '--server.address=127.0.0.1',f'--server.port={port}',f'--komga.config-dir={root/"data"}'],stdout=log,stderr=subprocess.STDOUT)
             try:
-                deadline=time.monotonic()+120
+                deadline=time.monotonic()+args.startup_timeout
                 while True:
                     if server.poll() is not None: raise RuntimeError('Komga exited before readiness')
                     try: request('/api/v1/claim'); break

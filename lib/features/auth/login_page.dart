@@ -22,10 +22,12 @@ class _LoginPageState extends State<LoginPage> {
       _password = TextEditingController();
   Authentication _auth = Authentication.password;
   bool _busy = false, _obscure = true, _claim = false;
+  bool _autoKey = true;
   String? _error;
   @override
   void initState() {
     super.initState();
+    _autoKey = widget.app.store.setting<bool>('autoCreateApiKey') ?? true;
     final s = widget.profile;
     if (s != null) {
       _address.text = s.url;
@@ -59,7 +61,9 @@ class _LoginPageState extends State<LoginPage> {
         username: _username.text,
         password: _password.text,
         claim: _claim,
+        autoCreateApiKey: _autoKey,
       );
+      widget.app.store.setSetting('autoCreateApiKey', _autoKey);
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -187,6 +191,23 @@ class _LoginPageState extends State<LoginPage> {
                           : null,
                       onFieldSubmitted: (_) => _submit(),
                     ),
+                    if (_auth == Authentication.password)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          tr(context, 'Create API Key Automatically'),
+                        ),
+                        subtitle: Text(
+                          tr(
+                            context,
+                            'Use a device key instead of storing the password.',
+                          ),
+                        ),
+                        value: _autoKey,
+                        onChanged: _busy
+                            ? null
+                            : (v) => setState(() => _autoKey = v),
+                      ),
                     if (_auth == Authentication.password)
                       CheckboxListTile(
                         value: _claim,

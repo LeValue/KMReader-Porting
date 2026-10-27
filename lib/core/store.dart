@@ -83,6 +83,8 @@ class LocalStore {
     'INSERT OR REPLACE INTO cache(server,key,value,updated) VALUES(?,?,?,?)',
     [server, key, jsonEncode(value), DateTime.now().millisecondsSinceEpoch],
   );
+  void deleteCache(String server, String key) =>
+      db.execute('DELETE FROM cache WHERE server=? AND key=?', [server, key]);
   DateTime? cachedAt(String server, String key) {
     final rows = db.select(
       'SELECT updated FROM cache WHERE server=? AND key=?',
@@ -105,6 +107,13 @@ class LocalStore {
       rethrow;
     }
   }
+
+  List<Book> cachedBooks(String server) => db
+      .select("SELECT value FROM cache WHERE server=? AND key LIKE 'book:%'", [
+        server,
+      ])
+      .map((row) => Book(object(jsonDecode(row['value'] as String))))
+      .toList();
 
   int pendingCount(String server) => integer(
     db.select(
@@ -141,6 +150,22 @@ class LocalStore {
     return _progress[key] = rows.isEmpty
         ? null
         : object(jsonDecode(rows.first['value'] as String));
+  }
+
+  void recordProgressBatch(String server, Map<String, Json> values) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final entry in values.entries) {
+        recordProgress(server, entry.key, entry.value);
+      }
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      for (final id in values.keys) {
+        _progress.remove('$server:$id');
+      }
+      rethrow;
+    }
   }
 
   List<Json> pending(String server) => db

@@ -6,6 +6,7 @@ import '../core/models.dart';
 import '../core/repository.dart';
 import '../features/catalog/catalog_page.dart';
 import '../features/catalog/dashboard.dart';
+import '../features/catalog/smart_lists_page.dart';
 import '../features/offline/downloads_page.dart';
 import '../features/settings/settings_page.dart';
 import 'common.dart';
@@ -321,13 +322,14 @@ class _ListsPage extends StatelessWidget {
   final Repository repository;
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
+    length: 3,
     child: Column(
       children: [
         TabBar(
           tabs: [
             Tab(text: tr(context, 'Read Lists')),
             Tab(text: tr(context, 'Collections')),
+            Tab(text: tr(context, 'Smart Lists')),
           ],
         ),
         Expanded(
@@ -343,6 +345,7 @@ class _ListsPage extends StatelessWidget {
                 kind: 'collections',
                 path: '/api/v1/collections',
               ),
+              SmartListsPage(repository: repository),
             ],
           ),
         ),

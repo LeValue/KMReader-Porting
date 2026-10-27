@@ -14,7 +14,28 @@ class DownloadsPage extends StatelessWidget {
   final Repository repository;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(tr(context, 'Downloads'))),
+    appBar: AppBar(
+      title: Text(tr(context, 'Downloads')),
+      actions: [
+        IconButton(
+          tooltip: tr(context, 'Resume Queue'),
+          onPressed: repository.resumeDownloads,
+          icon: const Icon(CupertinoIcons.play),
+        ),
+        PopupMenuButton<int>(
+          tooltip: tr(context, 'Simultaneous Downloads'),
+          onSelected: repository.setDownloadConcurrency,
+          itemBuilder: (_) => [
+            for (final n in [1, 2, 3])
+              CheckedPopupMenuItem(
+                value: n,
+                checked: repository.downloadConcurrency == n,
+                child: Text('$n ${tr(context, 'Simultaneous Downloads')}'),
+              ),
+          ],
+        ),
+      ],
+    ),
     body: ListenableBuilder(
       listenable: repository,
       builder: (context, _) {
@@ -33,6 +54,7 @@ class DownloadsPage extends StatelessWidget {
             final item = items[index];
             final book = repository.overlay(Book(object(item['book'])));
             final progress = repository.downloading[book.id];
+            final queued = repository.queued(book.id);
             return ListTile(
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
@@ -57,6 +79,8 @@ class DownloadsPage extends StatelessWidget {
                   Text(
                     progress != null
                         ? '${(progress * 100).round()}%'
+                        : queued
+                        ? tr(context, 'Queued')
                         : item['status'] == 'ready'
                         ? '${(integer(item['size']) / 1024 / 1024).toStringAsFixed(1)} MB'
                         : text(
@@ -76,7 +100,7 @@ class DownloadsPage extends StatelessWidget {
                 repository,
                 CatalogItem('books', book.json),
               ),
-              trailing: progress != null
+              trailing: progress != null || queued
                   ? IconButton(
                       tooltip: tr(context, 'Cancel'),
                       onPressed: () => repository.cancelDownload(book.id),

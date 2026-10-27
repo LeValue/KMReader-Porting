@@ -1,0 +1,526 @@
+{
+  "Create Smart List": {
+    "en": "New Smart List",
+    "it": "Nuova lista intelligente",
+    "de": "Neue smarte Liste",
+    "fr": "Nouvelle liste intelligente",
+    "ja": "新規スマートリスト",
+    "ko": "새 스마트 리스트",
+    "zh-Hans": "新建智能列表",
+    "zh-Hant": "新增智慧清單",
+    "ru": "Новый умный список",
+    "es": "Nueva lista inteligente"
+  },
+  "Parent Folder": {
+    "en": "Parent Directory",
+    "it": "Directory padre",
+    "de": "Übergeordnetes Verzeichnis",
+    "fr": "Dossier parent",
+    "ja": "親ディレクトリ",
+    "ko": "상위 디렉토리",
+    "zh-Hans": "上级目录",
+    "zh-Hant": "上級目錄",
+    "ru": "Родительский каталог",
+    "es": "Directorio padre"
+  },
+  "Browse": {
+    "en": "Browse Directory",
+    "it": "Sfoglia directory",
+    "de": "Verzeichnis durchsuchen",
+    "fr": "Parcourir le dossier",
+    "ja": "ディレクトリを参照",
+    "ko": "디렉토리 찾기",
+    "zh-Hans": "浏览目录",
+    "zh-Hant": "瀏覽目錄",
+    "ru": "Обзор каталога",
+    "es": "Explorar directorio"
+  },
+  "Analyze Page Dimensions": {
+    "en": "Analyze Dimensions",
+    "it": "Analizza dimensioni",
+    "de": "Dimensionen analysieren",
+    "fr": "Analyser les dimensions",
+    "ja": "ディメンションを分析",
+    "ko": "치수 분석",
+    "zh-Hans": "分析尺寸",
+    "zh-Hant": "分析尺寸",
+    "ru": "Анализировать размеры",
+    "es": "Analizar dimensiones"
+  },
+  "Hash for KOReader": {
+    "en": "Hash KOReader",
+    "it": "Hash KOReader",
+    "de": "KOReader-Hash berechnen",
+    "fr": "Hasher KOReader",
+    "ja": "KOReader のハッシュ",
+    "ko": "KOReader 해시",
+    "zh-Hans": "计算 KOReader 哈希",
+    "zh-Hant": "計算 KOReader 哈希",
+    "ru": "Хеш KOReader",
+    "es": "Hash KOReader"
+  },
+  "Import Barcode ISBN": {
+    "en": "Import Barcode/ISBN",
+    "it": "Importa codice a barre/ISBN",
+    "de": "Barcode/ISBN importieren",
+    "fr": "Importer Code-barres/ISBN",
+    "ja": "バーコード/ISBN をインポート",
+    "ko": "바코드/ISBN 가져오기",
+    "zh-Hans": "导入条形码/ISBN",
+    "zh-Hant": "導入條形碼/ISBN",
+    "ru": "Импорт штрихкода/ISBN",
+    "es": "Importar codigo de barras/ISBN"
+  },
+  "Import ComicInfo Book Metadata": {
+    "en": "Import ComicInfo Book",
+    "it": "Importa ComicInfo libro",
+    "de": "ComicInfo-Buch importieren",
+    "fr": "Importer le livre ComicInfo",
+    "ja": "ComicInfo 本をインポート",
+    "ko": "ComicInfo 도서 가져오기",
+    "zh-Hans": "导入 ComicInfo 图书",
+    "zh-Hant": "導入 ComicInfo 圖書",
+    "ru": "Импорт ComicInfo книги",
+    "es": "Importar ComicInfo de libro"
+  },
+  "Import ComicInfo Series Metadata": {
+    "en": "Import ComicInfo Series",
+    "it": "Importa ComicInfo serie",
+    "de": "ComicInfo-Serie importieren",
+    "fr": "Importer la série ComicInfo",
+    "ja": "ComicInfo シリーズをインポート",
+    "ko": "ComicInfo 시리즈 가져오기",
+    "zh-Hans": "导入 ComicInfo 系列",
+    "zh-Hant": "導入 ComicInfo 系列",
+    "ru": "Импорт ComicInfo серии",
+    "es": "Importar ComicInfo de serie"
+  },
+  "Import ComicInfo Collections": {
+    "en": "Import ComicInfo Collection",
+    "it": "Importa ComicInfo raccolta",
+    "de": "ComicInfo-Sammlung importieren",
+    "fr": "Importer la collection ComicInfo",
+    "ja": "ComicInfo コレクションをインポート",
+    "ko": "ComicInfo 컬렉션 가져오기",
+    "zh-Hans": "导入 ComicInfo 合集",
+    "zh-Hant": "導入 ComicInfo 合集",
+    "ru": "Импорт ComicInfo коллекции",
+    "es": "Importar ComicInfo de coleccion"
+  },
+  "Import ComicInfo Read Lists": {
+    "en": "Import ComicInfo Read List",
+    "it": "Importa ComicInfo lista di lettura",
+    "de": "ComicInfo-Leseliste importieren",
+    "fr": "Importer la liste de lecture ComicInfo",
+    "ja": "ComicInfo 読書リストをインポート",
+    "ko": "ComicInfo 읽기 목록 가져오기",
+    "zh-Hans": "导入 ComicInfo 阅读列表",
+    "zh-Hant": "導入 ComicInfo 閱讀列表",
+    "ru": "Импорт ComicInfo списка чтения",
+    "es": "Importar ComicInfo de lista de lectura"
+  },
+  "Append ComicInfo Volume": {
+    "en": "Append Volume to Series",
+    "it": "Aggiungi volume al titolo serie",
+    "de": "Band an Serie anhängen",
+    "fr": "Ajouter le volume à la série",
+    "ja": "シリーズに巻を追加",
+    "ko": "시리즈에 권 추가",
+    "zh-Hans": "将卷追加到系列",
+    "zh-Hant": "將卷追加到系列",
+    "ru": "Добавлять том к названию серии",
+    "es": "Anadir volumen al titulo de serie"
+  },
+  "Import EPUB Book Metadata": {
+    "en": "Import EPUB Book",
+    "it": "Importa EPUB libro",
+    "de": "EPUB-Buch importieren",
+    "fr": "Importer le livre EPUB",
+    "ja": "EPUB 本をインポート",
+    "ko": "EPUB 도서 가져오기",
+    "zh-Hans": "导入 EPUB 图书",
+    "zh-Hant": "導入 EPUB 圖書",
+    "ru": "Импорт EPUB книги",
+    "es": "Importar EPUB de libro"
+  },
+  "Import EPUB Series Metadata": {
+    "en": "Import EPUB Series",
+    "it": "Importa EPUB serie",
+    "de": "EPUB-Serie importieren",
+    "fr": "Importer la série EPUB",
+    "ja": "EPUB シリーズをインポート",
+    "ko": "EPUB 시리즈 가져오기",
+    "zh-Hans": "导入 EPUB 系列",
+    "zh-Hant": "導入 EPUB 系列",
+    "ru": "Импорт EPUB серии",
+    "es": "Importar EPUB de serie"
+  },
+  "Import Mylar Series Metadata": {
+    "en": "Import Mylar Series",
+    "it": "Importa serie da Mylar",
+    "de": "Mylar-Serie importieren",
+    "fr": "Importer la série Mylar",
+    "ja": "Mylar シリーズをインポート",
+    "ko": "Mylar 시리즈 가져오기",
+    "zh-Hans": "导入 Mylar 系列",
+    "zh-Hant": "導入 Mylar 系列",
+    "ru": "Импорт серии Mylar",
+    "es": "Importar serie de Mylar"
+  },
+  "One Shot Folder": {
+    "en": "Oneshots Directory",
+    "it": "Directory one-shot",
+    "de": "Oneshots-Verzeichnis",
+    "fr": "Dossier des oneshots",
+    "ja": "読み切りディレクトリ",
+    "ko": "단편 디렉토리",
+    "zh-Hans": "单行本目录",
+    "zh-Hant": "單行本目錄",
+    "ru": "Каталог one-shot",
+    "es": "Directorio de one-shots"
+  },
+  "Excluded Folders (one per line)": {
+    "en": "Exclusions",
+    "it": "Esclusioni",
+    "de": "Ausschlüsse",
+    "fr": "Exclusions",
+    "ja": "除外項目",
+    "ko": "제외 항목",
+    "zh-Hans": "排除项",
+    "zh-Hant": "排除項",
+    "ru": "Исключения",
+    "es": "Exclusiones"
+  },
+  "Preloading": {
+    "en": "Image Preloading",
+    "it": "Precaricamento immagini",
+    "de": "Bildvorladen",
+    "fr": "Préchargement des images",
+    "ja": "画像の先読み",
+    "ko": "이미지 미리 불러오기",
+    "zh-Hans": "图片预加载",
+    "zh-Hant": "圖片預載入",
+    "ru": "Предзагрузка изображений",
+    "es": "Precarga de imágenes"
+  },
+  "Apply": {
+    "en": "Apply Filter",
+    "it": "Applica filtro",
+    "de": "Filter anwenden",
+    "fr": "Appliquer le filtre",
+    "ja": "フィルターを適用",
+    "ko": "필터 적용",
+    "zh-Hans": "应用过滤器",
+    "zh-Hant": "套用篩選器",
+    "ru": "Применить фильтр",
+    "es": "Aplicar filtro"
+  },
+  "Add Filter": {
+    "en": "Add Filter",
+    "it": "Aggiungi filtro"
+  },
+  "Add Group": {
+    "en": "Add Group",
+    "it": "Aggiungi gruppo"
+  },
+  "Advanced Filters": {
+    "en": "Advanced Filters",
+    "it": "Filtri avanzati"
+  },
+  "Filter Group": {
+    "en": "Filter Group",
+    "it": "Gruppo di filtri"
+  },
+  "Match All": {
+    "en": "Match All",
+    "it": "Tutte le condizioni"
+  },
+  "Match Any": {
+    "en": "Match Any",
+    "it": "Qualsiasi condizione"
+  },
+  "Choose": {
+    "en": "Choose",
+    "it": "Scegli"
+  },
+  "Saved": {
+    "en": "Saved",
+    "it": "Salvato"
+  },
+  "Clear Filters": {
+    "en": "Clear Filters",
+    "it": "Cancella filtri"
+  },
+  "Remove": {
+    "en": "Remove",
+    "it": "Rimuovi"
+  },
+  "Edit Metadata": {
+    "en": "Edit Metadata",
+    "it": "Modifica metadati"
+  },
+  "Not Set": {
+    "en": "Not Set",
+    "it": "Non impostato"
+  },
+  "Edit List": {
+    "en": "Edit List",
+    "it": "Modifica elenco"
+  },
+  "Delete List": {
+    "en": "Delete List",
+    "it": "Elimina elenco"
+  },
+  "Items": {
+    "en": "Items",
+    "it": "Elementi"
+  },
+  "Unavailable Item": {
+    "en": "Unavailable Item",
+    "it": "Elemento non disponibile"
+  },
+  "Only changed fields will be applied to every selected item.": {
+    "en": "Only changed fields will be applied to every selected item.",
+    "it": "Solo i campi modificati verranno applicati a tutti gli elementi selezionati."
+  },
+  "Selected": {
+    "en": "Selected",
+    "it": "Selezionati"
+  },
+  "Select Loaded Items": {
+    "en": "Select Loaded Items",
+    "it": "Seleziona elementi caricati"
+  },
+  "Pin / Unpin": {
+    "en": "Pin / Unpin",
+    "it": "Fissa / Rimuovi"
+  },
+  "Reading History": {
+    "en": "Reading History",
+    "it": "Cronologia di lettura"
+  },
+  "Server Events": {
+    "en": "Server Events",
+    "it": "Eventi del server"
+  },
+  "Statistics": {
+    "en": "Statistics",
+    "it": "Statistiche"
+  },
+  "History and Statistics": {
+    "en": "History and Statistics",
+    "it": "Cronologia e statistiche"
+  },
+  "Reading Statistics": {
+    "en": "Reading Statistics",
+    "it": "Statistiche di lettura"
+  },
+  "Server Statistics": {
+    "en": "Server Statistics",
+    "it": "Statistiche del server"
+  },
+  "Started": {
+    "en": "Started",
+    "it": "Iniziati"
+  },
+  "Average Pages per Book": {
+    "en": "Average Pages per Book",
+    "it": "Media pagine per libro"
+  },
+  "Reading by Day": {
+    "en": "Reading by Day",
+    "it": "Lettura per giorno"
+  },
+  "Cached Books Only": {
+    "en": "Cached Books Only",
+    "it": "Solo libri in cache"
+  },
+  "All Events Loaded": {
+    "en": "All Events Loaded",
+    "it": "Tutti gli eventi caricati"
+  },
+  "pages": {
+    "en": "pages",
+    "it": "pagine"
+  },
+  "Resume Queue": {
+    "en": "Resume Queue",
+    "it": "Riprendi coda"
+  },
+  "Simultaneous Downloads": {
+    "en": "Simultaneous Downloads",
+    "it": "Download simultanei"
+  },
+  "Queued": {
+    "en": "Queued",
+    "it": "In coda"
+  },
+  "Create API Key Automatically": {
+    "en": "Create API Key Automatically",
+    "it": "Crea automaticamente una chiave API"
+  },
+  "Use a device key instead of storing the password.": {
+    "en": "Use a device key instead of storing the password.",
+    "it": "Usa una chiave del dispositivo anziché memorizzare la password."
+  },
+  "Current Device": {
+    "en": "Current Device",
+    "it": "Dispositivo attuale"
+  },
+  "Tap Zone Inversion": {
+    "en": "Tap Zone Inversion",
+    "it": "Inversione zone di tocco"
+  },
+  "Page Turn Animation": {
+    "en": "Page Turn Animation",
+    "it": "Animazione cambio pagina"
+  },
+  "Use as Default": {
+    "en": "Use as Default",
+    "it": "Usa come predefinito"
+  },
+  "Left": {
+    "en": "Left",
+    "it": "Sinistra"
+  },
+  "Right": {
+    "en": "Right",
+    "it": "Destra"
+  },
+  "Scan Comic Archives": {
+    "en": "Scan Comic Archives",
+    "it": "Scansiona archivi fumetti"
+  },
+  "Scan PDF": {
+    "en": "Scan PDF",
+    "it": "Scansiona PDF"
+  },
+  "Scan EPUB": {
+    "en": "Scan EPUB",
+    "it": "Scansiona EPUB"
+  },
+  "Server Folders": {
+    "en": "Server Folders",
+    "it": "Cartelle del server"
+  },
+  "Deep Scan": {
+    "en": "Deep Scan",
+    "it": "Scansione approfondita"
+  },
+  "Change Content": {
+    "en": "Change Content",
+    "it": "Cambia contenuto"
+  },
+  "Clear filters when changing the content type?": {
+    "en": "Clear filters when changing the content type?",
+    "it": "Cancellare i filtri cambiando il tipo di contenuto?"
+  },
+  "Unavailable User": {
+    "en": "Unavailable User",
+    "it": "Utente non disponibile"
+  },
+  "Share With": {
+    "en": "Share With",
+    "it": "Condividi con"
+  },
+  "Delete this smart list?": {
+    "en": "Delete this smart list?",
+    "it": "Eliminare questa lista intelligente?"
+  },
+  "Delete this saved filter?": {
+    "en": "Delete this saved filter?",
+    "it": "Eliminare questo filtro salvato?"
+  },
+  "This condition is preserved. Remove it only if you want to replace it.": {
+    "en": "This condition is preserved. Remove it only if you want to replace it.",
+    "it": "Questa condizione viene conservata. Rimuovila solo se vuoi sostituirla."
+  },
+  "Is": {
+    "en": "Is",
+    "it": "È"
+  },
+  "Is Not": {
+    "en": "Is Not",
+    "it": "Non è"
+  },
+  "Contains": {
+    "en": "Contains",
+    "it": "Contiene"
+  },
+  "Does Not Contain": {
+    "en": "Does Not Contain",
+    "it": "Non contiene"
+  },
+  "Begins With": {
+    "en": "Begins With",
+    "it": "Inizia con"
+  },
+  "Does Not Begin With": {
+    "en": "Does Not Begin With",
+    "it": "Non inizia con"
+  },
+  "Ends With": {
+    "en": "Ends With",
+    "it": "Termina con"
+  },
+  "Does Not End With": {
+    "en": "Does Not End With",
+    "it": "Non termina con"
+  },
+  "Greater Than": {
+    "en": "Greater Than",
+    "it": "Maggiore di"
+  },
+  "Less Than": {
+    "en": "Less Than",
+    "it": "Minore di"
+  },
+  "Before": {
+    "en": "Before",
+    "it": "Prima di"
+  },
+  "After": {
+    "en": "After",
+    "it": "Dopo"
+  },
+  "In the Last": {
+    "en": "In the Last",
+    "it": "Negli ultimi"
+  },
+  "Not in the Last": {
+    "en": "Not in the Last",
+    "it": "Non negli ultimi"
+  },
+  "Is Empty": {
+    "en": "Is Empty",
+    "it": "È vuoto"
+  },
+  "Is Not Empty": {
+    "en": "Is Not Empty",
+    "it": "Non è vuoto"
+  },
+  "Condition": {
+    "en": "Condition",
+    "it": "Condizione"
+  },
+  "Field": {
+    "en": "Field",
+    "it": "Campo"
+  },
+  "Sort Number": {
+    "en": "Sort Number",
+    "it": "Numero per ordinamento"
+  },
+  "Sharing Label": {
+    "en": "Sharing Label",
+    "it": "Etichetta di condivisione"
+  },
+  "Media Status": {
+    "en": "Media Status",
+    "it": "Stato del file"
+  },
+  "YYYY-MM-DD": {
+    "en": "YYYY-MM-DD",
+    "it": "AAAA-MM-GG"
+  }
+}

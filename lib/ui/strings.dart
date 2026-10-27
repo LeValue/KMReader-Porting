@@ -11,6 +11,10 @@ class Strings {
   static final Map<String, dynamic> _english = {};
   static Future<void> initialize() async {
     _catalog = jsonDecode(await rootBundle.loadString('assets/strings.json'));
+    _catalog.addAll(
+      jsonDecode(await rootBundle.loadString('assets/port_strings.json'))
+          as Map<String, dynamic>,
+    );
     for (final entry in _catalog.entries) {
       final value = entry.value as Map;
       final english = value['en'] as String? ?? entry.key;
