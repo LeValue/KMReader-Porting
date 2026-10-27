@@ -18,11 +18,13 @@ class Repository extends ChangeNotifier {
     required this.api,
     required this.store,
     required this.directory,
+    this.cacheClock = DateTime.now,
   });
   final ServerProfile profile;
   final KomgaApi api;
   final LocalStore store;
   final Directory directory;
+  final DateTime Function() cacheClock;
   bool offline = false;
   bool _syncing = false;
   bool _disposed = false;
@@ -41,6 +43,18 @@ class Repository extends ChangeNotifier {
     weight: (value) => jsonEncode(value).length * 2,
   );
   final _queryDates = <String, DateTime>{};
+  final _queryGenerations = <String, int>{};
+  int _invalidationGeneration = 0;
+  void _stampQuery(String key, int generation) {
+    _queryDates[key] = cacheClock();
+    _queryGenerations[key] = generation;
+    while (_queryDates.length > 256) {
+      final oldest = _queryDates.keys.first;
+      _queryDates.remove(oldest);
+      _queryGenerations.remove(oldest);
+    }
+  }
+
   final _bytes = WeightedCache<String, Uint8List>(
     maxWeight: 32 * 1024 * 1024,
     weight: (value) => value.length,
@@ -129,7 +143,8 @@ class Repository extends ChangeNotifier {
 
   void refreshContent() {
     if (_disposed) return;
-    _invalidated = DateTime.now();
+    _invalidated = cacheClock();
+    _invalidationGeneration++;
     contentRevision++;
     catalogChanges.value++;
     changed();
@@ -146,7 +161,7 @@ class Repository extends ChangeNotifier {
         : 'detail:${item.kind}:${item.id}';
     store.cache(profile.id, key, item.json);
     _queryValues.put(key, item.json);
-    _queryDates[key] = DateTime.now();
+    _stampQuery(key, _invalidationGeneration);
   }
 
   void removeCatalogItem(String kind, String id) {
@@ -186,6 +201,7 @@ class Repository extends ChangeNotifier {
     }
     Future<dynamic> fetch({bool background = false}) =>
         _queries.putIfAbsent(key, () async {
+          final generation = _invalidationGeneration;
           try {
             final value = await api.request(
               path,
@@ -198,10 +214,7 @@ class Repository extends ChangeNotifier {
                 background && jsonEncode(cached) != jsonEncode(value);
             store.cache(profile.id, key, value);
             _queryValues.put(key, value);
-            _queryDates[key] = DateTime.now();
-            if (_queryDates.length > 256) {
-              _queryDates.remove(_queryDates.keys.first);
-            }
+            _stampQuery(key, generation);
             if (different) {
               cacheRevision++;
               _cacheEvents ??= Timer(const Duration(milliseconds: 50), () {
@@ -216,9 +229,14 @@ class Repository extends ChangeNotifier {
         });
     if (cacheFirst && cached != null && !force) {
       final date = _queryDates[key] ?? store.cachedAt(profile.id, key);
+      final generation = _queryGenerations[key];
+      final invalid = generation != null
+          ? generation != _invalidationGeneration
+          : date == null || !date.isAfter(_invalidated);
       if (date == null ||
-          date.isBefore(_invalidated) ||
-          DateTime.now().difference(date) > const Duration(seconds: 30)) {
+          invalid ||
+          date.isAfter(cacheClock()) ||
+          cacheClock().difference(date) > const Duration(seconds: 30)) {
         unawaited(fetch(background: true).catchError((Object _) => cached));
       }
       return cached;
@@ -908,6 +926,8 @@ class Repository extends ChangeNotifier {
     _imageRequests.close();
     _bytes.clear();
     _queryValues.clear();
+    _queryDates.clear();
+    _queryGenerations.clear();
     catalogChanges.dispose();
     api.close();
     super.dispose();

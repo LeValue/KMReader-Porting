@@ -3,6 +3,10 @@
 ## 0.3.0 preview — current local checks
 
 - Static analysis: no issues.
+- Full local suite: 73 passed, one live test deliberately skipped; the subsequent
+  cache-clock fix passed 18 focused cache/catalog regression tests.
+  The invalidation regression freezes the clock so equal timestamps cannot hide
+  an explicitly requested refresh.
 - Real Komga 1.29.1: integration passed, including metadata edits/locks, nested
   filters, reading-list reorder/read-status, statistics fallback, collection CRUD,
   library creation/editing/removal, and the existing reader/download/sync checks.
@@ -12,7 +16,7 @@
 - Android AOT release: `0.3.0` (code `3`), package
   `dev.levalue.kmreader.preview`, 90,320,204 bytes.
 - APK SHA256:
-  `a2447f4abe8ff4223e397559b9e221f2eb8aebc8cd61ff8eb6f932dc3bbcc1a2`.
+  `496ab8d6c83cff9e390a11771d28c70e9374c24390640fce8ce79eb49d99b3e7`.
 - Signature matches the retained preview certificate; 16 KiB ZIP alignment,
   nondebuggable manifest, AOT library, SQLite and PDFium in all three ABIs verified.
 - Windows now has a portable-runtime bundle and a native startup/screenshot probe

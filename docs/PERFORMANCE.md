@@ -91,3 +91,8 @@ series field names. Multi-column series/book-number sorting uses repeated query
 parameters. A real-stream test covers cancellation of an idle download, and
 conditional range tests cover unchanged, replaced and malformed partial responses.
 These are transport/state checks, not measured frame times on the user's phone.
+
+Cache invalidation now also tracks request generations. A refresh within the
+same Windows clock tick invalidates a warm query, while its freshly fetched
+replacement stays reusable without another request. The regression freezes the
+clock and checks both guarantees.

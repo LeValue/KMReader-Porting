@@ -35,18 +35,21 @@ Json page(String title) => {
 void main() {
   late Directory directory;
   late LocalStore store;
-  Repository repo(Future<http.Response> Function(http.Request) handler) =>
-      Repository(
-        profile: profile,
-        store: store,
-        directory: directory,
-        api: KomgaApi(
-          Uri.parse(profile.url),
-          authentication: Authentication.password,
-          credential: '',
-          client: MockClient(handler),
-        ),
-      );
+  Repository repo(
+    Future<http.Response> Function(http.Request) handler, {
+    DateTime Function() cacheClock = DateTime.now,
+  }) => Repository(
+    profile: profile,
+    store: store,
+    directory: directory,
+    cacheClock: cacheClock,
+    api: KomgaApi(
+      Uri.parse(profile.url),
+      authentication: Authentication.password,
+      credential: '',
+      client: MockClient(handler),
+    ),
+  );
   setUp(() {
     directory = Directory.systemTemp.createTempSync('kmreader-cache-');
     store = LocalStore(sqlite3.openInMemory());
@@ -146,7 +149,7 @@ void main() {
     );
   });
 
-  test('stale catalog returns immediately, revalidates once and publishes the fresh result', () async {
+  test('stale catalog revalidates exactly once even when refresh and cache timestamps are equal', () async {
     var requests = 0;
     final gate = Completer<http.Response>();
     final freshEvent = Completer<void>();
@@ -157,7 +160,7 @@ void main() {
       return requests == 1
           ? http.Response(jsonEncode(page('Old title')), 200)
           : gate.future;
-    });
+    }, cacheClock: () => DateTime.utc(2026, 10, 27));
     addTearDown(repository.dispose);
     await repository.catalog('books');
     repository.catalogChanges.addListener(() {
