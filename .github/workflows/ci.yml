@@ -113,7 +113,7 @@ jobs:
           PYCODE
           gh api "repos/$GH_REPO/git/blobs/$PREVIEW_BLOB" > preview-blob.json
           python3 - <<'PYCODE'
-          import base64, gzip, hashlib, json, os
+          import base64, gzip, hashlib, json, lzma, os
           from pathlib import Path
           blob = json.loads(Path('preview-blob.json').read_text())
           if blob['encoding'] != 'base64':
@@ -121,7 +121,7 @@ jobs:
           content = base64.b64decode(blob['content'])
           if hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest() != os.environ['PREVIEW_BLOB']:
               raise SystemExit('Git blob hash mismatch')
-          content = gzip.decompress(content)
+          content = lzma.decompress(content) if content.startswith(b'\xfd7zXZ\x00') else gzip.decompress(content)
           digest = hashlib.sha256(content).hexdigest()
           if digest != os.environ['PREVIEW_SHA256']:
               raise SystemExit('APK SHA256 mismatch')
