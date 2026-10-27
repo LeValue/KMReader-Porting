@@ -110,6 +110,12 @@ void main() {
           tester.element(find.byKey(const ValueKey('page'))),
         );
         final dpr = media.devicePixelRatio;
+        expect(
+          media.orientation,
+          orientation == DeviceOrientation.portraitUp
+              ? Orientation.portrait
+              : Orientation.landscape,
+        );
         double edge(String key) => (raw[key] ?? 0) / dpr;
         final page = tester.getRect(find.byKey(const ValueKey('page')));
         final title = tester.getRect(find.byKey(const ValueKey('title')));
