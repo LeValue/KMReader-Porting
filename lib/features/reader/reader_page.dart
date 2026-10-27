@@ -37,6 +37,46 @@ class _ReaderPageState extends State<ReaderPage> {
   final _positions = ItemPositionsListener.create();
   bool _controls = true, _verticalReady = false;
   final Set<int> _readyPages = {};
+  Timer? _preloadTimer;
+  int _preloadGeneration = 0;
+  void _preload() {
+    _preloadTimer?.cancel();
+    final generation = ++_preloadGeneration;
+    if (widget.book.format != 'comic') return;
+    final anchor = _session.page;
+    final step = _session.step;
+    _preloadTimer = Timer(const Duration(milliseconds: 80), () async {
+      final width =
+          (MediaQuery.sizeOf(context).width *
+                  MediaQuery.devicePixelRatioOf(context) *
+                  2)
+              .ceil()
+              .clamp(1, 4096);
+      final candidates = [
+        for (var i = 1; i <= 2 * step; i++) anchor + i,
+        anchor - 1,
+      ];
+      for (final page in candidates) {
+        if (!mounted || generation != _preloadGeneration) return;
+        if (page < 1 || page > widget.book.pages) continue;
+        try {
+          final bytes = await widget.repository.prefetchPage(
+            widget.book.id,
+            page,
+          );
+          if (!mounted || generation != _preloadGeneration) return;
+          await precacheImage(
+            ResizeImage.resizeIfNeeded(width, null, MemoryImage(bytes)),
+            context,
+            onError: (_, _) {},
+          );
+        } catch (_) {
+          // Visible pages retain their own retry UI; preloading is optional.
+        }
+      }
+    });
+  }
+
   void _commitIfReady() {
     final first = _session.itemIndex * _session.step + 1;
     for (
@@ -72,12 +112,15 @@ class _ReaderPageState extends State<ReaderPage> {
       if (mounted) {
         _focus.requestFocus();
         _verticalReady = true;
+        _preload();
       }
     });
   }
 
   @override
   void dispose() {
+    _preloadGeneration++;
+    _preloadTimer?.cancel();
     _focus.dispose();
     _pages.dispose();
     _positions.itemPositions.removeListener(_onScroll);
@@ -96,12 +139,14 @@ class _ReaderPageState extends State<ReaderPage> {
           ..sort((a, b) => a.index.compareTo(b.index));
     if (visible.isNotEmpty && visible.first.index + 1 != _session.page) {
       setState(() => _session.go(visible.first.index + 1));
+      _preload();
       _commitIfReady();
     }
   }
 
   void _go(int page) {
     _session.go(page);
+    _preload();
     if (_session.preferences.mode == ReadingMode.paged && _pages.hasClients) {
       _pages.animateToPage(
         _session.itemIndex,
@@ -132,6 +177,7 @@ class _ReaderPageState extends State<ReaderPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       old.dispose();
       _verticalReady = true;
+      if (mounted) _preload();
     });
   }
 
@@ -183,77 +229,79 @@ class _ReaderPageState extends State<ReaderPage> {
 
         final p = _session.preferences;
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tr(context, 'Reader Settings'),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 10,
-                  children: [
-                    for (final mode in ReadingMode.values)
-                      ChoiceChip(
-                        label: Text(switch (mode) {
-                          ReadingMode.paged => tr(context, 'Paged'),
-                          ReadingMode.vertical => tr(context, 'Vertical'),
-                          ReadingMode.webtoon => 'Webtoon',
-                        }),
-                        selected: p.mode == mode,
-                        onSelected: (_) => apply(p.copy(mode: mode)),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr(context, 'Reader Settings'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 20),
+                  Wrap(
+                    spacing: 10,
+                    children: [
+                      for (final mode in ReadingMode.values)
+                        ChoiceChip(
+                          label: Text(switch (mode) {
+                            ReadingMode.paged => tr(context, 'Paged'),
+                            ReadingMode.vertical => tr(context, 'Vertical'),
+                            ReadingMode.webtoon => 'Webtoon',
+                          }),
+                          selected: p.mode == mode,
+                          onSelected: (_) => apply(p.copy(mode: mode)),
+                        ),
+                    ],
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Right to Left')),
+                    value: p.direction == ReadingDirection.rtl,
+                    onChanged: (v) => apply(
+                      p.copy(
+                        direction: v
+                            ? ReadingDirection.rtl
+                            : ReadingDirection.ltr,
                       ),
-                  ],
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(tr(context, 'Right to Left')),
-                  value: p.direction == ReadingDirection.rtl,
-                  onChanged: (v) => apply(
-                    p.copy(
-                      direction: v
-                          ? ReadingDirection.rtl
-                          : ReadingDirection.ltr,
                     ),
                   ),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(tr(context, 'Double Page')),
-                  value: p.spread,
-                  onChanged: p.mode == ReadingMode.paged
-                      ? (v) => apply(p.copy(spread: v))
-                      : null,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(tr(context, 'Fit Width')),
-                  value: p.fit == 'fitWidth',
-                  onChanged: (v) =>
-                      apply(p.copy(fit: v ? 'fitWidth' : 'contain')),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(tr(context, 'Rotate Page')),
-                  trailing: const Icon(CupertinoIcons.rotate_right),
-                  onTap: () => apply(p.copy(rotation: (p.rotation + 1) % 4)),
-                ),
-                Wrap(
-                  spacing: 10,
-                  children: [
-                    for (final c in ['black', 'white', 'sepia'])
-                      ChoiceChip(
-                        label: Text(tr(context, c)),
-                        selected: p.background == c,
-                        onSelected: (_) => apply(p.copy(background: c)),
-                      ),
-                  ],
-                ),
-              ],
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Double Page')),
+                    value: p.spread,
+                    onChanged: p.mode == ReadingMode.paged
+                        ? (v) => apply(p.copy(spread: v))
+                        : null,
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Fit Width')),
+                    value: p.fit == 'fitWidth',
+                    onChanged: (v) =>
+                        apply(p.copy(fit: v ? 'fitWidth' : 'contain')),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Rotate Page')),
+                    trailing: const Icon(CupertinoIcons.rotate_right),
+                    onTap: () => apply(p.copy(rotation: (p.rotation + 1) % 4)),
+                  ),
+                  Wrap(
+                    spacing: 10,
+                    children: [
+                      for (final c in ['black', 'white', 'sepia'])
+                        ChoiceChip(
+                          label: Text(tr(context, c)),
+                          selected: p.background == c,
+                          onSelected: (_) => apply(p.copy(background: c)),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -354,6 +402,7 @@ class _ReaderPageState extends State<ReaderPage> {
                       itemCount: _session.itemCount,
                       onPageChanged: (index) {
                         setState(() => _session.go(index * _session.step + 1));
+                        _preload();
                         _commitIfReady();
                       },
                       itemBuilder: (context, index) {
@@ -607,7 +656,8 @@ class _PageImageState extends State<_PageImage> {
             (MediaQuery.sizeOf(context).width *
                     MediaQuery.devicePixelRatioOf(context) *
                     2)
-                .ceil(),
+                .ceil()
+                .clamp(1, 4096),
         width: double.infinity,
         fit: widget.vertical
             ? BoxFit.fitWidth

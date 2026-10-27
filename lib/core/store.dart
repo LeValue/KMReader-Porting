@@ -16,14 +16,25 @@ class LocalStore {
     );
     db.execute('''CREATE TABLE IF NOT EXISTS cache(server TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
       PRIMARY KEY(server,key))''');
+    if (!db
+        .select('PRAGMA table_info(cache)')
+        .any((r) => r['name'] == 'updated')) {
+      db.execute(
+        'ALTER TABLE cache ADD COLUMN updated INTEGER NOT NULL DEFAULT 0',
+      );
+    }
     db.execute('''CREATE TABLE IF NOT EXISTS progress(server TEXT NOT NULL, book TEXT NOT NULL,
       value TEXT NOT NULL, revision INTEGER NOT NULL, pending INTEGER NOT NULL,
       PRIMARY KEY(server,book))''');
     db.execute('''CREATE TABLE IF NOT EXISTS downloads(server TEXT NOT NULL, book TEXT NOT NULL,
       value TEXT NOT NULL, PRIMARY KEY(server,book))''');
-    db.execute('PRAGMA user_version=1');
+    db.execute(
+      'CREATE INDEX IF NOT EXISTS progress_pending ON progress(server,pending)',
+    );
+    db.execute('PRAGMA user_version=2');
   }
   final Database db;
+  final _progress = <String, Json?>{};
   T? setting<T>(String key) {
     final rows = db.select('SELECT value FROM settings WHERE key=?', [key]);
     return rows.isEmpty
@@ -46,6 +57,7 @@ class LocalStore {
     [s.id, jsonEncode(s.toJson())],
   );
   void removeServer(String id) {
+    _progress.removeWhere((key, _) => key.startsWith('$id:'));
     db.execute('BEGIN IMMEDIATE');
     try {
       db.execute('DELETE FROM servers WHERE id=?', [id]);
@@ -68,10 +80,44 @@ class LocalStore {
   }
 
   void cache(String server, String key, dynamic value) => db.execute(
-    'INSERT OR REPLACE INTO cache(server,key,value) VALUES(?,?,?)',
-    [server, key, jsonEncode(value)],
+    'INSERT OR REPLACE INTO cache(server,key,value,updated) VALUES(?,?,?,?)',
+    [server, key, jsonEncode(value), DateTime.now().millisecondsSinceEpoch],
   );
+  DateTime? cachedAt(String server, String key) {
+    final rows = db.select(
+      'SELECT updated FROM cache WHERE server=? AND key=?',
+      [server, key],
+    );
+    return rows.isEmpty
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(integer(rows.first['updated']));
+  }
+
+  void cacheBooks(String server, Iterable<CatalogItem> books) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final book in books) {
+        cache(server, 'book:${book.id}', book.json);
+      }
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  int pendingCount(String server) => integer(
+    db.select(
+      'SELECT COUNT(*) AS count FROM progress WHERE server=? AND pending=1',
+      [server],
+    ).first['count'],
+  );
+  bool isPending(String server, String book) => db.select(
+    'SELECT 1 FROM progress WHERE server=? AND book=? AND pending=1',
+    [server, book],
+  ).isNotEmpty;
   void recordProgress(String server, String book, Json value) {
+    _progress['$server:$book'] = value;
     final previous = db.select(
       'SELECT revision FROM progress WHERE server=? AND book=?',
       [server, book],
@@ -86,11 +132,13 @@ class LocalStore {
   }
 
   Json? progress(String server, String book) {
+    final key = '$server:$book';
+    if (_progress.containsKey(key)) return _progress[key];
     final rows = db.select(
       'SELECT value FROM progress WHERE server=? AND book=?',
       [server, book],
     );
-    return rows.isEmpty
+    return _progress[key] = rows.isEmpty
         ? null
         : object(jsonDecode(rows.first['value'] as String));
   }
@@ -136,10 +184,16 @@ class LocalStore {
       .select('SELECT value FROM downloads WHERE server=?', [server])
       .map((r) => object(jsonDecode(r['value'] as String)))
       .toList();
-  Json? download(String server, String book) =>
-      downloads(server)
-          .where((j) => object(j['book'])['id'] == book)
-          .firstOrNull;
+  Json? download(String server, String book) {
+    final rows = db.select(
+      'SELECT value FROM downloads WHERE server=? AND book=?',
+      [server, book],
+    );
+    return rows.isEmpty
+        ? null
+        : object(jsonDecode(rows.first['value'] as String));
+  }
+
   void deleteDownload(String server, String book) => db.execute(
     'DELETE FROM downloads WHERE server=? AND book=?',
     [server, book],

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -25,6 +27,8 @@ class CatalogPageView extends StatefulWidget {
     this.path,
     this.searchEnabled = true,
     this.readListId,
+    this.libraryId,
+    this.initialSort,
   });
   final Repository repository;
   final String kind;
@@ -32,6 +36,7 @@ class CatalogPageView extends StatefulWidget {
   final Json? condition;
   final bool searchEnabled;
   final String? readListId;
+  final String? libraryId, initialSort;
   @override
   State<CatalogPageView> createState() => _CatalogPageViewState();
 }
@@ -46,11 +51,13 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   Object? _error;
   String _query = '', _sort = 'metadata.titleSort,asc', _readStatus = '';
   bool _list = false;
-  int _contentRevision = 0, _progressRevision = 0;
+  int _contentRevision = 0, _progressRevision = 0, _cacheRevision = 0;
   void _repositoryChanged() {
     if (!mounted) return;
-    if (_contentRevision != widget.repository.contentRevision) {
+    if (_contentRevision != widget.repository.contentRevision ||
+        _cacheRevision != widget.repository.cacheRevision) {
       _contentRevision = widget.repository.contentRevision;
+      _cacheRevision = widget.repository.cacheRevision;
       _load(reset: true);
     } else if (_progressRevision != widget.repository.progressRevision) {
       _progressRevision = widget.repository.progressRevision;
@@ -63,13 +70,14 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     super.initState();
     _contentRevision = widget.repository.contentRevision;
     _progressRevision = widget.repository.progressRevision;
-    widget.repository.addListener(_repositoryChanged);
+    widget.repository.catalogChanges.addListener(_repositoryChanged);
     if (widget.kind == 'readlists' || widget.kind == 'collections') {
       _sort = 'name,asc';
     }
     if (widget.condition?['seriesId'] != null) {
       _sort = 'metadata.numberSort,asc';
     }
+    if (widget.initialSort != null) _sort = widget.initialSort!;
     _scroll.addListener(() {
       if (_scroll.position.extentAfter < 600 &&
           !_last &&
@@ -85,12 +93,12 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   void didUpdateWidget(CatalogPageView old) {
     super.didUpdateWidget(old);
     if (old.repository != widget.repository) {
-      old.repository.removeListener(_repositoryChanged);
-      widget.repository.addListener(_repositoryChanged);
+      old.repository.catalogChanges.removeListener(_repositoryChanged);
+      widget.repository.catalogChanges.addListener(_repositoryChanged);
     }
     if (old.repository != widget.repository ||
         old.kind != widget.kind ||
-        old.condition != widget.condition ||
+        jsonEncode(old.condition) != jsonEncode(widget.condition) ||
         old.path != widget.path) {
       _load(reset: true);
     }
@@ -98,19 +106,27 @@ class _CatalogPageViewState extends State<CatalogPageView> {
 
   @override
   void dispose() {
-    widget.repository.removeListener(_repositoryChanged);
+    widget.repository.catalogChanges.removeListener(_repositoryChanged);
     _generation++;
     _scroll.dispose();
     _search.dispose();
     super.dispose();
   }
 
-  Future<void> _load({bool reset = false}) async {
+  Future<void> _load({
+    bool reset = false,
+    bool clear = false,
+    bool force = false,
+  }) async {
+    final count = reset && !clear ? _page.clamp(1, 1000000) : 1;
+    final start = reset ? 0 : _page;
     if (reset) {
       _generation++;
-      _page = 0;
       _last = false;
-      _items = [];
+      if (clear) {
+        _items = [];
+        _page = 0;
+      }
     }
     final generation = _generation;
     setState(() {
@@ -129,27 +145,36 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                 'allOf': [condition, filter],
               };
       }
-      final result = await widget.repository.catalog(
-        widget.kind,
-        page: _page,
-        search: _query,
-        condition: condition,
-        sort: _sort,
-        path: widget.path,
+      final results = await Future.wait(
+        List.generate(
+          count,
+          (offset) => widget.repository.catalog(
+            widget.kind,
+            page: start + offset,
+            search: _query,
+            condition: condition,
+            sort: _sort,
+            path: widget.path,
+            libraryId: widget.libraryId,
+            force: force,
+          ),
+        ),
       );
       if (!mounted || generation != _generation) return;
       setState(() {
+        if (reset) _items = [];
         final known = _items.map((v) => v.id).toSet();
         _items.addAll(
-          result.items
+          results
+              .expand((result) => result.items)
               .where((v) => known.add(v.id))
               .map(
                 (v) =>
                     CatalogItem(v.kind, v.json, readListId: widget.readListId),
               ),
         );
-        _last = result.last || result.items.isEmpty;
-        _page++;
+        _last = results.last.last || results.last.items.isEmpty;
+        _page = start + count;
       });
     } catch (e) {
       if (mounted && generation == _generation) setState(() => _error = e);
@@ -188,7 +213,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                   textInputAction: TextInputAction.search,
                   onSubmitted: (v) {
                     _query = v.trim();
-                    _load(reset: true);
+                    _load(reset: true, clear: true);
                   },
                 ),
               ),
@@ -197,21 +222,26 @@ class _CatalogPageViewState extends State<CatalogPageView> {
               icon: const Icon(CupertinoIcons.arrow_up_arrow_down),
               onSelected: (v) {
                 _sort = v;
-                _load(reset: true);
+                _load(reset: true, clear: true);
               },
               itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'metadata.titleSort,asc',
-                  child: Text(tr(context, 'Title')),
-                ),
-                PopupMenuItem(
-                  value: 'created,desc',
-                  child: Text(tr(context, 'Recently Added')),
-                ),
-                PopupMenuItem(
-                  value: 'lastModified,desc',
-                  child: Text(tr(context, 'Recently Updated')),
-                ),
+                for (final choice
+                    in (widget.kind == 'collections' ||
+                                widget.kind == 'readlists'
+                            ? {'name,asc': 'Title', 'name,desc': 'Descending'}
+                            : {
+                                'metadata.titleSort,asc': 'Title',
+                                if (widget.kind == 'books')
+                                  'metadata.numberSort,asc': 'Number',
+                                'created,desc': 'Recently Added',
+                                'lastModified,desc': 'Recently Updated',
+                              })
+                        .entries)
+                  CheckedPopupMenuItem(
+                    value: choice.key,
+                    checked: _sort == choice.key,
+                    child: Text(tr(context, choice.value)),
+                  ),
               ],
             ),
             if (widget.kind == 'books' || widget.kind == 'series')
@@ -224,7 +254,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                 ),
                 onSelected: (v) {
                   _readStatus = v;
-                  _load(reset: true);
+                  _load(reset: true, clear: true);
                 },
                 itemBuilder: (_) => [
                   for (final e in {
@@ -233,8 +263,9 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                     'IN_PROGRESS': 'In Progress',
                     'READ': 'Read',
                   }.entries)
-                    PopupMenuItem(
+                    CheckedPopupMenuItem(
                       value: e.key,
+                      checked: _readStatus == e.key,
                       child: Text(tr(context, e.value)),
                     ),
                 ],
@@ -258,7 +289,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
             ? FailureView(error: _error!, retry: () => _load(reset: true))
             : _items.isEmpty
             ? RefreshIndicator(
-                onRefresh: () => _load(reset: true),
+                onRefresh: () => _load(reset: true, force: true),
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: const [
@@ -271,7 +302,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                 ),
               )
             : RefreshIndicator(
-                onRefresh: () => _load(reset: true),
+                onRefresh: () => _load(reset: true, force: true),
                 child: CustomScrollView(
                   controller: _scroll,
                   physics: const AlwaysScrollableScrollPhysics(),

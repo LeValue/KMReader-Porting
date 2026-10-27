@@ -41,6 +41,17 @@ ThemeData appTheme(Brightness brightness) {
       centerTitle: false,
     ),
     dividerColor: foreground.withValues(alpha: .12),
+    popupMenuTheme: PopupMenuThemeData(
+      color: surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      textStyle: TextStyle(fontSize: 16, color: foreground),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: surface,
+      surfaceTintColor: Colors.transparent,
+    ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
       color: foreground,
       linearTrackColor: foreground.withValues(alpha: .12),

@@ -45,6 +45,8 @@ class FixtureRepository extends Repository {
   Future<Uint8List> image(String path, {bool refresh = false}) async => bytes;
   @override
   Future<Uint8List> page(String id, int page) async => bytes;
+  @override
+  Future<Uint8List> prefetchPage(String id, int page) async => bytes;
 }
 
 Future<void> screenshot(WidgetTester tester, GlobalKey key, String name) async {
@@ -136,6 +138,7 @@ void main() {
         },
       };
       app.store.saveServer(profile);
+      final requests = <http.Request>[];
       final repository = FixtureRepository(
         profile: profile,
         store: app.store,
@@ -145,6 +148,7 @@ void main() {
           authentication: Authentication.password,
           credential: 'synthetic',
           client: MockClient((request) async {
+            requests.add(request);
             if (request.method == 'PATCH') return http.Response('', 204);
             if (request.url.path.endsWith('/books/book')) {
               return http.Response(jsonEncode(book), 200);
@@ -190,6 +194,18 @@ void main() {
           tester.element(find.byType(KMReaderApp)),
         ),
       );
+      for (final width in [128, 256, 512, 1024]) {
+        await tester.runAsync(
+          () => precacheImage(
+            ResizeImage.resizeIfNeeded(
+              width,
+              null,
+              MemoryImage(FixtureRepository.bytes),
+            ),
+            tester.element(find.byType(KMReaderApp)),
+          ),
+        );
+      }
       await tester.runAsync(
         () => precacheImage(
           ResizeImage.resizeIfNeeded(
@@ -206,6 +222,33 @@ void main() {
         const Duration(seconds: 10),
       );
       expect(tester.takeException(), isNull);
+      expect(
+        requests.where(
+          (r) =>
+              r.url.path.contains('readlists') ||
+              r.url.path.contains('collections') ||
+              r.url.path.endsWith('/libraries'),
+        ),
+        isEmpty,
+        reason: 'Unvisited tabs must not start network requests',
+      );
+      expect(requests.length, 5);
+      await tester.tap(find.text('All Libraries'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Comics'));
+      await tester.pumpAndSettle();
+      expect(
+        object(app.store.setting<dynamic>('dashboardLibrary:fixture'))['id'],
+        'library',
+      );
+      expect(
+        requests.any(
+          (r) =>
+              r.url.path.endsWith('/ondeck') &&
+              r.url.queryParameters['library_id'] == 'library',
+        ),
+        isTrue,
+      );
       await screenshot(tester, key, 'dashboard-${size.width.toInt()}');
       final title = find.text('Synthetic Comic').first;
       await tester.ensureVisible(title);
@@ -239,6 +282,47 @@ void main() {
       expect(repository.store.progress(profile.id, 'book')!['page'], 2);
       expect(tester.takeException(), isNull);
       await screenshot(tester, key, 'reader-${size.width.toInt()}');
+      Navigator.of(tester.element(find.byType(Scaffold).last)).pop();
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.byType(Scaffold).last)).pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Theme'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'System').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Light').last);
+      await tester.pumpAndSettle();
+      expect(app.theme, ThemeMode.light);
+      await tester.tap(find.widgetWithText(TextButton, 'English'));
+      await tester.pumpAndSettle();
+      await screenshot(tester, key, 'language-menu-${size.width.toInt()}');
+      await tester.tap(find.text('Italiano'));
+      await tester.pumpAndSettle();
+      expect(app.language, 'it');
+      expect(tester.takeException(), isNull);
+      await screenshot(tester, key, 'settings-${size.width.toInt()}');
+      final dashboardSettings = find.byIcon(CupertinoIcons.rectangle_grid_1x2);
+      await tester.ensureVisible(dashboardSettings);
+      await tester.pumpAndSettle();
+      final countBeforeReorder = requests.length;
+      await tester.tap(dashboardSettings);
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byIcon(CupertinoIcons.line_horizontal_3).first,
+        const Offset(0, 100),
+      );
+      await tester.pumpAndSettle();
+      final order = app.store.setting<List<dynamic>>('dashboardOrder:fixture');
+      expect(order, isNotNull);
+      expect(order!.length, 5);
+      expect(order.first, isNot('dashboard.keepReading'));
+      expect(
+        requests.length,
+        countBeforeReorder,
+        reason: 'Reordering cached sections must not refetch catalog data',
+      );
       await tester.pumpWidget(const SizedBox.shrink());
     });
     testWidgets(

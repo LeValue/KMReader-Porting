@@ -8,6 +8,7 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../auth/login_page.dart';
 import '../offline/downloads_page.dart';
+import '../catalog/dashboard.dart';
 import 'api_keys_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -137,6 +138,30 @@ class SettingsPage extends StatelessWidget {
                 ),
                 onTap: repository.sync,
               ),
+              ListTile(
+                leading: const Icon(CupertinoIcons.trash),
+                title: Text(tr(context, 'Clear Image Cache')),
+                subtitle: Text(
+                  tr(
+                    context,
+                    'Downloaded books and reading progress are kept.',
+                  ),
+                ),
+                onTap: () async {
+                  if (!await confirm(
+                    context,
+                    'Clear Image Cache',
+                    'Downloaded books and reading progress are kept.',
+                  )) {
+                    return;
+                  }
+                  try {
+                    await repository.clearImageCache();
+                  } catch (e) {
+                    if (context.mounted) showError(context, e);
+                  }
+                },
+              ),
               if (repository.syncFailure != null)
                 ListTile(
                   title: Text(repository.syncFailure!),
@@ -196,53 +221,85 @@ class SettingsPage extends StatelessWidget {
               ListTile(
                 leading: const Icon(CupertinoIcons.moon),
                 title: Text(tr(context, 'Theme')),
-                trailing: DropdownButton<ThemeMode>(
-                  value: app.theme,
-                  underline: const SizedBox(),
-                  onChanged: (v) {
-                    if (v != null) app.setTheme(v);
+                trailing: TextButton.icon(
+                  onPressed: () async {
+                    final value = await chooseValue(
+                      context,
+                      title: 'Theme',
+                      selected: app.theme,
+                      choices: {
+                        ThemeMode.system: 'System',
+                        ThemeMode.light: 'Light',
+                        ThemeMode.dark: 'Dark',
+                      },
+                    );
+                    if (value != null) app.setTheme(value);
                   },
-                  items: [
-                    for (final mode in ThemeMode.values)
-                      DropdownMenuItem(
-                        value: mode,
-                        child: Text(
-                          tr(context, switch (mode) {
-                            ThemeMode.system => 'System',
-                            ThemeMode.light => 'Light',
-                            ThemeMode.dark => 'Dark',
-                          }),
-                        ),
-                      ),
-                  ],
+                  icon: const Icon(
+                    CupertinoIcons.chevron_up_chevron_down,
+                    size: 14,
+                  ),
+                  label: Text(
+                    tr(context, switch (app.theme) {
+                      ThemeMode.system => 'System',
+                      ThemeMode.light => 'Light',
+                      ThemeMode.dark => 'Dark',
+                    }),
+                  ),
                 ),
               ),
               ListTile(
                 leading: const Icon(CupertinoIcons.globe),
                 title: Text(tr(context, 'Language')),
-                trailing: DropdownButton<String>(
-                  value: app.language ?? 'system',
-                  underline: const SizedBox(),
-                  onChanged: (v) => app.setLanguage(v == 'system' ? null : v),
-                  items: [
-                    DropdownMenuItem(
-                      value: 'system',
-                      child: Text(tr(context, 'System')),
+                trailing: TextButton.icon(
+                  onPressed: () async {
+                    final value = await chooseValue(
+                      context,
+                      title: 'Language',
+                      selected: app.language ?? 'system',
+                      choices: {
+                        'system': 'System',
+                        'en': 'English',
+                        'it': 'Italiano',
+                        'de': 'Deutsch',
+                        'fr': 'Français',
+                        'ja': '日本語',
+                        'ko': '한국어',
+                        'zh_CN': '简体中文',
+                        'zh_TW': '繁體中文',
+                        'ru': 'Русский',
+                        'es': 'Español',
+                      },
+                    );
+                    if (value != null) {
+                      app.setLanguage(value == 'system' ? null : value);
+                    }
+                  },
+                  icon: const Icon(
+                    CupertinoIcons.chevron_up_chevron_down,
+                    size: 14,
+                  ),
+                  label: Text(
+                    tr(
+                      context,
+                      ({
+                            'system': 'System',
+                            'en': 'English',
+                            'it': 'Italiano',
+                            'de': 'Deutsch',
+                            'fr': 'Français',
+                            'ja': '日本語',
+                            'ko': '한국어',
+                            'zh_CN': '简体中文',
+                            'zh_TW': '繁體中文',
+                            'ru': 'Русский',
+                            'es': 'Español',
+                          })[app.language ?? 'system'] ??
+                          'System',
                     ),
-                    for (final e in {
-                      'en': 'English',
-                      'it': 'Italiano',
-                      'de': 'Deutsch',
-                      'fr': 'Français',
-                      'ja': '日本語',
-                      'ko': '한국어',
-                      'zh_CN': '简体中文',
-                      'zh_TW': '繁體中文',
-                      'ru': 'Русский',
-                      'es': 'Español',
-                    }.entries)
-                      DropdownMenuItem(value: e.key, child: Text(e.value)),
-                  ],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
@@ -281,7 +338,7 @@ class SettingsPage extends StatelessWidget {
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: 'KMReader',
-                  applicationVersion: '0.1.0',
+                  applicationVersion: '0.2.0',
                   applicationLegalese: 'Based on KMReader by everpcpc (MIT).\nPorting for Android and Windows.',
                 ),
               ),
@@ -311,31 +368,63 @@ class _DashboardSettingsState extends State<_DashboardSettings> {
   Widget build(BuildContext context) {
     final key = 'dashboardHidden:${widget.repository.profile.id}';
     final hidden = widget.repository.store.setting<List<dynamic>>(key) ?? [];
+    final saved =
+        widget.repository.store.setting<List<dynamic>>(
+          'dashboardOrder:${widget.repository.profile.id}',
+        ) ??
+        [];
+    final order = [
+      ...saved.whereType<String>().where(dashboardSections.contains),
+      ...dashboardSections.where((s) => !saved.contains(s)),
+    ];
     return Scaffold(
       appBar: AppBar(title: Text(tr(context, 'Dashboard Sections'))),
-      body: ListView(
+      body: ReorderableListView(
+        buildDefaultDragHandles: false,
+        onReorderItem: (old, target) {
+          final updated = [...order];
+          updated.insert(target, updated.removeAt(old));
+          setState(
+            () => widget.repository.store.setSetting(
+              'dashboardOrder:${widget.repository.profile.id}',
+              updated,
+            ),
+          );
+          widget.repository.catalogChanges.value++;
+        },
         children: [
-          for (final section in [
-            'dashboard.keepReading',
-            'dashboard.onDeck',
-            'dashboard.recentlyAddedBooks',
-            'dashboard.recentlyAddedSeries',
-            'dashboard.recentlyUpdatedSeries',
-          ])
-            SwitchListTile(
-              title: Text(tr(context, section)),
-              value: !hidden.contains(section),
-              onChanged: (value) {
-                setState(() {
-                  if (value) {
-                    hidden.remove(section);
-                  } else {
-                    hidden.add(section);
-                  }
-                  widget.repository.store.setSetting(key, hidden);
-                });
-                widget.repository.refreshContent();
-              },
+          for (final section in order)
+            Row(
+              key: ValueKey(section),
+              children: [
+                Expanded(
+                  child: SwitchListTile(
+                    title: Text(tr(context, section)),
+                    value: !hidden.contains(section),
+                    onChanged: (value) {
+                      setState(() {
+                        if (value) {
+                          hidden.remove(section);
+                        } else {
+                          hidden.add(section);
+                        }
+                        widget.repository.store.setSetting(key, hidden);
+                      });
+                      widget.repository.catalogChanges.value++;
+                    },
+                  ),
+                ),
+                ReorderableDragStartListener(
+                  index: order.indexOf(section),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Tooltip(
+                      message: tr(context, 'Reorder'),
+                      child: const Icon(CupertinoIcons.line_horizontal_3),
+                    ),
+                  ),
+                ),
+              ],
             ),
         ],
       ),

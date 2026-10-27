@@ -21,6 +21,13 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  final _visited = <int, Widget>{};
+  @override
+  void didUpdateWidget(AppShell old) {
+    super.didUpdateWidget(old);
+    if (old.repository != widget.repository) _visited.clear();
+  }
+
   static const _labels = [
     'title.dashboard',
     'Library',
@@ -39,14 +46,24 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final repository = widget.repository;
+    _visited.putIfAbsent(
+      _index,
+      () => switch (_index) {
+        0 => Dashboard(repository: repository),
+        1 => _LibraryBrowser(repository: repository),
+        2 => _ListsPage(repository: repository),
+        3 => _SearchPage(repository: repository),
+        _ => SettingsPage(app: widget.app, repository: repository),
+      },
+    );
     final content = IndexedStack(
       index: _index,
       children: [
-        Dashboard(repository: repository),
-        _LibraryBrowser(repository: repository),
-        _ListsPage(repository: repository),
-        _SearchPage(repository: repository),
-        SettingsPage(app: widget.app, repository: repository),
+        for (var i = 0; i < 5; i++)
+          TickerMode(
+            enabled: i == _index,
+            child: _visited[i] ?? const SizedBox.shrink(),
+          ),
       ],
     );
     return Scaffold(
@@ -219,6 +236,9 @@ class _AppShellState extends State<AppShell> {
           ? null
           : NavigationBar(
               selectedIndex: _index,
+              labelTextStyle: const WidgetStatePropertyAll(
+                TextStyle(fontSize: 11),
+              ),
               onDestinationSelected: (i) => setState(() => _index = i),
               destinations: [
                 for (var i = 0; i < _labels.length; i++)
@@ -253,7 +273,8 @@ class _LibraryBrowser extends StatelessWidget {
               CatalogPageView(repository: repository),
               CatalogPageView(repository: repository, kind: 'books'),
               AsyncPanel<dynamic>(
-                load: () => repository.get('/api/v1/libraries'),
+                load: () =>
+                    repository.get('/api/v1/libraries', cacheFirst: true),
                 builder: (context, data) => ListView(
                   children: [
                     for (final value in data as List)

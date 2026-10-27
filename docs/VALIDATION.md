@@ -96,3 +96,24 @@ This is a separate CI build with the runner's development signing key; its
 checksum differs from the earlier local APK documented above. GitHub login with
 repository access is required to download from this private repository. Target
 device interaction and complete functional/visual parity remain unverified.
+
+## Optimized 0.2.0 preview
+
+Local validation of the cache/UI iteration passed 38 tests (one separate live
+test skipped in that suite), static analysis and the separate real Komga test.
+See [PERFORMANCE.md](PERFORMANCE.md) for measured cache behavior and coverage.
+The signed universal APK was built in release mode with AOT libraries for all
+three ABIs, no debug kernel and no `application-debuggable` flag. Its manifest
+launches `dev.levalue.kmreader.MainActivity` under the separate preview package.
+
+- Package: `dev.levalue.kmreader.preview`, label `KMReader Preview`
+- Version: `0.2.0` (code `2`), Android API 24 minimum / 36 target
+- Local artifact: `build/app/outputs/flutter-apk/app-release.apk`
+- Size: 88,332,640 bytes
+- SHA256: `174194343bf8a974d0da4cb715b3a6de4a626974eee21043b388d54e344e49b9`
+- Certificate: public SHA256 in `tool/preview-certificate.sha256`
+
+This build installs alongside 0.1.0; it does not overwrite that app's storage.
+The user reported successful real-server connection and comic/ebook reading
+with 0.1.0, while also reporting UI lag. This optimized build still requires
+fresh performance and behavior acceptance on the user's device.

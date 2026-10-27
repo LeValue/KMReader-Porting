@@ -6,6 +6,69 @@ import 'package:flutter/material.dart';
 import '../core/repository.dart';
 import 'strings.dart';
 
+Future<T?> chooseValue<T>(
+  BuildContext context, {
+  required String title,
+  required T selected,
+  required Map<T, String> choices,
+}) {
+  Widget content(BuildContext sheet) => SafeArea(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            tr(sheet, title),
+            style: Theme.of(sheet).textTheme.titleLarge,
+          ),
+        ),
+        Flexible(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final choice in choices.entries)
+                ListTile(
+                  title: Text(tr(sheet, choice.value)),
+                  selected: selected == choice.key,
+                  trailing: selected == choice.key
+                      ? const Icon(CupertinoIcons.check_mark, size: 20)
+                      : null,
+                  onTap: () => Navigator.pop(sheet, choice.key),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  if (MediaQuery.sizeOf(context).width >= 700) {
+    return showDialog<T>(
+      context: context,
+      builder: (sheet) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 420,
+            maxHeight: MediaQuery.sizeOf(sheet).height * .8,
+          ),
+          child: content(sheet),
+        ),
+      ),
+    );
+  }
+  return showModalBottomSheet<T>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (sheet) => ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(sheet).height * .8,
+      ),
+      child: content(sheet),
+    ),
+  );
+}
+
 void showError(BuildContext context, Object error) {
   ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(error.toString())));
@@ -127,12 +190,25 @@ class _CoverState extends State<Cover> {
     future: _image,
     builder: (context, snapshot) {
       if (snapshot.hasData) {
-        return Image.memory(
-          snapshot.data!,
-          fit: widget.fit,
-          gaplessPlayback: true,
-          errorBuilder: (context, error, stack) =>
-              const Icon(CupertinoIcons.book),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final physicalWidth =
+                constraints.maxWidth * MediaQuery.devicePixelRatioOf(context);
+            final width = [
+              128,
+              256,
+              512,
+              1024,
+            ].firstWhere((v) => v >= physicalWidth, orElse: () => 1024);
+            return Image.memory(
+              snapshot.data!,
+              cacheWidth: width,
+              fit: widget.fit,
+              gaplessPlayback: true,
+              errorBuilder: (context, error, stack) =>
+                  const Icon(CupertinoIcons.book),
+            );
+          },
         );
       }
       return ColoredBox(
@@ -152,7 +228,13 @@ class _CoverState extends State<Cover> {
 }
 
 class AsyncPanel<T> extends StatefulWidget {
-  const AsyncPanel({super.key, required this.load, required this.builder});
+  const AsyncPanel({
+    super.key,
+    required this.load,
+    required this.builder,
+    this.revision = 0,
+  });
+  final int revision;
   final Future<T> Function() load;
   final Widget Function(BuildContext, T) builder;
   @override
@@ -169,10 +251,16 @@ class _AsyncPanelState<T> extends State<AsyncPanel<T>> {
 
   void _reload() => setState(() => _future = widget.load());
   @override
+  void didUpdateWidget(AsyncPanel<T> old) {
+    super.didUpdateWidget(old);
+    if (old.revision != widget.revision) _future = widget.load();
+  }
+
+  @override
   Widget build(BuildContext context) => FutureBuilder<T>(
     future: _future,
     builder: (context, snapshot) {
-      if (snapshot.hasError) {
+      if (snapshot.hasError && !snapshot.hasData) {
         return FailureView(error: snapshot.error!, retry: _reload);
       }
       if (!snapshot.hasData) {

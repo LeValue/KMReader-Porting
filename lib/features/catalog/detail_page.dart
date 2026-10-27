@@ -19,14 +19,18 @@ class DetailPage extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(item.title)),
     body: item.kind == 'books'
-        ? AsyncPanel<Book>(
-            load: () => repository.book(item.id),
-            builder: (context, book) => ListenableBuilder(
-              listenable: repository,
-              builder: (context, _) => _BookDetail(
-                repository: repository,
-                book: repository.overlay(book),
-                readListId: item.readListId,
+        ? ListenableBuilder(
+            listenable: repository.catalogChanges,
+            builder: (context, _) => AsyncPanel<Book>(
+              revision: repository.cacheRevision + repository.contentRevision,
+              load: () => repository.book(item.id),
+              builder: (context, book) => ListenableBuilder(
+                listenable: repository,
+                builder: (context, _) => _BookDetail(
+                  repository: repository,
+                  book: repository.overlay(book),
+                  readListId: item.readListId,
+                ),
               ),
             ),
           )
