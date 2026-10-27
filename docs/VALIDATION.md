@@ -8,7 +8,10 @@ zero Flutter padding, conversion from physical pixels, rotation to a side notch,
 protected chrome with explicit cutout extension, and document AppBar titles.
 Border-crop tests check safety thresholds and actual displayed pixels, including
 vertical geometry; double-tap scale, section queries and cached card-style changes
-are covered. Real-server integration and target builds are in progress.
+are covered. Real Komga integration passes locally, including the new dashboard filters.
+Android/Windows builds and an additional native Android emulator check are in progress.
+The emulator uses the OS tall-cutout overlay and captures portrait/landscape
+comic and document-title screenshots with Flutter padding deliberately cleared.
 
 The broader port remains incomplete; the remaining work is recorded in
 [PARITY.md](PARITY.md). Automated geometry is not physical OEM/device acceptance.
