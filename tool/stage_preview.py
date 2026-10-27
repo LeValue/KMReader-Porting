@@ -20,10 +20,10 @@ def main():
     parser.add_argument('--repo', default='LeValue/KMReader-Porting')
     args = parser.parse_args()
     data = args.apk.read_bytes()
-    if len(data) >= 100 * 1024 * 1024:
-        raise SystemExit('APK exceeds the Git blob API limit; do not split or commit it.')
     digest = hashlib.sha256(data).hexdigest()
     packed = gzip.compress(data, mtime=0)
+    if len(packed) >= 100 * 1024 * 1024:
+        raise SystemExit('Compressed APK exceeds the Git blob API limit; do not split or commit it.')
     git_hash = hashlib.sha1(b'blob ' + str(len(packed)).encode() + b'\0' + packed).hexdigest()
     with tempfile.TemporaryDirectory(prefix='kmreader-preview-') as temporary:
         request = Path(temporary) / 'blob.json'

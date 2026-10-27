@@ -35,6 +35,7 @@ class KomgaApi {
   final String _credential;
   final http.Client _client;
   bool _closed = false;
+  final _transfers = <String, ({String path, Future<void> future})>{};
 
   Uri uri(String path, [Map<String, dynamic>? query]) {
     if (!path.startsWith('/') || path.startsWith('//')) {
@@ -74,10 +75,14 @@ class KomgaApi {
     dynamic body,
     Map<String, dynamic>? query,
     Map<String, String>? extra,
+    Future<void>? abortTrigger,
   }) async {
     if (_closed) throw const ApiFailure('The server connection was closed.');
-    final request = http.Request(method, uri(path, query))
-      ..followRedirects = false;
+    final request = http.AbortableRequest(
+      method,
+      uri(path, query),
+      abortTrigger: abortTrigger,
+    )..followRedirects = false;
     request.headers.addAll({...headers, ...?extra});
     if (body != null) {
       request.headers['Content-Type'] = 'application/json';
@@ -104,6 +109,8 @@ class KomgaApi {
         );
       }
       return response;
+    } on http.RequestAbortedException {
+      throw const ApiFailure('Download cancelled.');
     } on TimeoutException {
       throw const ApiFailure(
         'The server took too long to respond.',
@@ -156,13 +163,121 @@ class KomgaApi {
     File target, {
     void Function(int, int?)? progress,
     bool Function()? cancelled,
+    Future<void>? abortTrigger,
+  }) {
+    final key = target.absolute.path;
+    final existing = _transfers[key];
+    if (existing != null) {
+      if (existing.path != path) {
+        return Future.error(
+          const ApiFailure(
+            'Another resource is already being saved to this file.',
+          ),
+        );
+      }
+      return existing.future;
+    }
+    final future = _transfer(
+      path,
+      target,
+      progress: progress,
+      cancelled: cancelled,
+      abortTrigger: abortTrigger,
+    ).whenComplete(() => _transfers.remove(key));
+    _transfers[key] = (path: path, future: future);
+    return future;
+  }
+
+  Future<void> _transfer(
+    String path,
+    File target, {
+    void Function(int, int?)? progress,
+    bool Function()? cancelled,
+    Future<void>? abortTrigger,
   }) async {
-    final response = await send(path, extra: {'Accept': '*/*'});
+    if (cancelled?.call() == true || _closed) {
+      throw const ApiFailure('Download cancelled.');
+    }
     await target.parent.create(recursive: true);
-    final partial = File('${target.path}.part');
-    final sink = partial.openWrite();
-    var received = 0;
+    final partial = File('${target.path}.part'),
+        metadata = File('${target.path}.part.json');
+    final address = uri(path).toString();
+    Json previous = {};
+    try {
+      if (await metadata.exists()) {
+        previous = object(jsonDecode(await metadata.readAsString()));
+      }
+    } on FormatException {
+      /* A torn journal is safely replaced by a full transfer. */
+    }
+    var offset = await partial.exists() ? await partial.length() : 0;
+    var validator = text(previous['validator']);
+    if (previous['url'] != address || validator.isEmpty) offset = 0;
+    http.StreamedResponse response;
+    try {
+      response = await send(
+        path,
+        abortTrigger: abortTrigger,
+        extra: {
+          'Accept': '*/*',
+          if (offset > 0) 'Range': 'bytes=$offset-',
+          if (offset > 0) 'If-Range': validator,
+        },
+      );
+    } on ApiFailure catch (e) {
+      if (e.status != 416 || offset == 0) rethrow;
+      // A changed or shortened resource invalidates the old range.
+      if (await partial.exists()) await partial.delete();
+      if (await metadata.exists()) await metadata.delete();
+      return _transfer(
+        path,
+        target,
+        progress: progress,
+        cancelled: cancelled,
+        abortTrigger: abortTrigger,
+      );
+    }
+    final etag = response.headers['etag'];
+    final modified = response.headers['last-modified'];
+    final currentValidator = etag != null && !etag.startsWith('W/')
+        ? etag
+        : modified ?? '';
+    int? total = response.contentLength;
+    if (response.statusCode == 206) {
+      final range = RegExp(r'^bytes (\d+)-(\d+)/(\d+)$')
+          .firstMatch(response.headers['content-range'] ?? '');
+      if (offset == 0 ||
+          range == null ||
+          int.parse(range[1]!) != offset ||
+          int.parse(range[2]!) < offset ||
+          int.parse(range[3]!) <= int.parse(range[2]!) ||
+          response.contentLength != null &&
+              response.contentLength != int.parse(range[2]!) - offset + 1 ||
+          currentValidator.isNotEmpty && currentValidator != validator) {
+        await response.stream.drain<void>();
+        if (await partial.exists()) await partial.delete();
+        if (await metadata.exists()) await metadata.delete();
+        throw const ApiFailure(
+          'The server returned an invalid download range. Retry the download.',
+        );
+      }
+      total = int.parse(range[3]!);
+    } else {
+      // If-Range returning 200 means the resource changed or range is unsupported.
+      offset = 0;
+    }
+    validator = currentValidator;
+    await metadata.writeAsString(
+      jsonEncode({'url': address, 'validator': validator}),
+      flush: true,
+    );
+    final sink = partial.openWrite(
+      mode: offset > 0 ? FileMode.append : FileMode.write,
+    );
+    var received = offset;
+    var transferred = 0;
     var lastNotification = DateTime.fromMillisecondsSinceEpoch(0);
+    var closed = false;
     try {
       await for (final chunk in response.stream.timeout(
         const Duration(seconds: 45),
@@ -172,27 +287,39 @@ class KomgaApi {
         }
         sink.add(chunk);
         received += chunk.length;
+        transferred += chunk.length;
         if (DateTime.now().difference(lastNotification).inMilliseconds >= 100) {
-          progress?.call(received, response.contentLength);
+          progress?.call(received, total);
           lastNotification = DateTime.now();
         }
       }
       await sink.flush();
       await sink.close();
+      closed = true;
+      if (cancelled?.call() == true || _closed) {
+        throw const ApiFailure('Download cancelled.');
+      }
       if (response.contentLength != null &&
-          received != response.contentLength) {
+              transferred != response.contentLength ||
+          total != null && received != total) {
         throw const ApiFailure('The download was incomplete. Please retry.');
       }
       await partial.rename(target.path);
-      progress?.call(received, response.contentLength);
-    } catch (_) {
-      await sink.close();
-      if (await partial.exists()) await partial.delete();
+      if (await metadata.exists()) await metadata.delete();
+      progress?.call(received, total);
+    } catch (error) {
+      if (!closed) await sink.close();
+      // Keep the journal and partial bytes. Future retries resume only when a
+      // strong ETag or Last-Modified validator makes the range safe.
+      if (error is http.RequestAbortedException) {
+        throw const ApiFailure('Download cancelled.');
+      }
       rethrow;
     }
   }
 
   Stream<String> events() async* {
+    if (_closed) return;
     final response = await send(
       '/sse/v1/events',
       extra: {'Accept': 'text/event-stream'},
@@ -225,7 +352,7 @@ class KomgaApi {
               if (search != null && search.isNotEmpty) 'fullTextSearch': search,
             }
           : null,
-      query: {'page': page, 'size': 40, 'sort': sort},
+      query: {'page': page, 'size': 40, 'sort': sortQuery(kind, sort)},
     ),
   );
   Future<Book> book(String id) async =>

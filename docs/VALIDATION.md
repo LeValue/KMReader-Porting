@@ -1,5 +1,30 @@
 # Development validation
 
+## 0.3.0 preview — current local checks
+
+- Static analysis: no issues.
+- Real Komga 1.29.1: integration passed, including metadata edits/locks, nested
+  filters, reading-list reorder/read-status, statistics fallback, collection CRUD,
+  library creation/editing/removal, and the existing reader/download/sync checks.
+- Focused suites: 13 download/statistics/editor tests and 5 sort/SSE/editor tests
+  passed. Both 390 px and 1280 px editor layouts were exercised. Full CI results
+  are recorded separately once the workflow completes.
+- Android AOT release: `0.3.0` (code `3`), package
+  `dev.levalue.kmreader.preview`, 90,320,204 bytes.
+- APK SHA256:
+  `a2447f4abe8ff4223e397559b9e221f2eb8aebc8cd61ff8eb6f932dc3bbcc1a2`.
+- Signature matches the retained preview certificate; 16 KiB ZIP alignment,
+  nondebuggable manifest, AOT library, SQLite and PDFium in all three ABIs verified.
+- Windows now has a portable-runtime bundle and a native startup/screenshot probe
+  using an isolated `KMREADER_DATA_DIR`; its observed CI outcome is still pending.
+
+Extended kmrs smart-list/statistics endpoints were checked against contract
+fixtures. The available real server is stock Komga: its 404 capability fallback
+was checked, not an actual kmrs deployment. No physical Android device was used.
+Full visual, AI/OCR and OS-integration parity is not established.
+
+## Earlier validation snapshots
+
 Validated in the prepared Linux cloud workspace with Flutter 3.47.8, Dart
 3.13.7, Java 21 and Android SDK 36. Upstream reference remained unchanged at
 `e2b35f8796cc830fc6e7464e161b2172d8f916e9`.

@@ -87,28 +87,35 @@ class _ApiKeysPageState extends State<ApiKeysPage> {
             ListTile(
               leading: const Icon(CupertinoIcons.lock),
               title: Text(text(object(value)['comment'])),
-              subtitle: Text(text(object(value)['key'])),
+              subtitle: Text(
+                object(value)['id'] == widget.repository.profile.apiKeyId
+                    ? tr(context, 'Current Device')
+                    : text(object(value)['createdDate']),
+              ),
               trailing: IconButton(
                 tooltip: tr(context, 'Revoke API Key'),
                 icon: const Icon(CupertinoIcons.trash),
-                onPressed: () async {
-                  if (!await confirm(
-                    context,
-                    'Revoke API Key',
-                    'Connections using this key will stop working.',
-                  )) {
-                    return;
-                  }
-                  try {
-                    await widget.repository.api.request(
-                      '/api/v2/users/me/api-keys/${Uri.encodeComponent(object(value)['id'])}',
-                      method: 'DELETE',
-                    );
-                    if (mounted) setState(() => _revision++);
-                  } catch (e) {
-                    if (context.mounted) showError(context, e);
-                  }
-                },
+                onPressed:
+                    object(value)['id'] == widget.repository.profile.apiKeyId
+                    ? null
+                    : () async {
+                        if (!await confirm(
+                          context,
+                          'Revoke API Key',
+                          'Connections using this key will stop working.',
+                        )) {
+                          return;
+                        }
+                        try {
+                          await widget.repository.api.request(
+                            '/api/v2/users/me/api-keys/${Uri.encodeComponent(object(value)['id'])}',
+                            method: 'DELETE',
+                          );
+                          if (mounted) setState(() => _revision++);
+                        } catch (e) {
+                          if (context.mounted) showError(context, e);
+                        }
+                      },
               ),
             ),
         ],

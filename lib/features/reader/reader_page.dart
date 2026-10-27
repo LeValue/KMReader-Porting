@@ -13,6 +13,8 @@ import '../../ui/strings.dart';
 import '../../ui/theme.dart';
 import 'document_readers.dart';
 import 'reading_session.dart';
+import 'tap_zones.dart';
+import 'page_parts.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -37,6 +39,113 @@ class _ReaderPageState extends State<ReaderPage> {
   final _positions = ItemPositionsListener.create();
   bool _controls = true, _verticalReady = false;
   final Set<int> _readyPages = {};
+  List<Json> _dimensions = [];
+  List<PagePart> _parts = [];
+  int _partIndex = 0, _geometryRevision = 0;
+  bool _loadingDimensions = false;
+  bool _dimensionsLoaded = false;
+  bool _initialPartPending = false;
+  bool get _split =>
+      _session.preferences.mode == ReadingMode.paged &&
+      ['auto', 'ltr', 'rtl'].contains(_session.preferences.splitWide) &&
+      _parts.any((p) => p.half != 0);
+  int get _viewIndex => _split ? _partIndex : _session.itemIndex;
+  int get _viewCount => _split ? _parts.length : _session.itemCount;
+  bool get _atEnd => _split ? _partIndex == _parts.length - 1 : _session.atEnd;
+  Future<void> _loadDimensions() async {
+    if (_loadingDimensions ||
+        _dimensionsLoaded ||
+        widget.book.format != 'comic') {
+      return;
+    }
+    _loadingDimensions = true;
+    try {
+      final data = await widget.repository.get(
+        '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages',
+        cacheFirst: true,
+      );
+      if (!mounted) return;
+      _dimensions = (data as List).map(object).toList();
+      _dimensionsLoaded = true;
+      if (_initialPartPending && !widget.book.completed) {
+        final position = object(
+          widget.repository.store.cached(
+            widget.repository.profile.id,
+            'readerPart:${widget.book.id}',
+          ),
+        );
+        final local = DateTime.tryParse(text(position['modified']));
+        final remote = DateTime.tryParse(
+          text(widget.book.progress['lastModified']),
+        );
+        final page = integer(position['page']);
+        if (page >= 1 &&
+            page <= widget.book.pages &&
+            local != null &&
+            (remote == null || !remote.isAfter(local))) {
+          _session.go(page);
+          _parts = [PagePart(page, integer(position['half']))];
+          _partIndex = 0;
+        }
+      }
+      _initialPartPending = false;
+      _geometryRevision++;
+      _configure(_session.preferences);
+    } catch (e) {
+      if (mounted) {
+        _dimensionsLoaded = true;
+        _initialPartPending = false;
+        _commitIfReady();
+        showError(context, e);
+      }
+    } finally {
+      _loadingDimensions = false;
+    }
+  }
+
+  void _rebuildParts(ReaderPreferences p) {
+    final oldHalf = _parts.elementAtOrNull(_partIndex)?.half ?? 0;
+    _parts = pageParts(widget.book.pages, _dimensions, p);
+    var index = _parts.indexWhere(
+      (part) => part.page == _session.page && part.half == oldHalf,
+    );
+    if (index < 0) {
+      index = _parts.indexWhere((part) => part.page == _session.page);
+    }
+    _partIndex = index < 0 ? 0 : index;
+  }
+
+  void _rememberPart() {
+    if (widget.incognito || !_split) return;
+    final part = _parts[_partIndex];
+    widget.repository.store.cache(
+      widget.repository.profile.id,
+      'readerPart:${widget.book.id}',
+      {
+        'page': part.page,
+        'half': part.half,
+        'modified': DateTime.now().toUtc().toIso8601String(),
+      },
+    );
+  }
+
+  void _turn(int delta) {
+    if (!_split) {
+      _go(_session.page + delta * _session.step);
+      return;
+    }
+    final index = (_partIndex + delta).clamp(0, _parts.length - 1);
+    if (_session.preferences.animate) {
+      _pages.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _pages.jumpToPage(index);
+    }
+  }
+
   Timer? _preloadTimer;
   int _preloadGeneration = 0;
   void _preload() {
@@ -44,7 +153,7 @@ class _ReaderPageState extends State<ReaderPage> {
     final generation = ++_preloadGeneration;
     if (widget.book.format != 'comic') return;
     final anchor = _session.page;
-    final step = _session.step;
+    final window = preloadWindow(_session.preferences.preload);
     _preloadTimer = Timer(const Duration(milliseconds: 80), () async {
       final width =
           (MediaQuery.sizeOf(context).width *
@@ -53,8 +162,8 @@ class _ReaderPageState extends State<ReaderPage> {
               .ceil()
               .clamp(1, 4096);
       final candidates = [
-        for (var i = 1; i <= 2 * step; i++) anchor + i,
-        anchor - 1,
+        for (var i = 1; i <= window.after; i++) anchor + i,
+        for (var i = 1; i <= window.before; i++) anchor - i,
       ];
       for (final page in candidates) {
         if (!mounted || generation != _preloadGeneration) return;
@@ -78,6 +187,19 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _commitIfReady() {
+    if (['auto', 'ltr', 'rtl'].contains(_session.preferences.splitWide) &&
+        !_dimensionsLoaded) {
+      return;
+    }
+    if (_split) {
+      final part = _parts[_partIndex];
+      if (_partIndex < _parts.length - 1 &&
+          _parts[_partIndex + 1].page == part.page) {
+        return;
+      }
+      if (_readyPages.contains(part.page)) _session.rendered(part.page);
+      return;
+    }
     final first = _session.itemIndex * _session.step + 1;
     for (
       var page = first;
@@ -106,13 +228,16 @@ class _ReaderPageState extends State<ReaderPage> {
       incognito: widget.incognito,
       onCommit: (page) => widget.repository.setProgress(widget.book, page),
     );
-    _pages = PageController(initialPage: _session.itemIndex);
+    _rebuildParts(_session.preferences);
+    _initialPartPending = _session.preferences.splitWide != 'none';
+    _pages = PageController(initialPage: _viewIndex);
     _positions.itemPositions.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focus.requestFocus();
         _verticalReady = true;
         _preload();
+        if (_session.preferences.splitWide != 'none') _loadDimensions();
       }
     });
   }
@@ -146,10 +271,18 @@ class _ReaderPageState extends State<ReaderPage> {
 
   void _go(int page) {
     _session.go(page);
+    if (_split) {
+      _partIndex = _parts.indexWhere((part) => part.page == _session.page);
+    }
     _preload();
     if (_session.preferences.mode == ReadingMode.paged && _pages.hasClients) {
+      if (!_session.preferences.animate) {
+        _pages.jumpToPage(_viewIndex);
+        setState(() {});
+        return;
+      }
       _pages.animateToPage(
-        _session.itemIndex,
+        _viewIndex,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
@@ -167,7 +300,8 @@ class _ReaderPageState extends State<ReaderPage> {
     setState(() {
       _verticalReady = false;
       _session.configure(preferences);
-      _pages = PageController(initialPage: _session.itemIndex);
+      _rebuildParts(preferences);
+      _pages = PageController(initialPage: _viewIndex);
     });
     widget.repository.store.cache(
       widget.repository.profile.id,
@@ -178,6 +312,7 @@ class _ReaderPageState extends State<ReaderPage> {
       old.dispose();
       _verticalReady = true;
       if (mounted) _preload();
+      if (mounted && preferences.splitWide != 'none') _loadDimensions();
     });
   }
 
@@ -272,9 +407,42 @@ class _ReaderPageState extends State<ReaderPage> {
                     contentPadding: EdgeInsets.zero,
                     title: Text(tr(context, 'Double Page')),
                     value: p.spread,
-                    onChanged: p.mode == ReadingMode.paged
+                    onChanged:
+                        p.mode == ReadingMode.paged && p.splitWide == 'none'
                         ? (v) => apply(p.copy(spread: v))
                         : null,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Split Wide Pages')),
+                    subtitle: Text(
+                      tr(
+                        context,
+                        {
+                              'none': 'reader.tapZoneMode.none',
+                              'auto': 'reader.tapZoneMode.auto',
+                              'ltr': 'Left to Right',
+                              'rtl': 'Right to Left',
+                            }[p.splitWide] ??
+                            p.splitWide,
+                      ),
+                    ),
+                    onTap: () async {
+                      final value = await chooseValue(
+                        context,
+                        title: 'Split Wide Pages',
+                        selected: p.splitWide,
+                        choices: {
+                          'none': 'reader.tapZoneMode.none',
+                          'auto': 'reader.tapZoneMode.auto',
+                          'ltr': 'Left to Right',
+                          'rtl': 'Right to Left',
+                        },
+                      );
+                      if (value != null && mounted && context.mounted) {
+                        apply(p.copy(splitWide: value, spread: false));
+                      }
+                    },
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -282,6 +450,91 @@ class _ReaderPageState extends State<ReaderPage> {
                     value: p.fit == 'fitWidth',
                     onChanged: (v) =>
                         apply(p.copy(fit: v ? 'fitWidth' : 'contain')),
+                  ),
+                  for (final setting in ['tapMode', 'tapInversion', 'preload'])
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        tr(
+                          context,
+                          {
+                            'tapMode': 'Tap Zones',
+                            'tapInversion': 'Tap Zone Inversion',
+                            'preload': 'Preloading',
+                          }[setting]!,
+                        ),
+                      ),
+                      subtitle: Text(
+                        tr(
+                          context,
+                          {
+                            'tapMode': p.tapMode,
+                            'tapInversion': p.tapInversion,
+                            'preload': p.preload,
+                          }[setting]!,
+                        ),
+                      ),
+                      onTap: () async {
+                        final choices = switch (setting) {
+                          'tapMode' => {
+                            'none': 'reader.tapZoneMode.none',
+                            'default': 'reader.tapZoneMode.default',
+                            'edge': 'reader.tapZoneMode.edge',
+                            'kindle': 'reader.tapZoneMode.kindle',
+                            'lShape': 'reader.tapZoneMode.lShape',
+                            'tSplit': 'reader.tapZoneMode.tSplit',
+                          },
+                          'tapInversion' => {
+                            'auto': 'reader.tapZoneInversionMode.auto',
+                            'normal': 'reader.tapZoneInversionMode.normal',
+                            'inverted': 'reader.tapZoneInversionMode.inverted',
+                          },
+                          _ => {
+                            'lowMemory': 'Low Memory',
+                            'balanced': 'Balanced',
+                            'fastPageTurns': 'Fast Page Turns',
+                          },
+                        };
+                        final selected = await chooseValue(
+                          context,
+                          title: {
+                            'tapMode': 'Tap Zones',
+                            'tapInversion': 'Tap Zone Inversion',
+                            'preload': 'Preloading',
+                          }[setting]!,
+                          selected: {
+                            'tapMode': p.tapMode,
+                            'tapInversion': p.tapInversion,
+                            'preload': p.preload,
+                          }[setting]!,
+                          choices: choices,
+                        );
+                        if (selected != null && mounted && context.mounted) {
+                          apply(switch (setting) {
+                            'tapMode' => p.copy(tapMode: selected),
+                            'tapInversion' => p.copy(tapInversion: selected),
+                            _ => p.copy(preload: selected),
+                          });
+                        }
+                      },
+                    ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Page Turn Animation')),
+                    value: p.animate,
+                    onChanged: (v) => apply(p.copy(animate: v)),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      widget.repository.store.setSetting(
+                        'readerDefault',
+                        p.toJson(),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(tr(context, 'Saved'))),
+                      );
+                    },
+                    child: Text(tr(context, 'Use as Default')),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -325,7 +578,8 @@ class _ReaderPageState extends State<ReaderPage> {
       'sepia' => const Color(0xffefe5d0),
       _ => Colors.black,
     };
-    final modeKey = '${settings.mode}:${settings.spread}:${settings.direction}';
+    final modeKey =
+        '${settings.mode}:${settings.spread}:${settings.direction}:${settings.splitWide}:$_geometryRevision';
     final scaffold = Scaffold(
       backgroundColor: background,
       body: SafeArea(
@@ -349,7 +603,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     (rtl
                         ? LogicalKeyboardKey.arrowLeft
                         : LogicalKeyboardKey.arrowRight)) {
-              _go(_session.page + _session.step);
+              _turn(1);
               return KeyEventResult.handled;
             }
             if (key == LogicalKeyboardKey.arrowUp ||
@@ -358,7 +612,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     (rtl
                         ? LogicalKeyboardKey.arrowRight
                         : LogicalKeyboardKey.arrowLeft)) {
-              _go(_session.page - _session.step);
+              _turn(-1);
               return KeyEventResult.handled;
             }
             return KeyEventResult.ignored;
@@ -376,36 +630,54 @@ class _ReaderPageState extends State<ReaderPage> {
                   builder: (context, constraints) => GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     onTapUp: (details) {
-                      final x = details.localPosition.dx / constraints.maxWidth;
-                      if (x < .28) {
-                        _go(
-                          _session.page +
-                              (settings.direction == ReadingDirection.rtl
-                                  ? _session.step
-                                  : -_session.step),
-                        );
-                      } else if (x > .72) {
-                        _go(
-                          _session.page +
-                              (settings.direction == ReadingDirection.rtl
-                                  ? -_session.step
-                                  : _session.step),
-                        );
-                      } else {
-                        setState(() => _controls = !_controls);
+                      final action = tapAction(
+                        details.localPosition.dx / constraints.maxWidth,
+                        details.localPosition.dy / constraints.maxHeight,
+                        settings,
+                      );
+                      switch (action) {
+                        case TapAction.previous:
+                          _turn(-1);
+                        case TapAction.next:
+                          _turn(1);
+                        case TapAction.controls:
+                          setState(() => _controls = !_controls);
                       }
                     },
                     child: PageView.builder(
                       key: ValueKey(modeKey),
                       controller: _pages,
                       reverse: settings.direction == ReadingDirection.rtl,
-                      itemCount: _session.itemCount,
+                      itemCount: _viewCount,
                       onPageChanged: (index) {
-                        setState(() => _session.go(index * _session.step + 1));
+                        setState(() {
+                          _partIndex = index;
+                          _session.go(
+                            _split
+                                ? _parts[index].page
+                                : index * _session.step + 1,
+                          );
+                        });
+                        _rememberPart();
                         _preload();
                         _commitIfReady();
                       },
                       itemBuilder: (context, index) {
+                        if (_split) {
+                          final part = _parts[index];
+                          return _PageImage(
+                            repository: widget.repository,
+                            book: widget.book,
+                            page: part.page,
+                            half: part.half,
+                            halfAspect: part.aspect,
+                            preferences: settings,
+                            onReady: () {
+                              _readyPages.add(part.page);
+                              _commitIfReady();
+                            },
+                          );
+                        }
                         final page = index * _session.step + 1;
                         final children = [
                           for (
@@ -522,8 +794,7 @@ class _ReaderPageState extends State<ReaderPage> {
                           children: [
                             IconButton(
                               color: Colors.white,
-                              onPressed: () =>
-                                  _go(_session.page - _session.step),
+                              onPressed: () => _turn(-1),
                               icon: const Icon(CupertinoIcons.chevron_left),
                             ),
                             Expanded(
@@ -540,8 +811,7 @@ class _ReaderPageState extends State<ReaderPage> {
                             ),
                             IconButton(
                               color: Colors.white,
-                              onPressed: () =>
-                                  _go(_session.page + _session.step),
+                              onPressed: () => _turn(1),
                               icon: const Icon(CupertinoIcons.chevron_right),
                             ),
                           ],
@@ -552,10 +822,10 @@ class _ReaderPageState extends State<ReaderPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                '${_session.page} / ${widget.book.pages}',
+                                '${_session.page} / ${widget.book.pages}${_split && _parts[_partIndex].half != 0 ? ' · ${_parts[_partIndex].half == 1 ? tr(context, 'Left') : tr(context, 'Right')}' : ''}',
                                 style: const TextStyle(color: Colors.white),
                               ),
-                              if (_session.atEnd)
+                              if (_atEnd)
                                 TextButton(
                                   onPressed: _nextBook,
                                   child: Text(
@@ -592,6 +862,8 @@ class _PageImage extends StatefulWidget {
     required this.preferences,
     required this.onReady,
     this.vertical = false,
+    this.half = 0,
+    this.halfAspect = 1,
   });
   final Repository repository;
   final Book book;
@@ -599,6 +871,8 @@ class _PageImage extends StatefulWidget {
   final ReaderPreferences preferences;
   final VoidCallback onReady;
   final bool vertical;
+  final int half;
+  final double halfAspect;
   @override
   State<_PageImage> createState() => _PageImageState();
 }
@@ -622,7 +896,9 @@ class _PageImageState extends State<_PageImage> {
   @override
   void didUpdateWidget(_PageImage old) {
     super.didUpdateWidget(old);
-    if (old.page != widget.page || old.book.id != widget.book.id) {
+    if (old.page != widget.page ||
+        old.book.id != widget.book.id ||
+        old.half != widget.half) {
       _reported = false;
       _future = widget.repository.page(widget.book.id, widget.page);
     }
@@ -694,7 +970,38 @@ class _PageImageState extends State<_PageImage> {
           maxScale: 6,
           child: RotatedBox(
             quarterTurns: widget.preferences.rotation,
-            child: image,
+            child: widget.half == 0
+                ? image
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth
+                          .clamp(0, constraints.maxHeight * widget.halfAspect)
+                          .toDouble();
+                      final height = width / widget.halfAspect;
+                      return Center(
+                        child: SizedBox(
+                          width: width,
+                          height: height,
+                          child: ClipRect(
+                            child: OverflowBox(
+                              alignment: widget.half == 1
+                                  ? Alignment.centerLeft
+                                  : Alignment.centerRight,
+                              minWidth: width * 2,
+                              maxWidth: width * 2,
+                              minHeight: height,
+                              maxHeight: height,
+                              child: SizedBox(
+                                width: width * 2,
+                                height: height,
+                                child: image,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ),
       );

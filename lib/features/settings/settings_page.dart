@@ -9,7 +9,9 @@ import '../../ui/strings.dart';
 import '../auth/login_page.dart';
 import '../offline/downloads_page.dart';
 import '../catalog/dashboard.dart';
+import '../catalog/history_page.dart';
 import 'api_keys_page.dart';
+import 'library_editor.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.app, required this.repository});
@@ -36,6 +38,16 @@ class SettingsPage extends StatelessWidget {
                   context,
                   MaterialPageRoute<void>(
                     builder: (_) => ApiKeysPage(repository: repository),
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(CupertinoIcons.clock),
+                title: Text(tr(context, 'History and Statistics')),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => HistoryPage(repository: repository),
                   ),
                 ),
               ),
@@ -338,7 +350,7 @@ class SettingsPage extends StatelessWidget {
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: 'KMReader',
-                  applicationVersion: '0.2.0',
+                  applicationVersion: '0.3.0',
                   applicationLegalese: 'Based on KMReader by everpcpc (MIT).\nPorting for Android and Windows.',
                 ),
               ),
@@ -473,10 +485,45 @@ class LibraryManagement extends StatefulWidget {
 }
 
 class _LibraryManagementState extends State<LibraryManagement> {
+  int _revision = 0;
+  Future<void> _edit([Json? library]) async {
+    try {
+      Json? fresh;
+      if (library != null) {
+        fresh = object(
+          await widget.repository.api.request(
+            '/api/v1/libraries/${Uri.encodeComponent(text(library['id']))}',
+          ),
+        );
+      }
+      if (!mounted) return;
+      final saved = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              LibraryEditor(repository: widget.repository, library: fresh),
+        ),
+      );
+      if (saved == true && mounted) setState(() => _revision++);
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(tr(context, 'Library Management'))),
+    appBar: AppBar(
+      title: Text(tr(context, 'Library Management')),
+      actions: [
+        IconButton(
+          tooltip: tr(context, 'Add Library'),
+          onPressed: widget.repository.offline ? null : _edit,
+          icon: const Icon(CupertinoIcons.add),
+        ),
+      ],
+    ),
     body: AsyncPanel<dynamic>(
+      key: ValueKey(_revision),
       load: () => widget.repository.get('/api/v1/libraries'),
       builder: (context, data) => ListView(
         children: [
@@ -485,23 +532,42 @@ class _LibraryManagementState extends State<LibraryManagement> {
               leading: const Icon(CupertinoIcons.book),
               title: Text(text(object(value)['name'])),
               subtitle: Text(text(object(value)['root'])),
+              onTap: () => _edit(object(value)),
               trailing: PopupMenuButton<String>(
                 onSelected: (action) async {
+                  if (action == 'edit') {
+                    await _edit(object(value));
+                    return;
+                  }
                   if (!await confirm(
                     context,
                     'Library Management',
-                    'Run this action on the selected library?',
+                    action == 'delete'
+                        ? 'Remove this library and its catalog from the server? Files on disk are kept.'
+                        : action == 'empty-trash'
+                        ? 'Permanently remove unavailable books and their metadata from the catalog?'
+                        : 'Run this action on the selected library?',
                   )) {
                     return;
                   }
                   try {
                     await widget.repository.api.request(
-                      '/api/v1/libraries/${Uri.encodeComponent(object(value)['id'])}/$action',
-                      method: 'POST',
+                      '/api/v1/libraries/${Uri.encodeComponent(object(value)['id'])}${action == 'delete' ? '' : '/${action == 'deep-scan' ? 'scan' : action}'}',
+                      method: action == 'delete' ? 'DELETE' : 'POST',
+                      query: action == 'deep-scan' ? {'deep': true} : null,
                     );
+                    widget.repository.refreshContent();
+                    if (mounted) setState(() => _revision++);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(tr(context, 'Task queued'))),
+                        SnackBar(
+                          content: Text(
+                            tr(
+                              context,
+                              action == 'delete' ? 'Deleted' : 'Task queued',
+                            ),
+                          ),
+                        ),
                       );
                     }
                   } catch (e) {
@@ -510,9 +576,13 @@ class _LibraryManagementState extends State<LibraryManagement> {
                 },
                 itemBuilder: (_) => [
                   for (final e in {
+                    'edit': 'Edit Library',
                     'scan': 'Scan',
+                    'deep-scan': 'Deep Scan',
                     'analyze': 'Analyze',
                     'metadata/refresh': 'Refresh Metadata',
+                    'empty-trash': 'Empty Trash',
+                    'delete': 'Delete Library',
                   }.entries)
                     PopupMenuItem(
                       value: e.key,

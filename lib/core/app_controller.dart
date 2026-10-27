@@ -36,10 +36,15 @@ class AppController extends ChangeNotifier {
     required this.store,
     required this.directory,
     required this.vault,
+    this.apiFactory,
   });
   final LocalStore store;
   final Directory directory;
   final CredentialVault vault;
+  final KomgaApi Function(Uri, Authentication, String)? apiFactory;
+  KomgaApi _api(Uri base, Authentication authentication, String credential) =>
+      apiFactory?.call(base, authentication, credential) ??
+      KomgaApi(base, authentication: authentication, credential: credential);
   Repository? repository;
   String? startupError;
   int _selection = 0;
@@ -60,7 +65,10 @@ class AppController extends ChangeNotifier {
   }
 
   static Future<AppController> open() async {
-    final dir = await getApplicationSupportDirectory();
+    final override = Platform.environment['KMREADER_DATA_DIR'];
+    final dir = override != null && override.isNotEmpty
+        ? Directory(override)
+        : await getApplicationSupportDirectory();
     await dir.create(recursive: true);
     final controller = AppController(
       store: LocalStore(sqlite3.open(p.join(dir.path, 'kmreader.sqlite'))),
@@ -86,16 +94,14 @@ class AppController extends ChangeNotifier {
     required String username,
     required String password,
     bool claim = false,
+    bool autoCreateApiKey = true,
   }) async {
     final base = normalizeServerUrl(address);
-    final credential = authentication == Authentication.apiKey
+    var credential = authentication == Authentication.apiKey
         ? password.trim()
         : base64Encode(utf8.encode('$username:$password'));
-    final api = KomgaApi(
-      base,
-      authentication: authentication,
-      credential: credential,
-    );
+    final api = _api(base, authentication, credential);
+    String? createdKeyId;
     try {
       await api.request('/api/v1/client-settings/global/list');
       if (claim) {
@@ -106,18 +112,89 @@ class AppController extends ChangeNotifier {
         );
       }
       final user = await api.user();
+      var method = authentication;
+      if (authentication == Authentication.password && autoCreateApiKey) {
+        try {
+          final key = object(
+            await api.request(
+              '/api/v2/users/me/api-keys',
+              method: 'POST',
+              body: {'comment': 'KMReader ${Platform.operatingSystem}'},
+            ),
+          );
+          createdKeyId = text(key['id']);
+          final secret = text(key['key']);
+          if (createdKeyId.isEmpty || secret.isEmpty) {
+            throw const ApiFailure('The server did not return an API key.');
+          }
+          final verification = _api(base, Authentication.apiKey, secret);
+          try {
+            final verified = await verification.user();
+            if (verified['id'] != user['id']) {
+              throw const ApiFailure(
+                'The API key belongs to a different account.',
+              );
+            }
+          } finally {
+            verification.close();
+          }
+          credential = secret;
+          method = Authentication.apiKey;
+        } catch (_) {
+          if (createdKeyId != null && createdKeyId.isNotEmpty) {
+            try {
+              await api.request(
+                '/api/v2/users/me/api-keys/${Uri.encodeComponent(createdKeyId)}',
+                method: 'DELETE',
+              );
+            } catch (_) {
+              /* Failed verification must preserve password login. */
+            }
+          }
+          createdKeyId = null;
+        }
+      }
       final profile = ServerProfile(
         id: ServerProfile.identity(base, text(user['id'])),
         name: name.trim().isEmpty ? base.host : name.trim(),
         url: base.toString(),
         email: text(user['email']),
-        authentication: authentication,
+        authentication: method,
+        apiKeyId: createdKeyId,
+        managedKey: createdKeyId != null,
+        userId: text(user['id']),
         admin: (user['roles'] as List? ?? []).contains('ADMIN'),
       );
+      final previous = servers.where((s) => s.id == profile.id).firstOrNull;
       await vault.write(profile.id, credential);
       store.saveServer(profile);
       await activate(profile);
+      if (createdKeyId != null &&
+          previous?.managedKey == true &&
+          previous?.apiKeyId != null &&
+          previous!.apiKeyId != createdKeyId) {
+        try {
+          await api.request(
+            '/api/v2/users/me/api-keys/${Uri.encodeComponent(previous.apiKeyId!)}',
+            method: 'DELETE',
+          );
+        } catch (_) {
+          /* A key cleanup failure must not undo a verified login. */
+        }
+      }
       return profile;
+    } catch (_) {
+      if (createdKeyId != null && createdKeyId.isNotEmpty) {
+        try {
+          await api.request(
+            '/api/v2/users/me/api-keys/${Uri.encodeComponent(createdKeyId)}',
+            method: 'DELETE',
+          );
+        } catch (_) {
+          /* The caller still receives the original login/storage failure. */
+        }
+      }
+      rethrow;
     } finally {
       api.close();
     }
@@ -135,11 +212,7 @@ class AppController extends ChangeNotifier {
     repository?.dispose();
     repository = Repository(
       profile: profile,
-      api: KomgaApi(
-        Uri.parse(profile.url),
-        authentication: profile.authentication,
-        credential: credential,
-      ),
+      api: _api(Uri.parse(profile.url), profile.authentication, credential),
       store: store,
       directory: directory,
     );

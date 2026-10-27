@@ -17,6 +17,7 @@ import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/main.dart';
 import 'package:kmreader/ui/strings.dart';
+import 'package:kmreader/features/settings/settings_page.dart';
 
 class MemoryVault implements CredentialVault {
   final values = <String, String>{};
@@ -288,7 +289,17 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Theme'));
+      final settingsScroll = find
+          .descendant(
+            of: find.byType(SettingsPage),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('Theme'),
+        300,
+        scrollable: settingsScroll,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'System').first);
       await tester.pumpAndSettle();
@@ -304,7 +315,11 @@ void main() {
       expect(tester.takeException(), isNull);
       await screenshot(tester, key, 'settings-${size.width.toInt()}');
       final dashboardSettings = find.byIcon(CupertinoIcons.rectangle_grid_1x2);
-      await tester.ensureVisible(dashboardSettings);
+      await tester.scrollUntilVisible(
+        dashboardSettings,
+        -300,
+        scrollable: settingsScroll,
+      );
       await tester.pumpAndSettle();
       final countBeforeReorder = requests.length;
       await tester.tap(dashboardSettings);

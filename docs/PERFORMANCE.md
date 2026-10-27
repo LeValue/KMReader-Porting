@@ -78,3 +78,16 @@ the signed APK from the preview release instead.
 
 The [parity matrix](PARITY.md) remains the feature acceptance checklist. This
 iteration does not establish complete functional or visual parity.
+
+
+## 0.3.0 continuation
+
+The reader now uses upstream Low Memory (1 before/3 after), Balanced (3/5) and
+Fast Page Turns (5/7) preload windows. Transport and encoded-cache limits remain
+bounded; a larger window does not bypass the image scheduler. TaskQueueStatus
+SSE bursts no longer invalidate every catalog; content events retain the debounce.
+Book sort aliases are translated to the book DTO fields rather than the distinct
+series field names. Multi-column series/book-number sorting uses repeated query
+parameters. A real-stream test covers cancellation of an idle download, and
+conditional range tests cover unchanged, replaced and malformed partial responses.
+These are transport/state checks, not measured frame times on the user's phone.

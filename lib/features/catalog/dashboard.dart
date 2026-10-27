@@ -23,7 +23,7 @@ class Dashboard extends StatelessWidget {
       final data = await repository.get('/api/v1/libraries', cacheFirst: true);
       if (!context.mounted) return;
       final choices = {
-        '': 'All Libraries',
+        '': tr(context, 'All Libraries'),
         for (final v in data as List)
           text(object(v)['id']): text(object(v)['name']),
       };
@@ -32,6 +32,7 @@ class Dashboard extends StatelessWidget {
         title: 'Libraries',
         selected: selected,
         choices: choices,
+        translateChoices: false,
       );
       if (value == null || !context.mounted || repository.closed) return;
       repository.store.setSetting('dashboardLibrary:${repository.profile.id}', {
@@ -90,12 +91,9 @@ class Dashboard extends StatelessWidget {
                           children: [
                             Flexible(
                               child: Text(
-                                tr(
-                                  context,
-                                  library.isEmpty
-                                      ? 'All Libraries'
-                                      : text(scope['name']),
-                                ),
+                                library.isEmpty
+                                    ? tr(context, 'All Libraries')
+                                    : text(scope['name']),
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineLarge,

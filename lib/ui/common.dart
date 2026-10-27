@@ -11,36 +11,62 @@ Future<T?> chooseValue<T>(
   required String title,
   required T selected,
   required Map<T, String> choices,
+  bool translateChoices = true,
+  bool searchable = false,
 }) {
-  Widget content(BuildContext sheet) => SafeArea(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text(
-            tr(sheet, title),
-            style: Theme.of(sheet).textTheme.titleLarge,
-          ),
-        ),
-        Flexible(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final choice in choices.entries)
-                ListTile(
-                  title: Text(tr(sheet, choice.value)),
-                  selected: selected == choice.key,
-                  trailing: selected == choice.key
-                      ? const Icon(CupertinoIcons.check_mark, size: 20)
-                      : null,
-                  onTap: () => Navigator.pop(sheet, choice.key),
+  var query = '';
+  Widget content(BuildContext sheet) => StatefulBuilder(
+    builder: (sheet, update) {
+      String label(String value) => translateChoices ? tr(sheet, value) : value;
+      final entries = choices.entries
+          .where(
+            (entry) =>
+                label(entry.value).toLowerCase().contains(query.toLowerCase()),
+          )
+          .toList();
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                tr(sheet, title),
+                style: Theme.of(sheet).textTheme.titleLarge,
+              ),
+            ),
+            if (searchable)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: tr(sheet, 'Search'),
+                    prefixIcon: const Icon(CupertinoIcons.search),
+                  ),
+                  onChanged: (value) => update(() => query = value),
                 ),
-            ],
-          ),
+              ),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: entries.length,
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  return ListTile(
+                    title: Text(label(entry.value)),
+                    selected: entry.key == selected,
+                    trailing: entry.key == selected
+                        ? const Icon(CupertinoIcons.check_mark, size: 20)
+                        : null,
+                    onTap: () => Navigator.pop(sheet, entry.key),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
+      );
+    },
   );
   if (MediaQuery.sizeOf(context).width >= 700) {
     return showDialog<T>(
