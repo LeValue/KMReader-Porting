@@ -68,8 +68,9 @@ is tracked in `tool/preview-certificate.sha256`. Production signing remains a
 separate configuration; no private key, password or real server credential is
 committed or passed to the delivery workflow.
 
-`tool/stage_preview.py` stages the gzip-compressed signed APK as an unreferenced
-Git data blob. It does not commit a binary to any branch. The manual CI dispatch
+`tool/stage_preview.py` stages the XZ-compressed signed APK as an unreferenced
+Git data blob and checks the base64 request size before uploading. It does not
+commit a binary to any branch. The manual CI dispatch
 accepts its blob ID and APK SHA256, runs tests/independent optimized compilation,
 then checks the staged binary's hashes, signing certificate and alignment before
 uploading and publishing it through the runner's repository token. Normal CI
