@@ -11,6 +11,7 @@ import 'api.dart';
 import 'models.dart';
 import 'store.dart';
 import 'cache.dart';
+import 'page_formats.dart';
 
 class Repository extends ChangeNotifier {
   Repository({
@@ -60,6 +61,76 @@ class Repository extends ChangeNotifier {
     weight: (value) => value.length,
   );
   final _imageRequests = ImageRequests();
+  final _pageTypes = Expando<Map<int, String>>();
+  final _pageConversions = <String, Future<Uint8List>>{};
+  String _pagePath(String id, int number) {
+    final base = '/api/v1/books/${Uri.encodeComponent(id)}/pages/$number';
+    final metadataPath = '/api/v1/books/${Uri.encodeComponent(id)}/pages';
+    final key = jsonEncode([metadataPath, 'GET', null, null]);
+    var data = _queryValues[key];
+    if (data == null) {
+      data = store.cached(profile.id, key);
+      if (data != null) _queryValues.put(key, data);
+    }
+    if (data is! List) return base;
+    final types = _pageTypes[data] ??= {
+      for (final entry in data.map(object))
+        integer(entry['number']): text(entry['mediaType']),
+    };
+    final type = types[number];
+    return type != null && type.isNotEmpty && !portablePageMediaType(type)
+        ? '$base?convert=png'
+        : base;
+  }
+
+  Future<Uint8List> _compatiblePage(
+    String id,
+    int number,
+    Uint8List bytes, {
+    bool speculative = false,
+  }) {
+    if (portablePageBytes(bytes)) return SynchronousFuture(bytes);
+    final base = '/api/v1/books/${Uri.encodeComponent(id)}/pages/$number';
+    return _pageConversions.putIfAbsent(base, () async {
+      try {
+        Uint8List converted;
+        try {
+          converted = await _image(
+            '$base?convert=png',
+            speculative: speculative,
+          );
+        } on ApiFailure catch (error) {
+          if (error.offline) {
+            throw const ApiFailure(
+              'Reconnect once to convert this page for offline reading.',
+              offline: true,
+            );
+          }
+          rethrow;
+        }
+        if (!portablePageBytes(converted)) {
+          throw const ApiFailure(
+            'The server could not convert this page to a supported image format.',
+          );
+        }
+        if (_disposed) return converted;
+        _bytes.put(base, converted);
+        for (final file in [
+          cachedFile(base),
+          if (await pageFile(id, number).exists()) pageFile(id, number),
+        ]) {
+          await file.parent.create(recursive: true);
+          final partial = File('${file.path}.convert.part');
+          await partial.writeAsBytes(converted);
+          await partial.rename(file.path);
+        }
+        return converted;
+      } finally {
+        _pageConversions.remove(base);
+      }
+    });
+  }
+
   DateTime _invalidated = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _cacheTrim;
   DateTime _lastTrim = DateTime.fromMillisecondsSinceEpoch(0);
@@ -326,6 +397,12 @@ class Repository extends ChangeNotifier {
       parsed.last,
       (parsed.total - (parsed.items.length - kept.length)).clamp(0, 1 << 31),
     );
+    if (kind == 'series' &&
+        data is Object &&
+        _storedBookBatches[data] != true) {
+      store.cacheItems(profile.id, result.items);
+      _storedBookBatches[data] = true;
+    }
     if (kind != 'books') return result;
     if ((data is Map || data is List) && _storedBookBatches[data] != true) {
       store.cacheBooks(profile.id, result.items);
@@ -414,23 +491,23 @@ class Repository extends ChangeNotifier {
 
   Future<Uint8List> page(String id, int page) async {
     final path = '/api/v1/books/${Uri.encodeComponent(id)}/pages/$page';
-    final memory = _bytes[path];
-    if (memory != null) return memory;
+    final conversion = _pageConversions[path];
+    if (conversion != null) return conversion;
+    final memory = _bytes[path] ?? _bytes['$path?convert=png'];
+    if (memory != null) return _compatiblePage(id, page, memory);
     final file = pageFile(id, page);
     if (await file.exists()) {
       final bytes = await file.readAsBytes();
       _bytes.put(path, bytes);
-      return bytes;
+      return _compatiblePage(id, page, bytes);
     }
-    return image(path);
+    return _compatiblePage(id, page, await image(_pagePath(id, page)));
   }
 
   Future<Uint8List> prefetchPage(String id, int number) async {
     if (await pageFile(id, number).exists()) return page(id, number);
-    return _image(
-      '/api/v1/books/${Uri.encodeComponent(id)}/pages/$number',
-      speculative: true,
-    );
+    final bytes = await _image(_pagePath(id, number), speculative: true);
+    return _compatiblePage(id, number, bytes, speculative: true);
   }
 
   void setProgress(Book book, int page, {bool? completed, bool reset = false}) {
@@ -830,12 +907,16 @@ class Repository extends ChangeNotifier {
           final page = pageFile(book.id, i);
           if (!await page.exists()) {
             await api.download(
-              '/api/v1/books/${Uri.encodeComponent(book.id)}/pages/$i',
+              _pagePath(book.id, i),
               page,
               cancelled: () => _cancelled.contains(book.id),
               abortTrigger: abort.future,
             );
           }
+          final header = await page
+              .openRead(0, 16)
+              .fold<List<int>>([], (all, chunk) => all..addAll(chunk));
+          if (!portablePageBytes(header)) await this.page(book.id, i);
           downloading[book.id] = .5 + .5 * i / book.pages;
           if (DateTime.now().difference(lastNotification).inMilliseconds >=
                   100 ||

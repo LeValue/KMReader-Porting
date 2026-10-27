@@ -522,5 +522,81 @@
   "YYYY-MM-DD": {
     "en": "YYYY-MM-DD",
     "it": "AAAA-MM-GG"
+  },
+  "Use Series Reading Direction": {
+    "en": "Use Series Reading Direction",
+    "it": "Usa la direzione di lettura della serie"
+  },
+  "Reconnect once to convert this page for offline reading.": {
+    "en": "Reconnect once to convert this page for offline reading.",
+    "it": "Riconnettiti una volta per convertire questa pagina e leggerla offline."
+  },
+  "The server could not convert this page to a supported image format.": {
+    "en": "The server could not convert this page to a supported image format.",
+    "it": "Il server non è riuscito a convertire questa pagina in un formato immagine supportato."
+  },
+  "PDF Password": {
+    "en": "PDF Password",
+    "it": "Password del PDF"
+  },
+  "Incorrect password. Try again.": {
+    "en": "Incorrect password. Try again.",
+    "it": "Password errata. Riprova."
+  },
+  "PDF Settings": {
+    "en": "PDF Settings",
+    "it": "Impostazioni PDF"
+  },
+  "Cover Page Alone": {
+    "en": "Cover Page Alone",
+    "it": "Copertina singola"
+  },
+  "Single Page": {
+    "en": "Single Page",
+    "it": "Pagina singola",
+    "de": "Einzelseite",
+    "fr": "Page simple",
+    "ja": "単一ページ",
+    "ko": "단일 페이지",
+    "zh-Hans": "单页",
+    "zh-Hant": "單頁",
+    "ru": "Одна страница",
+    "es": "Página única"
+  },
+  "Single Page Continuous": {
+    "en": "Single Page Continuous",
+    "it": "Scorrimento continuo a pagina singola",
+    "de": "Einzelseite fortlaufend",
+    "fr": "Page simple en continu",
+    "ja": "単一ページ連続",
+    "ko": "단일 페이지 연속",
+    "zh-Hans": "单页连续",
+    "zh-Hant": "單頁連續",
+    "ru": "Одна страница непрерывно",
+    "es": "Página única continua"
+  },
+  "Dual Page Continuous": {
+    "en": "Dual Page Continuous",
+    "it": "Scorrimento continuo a doppia pagina",
+    "de": "Doppelseite fortlaufend",
+    "fr": "Double page en continu",
+    "ja": "見開き連続",
+    "ko": "두 페이지 연속",
+    "zh-Hans": "双页连续",
+    "zh-Hant": "雙頁連續",
+    "ru": "Две страницы непрерывно",
+    "es": "Página doble continua"
+  },
+  "Go": {
+    "en": "Go",
+    "it": "Vai"
+  },
+  "Back to Reading": {
+    "en": "Back to Reading",
+    "it": "Torna alla lettura"
+  },
+  "Supplementary Content": {
+    "en": "Supplementary Content",
+    "it": "Contenuto aggiuntivo"
   }
 }

@@ -1,5 +1,23 @@
 # Development validation
 
+## 0.4.0 reader compatibility — local checks
+
+Formatting and static analysis passed. The full local suite passed **85 tests**;
+the live-server test was deliberately skipped in that suite and passed separately
+against disposable Komga 1.29.1. That integration now mixes PNG, TIFF and JPEG2000
+in a comic and checks actual offline image decoding after download.
+
+New native PDFium widget coverage includes mixed-size spread geometry, complete
+spread fitting, cached series RTL, layout/theme changes without progress writes,
+normal/incognito page navigation, AES-128 wrong-password retry, text search and
+search/page retention after resizing. EPUB tests navigate supplementary notes
+outside the linear spine, return without changing canonical progress, and preserve
+the scroll fraction across font and font-size changes. Existing download fixtures
+now use an actual generated PNG rather than arbitrary non-image bytes.
+
+Android release compilation and remote Windows verification for this version
+are pending; the verified 0.3.0 artifacts below remain the previous release.
+
 ## 0.3.0 preview — verified release
 
 Source: `77a5786fb19c173e7925b6a64e5d424ffb843eb3`.

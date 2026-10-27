@@ -96,3 +96,28 @@ Cache invalidation now also tracks request generations. A refresh within the
 same Windows clock tick invalidates a warm query, while its freshly fetched
 replacement stays reusable without another request. The regression freezes the
 clock and checks both guarantees.
+
+## 0.4.0 reader compatibility
+
+Page manifests already in the query cache select Komga PNG conversion before
+transferring TIFF/JPEG2000 or another nonportable source. Without a manifest, a
+short signature check detects unsupported bytes and coalesces the PNG conversion.
+Converted pages reuse the hot/disk caches. New downloads store portable pages;
+existing downloaded pages upgrade atomically when online and retain their original
+bytes if conversion is unavailable. Prefetch and conversion never send progress.
+
+The real Komga fixture now mixes PNG, TIFF and JPEG2000 in the same comic. The
+client downloads it, disconnects and decodes the stored green/blue pages using
+Flutter's actual image codec. Unit tests cover request coalescing, direct PNG
+selection, existing-download upgrade and offline failure without data loss.
+
+PDF layout and theme changes suppress progress writes while restoring the same
+canonical page. EPUB supplementary resources keep their scroll state separate from
+canonical chapter progression; returning to the chapter restores that position.
+The reader retains the current decoded HTML between rebuilds. Font-size dragging
+updates the slider immediately and performs the document reflow on release,
+avoiding a complete layout for each pointer movement.
+Native PDF widget tests exercise real PDFium, including AES-128 password retry,
+text search, result retention across viewport changes, whole-spread fitting and
+canonical focus on the last spread without falsely advancing to the last page.
+These checks do not substitute for frame-time or touch/zoom acceptance on a phone.

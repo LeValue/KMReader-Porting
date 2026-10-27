@@ -96,10 +96,20 @@ class LocalStore {
   }
 
   void cacheBooks(String server, Iterable<CatalogItem> books) {
+    cacheItems(server, books);
+  }
+
+  void cacheItems(String server, Iterable<CatalogItem> books) {
     db.execute('BEGIN IMMEDIATE');
     try {
       for (final book in books) {
-        cache(server, 'book:${book.id}', book.json);
+        cache(
+          server,
+          book.kind == 'books'
+              ? 'book:${book.id}'
+              : 'detail:${book.kind}:${book.id}',
+          book.json,
+        );
       }
       db.execute('COMMIT');
     } catch (_) {

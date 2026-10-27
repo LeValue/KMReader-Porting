@@ -32,7 +32,12 @@ const ncxNavigation = '''<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
 <content src="one.xhtml"/><navPoint id="section"><navLabel><text>Legacy Section</text></navLabel>
 <content src="two%20words.xhtml#section%20two"/></navPoint></navPoint></navMap></ncx>''';
 
-File createBook(Directory directory, {String? nav = navigation, String? ncx}) {
+File createBook(
+  Directory directory, {
+  String? nav = navigation,
+  String? ncx,
+  bool supplementary = false,
+}) {
   final paragraphs = List.generate(
     70,
     (i) =>
@@ -44,11 +49,15 @@ File createBook(Directory directory, {String? nav = navigation, String? ncx}) {
     'OPS/package.opf':
         '''<package><metadata><title>Navigation fixture</title></metadata><manifest>
 <item id="one" href="one.xhtml"/><item id="two" href="two%20words.xhtml"/>
+${supplementary ? '<item id="notes" href="notes/footnotes.xhtml" media-type="application/xhtml+xml"/>' : ''}
 ${nav == null ? '' : '<item id="nav" href="index/nav.xhtml" properties="scripted nav"/>'}
 ${ncx == null ? '' : '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'}
-</manifest><spine toc="ncx"><itemref idref="one"/><itemref idref="two"/></spine></package>''',
+</manifest><spine toc="ncx"><itemref idref="one"/><itemref idref="two"/>${supplementary ? '<itemref idref="notes" linear="no"/>' : ''}</spine></package>''',
     'OPS/one.xhtml':
-        '<html><body><h1>Chapter One</h1><p><a href="two%20words.xhtml#section%20two">Jump to second section</a></p>$paragraphs</body></html>',
+        '<html><body><h1>Chapter One</h1>${supplementary ? '<p><a href="notes/footnotes.xhtml#note">Read footnote</a></p>' : ''}<p><a href="two%20words.xhtml#section%20two">Jump to second section</a></p>$paragraphs</body></html>',
+    if (supplementary)
+      'OPS/notes/footnotes.xhtml':
+          '<html><body><h1 id="note">Supplementary note</h1><p><a href="../one.xhtml">Return to chapter</a></p>$paragraphs</body></html>',
     'OPS/two words.xhtml':
         '<html><body><h1 id="top">Chapter Two</h1>$paragraphs<h2 id="section two">Target heading</h2><p><a href="#top">Return to top</a></p>$paragraphs</body></html>',
     'OPS/index/nav.xhtml': ?nav,
@@ -197,6 +206,89 @@ void main() {
     }
   });
 
+  testWidgets(
+    'EPUB footnotes outside the linear spine preserve the canonical position',
+    (tester) async {
+      final file = createBook(
+        directory,
+        supplementary: true,
+        nav: navigation.replaceFirst(
+          '</ol></li></ol>',
+          '<li><a href="../notes/footnotes.xhtml#note">Notes</a></li></ol></li></ol>',
+        ),
+      );
+      final doc = EpubDocument.open(file.path);
+      expect(doc.chapters.length, 2);
+      expect(doc.isReadingResource('OPS/notes/footnotes.xhtml'), isTrue);
+      expect(doc.isReadingResource('META-INF/container.xml'), isFalse);
+      expect(doc.tableOfContents.single.children.last.title, 'Notes');
+      doc.close();
+      final store = LocalStore(sqlite3.openInMemory());
+      const profile = ServerProfile(
+        id: 'notes',
+        name: 'Fixture',
+        url: 'https://example.invalid',
+        email: '',
+        authentication: Authentication.password,
+      );
+      final repo = Repository(
+        profile: profile,
+        api: KomgaApi(
+          Uri.parse(profile.url),
+          authentication: Authentication.password,
+          credential: '',
+          client: MockClient((_) async => throw StateError('Unexpected HTTP')),
+        ),
+        store: store,
+        directory: directory,
+      )..setOffline(true);
+      addTearDown(() {
+        repo.dispose();
+        store.close();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DocumentReader(
+            repository: repo,
+            book: Book({
+              'id': 'notes',
+              'media': {'mediaType': 'application/epub+zip'},
+            }),
+            load: () async => file,
+            incognito: false,
+          ),
+        ),
+      );
+      await settleReader(tester, 'Chapter One');
+      final position = object(store.cached(profile.id, 'epub:notes'));
+      expect(repo.pendingCount, 0);
+      await tester.tapOnText(find.textRange.ofSubstring('Read footnote'));
+      await settleReader(tester, 'Supplementary note');
+      expect(
+        repo.pendingCount,
+        0,
+        reason: 'A footnote is not a new chapter in canonical progression',
+      );
+      expect(
+        object(store.cached(profile.id, 'epub:notes'))['chapter'],
+        position['chapter'],
+      );
+      expect(
+        object(store.cached(profile.id, 'epub:notes'))['progress'],
+        position['progress'],
+      );
+      await tester.tap(find.byTooltip('Back to Reading'));
+      await settleReader(tester, 'Chapter One');
+      expect(repo.pendingCount, 0);
+      expect(
+        object(store.cached(profile.id, 'epub:notes'))['progress'],
+        position['progress'],
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
+
   for (final incognito in [false, true]) {
     testWidgets(
       'EPUB nested navigation reaches the anchor; incognito=$incognito',
@@ -304,6 +396,8 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Sans Serif'));
         await tester.pump();
+        await tester.drag(find.byType(Slider), const Offset(70, 0));
+        await tester.pump();
         await tester.tapAt(const Offset(15, 90));
         await settleReader(tester, 'Target heading');
         await tester.pump(const Duration(milliseconds: 600));
@@ -317,6 +411,8 @@ void main() {
           closeTo(fraction, 0.001),
         );
 
+        await tester.ensureVisible(chapterText('Return to top'));
+        await tester.pumpAndSettle();
         await tester.tapOnText(find.textRange.ofSubstring('Return to top'));
         await settleReader(tester, 'Chapter Two');
         await tester.pump(const Duration(milliseconds: 600));
