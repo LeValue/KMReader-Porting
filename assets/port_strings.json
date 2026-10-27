@@ -598,5 +598,21 @@
   "Supplementary Content": {
     "en": "Supplementary Content",
     "it": "Contenuto aggiuntivo"
+  },
+  "Full Screen": {
+    "en": "Full Screen",
+    "it": "Schermo intero"
+  },
+  "Page Fit": {
+    "en": "Page Fit",
+    "it": "Adattamento pagina"
+  },
+  "Fit Page": {
+    "en": "Fit Page",
+    "it": "Adatta pagina"
+  },
+  "Fill Screen": {
+    "en": "Fill Screen",
+    "it": "Riempi schermo (ritaglia)"
   }
 }

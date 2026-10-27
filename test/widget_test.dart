@@ -210,7 +210,7 @@ void main() {
       await tester.runAsync(
         () => precacheImage(
           ResizeImage.resizeIfNeeded(
-            (size.width * 2).ceil(),
+            size.width.ceil(),
             null,
             MemoryImage(FixtureRepository.bytes),
           ),
