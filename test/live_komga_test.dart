@@ -1,0 +1,189 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart';
+import 'package:kmreader/core/api.dart';
+import 'package:kmreader/core/models.dart';
+import 'package:kmreader/core/repository.dart';
+import 'package:kmreader/core/store.dart';
+import 'package:kmreader/features/reader/epub_document.dart';
+
+void main() {
+  final url = Platform.environment['KMREADER_TEST_URL'];
+  test(
+    'real Komga: authentication, search, CBZ/EPUB/PDF download, offline progress and WebPub sync',
+    () async {
+      final directory = Directory.systemTemp.createTempSync('kmreader-client-');
+      final store = LocalStore(sqlite3.open('${directory.path}/test.sqlite'));
+      final api = KomgaApi(
+        Uri.parse(url!),
+        authentication: Authentication.password,
+        credential: base64Encode(
+          utf8.encode(
+            '${Platform.environment['KMREADER_TEST_EMAIL']}:${Platform.environment['KMREADER_TEST_PASSWORD']}',
+          ),
+        ),
+      );
+      final user = await api.user();
+      expect(user['email'], Platform.environment['KMREADER_TEST_EMAIL']);
+      final profile = ServerProfile(
+        id: ServerProfile.identity(Uri.parse(url), user['id']),
+        name: 'Test',
+        url: url,
+        email: user['email'],
+        authentication: Authentication.password,
+        admin: true,
+      );
+      final repository = Repository(
+        profile: profile,
+        api: api,
+        store: store,
+        directory: directory,
+      );
+      try {
+        final books = await repository.catalog('books');
+        expect(books.total, 3);
+        final search = await repository.catalog(
+          'books',
+          search: 'Synthetic Comic',
+        );
+        expect(search.items.length, 1);
+        final comic = search.items.single.book;
+        expect(comic.pages, 3);
+        final series = await repository.catalog('series');
+        expect(series.items, isNotEmpty);
+        final children = await repository.catalog(
+          'books',
+          condition: {
+            'seriesId': {'operator': 'is', 'value': comic.seriesId},
+          },
+        );
+        expect(children.items.any((v) => v.id == comic.id), isTrue);
+        await repository.download(comic);
+        expect(store.download(profile.id, comic.id)!['status'], 'ready');
+        repository.setOffline(true);
+        expect((await repository.page(comic.id, 3)).take(4), [137, 80, 78, 71]);
+        repository.setProgress(comic, 2);
+        expect(repository.pendingCount, 1);
+        expect((await repository.book(comic.id)).page, 2);
+        repository.offline = false;
+        await repository.sync();
+        expect(repository.pendingCount, 0);
+        expect((await api.book(comic.id)).page, 2);
+        repository.setOffline(true);
+        repository.setProgress(comic, 0, reset: true);
+        repository.offline = false;
+        await repository.sync();
+        expect((await api.book(comic.id)).page, 0);
+        final epub = books.items
+            .map((v) => v.book)
+            .firstWhere((v) => v.format == 'epub');
+        await repository.download(epub);
+        final document = EpubDocument.open(repository.bookFile(epub).path);
+        expect(document.chapters.length, 2);
+        expect(document.chapter(1), contains('Second Chapter'));
+        document.close();
+        final manifest = object(
+          await api.request(
+            '/api/v1/books/${epub.id}/manifest',
+            extra: {'Accept': 'application/webpub+json'},
+          ),
+        );
+        final href = text(
+          object((manifest['readingOrder'] as List).first)['href'],
+        );
+        repository.setOffline(true);
+        repository.setEpubProgress(epub, href, .2, .1);
+        repository.offline = false;
+        await repository.sync();
+        expect(repository.pendingCount, 0, reason: repository.syncFailure);
+        final progression = object(
+          await api.request(
+            '/api/v1/books/${epub.id}/progression',
+            extra: {'Accept': 'application/vnd.readium.progression+json'},
+          ),
+        );
+        expect(
+          href.endsWith(text(object(progression['locator'])['href'])),
+          isTrue,
+        );
+        final pdf = books.items
+            .map((v) => v.book)
+            .firstWhere((v) => v.format == 'pdf');
+        await repository.download(pdf);
+        expect(
+          repository.bookFile(pdf).readAsStringSync().startsWith('%PDF-'),
+          isTrue,
+        );
+        expect(
+          store
+              .downloads(profile.id)
+              .where((v) => v['status'] == 'ready')
+              .length,
+          3,
+        );
+        final list = object(
+          await api.request(
+            '/api/v1/readlists',
+            method: 'POST',
+            body: {
+              'name': 'Reading order',
+              'summary': '',
+              'ordered': true,
+              'bookIds': [comic.id, pdf.id],
+            },
+          ),
+        );
+        final ordered = await repository.catalog(
+          'books',
+          path: '/api/v1/readlists/${list['id']}/books',
+        );
+        expect(ordered.items.map((v) => v.id), [comic.id, pdf.id]);
+        final next = object(
+          await api.request(
+            '/api/v1/readlists/${list['id']}/books/${comic.id}/next',
+          ),
+        );
+        expect(next['id'], pdf.id);
+        final key = object(
+          await api.request(
+            '/api/v2/users/me/api-keys',
+            method: 'POST',
+            body: {'comment': 'Synthetic integration test'},
+          ),
+        );
+        final keyApi = KomgaApi(
+          Uri.parse(url),
+          authentication: Authentication.apiKey,
+          credential: text(key['key']),
+        );
+        try {
+          expect((await keyApi.user())['id'], user['id']);
+          await api.request(
+            '/api/v2/users/me/api-keys/${key['id']}',
+            method: 'DELETE',
+          );
+          await expectLater(
+            keyApi.user(),
+            throwsA(
+              isA<ApiFailure>().having((e) => e.status, 'revoked status', 401),
+            ),
+          );
+        } finally {
+          keyApi.close();
+        }
+      } on ApiFailure catch (e) {
+        fail('Komga HTTP ${e.status} at ${e.path}: ${e.message}');
+      } finally {
+        repository.dispose();
+        store.close();
+        directory.deleteSync(recursive: true);
+      }
+    },
+    skip: url == null
+        ? 'Run python3 tool/komga_smoke.py --jar <official Komga 1.29.1 jar>'
+        : false,
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+}
