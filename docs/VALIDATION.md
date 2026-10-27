@@ -1,31 +1,46 @@
 # Development validation
 
-## 0.3.0 preview — current local checks
+## 0.3.0 preview — verified release
 
-- Static analysis: no issues.
-- Full local suite: 73 passed, one live test deliberately skipped; the subsequent
-  cache-clock fix passed 18 focused cache/catalog regression tests.
-  The invalidation regression freezes the clock so equal timestamps cannot hide
-  an explicitly requested refresh.
-- Real Komga 1.29.1: integration passed, including metadata edits/locks, nested
-  filters, reading-list reorder/read-status, statistics fallback, collection CRUD,
-  library creation/editing/removal, and the existing reader/download/sync checks.
-- Focused suites: 13 download/statistics/editor tests and 5 sort/SSE/editor tests
-  passed. Both 390 px and 1280 px editor layouts were exercised. Full CI results
-  are recorded separately once the workflow completes.
-- Android AOT release: `0.3.0` (code `3`), package
-  `dev.levalue.kmreader.preview`, 90,320,204 bytes.
-- APK SHA256:
-  `496ab8d6c83cff9e390a11771d28c70e9374c24390640fce8ce79eb49d99b3e7`.
-- Signature matches the retained preview certificate; 16 KiB ZIP alignment,
-  nondebuggable manifest, AOT library, SQLite and PDFium in all three ABIs verified.
-- Windows now has a portable-runtime bundle and a native startup/screenshot probe
-  using an isolated `KMREADER_DATA_DIR`; its observed CI outcome is still pending.
+Source: `77a5786fb19c173e7925b6a64e5d424ffb843eb3`.
+All three jobs passed in [workflow 40516070398](https://github.com/LeValue/KMReader-Porting/actions/runs/40516070398).
+The [published preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.3.0-preview.1)
+contains Android and Windows artifacts.
 
-Extended kmrs smart-list/statistics endpoints were checked against contract
-fixtures. The available real server is stock Komga: its 404 capability fallback
-was checked, not an actual kmrs deployment. No physical Android device was used.
-Full visual, AI/OCR and OS-integration parity is not established.
+| Check | Observed result |
+| --- | --- |
+| Static analysis and formatting | Passed |
+| Full automated suites | 73 passed and one live test intentionally skipped, on both Linux and Windows |
+| Separate real Komga 1.29.1 integration | Passed in the Android CI job |
+| Android release compilation | Passed locally and independently in CI |
+| Windows release compilation | Passed in CI |
+| Native Windows startup | Window created, remained running and rendered the welcome screen in an isolated profile |
+| Windows bundle | x64 PE, AOT library, SQLite, PDFium and MSVC runtime verified |
+| Published download verification | Both files downloaded again; manifest and GitHub REST asset digests matched |
+| Android package integrity | Retained certificate, nondebuggable manifest, AOT/SQLite/PDFium in three ABIs and 16 KiB alignment verified |
+
+Android: package `dev.levalue.kmreader.preview`, version `0.3.0` (code `3`),
+90,320,204 bytes, SHA256
+`496ab8d6c83cff9e390a11771d28c70e9374c24390640fce8ce79eb49d99b3e7`.
+
+Windows ZIP: 19,924,818 bytes, SHA256
+`be669e3de514c4830c60770a77e467f3a68442a697951f7c7e2cb951ca96ced2`.
+Every file in the published Windows ZIP matched the exact CI bundle that passed
+native startup. The release tag points to the verified source commit above.
+
+The cache regression freezes the clock so an explicitly requested refresh cannot
+be hidden by equal Windows timestamps. It also asserts that the fetched replacement
+is reused without a third request. No timeout or assertion was removed to pass it.
+
+The real-server test covers metadata edits/locks, nested filters, read-list reorder
+and read-status filters, statistics fallback, collection CRUD, library creation,
+editing/removal, authentication, reader/download and progress checks. Extended kmrs
+smart-list/statistics endpoints use contract fixtures: the available real server is
+stock Komga, whose 404 fallback was checked. No physical Android device was used.
+Windows startup is not acceptance of every native reader/vault interaction. Full
+visual, AI/OCR and OS-integration parity is not established.
+
+![Native Windows startup](screenshots/windows-startup-0.3.png)
 
 ## Earlier validation snapshots
 
