@@ -1,20 +1,53 @@
 # Development validation
 
-## 0.5.0 notch-safe readers and dashboard — local verification
+## 0.5.0 preview — verified notch handling and reader/dashboard options
 
-Formatting and static analysis pass. The suite passes **96 tests**, with the live
-Komga test deliberately skipped in that run. Physical notch insets are tested with
-zero Flutter padding, conversion from physical pixels, rotation to a side notch,
-protected chrome with explicit cutout extension, and document AppBar titles.
-Border-crop tests check safety thresholds and actual displayed pixels, including
-vertical geometry; double-tap scale, section queries and cached card-style changes
-are covered. Real Komga integration passes locally, including the new dashboard filters.
-Android/Windows builds and an additional native Android emulator check are in progress.
-The emulator uses the OS tall-cutout overlay and captures portrait/landscape
-comic and document-title screenshots with Flutter padding deliberately cleared.
+Source: `d95a360f48d3045dc133458f19f3b539715cd19a`. All four jobs passed in
+[workflow 40604419297](https://github.com/LeValue/KMReader-Porting/actions/runs/40604419297).
+The [published preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.5.0-preview.1) contains the verified Android and Windows files.
 
-The broader port remains incomplete; the remaining work is recorded in
-[PARITY.md](PARITY.md). Automated geometry is not physical OEM/device acceptance.
+| Check | Observed result |
+| --- | --- |
+| Formatting and static analysis | Passed, including integration test/driver sources |
+| Automated suites | 96 passed and one live test deliberately skipped, locally and on Linux/Windows CI |
+| Real Komga integration | Passed separately locally and in CI, including recently-read/released dashboard filters |
+| Native Android display test | Passed on API 35 x86_64 with the OS tall-cutout overlay enabled, including portrait/landscape and exit |
+| Android release compilation | Passed locally and in CI |
+| Windows release compilation/startup | Passed in CI; welcome window rendered in an isolated profile |
+| Published downloads | Downloaded again; SHA256 manifest and GitHub asset digests matched |
+| Android integrity | Retained certificate, version 0.5.0/code 6, release AOT/SQLite/PDFium in three ABIs, 16 KiB alignment |
+| Windows portable bundle | x64 PE, AOT, native engines and MSVC runtime; every published file matched the CI artifact |
+
+Android: 90,797,216 bytes,
+SHA256 `0243474d3cb0ec756982f2ff40e5858379ee3783a8211cc79eefa825720c9efe`.
+
+Windows ZIP: 19,986,126 bytes,
+SHA256 `9e4cf92d961d2bc97aa181b428f789e363c7149ec64599cad90877b4ba074aa0`.
+The tag points to the exact workflow source above.
+
+The native test executes the real Kotlin MethodChannel/WindowInsets handler in
+an Android window. It deliberately clears Flutter's safe padding, asserts a
+nonzero OS-reported cutout, checks page and control geometry after rotation,
+checks explicit cutout extension without moving controls under it, and checks
+the shared document AppBar path. The screenshots below are from this small
+display-test harness, not a complete reader acceptance session.
+
+![Android comic display, portrait](screenshots/android-comic-portraitUp-0.5.0.png)
+![Android comic display, landscape](screenshots/android-comic-landscapeLeft-0.5.0.png)
+![Android document title, portrait](screenshots/android-document-portraitUp-0.5.0.png)
+![Android document title, landscape](screenshots/android-document-landscapeLeft-0.5.0.png)
+![Native Windows startup](screenshots/windows-startup-0.5.0.png)
+
+Additional unit/widget checks cover actual cropped pixels and safety thresholds,
+vertical crop layout, configurable double-tap zoom, leap-year/month-end dashboard
+cutoffs and persistent card styles without extra HTTP requests. Existing gesture,
+split-page semantic-progress and EPUB/PDF checks remain passing.
+
+The emulator establishes Android platform integration with a simulated cutout;
+physical phones, legacy/vendor inset behavior and real frame times still require
+target-device acceptance. Full functional/visual parity remains incomplete;
+see [PARITY.md](PARITY.md). No pixel comparison against an Apple-host baseline
+has been performed.
 
 ## 0.4.1 preview — verified comic-reader fixes
 
