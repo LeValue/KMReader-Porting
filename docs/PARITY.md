@@ -12,7 +12,7 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | Details and lists | Covers, metadata/summary, read/unread, collections/read lists; metadata editing with field locks and explicit batch changes; nonempty list creation, membership editing/reordering/deletion, personal pins; kmrs server smart-list CRUD, visibility and admin sharing, preserving uneditable conditions | Custom thumbnails, all detail layouts, real kmrs smart-list/sharing acceptance tests |
 | Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, optional automatic original-model Waifu2x upscaling, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, height-fitted wide-page panning with saved pan positions, rotation restoration and gesture ownership/edge turns, GPU cover/slide transitions, incognito and continuation | Curl animation, device frame-time/memory acceptance |
 | PDF | PDFium viewer, text search/highlights after document readiness, outline, jump/resume, auto/paged/continuous/single/dual layouts, cover-alone and RTL options, themes, password retry without persistence, original-file offline reading | Quality presets/offline raster rendering, DIVINA alternative, exact upstream gesture/animation behavior, device acceptance |
-| EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/scrolled reading, CFI resume and remote progression, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, slide/cover/curl overlays, incognito, next-book continuation | CJK/vertical and fixed-layout edge cases, continuous cross-chapter scroll, selection/dictionary/translation tools, exact upstream typography and native gesture/performance acceptance |
+| EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/scrolled reading, CFI resume and remote progression, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, slide/cover/curl overlays, incognito, next-book continuation | CJK/vertical and fixed-layout edge cases, continuous cross-chapter scroll, dictionary tools, exact upstream typography and native gesture/performance acceptance |
 | Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline reading | Android OS scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
 | Progress | Durable coalesced outbox, revision acknowledgements, retained failures, newer-remote conflict resolution | More multi-device/reconnect/device-clock stress tests; parity for every reader transition |
 | Live updates | SSE subscription, debounced refresh and reconnect | Full event-specific invalidation and real SSE acceptance tests |
@@ -52,7 +52,7 @@ This is a development implementation, not a claim of a finished perfect port.
 ## Work in progress after 0.5.0
 
 The changes above are not part of the published 0.5.0 APK. The development
-branch passes 150 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
+branch passes 154 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
 and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
 added to Android and Windows CI; results are still pending. The Android WebView
 plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
@@ -175,3 +175,21 @@ external revision also clears memoized progress after another connection writes.
 Both cases have dedicated regressions, bringing the complete local suite to
 150 passing tests with Chromium and ONNX enabled (the live server test is run
 separately).
+
+
+All three CI jobs passed for 5eb6257 (run 40759525935), including the API 35
+notch/rotation tests, actual Android WorkManager/vault transfer, EPUB CFI/reflow
+and PixelCopy screenshot, on-device OCR, and ONNX inference. The Windows native
+integration, release build and startup also passed. The following 434b67d run
+40760866452 passed all three jobs as well. Native screenshots and job metadata
+are retained locally under ignored `artifacts/verification-post-0.5/`.
+
+EPUB external HTTP(S) links now offer explicit system-browser opening, without
+Komga credentials; other schemes retain copy/close behavior. The existing
+url_launcher dependency is declared directly. The optional upstream
+keep-screen-awake preference remains disabled by default and now uses native
+Android window flags / Windows thread execution requests. Ownership is counted
+across nested readers and released for hidden/locked readers, backgrounding and
+last close. Four Android/Windows widget variants exercise those transitions;
+an additional native OS request/release test is added for CI. Wide-page preload
+now decodes the same height-fitted width used by its visible viewport.

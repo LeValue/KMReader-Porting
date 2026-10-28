@@ -166,6 +166,17 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               SwitchListTile(
+                secondary: const Icon(Icons.screen_lock_portrait),
+                title: Text(tr(context, 'Keep Screen Awake While Reading')),
+                value:
+                    app.store.setting<bool>('keepScreenAwakeWhileReading') ==
+                    true,
+                onChanged: (value) {
+                  app.store.setSetting('keepScreenAwakeWhileReading', value);
+                  repository.changed();
+                },
+              ),
+              SwitchListTile(
                 secondary: const Icon(Icons.playlist_play),
                 title: Text(tr(context, 'Read List Continuation')),
                 subtitle: Text(

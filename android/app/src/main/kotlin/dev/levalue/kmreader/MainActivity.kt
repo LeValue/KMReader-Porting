@@ -21,6 +21,8 @@ class MainActivity : FlutterFragmentActivity() {
     private var ocr: ReaderOcr? = null
     private var privacyChannel: MethodChannel? = null
     private var readerActive = false
+    private var ownsKeepAwake = false
+    private var previousKeepAwake = false
     private var previousCutout = 0
     private var previousVisibility = 0
     private var previousBars = 0
@@ -46,7 +48,21 @@ class MainActivity : FlutterFragmentActivity() {
         readerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "dev.levalue.kmreader/reader_display")
         readerChannel!!.setMethodCallHandler { call, result ->
-            if (call.method == "captureScreenshot" &&
+            if (call.method == "getKeepAwake") {
+                result.success((window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0)
+            } else if (call.method == "setKeepAwake" && call.arguments is Boolean) {
+                val enabled = call.arguments as Boolean
+                if (enabled && !ownsKeepAwake) {
+                    previousKeepAwake = (window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0
+                    ownsKeepAwake = true
+                }
+                if (enabled) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else if (ownsKeepAwake) {
+                    if (!previousKeepAwake) window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    ownsKeepAwake = false
+                }
+                result.success(null)
+            } else if (call.method == "captureScreenshot" &&
                 (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 // PixelCopy captures WebView hybrid composition without replacing

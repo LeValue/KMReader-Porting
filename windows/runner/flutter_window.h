@@ -26,6 +26,9 @@ class FlutterWindow : public Win32Window {
 
  private:
   bool background_;
+  bool keep_awake_ = false;
+  EXECUTION_STATE previous_execution_ = ES_CONTINUOUS;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> reader_display_channel_;
   std::unique_ptr<BackgroundDownloads> background_downloads_;
   std::unique_ptr<ReaderOcr> reader_ocr_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> privacy_channel_;
