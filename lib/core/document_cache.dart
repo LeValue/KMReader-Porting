@@ -322,6 +322,15 @@ class DocumentCache {
     }
   }
 
+  Future<void> get settled => Future.wait([
+    ..._loads.values.map(
+      (future) => future.then<void>((_) {}, onError: (Object _) {}),
+    ),
+    ..._refreshes.values.map(
+      (future) => future.then<void>((_) {}, onError: (Object _) {}),
+    ),
+  ]);
+
   void close() {
     _closed = true;
     _trimTimer?.cancel();

@@ -52,7 +52,7 @@ This is a development implementation, not a claim of a finished perfect port.
 ## Work in progress after 0.5.0
 
 The changes above are not part of the published 0.5.0 APK. The development
-branch passes 145 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
+branch passes 146 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
 and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
 added to Android and Windows CI; results are still pending. The Android WebView
 plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
@@ -145,3 +145,19 @@ The emulator action executes script lines in separate `/bin/sh` invocations.
 The bounded native test sequence is now an explicit Bash script, preserving its
 logcat process, cleanup trap and timeout configuration in one shell. Gradle
 dependency and pinned NDK caches reduce repeated CI setup work.
+
+
+Source 119d61a passed the complete Windows job, including native OCR,
+Task Scheduler/vault worker execution, WebView2 EPUB CFI/reflow, ONNX inference,
+release compilation and isolated application startup (run 40755554173).
+The Android ordinary job for that source also passed real Komga acceptance and
+release compilation; its native job failed in the emulator action's shell setup,
+now fixed by the dedicated Bash script. Native verification of later reader
+changes remains pending.
+
+Account removal now awaits active image writes, document refreshes, page
+conversions and upscaler output before deleting account files. Upscaler shutdown
+also rejects work still awaiting image hashing/decoding, preventing a late worker
+from being created after close. A real HTTP regression verifies image work has
+settled when removal returns. The disposable GitHub NDK installation is verified
+and retried on truncated SDK archives before Gradle starts.
