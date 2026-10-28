@@ -249,6 +249,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: DocumentReader(
+            browserEpub: false,
             repository: repo,
             book: Book({
               'id': 'notes',
@@ -341,6 +342,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: DocumentReader(
+              browserEpub: false,
               repository: repo,
               book: book,
               load: () async => file,

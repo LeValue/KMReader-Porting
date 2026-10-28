@@ -424,6 +424,66 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     }
   }
 
+  bool _selectingAll = false, _cancelSelection = false;
+  Future<void> _selectAll() async {
+    if (_acting) return;
+    final repository = widget.repository;
+    final generation = _generation;
+    setState(() {
+      _acting = true;
+      _selectingAll = true;
+      _cancelSelection = false;
+    });
+    try {
+      final condition = combineConditions([
+        widget.condition,
+        _advanced.condition(widget.kind),
+        if (_readStatus.isNotEmpty)
+          {
+            'readStatus': {'operator': 'is', 'value': _readStatus},
+          },
+      ]);
+      for (var page = 0; ; page++) {
+        if (!mounted ||
+            repository.closed ||
+            _cancelSelection ||
+            generation != _generation) {
+          return;
+        }
+        final chunk = await repository.catalog(
+          widget.kind,
+          path: widget.path,
+          page: page,
+          size: 200,
+          search: _query,
+          sort: _sort,
+          condition: condition,
+        );
+        if (!mounted ||
+            repository.closed ||
+            _cancelSelection ||
+            generation != _generation) {
+          return;
+        }
+        setState(
+          () => _selection.addAll({
+            for (final item in chunk.items) item.id: item,
+          }),
+        );
+        if (chunk.last || chunk.items.isEmpty) break;
+      }
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _acting = false;
+          _selectingAll = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -434,7 +494,9 @@ class _CatalogPageViewState extends State<CatalogPageView> {
             children: [
               IconButton(
                 tooltip: tr(context, 'Cancel'),
-                onPressed: _acting
+                onPressed: _selectingAll
+                    ? () => setState(() => _cancelSelection = true)
+                    : _acting
                     ? null
                     : () => setState(() {
                         _selection.clear();
@@ -445,21 +507,45 @@ class _CatalogPageViewState extends State<CatalogPageView> {
               Expanded(
                 child: Text('${_selection.length} ${tr(context, 'Selected')}'),
               ),
-              IconButton(
-                tooltip: tr(context, 'Select Loaded Items'),
-                onPressed: _acting
-                    ? null
-                    : () => setState(
+              if (_selectingAll)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                PopupMenuButton<String>(
+                  tooltip: tr(context, 'Select All'),
+                  enabled: !_acting,
+                  icon: const Icon(CupertinoIcons.checkmark_square),
+                  onSelected: (value) {
+                    if (value == 'all') {
+                      _selectAll();
+                    } else {
+                      setState(
                         () => _selection.addAll({
                           for (final item in _items) item.id: item,
                         }),
-                      ),
-                icon: const Icon(CupertinoIcons.checkmark_square),
-              ),
+                      );
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'all',
+                      child: Text(tr(context, 'Select All Results')),
+                    ),
+                    PopupMenuItem(
+                      value: 'loaded',
+                      child: Text(tr(context, 'Select Loaded Items')),
+                    ),
+                  ],
+                ),
               if (widget.onPicked != null)
                 IconButton(
                   tooltip: tr(context, 'Done'),
-                  onPressed: () => widget.onPicked!(_selection.values.toList()),
+                  onPressed: _acting
+                      ? null
+                      : () => widget.onPicked!(_selection.values.toList()),
                   icon: const Icon(CupertinoIcons.check_mark),
                 )
               else

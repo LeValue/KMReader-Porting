@@ -1,0 +1,139 @@
+{
+  "epubjs": {
+    "version": "0.3.93",
+    "url": "https://registry.npmjs.org/epubjs/-/epubjs-0.3.93.tgz",
+    "sha256": "180b33059ca15e2b4f129eb7fef6cae0bf6005c02af5194d13e5cb48378d538f"
+  },
+  "jszip": {
+    "version": "3.10.1",
+    "url": "https://registry.npmjs.org/jszip/-/jszip-3.10.1.tgz",
+    "sha256": "5117f4a2a645aeb307bf3b829c575ad58135cc97e75291e594532ab5b5b21b23"
+  },
+  "licenseSources": [
+    {
+      "name": "@xmldom/xmldom",
+      "licenseSource": "https://registry.npmjs.org/@xmldom/xmldom/-/xmldom-0.7.13.tgz",
+      "sha256": "786afe23facd2be0d1936fcfd9c9288b530178ca510cdbe4f9b2558565dffb49"
+    },
+    {
+      "name": "core-js",
+      "licenseSource": "https://registry.npmjs.org/core-js/-/core-js-3.18.3.tgz",
+      "sha256": "44abffeebbd5e3fa1df5ff4c3ad93ce49f5ebe60958d112755165305d123ffe6"
+    },
+    {
+      "name": "d",
+      "licenseSource": "https://registry.npmjs.org/d/-/d-1.0.1.tgz",
+      "sha256": "e7fb647f7a114c2f5bc547454b043c29dd13de095dc6f476b883b266993918a9"
+    },
+    {
+      "name": "es5-ext",
+      "licenseSource": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.62.tgz",
+      "sha256": "e757f53b9072c60d0ad6933e1dbcb819951ea79d2f0b438c31a8a70692dbe899"
+    },
+    {
+      "name": "event-emitter",
+      "licenseSource": "https://registry.npmjs.org/event-emitter/-/event-emitter-0.3.5.tgz",
+      "sha256": "01285fbf386851ffa16974b3a077a314898c09fc52184ac0d4b45281ec0468b1"
+    },
+    {
+      "name": "localforage",
+      "licenseSource": "https://registry.npmjs.org/localforage/-/localforage-1.10.0.tgz",
+      "sha256": "f70d6ef3e2af224c6fe7f4f3cc46b63fd4e9f54e495d421197bfce8865cb2547"
+    },
+    {
+      "name": "lodash",
+      "licenseSource": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+      "sha256": "6a087ac9e5702a0c9d60fbcd48696012646ec8df1491dea472b150e79fcaf804"
+    },
+    {
+      "name": "marks-pane",
+      "licenseSource": "https://registry.npmjs.org/marks-pane/-/marks-pane-1.0.9.tgz",
+      "sha256": "db081b29beabd8c21be5b58e95f652c69f9d2f2439445ae8a5ce17d5b738cbb3"
+    },
+    {
+      "name": "path-webpack",
+      "licenseSource": "https://registry.npmjs.org/path-webpack/-/path-webpack-0.0.3.tgz",
+      "sha256": "bf7dcd4a824b4a75a56b188c49361fa49e015f489a427fb5dda4a57cf0cdfa29"
+    },
+    {
+      "name": "pako",
+      "licenseSource": "https://registry.npmjs.org/pako/-/pako-1.0.11.tgz",
+      "sha256": "0d4028dc0352a740c30cbfd772917f2744986d42bfa0b06ec7642bffe7ad3941"
+    },
+    {
+      "name": "lie",
+      "licenseSource": "https://registry.npmjs.org/lie/-/lie-3.3.0.tgz",
+      "sha256": "2db8461cd4a10e2fc3588c8c55da34d33465ff81cc19c72416bbcaec7ee6a36e"
+    },
+    {
+      "name": "readable-stream",
+      "licenseSource": "https://registry.npmjs.org/readable-stream/-/readable-stream-2.3.8.tgz",
+      "sha256": "1648613948f68ac9cbbe8f72a3f93a67ecdb862ffb57946a2c0bbb5a1479a532"
+    },
+    {
+      "name": "setimmediate",
+      "licenseSource": "https://registry.npmjs.org/setimmediate/-/setimmediate-1.0.5.tgz",
+      "sha256": "5cb9fc22698364ed42c02d6aa3dc50ffeafa68452ae84699672e3dfd74922c9e"
+    },
+    {
+      "name": "immediate",
+      "licenseSource": "https://registry.npmjs.org/immediate/-/immediate-3.0.6.tgz",
+      "sha256": "98c792f39650b00818c05dcc407902034dc4092f368596b37658d44f28739d11"
+    },
+    {
+      "name": "core-util-is",
+      "licenseSource": "https://registry.npmjs.org/core-util-is/-/core-util-is-1.0.3.tgz",
+      "sha256": "4430fdc71f2cf3b5e297113b9a692da2d6cff96cf84da00f0ecef5e5a6e74d0c"
+    },
+    {
+      "name": "inherits",
+      "licenseSource": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
+      "sha256": "d94dbc6c1bb3c5ac0fb12a73ade187108fc60de273a1b754f55044eb5e24afaf"
+    },
+    {
+      "name": "isarray",
+      "licenseSource": "https://registry.npmjs.org/isarray/-/isarray-1.0.0.tgz",
+      "sha256": "e23c76f14f5222e07e39d89858b61e8e33f96956de9e0df3659cbdf8db950c87"
+    },
+    {
+      "name": "process-nextick-args",
+      "licenseSource": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-2.0.1.tgz",
+      "sha256": "425bf8c725d23bc5ac76bcedd10d9cdbbd6354c7273dd7def44417cfbca8889b"
+    },
+    {
+      "name": "safe-buffer",
+      "licenseSource": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.1.2.tgz",
+      "sha256": "e09206c60fccafb952c854af7629cbb031a98d6da2e143fb3aa3c8a48402aa22"
+    },
+    {
+      "name": "string_decoder",
+      "licenseSource": "https://registry.npmjs.org/string_decoder/-/string_decoder-1.1.1.tgz",
+      "sha256": "af8262434508fa8292407f7fef4690d19eabb73387ca230b41f2a1155216963a"
+    },
+    {
+      "name": "util-deprecate",
+      "licenseSource": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz",
+      "sha256": "79a1de983c1b393180c47456d6b73caab278a00ea6e37d5c6675f2dcdec2a3e5"
+    },
+    {
+      "name": "es6-symbol",
+      "licenseSource": "https://registry.npmjs.org/es6-symbol/-/es6-symbol-3.1.3.tgz",
+      "sha256": "cec119994145a1eeb1274fb5f268a7ae30a86d351e5ddfdd439ac497b1e12aba"
+    },
+    {
+      "name": "es6-iterator",
+      "licenseSource": "https://registry.npmjs.org/es6-iterator/-/es6-iterator-2.0.3.tgz",
+      "sha256": "cbd6f6ff4de66edb320b8b35c2e455e84b0c6cb12744eaf6cb32bcba5d308f43"
+    },
+    {
+      "name": "es6-promise",
+      "licenseSource": "https://registry.npmjs.org/es6-promise/-/es6-promise-4.2.8.tgz",
+      "sha256": "ea3adc416f8327d7b505df5585b4418d454cc295d25d9cd402bd0c10d89866a7"
+    },
+    {
+      "name": "next-tick",
+      "licenseSource": "https://registry.npmjs.org/next-tick/-/next-tick-1.1.0.tgz",
+      "sha256": "f29d4d707449588c7200d1d4d05286fd3b8c0f63ad2e595f9bcd011c8d0ed755"
+    }
+  ]
+}

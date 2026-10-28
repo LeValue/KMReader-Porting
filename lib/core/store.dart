@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'models.dart';
+import 'offline_catalog.dart';
 
 class LocalStore {
   LocalStore(this.db) {
@@ -31,9 +32,37 @@ class LocalStore {
     db.execute(
       'CREATE INDEX IF NOT EXISTS progress_pending ON progress(server,pending)',
     );
-    db.execute('PRAGMA user_version=2');
+    offlineCatalog = OfflineCatalog(db);
+    if (setting<bool>('offlineIndexMigrated') != true) {
+      db.execute('BEGIN IMMEDIATE');
+      try {
+        for (final row in db.select(
+          "SELECT server,key,value FROM cache WHERE key LIKE 'book:%' OR key LIKE 'detail:%'",
+        )) {
+          final key = row['key'] as String;
+          final kind = key.startsWith('book:') ? 'books' : key.split(':')[1];
+          if (!['books', 'series', 'collections', 'readlists'].contains(kind)) {
+            continue;
+          }
+          final value = object(jsonDecode(row['value'] as String));
+          if (text(value['id']).isNotEmpty) {
+            offlineCatalog.put(
+              row['server'] as String,
+              CatalogItem(kind, value),
+            );
+          }
+        }
+        setSetting('offlineIndexMigrated', true);
+        db.execute('COMMIT');
+      } catch (_) {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    }
+    db.execute('PRAGMA user_version=3');
   }
   final Database db;
+  late final OfflineCatalog offlineCatalog;
   final _progress = <String, Json?>{};
   T? setting<T>(String key) {
     final rows = db.select('SELECT value FROM settings WHERE key=?', [key]);
@@ -61,7 +90,12 @@ class LocalStore {
     db.execute('BEGIN IMMEDIATE');
     try {
       db.execute('DELETE FROM servers WHERE id=?', [id]);
-      for (final table in ['cache', 'progress', 'downloads']) {
+      for (final table in [
+        'cache',
+        'progress',
+        'downloads',
+        'catalog_records',
+      ]) {
         db.execute('DELETE FROM $table WHERE server=?', [id]);
       }
       db.execute('COMMIT');
@@ -79,10 +113,24 @@ class LocalStore {
     return rows.isEmpty ? null : jsonDecode(rows.first['value'] as String);
   }
 
-  void cache(String server, String key, dynamic value) => db.execute(
-    'INSERT OR REPLACE INTO cache(server,key,value,updated) VALUES(?,?,?,?)',
-    [server, key, jsonEncode(value), DateTime.now().millisecondsSinceEpoch],
-  );
+  void cache(String server, String key, dynamic value) {
+    db.execute(
+      'INSERT OR REPLACE INTO cache(server,key,value,updated) VALUES(?,?,?,?)',
+      [server, key, jsonEncode(value), DateTime.now().millisecondsSinceEpoch],
+    );
+    final kind = key.startsWith('book:')
+        ? 'books'
+        : key.startsWith('detail:')
+        ? key.split(':')[1]
+        : null;
+    if (kind != null &&
+        value is Map &&
+        text(value['id']).isNotEmpty &&
+        ['books', 'series', 'collections', 'readlists'].contains(kind)) {
+      offlineCatalog.put(server, CatalogItem(kind, object(value)));
+    }
+  }
+
   void deleteCache(String server, String key) =>
       db.execute('DELETE FROM cache WHERE server=? AND key=?', [server, key]);
   DateTime? cachedAt(String server, String key) {

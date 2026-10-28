@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
@@ -13,6 +12,7 @@ import '../../ui/strings.dart';
 import 'epub_document.dart';
 import 'pdf_reader.dart';
 import 'reader_display.dart';
+import 'epub_reader.dart';
 
 class DocumentReader extends StatefulWidget {
   const DocumentReader({
@@ -21,11 +21,15 @@ class DocumentReader extends StatefulWidget {
     required this.book,
     required this.load,
     required this.incognito,
+    this.browserEpub = true,
+    this.onNextBook,
   });
   final Repository repository;
   final Book book;
   final Future<File> Function() load;
   final bool incognito;
+  final bool browserEpub;
+  final Future<void> Function()? onNextBook;
   @override
   State<DocumentReader> createState() => _DocumentReaderState();
 }
@@ -59,6 +63,14 @@ class _DocumentReaderState extends State<DocumentReader> {
       }
       return widget.book.format == 'pdf'
           ? PdfReader(
+              file: snapshot.data!,
+              repository: widget.repository,
+              book: widget.book,
+              incognito: widget.incognito,
+            )
+          : widget.browserEpub && (Platform.isAndroid || Platform.isWindows)
+          ? BrowserEpubReader(
+              onNextBook: widget.onNextBook,
               file: snapshot.data!,
               repository: widget.repository,
               book: widget.book,
@@ -103,7 +115,7 @@ class _EpubReaderState extends State<_EpubReader> {
   String _html = '';
   String get _currentHtml {
     if (_htmlPath != _currentPath) {
-      _html = utf8.decode(_document!.resource(_currentPath));
+      _html = EpubDocument.decodeText(_document!.resource(_currentPath));
       _htmlPath = _currentPath;
     }
     return _html;

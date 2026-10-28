@@ -63,6 +63,8 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze
       - run: flutter test
+      - name: Verify EPUB in native Windows WebView2
+        run: flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub
       - run: flutter build windows --release
       - name: Launch the native Windows app in an isolated profile
         shell: pwsh
@@ -120,11 +122,14 @@ jobs:
           script: |
             adb shell cmd overlay enable --user 0 com.android.internal.display.cutout.emulation.tall
             flutter drive --driver=test_driver/reader_display_driver.dart --target=integration_test/reader_display_test.dart -d emulator-5554 --no-pub
+            flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d emulator-5554 --no-pub
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: android-reader-display
-          path: artifacts/android-reader-display/*.png
+          path: |
+            artifacts/android-reader-display/*.png
+            artifacts/native-epub/*.png
   publish_android_preview:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
     needs: [android, windows, android_reader_display]

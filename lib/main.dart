@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/app_controller.dart';
 import 'features/auth/login_page.dart';
 import 'ui/shell.dart';
+import 'ui/device_lock_gate.dart';
 import 'ui/strings.dart';
 import 'ui/theme.dart';
 
@@ -15,6 +16,15 @@ Future<void> main() async {
     yield LicenseEntryWithLineBreaks([
       'KMReader (upstream)',
     ], await rootBundle.loadString('LICENSE'));
+    for (final (name, file) in [
+      ('Epub.js', 'EPUBJS-LICENSE'),
+      ('JSZip', 'JSZIP-LICENSE'),
+      ('EPUB browser dependencies', 'THIRD-PARTY-NOTICES'),
+    ]) {
+      yield LicenseEntryWithLineBreaks([
+        name,
+      ], await rootBundle.loadString('assets/epub/$file'));
+    }
   });
   await Strings.initialize();
   try {
@@ -67,6 +77,10 @@ class KMReaderApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
+        builder: (context, child) => DeviceLockGate(
+          lock: app.deviceLock,
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: app.repository == null
             ? WelcomePage(app: app)
             : AppShell(app: app, repository: app.repository!),

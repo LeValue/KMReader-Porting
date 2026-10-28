@@ -116,6 +116,28 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
         ),
+        ListenableBuilder(
+          listenable: app.deviceLock,
+          builder: (context, _) => SwitchListTile(
+            secondary: const Icon(Icons.fingerprint),
+            title: Text(tr(context, 'App Lock')),
+            subtitle: Text(
+              tr(context, 'Use biometrics, device PIN or Windows Hello'),
+            ),
+            value: app.deviceLock.enabled,
+            onChanged: app.deviceLock.busy
+                ? null
+                : (value) async {
+                    await app.deviceLock.configure(
+                      value,
+                      tr(context, 'Confirm app lock settings'),
+                    );
+                    if (context.mounted && app.deviceLock.error != null) {
+                      showError(context, app.deviceLock.error!);
+                    }
+                  },
+          ),
+        ),
         const SizedBox(height: 24),
         Text(
           tr(context, 'Reading and Storage'),
@@ -130,6 +152,32 @@ class SettingsPage extends StatelessWidget {
                 title: Text(tr(context, 'Offline Mode')),
                 value: repository.offline,
                 onChanged: repository.setOffline,
+              ),
+              ListTile(
+                leading: repository.metadataIndexing
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.manage_search),
+                title: Text(tr(context, 'Prepare Offline Catalog')),
+                subtitle: Text(
+                  repository.metadataIndexError ??
+                      (repository.metadataIndexing
+                          ? '${repository.metadataIndexed} ${tr(context, 'items')}'
+                          : ('${repository.store.offlineCatalog.count(repository.profile.id, 'books')} ${tr(context, 'Books')} • ${repository.store.offlineCatalog.count(repository.profile.id, 'series')} ${tr(context, 'Series')}')),
+                ),
+                trailing: repository.metadataIndexing
+                    ? IconButton(
+                        tooltip: tr(context, 'Cancel'),
+                        icon: const Icon(Icons.close),
+                        onPressed: repository.cancelMetadataIndex,
+                      )
+                    : null,
+                onTap: repository.offline || repository.metadataIndexing
+                    ? null
+                    : repository.prepareOfflineCatalog,
               ),
               ListTile(
                 leading: const Icon(CupertinoIcons.arrow_down_to_line),
