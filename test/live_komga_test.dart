@@ -228,6 +228,14 @@ void main() {
         final pdf = books.items
             .map((v) => v.book)
             .firstWhere((v) => v.format == 'pdf');
+        final cachedPdf = await repository.documents.open(
+          pdf,
+          pinned: repository.bookFile(pdf),
+          offline: false,
+        );
+        expect(cachedPdf.file.readAsStringSync().startsWith('%PDF-'), isTrue);
+        await repository.documents.revalidate(pdf);
+        cachedPdf.close();
         await repository.download(pdf);
         expect(
           repository.bookFile(pdf).readAsStringSync().startsWith('%PDF-'),

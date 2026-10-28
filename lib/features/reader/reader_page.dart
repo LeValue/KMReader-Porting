@@ -9,6 +9,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../core/models.dart';
 import '../../core/api.dart';
 import '../../core/repository.dart';
+import '../../core/document_cache.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
@@ -397,6 +398,7 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   void dispose() {
+    _documentLease?.close();
     _preloadGeneration++;
     _preloadTimer?.cancel();
     _settleTimer?.cancel();
@@ -480,17 +482,20 @@ class _ReaderPageState extends State<ReaderPage> {
     });
   }
 
+  DocumentLease? _documentLease;
   Future<File> _document() async {
-    final file = widget.repository.bookFile(widget.book);
-    if (await file.exists()) return file;
-    if (widget.repository.offline) {
-      throw const FileSystemException('This book has not been downloaded.');
-    }
-    await widget.repository.api.download(
-      '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/file',
-      file,
+    final lease = await widget.repository.documents.open(
+      widget.book,
+      pinned: widget.repository.bookFile(widget.book),
+      offline: widget.repository.offline,
     );
-    return file;
+    if (!mounted) {
+      lease.close();
+      throw StateError('Reader closed');
+    }
+    _documentLease?.close();
+    _documentLease = lease;
+    return lease.file;
   }
 
   bool _ocrOpening = false;

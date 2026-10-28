@@ -11,6 +11,7 @@ import 'api.dart';
 import 'models.dart';
 import 'store.dart';
 import 'cache.dart';
+import 'document_cache.dart';
 import 'page_formats.dart';
 import 'read_list_reading.dart';
 import '../features/reader/page_upscaler.dart';
@@ -38,8 +39,26 @@ class Repository extends ChangeNotifier {
   final _pausing = <String>{};
   bool _downloadSuspended = false;
   final DateTime Function() cacheClock;
+  late final DocumentCache documents = DocumentCache(
+    directory: Directory(p.join(directory.path, profile.id, 'documents')),
+    server: profile.id,
+    store: store,
+    api: api,
+  );
   late final PageUpscaler pageUpscaler = PageUpscaler(imageDirectory);
-  bool offline = false;
+  bool _offline = false;
+  bool get offline => _offline;
+  set offline(bool value) {
+    if (_offline == value) return;
+    _offline = value;
+    store.setSetting('offline:${profile.id}', value);
+    if (value) {
+      pauseDownloads();
+    } else {
+      resumeDownloads();
+    }
+  }
+
   late final ReadListReading readLists = ReadListReading(this);
   bool _syncing = false;
   bool _disposed = false;
@@ -893,7 +912,7 @@ class Repository extends ChangeNotifier {
   }
 
   void setOffline(bool value) {
-    offline = value;
+    _offline = value;
     store.setSetting('offline:${profile.id}', value);
     if (offline) {
       pauseDownloads();
@@ -1225,6 +1244,7 @@ class Repository extends ChangeNotifier {
   @override
   void dispose() {
     if (_disposed) return;
+    documents.close();
     pageUpscaler.close();
     _cacheEvents?.cancel();
     _cacheTrim?.cancel();

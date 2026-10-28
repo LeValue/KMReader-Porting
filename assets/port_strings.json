@@ -722,5 +722,53 @@
     "zh-Hant": "正在等待下載條件",
     "ru": "Ожидание условий загрузки",
     "es": "Esperando las condiciones de descarga"
+  },
+  "Document Cache Limit": {
+    "en": "Document Cache Limit",
+    "it": "Limite cache dei documenti",
+    "de": "Limit für den Dokumentcache",
+    "fr": "Limite du cache des documents",
+    "ja": "ドキュメントキャッシュの上限",
+    "ko": "문서 캐시 한도",
+    "zh-Hans": "文档缓存上限",
+    "zh-Hant": "文件快取上限",
+    "ru": "Лимит кэша документов",
+    "es": "Límite de caché de documentos"
+  },
+  "Clear Temporary Documents": {
+    "en": "Clear Temporary Documents",
+    "it": "Elimina documenti temporanei",
+    "de": "Temporäre Dokumente löschen",
+    "fr": "Effacer les documents temporaires",
+    "ja": "一時ドキュメントを削除",
+    "ko": "임시 문서 삭제",
+    "zh-Hans": "清除临时文档",
+    "zh-Hant": "清除暫存文件",
+    "ru": "Удалить временные документы",
+    "es": "Borrar documentos temporales"
+  },
+  "Downloaded books and open documents are kept.": {
+    "en": "Downloaded books and open documents are kept.",
+    "it": "I libri scaricati e i documenti aperti vengono conservati.",
+    "de": "Heruntergeladene Bücher und geöffnete Dokumente bleiben erhalten.",
+    "fr": "Les livres téléchargés et les documents ouverts sont conservés.",
+    "ja": "ダウンロードした本と開いているドキュメントは保持されます。",
+    "ko": "다운로드한 책과 열려 있는 문서는 유지됩니다.",
+    "zh-Hans": "已下载的书籍和打开的文档将被保留。",
+    "zh-Hant": "已下載的書籍和開啟的文件會保留。",
+    "ru": "Загруженные книги и открытые документы сохраняются.",
+    "es": "Se conservan los libros descargados y los documentos abiertos."
+  },
+  "Background Downloads Unavailable": {
+    "en": "Background Downloads Unavailable",
+    "it": "Download in background non disponibili",
+    "de": "Hintergrunddownloads nicht verfügbar",
+    "fr": "Téléchargements en arrière-plan indisponibles",
+    "ja": "バックグラウンドダウンロードを利用できません",
+    "ko": "백그라운드 다운로드를 사용할 수 없습니다",
+    "zh-Hans": "后台下载不可用",
+    "zh-Hant": "背景下載無法使用",
+    "ru": "Фоновые загрузки недоступны",
+    "es": "Descargas en segundo plano no disponibles"
   }
 }

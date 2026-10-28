@@ -13,10 +13,10 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, optional automatic original-model Waifu2x upscaling, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, incognito and continuation | Curl/cover animations, wide-page scrolling, device frame-time/memory acceptance |
 | PDF | PDFium viewer, text search/highlights after document readiness, outline, jump/resume, auto/paged/continuous/single/dual layouts, cover-alone and RTL options, themes, password retry without persistence, original-file offline reading | Quality presets/offline raster rendering, DIVINA alternative, exact upstream gesture/animation behavior, device acceptance |
 | EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/scrolled reading, CFI resume and remote progression, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, slide/cover/curl overlays, incognito, next-book continuation | CJK/vertical and fixed-layout edge cases, continuous cross-chapter scroll, selection/dictionary/translation tools, exact upstream typography and native gesture/performance acceptance |
-| Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline reading | Native OS scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
+| Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline reading | Android OS scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
 | Progress | Durable coalesced outbox, revision acknowledgements, retained failures, newer-remote conflict resolution | More multi-device/reconnect/device-clock stress tests; parity for every reader transition |
 | Live updates | SSE subscription, debounced refresh and reconnect | Full event-specific invalidation and real SSE acceptance tests |
-| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, conditional media revalidation, quotas for cached document originals, advanced preload policies |
+| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, versioned EPUB/PDF source cache with conditional HEAD revalidation and configurable 128 MiB–8 GiB quota (1 GiB default), protection of active and downloaded originals, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, conditional thumbnail/page revalidation, advanced preload policies |
 | Settings | Theme, original ten-language catalog, dashboard sections, offline mode, downloads, server info | Some new labels/errors still need translations; full upstream preference surface |
 | API keys | List/create/copy/revoke, optional automatically created and independently verified key on password login, password fallback for unsupported servers, identification/protection of the managed active key | Manual-key identity discovery, authentication/session history, target-vault acceptance |
 | Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors | Duplicate detection, tasks/sessions/logs, komf, all server settings and import tools |
@@ -52,7 +52,7 @@ This is a development implementation, not a claim of a finished perfect port.
 ## Work in progress after 0.5.0
 
 The changes above are not part of the published 0.5.0 APK. The development
-branch passes 132 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
+branch passes 139 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
 and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
 added to Android and Windows CI; results are still pending. The Android WebView
 plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
@@ -107,3 +107,21 @@ the Android/Windows integration target and is pending CI execution.
 Current MSVC also rejects local_auth_windows 2.0.2's nonstandard `return` in a
 coroutine. Its stable source/license are retained locally with `co_return` and
 standard C++20 options. See `third_party/local_auth_windows/PORTING.md`.
+
+
+The Windows native run for 409a791 passed real Task Scheduler worker execution,
+EPUB navigation/CFI/reflow and ONNX inference. Its OCR test exposed WinRT's path
+handling for Dart temporary files; bounded native reading into a memory stream
+replaces StorageFile path parsing and is pending the next native run. Android
+native completion is still pending; per-drive timeouts and retained logcat output
+now make an emulator/service disconnection diagnosable instead of waiting for the
+whole-job timeout.
+
+The versioned document cache tests verify HTTP 304 body avoidance, immutable
+refresh while a reader is open, cross-connection source leases, LRU eviction,
+legacy-source migration, offline/pinned preservation and range resume without
+orphan accumulation. The conditional HEAD flow also passed against real Komga
+1.29.1. Cached originals are disposable; explicit downloads remain outside the
+quota. Resuming online through the older direct offline property also restores
+the transfer queue, fixing the live integration timeout exposed after pausing
+was added. PDF detection accepts media type, profile and filename fallbacks.

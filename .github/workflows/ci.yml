@@ -150,9 +150,14 @@ jobs:
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
+            set -euo pipefail
+            adb logcat -c
+            adb logcat -v threadtime > "$RUNNER_TEMP/reader-logcat.txt" &
+            km_log_pid=$!
+            trap 'kill "$km_log_pid" 2>/dev/null || true' EXIT
             adb shell cmd overlay enable --user 0 com.android.internal.display.cutout.emulation.tall
-            flutter drive --driver=test_driver/reader_display_driver.dart --target=integration_test/reader_display_test.dart -d emulator-5554 --no-pub
-            flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d emulator-5554 --no-pub
+            timeout --signal=TERM --kill-after=20s 8m flutter drive --driver=test_driver/reader_display_driver.dart --target=integration_test/reader_display_test.dart -d emulator-5554 --no-pub
+            timeout --signal=TERM --kill-after=20s 8m flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d emulator-5554 --no-pub
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -160,6 +165,7 @@ jobs:
           path: |
             artifacts/android-reader-display/*.png
             artifacts/native-epub/*.png
+            ${{ runner.temp }}/reader-logcat.txt
   publish_android_preview:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
     needs: [android, windows, android_reader_display]
