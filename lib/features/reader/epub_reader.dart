@@ -10,6 +10,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/models.dart';
+import '../../core/external_links.dart';
 import '../../core/repository.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
@@ -284,6 +285,24 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           title: Text(tr(context, 'External Link')),
           content: SelectableText(href),
           actions: [
+            if (isExternalWebLink(uri))
+              TextButton(
+                onPressed: () async {
+                  final failureMessage = tr(
+                    context,
+                    'Could not open the browser.',
+                  );
+                  try {
+                    if (!await openExternalWebLink(uri)) {
+                      throw StateError(failureMessage);
+                    }
+                    if (context.mounted) Navigator.pop(context);
+                  } catch (error) {
+                    if (context.mounted) showError(context, error);
+                  }
+                },
+                child: Text(tr(context, 'Open in Browser')),
+              ),
             TextButton(
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: href));

@@ -8,7 +8,8 @@ import 'package:flutter/widgets.dart';
 /// Keeps reader display ownership across pushReplacement transitions, restoring
 /// the application window only after the last comic reader has closed.
 class ReaderDisplay extends StatefulWidget {
-  const ReaderDisplay({super.key, required this.child});
+  const ReaderDisplay({super.key, required this.child, this.keepAwake = false});
+  final bool keepAwake;
   final Widget child;
   static const channel = MethodChannel('dev.levalue.kmreader/reader_display');
   // Physical pixels from Android. Flutter's padding can become zero when
@@ -21,7 +22,50 @@ class ReaderDisplay extends StatefulWidget {
 
 class _ReaderDisplayState extends State<ReaderDisplay>
     with WidgetsBindingObserver {
-  static int _readers = 0;
+  static int _readers = 0, _awakeReaders = 0;
+  static bool _awake = false;
+  late final bool _native;
+  bool _awakeOwned = false;
+  ValueListenable<TickerModeData>? _tickerMode;
+  void _updateAwakeOwnership() {
+    final wanted = widget.keepAwake && (_tickerMode?.value.enabled ?? true);
+    if (wanted == _awakeOwned) return;
+    _awakeOwned = wanted;
+    _awakeReaders += wanted ? 1 : -1;
+    _setAwake(_awakeReaders > 0 && _foreground);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_native) return;
+    final notifier = TickerMode.getValuesNotifier(context);
+    if (notifier != _tickerMode) {
+      _tickerMode?.removeListener(_updateAwakeOwnership);
+      _tickerMode = notifier;
+      notifier.addListener(_updateAwakeOwnership);
+    }
+    _updateAwakeOwnership();
+  }
+
+  static void _setAwake(bool enabled) {
+    if (_awake == enabled) return;
+    _awake = enabled;
+    unawaited(() async {
+      try {
+        await ReaderDisplay.channel.invokeMethod<void>('setKeepAwake', enabled);
+      } on MissingPluginException {
+        /* Older native hosts and widget tests. */
+      } on PlatformException {
+        /* The OS retains control of its power policy. */
+      }
+    }());
+  }
+
+  static bool get _foreground =>
+      WidgetsBinding.instance.lifecycleState == null ||
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
   late final bool _android;
   bool _keyboardOpen = false;
   Future<void> _set(bool enabled) async {
@@ -58,6 +102,10 @@ class _ReaderDisplayState extends State<ReaderDisplay>
   void initState() {
     super.initState();
     _android = defaultTargetPlatform == TargetPlatform.android && !kIsWeb;
+    _native =
+        !kIsWeb &&
+        (_android || defaultTargetPlatform == TargetPlatform.windows);
+    if (_native && !_android) WidgetsBinding.instance.addObserver(this);
     if (_android) {
       WidgetsBinding.instance.addObserver(this);
       if (_readers++ == 0) {
@@ -72,12 +120,22 @@ class _ReaderDisplayState extends State<ReaderDisplay>
   }
 
   @override
+  void didUpdateWidget(ReaderDisplay old) {
+    super.didUpdateWidget(old);
+    if (_native && widget.keepAwake != old.keepAwake) {
+      _updateAwakeOwnership();
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_set(true));
+    if (_android && state == AppLifecycleState.resumed) unawaited(_set(true));
+    if (_awakeReaders > 0) _setAwake(state == AppLifecycleState.resumed);
   }
 
   @override
   void didChangeMetrics() {
+    if (!_android) return;
     final views = WidgetsBinding.instance.platformDispatcher.views;
     if (views.isEmpty) return;
     final open = views.first.viewInsets.bottom > 0;
@@ -87,6 +145,9 @@ class _ReaderDisplayState extends State<ReaderDisplay>
 
   @override
   void dispose() {
+    _tickerMode?.removeListener(_updateAwakeOwnership);
+    if (_native && _awakeOwned && --_awakeReaders == 0) _setAwake(false);
+    if (_native && !_android) WidgetsBinding.instance.removeObserver(this);
     if (_android) {
       WidgetsBinding.instance.removeObserver(this);
       if (--_readers == 0) {

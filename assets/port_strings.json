@@ -770,5 +770,17 @@
     "zh-Hant": "背景下載無法使用",
     "ru": "Фоновые загрузки недоступны",
     "es": "Descargas en segundo plano no disponibles"
+  },
+  "Could not open the browser.": {
+    "en": "Could not open the browser.",
+    "it": "Impossibile aprire il browser.",
+    "de": "Der Browser konnte nicht geöffnet werden.",
+    "fr": "Impossible d’ouvrir le navigateur.",
+    "ja": "ブラウザーを開けませんでした。",
+    "ko": "브라우저를 열 수 없습니다.",
+    "zh-Hans": "无法打开浏览器。",
+    "zh-Hant": "無法開啟瀏覽器。",
+    "ru": "Не удалось открыть браузер.",
+    "es": "No se pudo abrir el navegador."
   }
 }

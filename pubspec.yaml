@@ -55,6 +55,7 @@ dependencies:
   onnxruntime_v2: ^1.23.2+2
   ffi: ^2.2.0
   workmanager: ^0.10.10
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   integration_test:

@@ -38,6 +38,21 @@ bool FlutterWindow::OnCreate() {
     }
     result->Success();
   });
+  reader_display_channel_=std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+    flutter_controller_->engine()->messenger(),"dev.levalue.kmreader/reader_display",&flutter::StandardMethodCodec::GetInstance());
+  reader_display_channel_->SetMethodCallHandler([this](const auto& call,auto result) {
+    if(call.method_name()=="getKeepAwake") {result->Success(flutter::EncodableValue(keep_awake_));return;}
+    const auto* enabled=call.arguments()?std::get_if<bool>(call.arguments()):nullptr;
+    if(call.method_name()!="setKeepAwake" || !enabled) {result->NotImplemented();return;}
+    if(*enabled && !keep_awake_) {
+      previous_execution_=SetThreadExecutionState(ES_CONTINUOUS|ES_DISPLAY_REQUIRED|ES_SYSTEM_REQUIRED);
+      keep_awake_=previous_execution_!=0;
+      if(!keep_awake_) {result->Error("wake_unavailable","Windows could not keep the display awake.");return;}
+    } else if(!*enabled && keep_awake_) {
+      SetThreadExecutionState(previous_execution_|ES_CONTINUOUS);keep_awake_=false;
+    }
+    result->Success();
+  });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -53,6 +68,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if(reader_display_channel_) {reader_display_channel_->SetMethodCallHandler(nullptr);reader_display_channel_.reset();}
+  if(keep_awake_) {SetThreadExecutionState(previous_execution_|ES_CONTINUOUS);keep_awake_=false;}
   background_downloads_.reset();
   if(privacy_channel_) {privacy_channel_->SetMethodCallHandler(nullptr);privacy_channel_.reset();}
   reader_ocr_.reset();

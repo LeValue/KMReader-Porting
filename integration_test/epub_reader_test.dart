@@ -26,6 +26,23 @@ import 'support/background_download_check.dart';
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   verifyNativeBackgroundDownloads();
+  testWidgets('native display-awake request releases its OS ownership', (
+    tester,
+  ) async {
+    try {
+      await ReaderDisplay.channel.invokeMethod<void>('setKeepAwake', true);
+      expect(
+        await ReaderDisplay.channel.invokeMethod<bool>('getKeepAwake'),
+        true,
+      );
+    } finally {
+      await ReaderDisplay.channel.invokeMethod<void>('setKeepAwake', false);
+    }
+    expect(
+      await ReaderDisplay.channel.invokeMethod<bool>('getKeepAwake'),
+      false,
+    );
+  });
   testWidgets(
     'native WebView paginates, persists CFI and reflows without moving saved progress',
     (tester) async {

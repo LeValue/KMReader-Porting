@@ -359,9 +359,21 @@ class _ReaderPageState extends State<ReaderPage> {
             page,
           );
           if (!mounted || generation != _preloadGeneration) return;
+          var factor = _splitPages.contains(page) ? 2.0 : 1.0;
+          final settings = _session.preferences;
+          final originalAspect = _aspects[page] ?? 1;
+          final aspect = settings.rotation.isOdd
+              ? 1 / originalAspect
+              : originalAspect;
+          if (settings.mode == ReadingMode.paged &&
+              settings.splitWide == 'scroll' &&
+              aspect > 1) {
+            final size = MediaQuery.sizeOf(context);
+            factor = (size.height * aspect / size.width).clamp(1, 8).toDouble();
+          }
           await precacheImage(
             ResizeImage.resizeIfNeeded(
-              (width * (_splitPages.contains(page) ? 2 : 1)).clamp(1, 4096),
+              (width * factor).ceil().clamp(1, 4096),
               null,
               MemoryImage(bytes),
             ),
@@ -988,6 +1000,11 @@ class _ReaderPageState extends State<ReaderPage> {
   Widget build(BuildContext context) {
     if (widget.book.format != 'comic') {
       return ReaderDisplay(
+        keepAwake:
+            widget.repository.store.setting<bool>(
+              'keepScreenAwakeWhileReading',
+            ) ==
+            true,
         child: DocumentReader(
           onNextBook: _nextBook,
           repository: widget.repository,
@@ -1347,7 +1364,14 @@ class _ReaderPageState extends State<ReaderPage> {
     }
     return Theme(
       data: _readerTheme!,
-      child: ReaderDisplay(child: scaffold),
+      child: ReaderDisplay(
+        keepAwake:
+            widget.repository.store.setting<bool>(
+              'keepScreenAwakeWhileReading',
+            ) ==
+            true,
+        child: scaffold,
+      ),
     );
   }
 }
