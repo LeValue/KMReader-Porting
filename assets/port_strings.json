@@ -662,5 +662,65 @@
     "zh-Hant": "允許頁面延伸至相機瀏海區域",
     "ru": "Разрешить странице заходить под вырез камеры",
     "es": "Extender la página bajo la muesca de la cámara"
+  },
+  "Background Downloads": {
+    "en": "Background Downloads",
+    "it": "Download in background",
+    "de": "Downloads im Hintergrund",
+    "fr": "Téléchargements en arrière-plan",
+    "ja": "バックグラウンドダウンロード",
+    "ko": "백그라운드 다운로드",
+    "zh-Hans": "后台下载",
+    "zh-Hant": "背景下載",
+    "ru": "Фоновые загрузки",
+    "es": "Descargas en segundo plano"
+  },
+  "Continue downloads when the app is closed": {
+    "en": "Continue downloads when the app is closed",
+    "it": "Continua i download quando l’app è chiusa",
+    "de": "Downloads bei geschlossener App fortsetzen",
+    "fr": "Continuer les téléchargements quand l’application est fermée",
+    "ja": "アプリを閉じてもダウンロードを続行",
+    "ko": "앱을 닫아도 다운로드 계속",
+    "zh-Hans": "关闭应用后继续下载",
+    "zh-Hant": "關閉應用程式後繼續下載",
+    "ru": "Продолжать загрузки после закрытия приложения",
+    "es": "Continuar las descargas al cerrar la aplicación"
+  },
+  "Unmetered Downloads Only": {
+    "en": "Unmetered Downloads Only",
+    "it": "Scarica solo su reti senza consumo",
+    "de": "Nur über ungetaktete Verbindungen laden",
+    "fr": "Télécharger uniquement sur les réseaux non limités",
+    "ja": "従量制課金のない回線のみ",
+    "ko": "무제한 네트워크에서만 다운로드",
+    "zh-Hans": "仅通过非按流量计费的网络下载",
+    "zh-Hant": "僅透過非計量付費網路下載",
+    "ru": "Только через сети без тарификации трафика",
+    "es": "Descargar solo en redes sin límite de datos"
+  },
+  "Download While Charging": {
+    "en": "Download While Charging",
+    "it": "Scarica solo durante la ricarica",
+    "de": "Nur während des Ladens herunterladen",
+    "fr": "Télécharger uniquement pendant la charge",
+    "ja": "充電中のみダウンロード",
+    "ko": "충전 중에만 다운로드",
+    "zh-Hans": "仅在充电时下载",
+    "zh-Hant": "僅在充電時下載",
+    "ru": "Загружать только во время зарядки",
+    "es": "Descargar solo durante la carga"
+  },
+  "Waiting for download conditions": {
+    "en": "Waiting for download conditions",
+    "it": "In attesa delle condizioni di download",
+    "de": "Warten auf Downloadbedingungen",
+    "fr": "En attente des conditions de téléchargement",
+    "ja": "ダウンロード条件を待機中",
+    "ko": "다운로드 조건 대기 중",
+    "zh-Hans": "正在等待下载条件",
+    "zh-Hant": "正在等待下載條件",
+    "ru": "Ожидание условий загрузки",
+    "es": "Esperando las condiciones de descarga"
   }
 }

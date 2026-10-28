@@ -126,3 +126,5 @@ dependency_overrides:
     path: third_party/flutter_inappwebview_android
   flutter_inappwebview_windows:
     path: third_party/flutter_inappwebview_windows
+  local_auth_windows:
+    path: third_party/local_auth_windows

@@ -127,7 +127,6 @@ class LocalStore {
         'progress',
         'downloads',
         'catalog_records',
-        'transfer_leases',
       ]) {
         db.execute('DELETE FROM $table WHERE server=?', [id]);
       }
@@ -336,6 +335,10 @@ class LocalStore {
   bool transferring(String server, String book) => db.select(
     'SELECT 1 FROM transfer_leases WHERE server=? AND book=? AND expires>?',
     [server, book, DateTime.now().millisecondsSinceEpoch],
+  ).isNotEmpty;
+  bool accountTransferring(String server) => db.select(
+    'SELECT 1 FROM transfer_leases WHERE server=? AND expires>? LIMIT 1',
+    [server, DateTime.now().millisecondsSinceEpoch],
   ).isNotEmpty;
   void releaseTransfer(String server, String book, String owner) => db.execute(
     'DELETE FROM transfer_leases WHERE server=? AND book=? AND owner=?',

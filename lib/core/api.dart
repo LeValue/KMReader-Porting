@@ -310,6 +310,7 @@ class KomgaApi {
         if (await metadata.exists()) await metadata.delete();
         throw const ApiFailure(
           'The server returned an invalid download range. Retry the download.',
+          retryable: true,
         );
       }
       total = int.parse(range[3]!);
@@ -353,7 +354,10 @@ class KomgaApi {
       if (response.contentLength != null &&
               transferred != response.contentLength ||
           total != null && received != total) {
-        throw const ApiFailure('The download was incomplete. Please retry.');
+        throw const ApiFailure(
+          'The download was incomplete. Please retry.',
+          retryable: true,
+        );
       }
       await partial.rename(target.path);
       if (await metadata.exists()) await metadata.delete();

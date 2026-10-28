@@ -3,34 +3,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
+export 'credentials.dart';
+
 import 'api.dart';
+import 'credentials.dart';
+import 'background_downloads.dart';
 import 'device_lock.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'store.dart';
-
-abstract class CredentialVault {
-  Future<String?> read(String id);
-  Future<void> write(String id, String value);
-  Future<void> delete(String id);
-}
-
-class SecureVault implements CredentialVault {
-  const SecureVault();
-  static const storage = FlutterSecureStorage();
-  @override
-  Future<String?> read(String id) => storage.read(key: 'server:$id');
-  @override
-  Future<void> write(String id, String value) =>
-      storage.write(key: 'server:$id', value: value);
-  @override
-  Future<void> delete(String id) => storage.delete(key: 'server:$id');
-}
 
 class AppController extends ChangeNotifier {
   AppController({
@@ -39,6 +24,10 @@ class AppController extends ChangeNotifier {
     required this.vault,
     this.apiFactory,
   });
+  late final BackgroundDownloads backgroundDownloads = BackgroundDownloads(
+    store,
+    directory,
+  );
   late final DeviceLock deviceLock = DeviceLock(store, SystemAuthenticator());
   final LocalStore store;
   final Directory directory;
@@ -77,6 +66,11 @@ class AppController extends ChangeNotifier {
       directory: dir,
       vault: const SecureVault(),
     );
+    try {
+      await controller.backgroundDownloads.initialize();
+    } catch (error) {
+      controller.backgroundDownloads.failure = error.toString();
+    }
     final last = controller.store.setting<String>('activeServer');
     final profile = controller.servers.where((s) => s.id == last).firstOrNull;
     if (profile != null) {
@@ -211,7 +205,9 @@ class AppController extends ChangeNotifier {
         'Saved credentials are unavailable. Sign in to this server again.',
       );
     }
-    repository?.dispose();
+    backgroundDownloads.attach(null);
+    await repository?.stopDownloadWork();
+    if (generation != _selection) return;
     repository = Repository(
       profile: profile,
       api: _api(Uri.parse(profile.url), profile.authentication, credential),
@@ -220,19 +216,31 @@ class AppController extends ChangeNotifier {
     );
     store.setSetting('activeServer', profile.id);
     startupError = null;
-    repository!.listen();
-    unawaited(repository!.sync());
+    repository!.offline = store.setting<bool>('offline:${profile.id}') == true;
+    backgroundDownloads.attach(repository);
+    if (!repository!.offline) {
+      repository!.listen();
+      unawaited(repository!.sync());
+    }
     notifyListeners();
   }
 
   Future<void> remove(ServerProfile profile) async {
     if (repository?.profile.id == profile.id) {
       _selection++;
-      repository?.dispose();
+      backgroundDownloads.attach(null);
+      await repository?.stopDownloadWork();
       repository = null;
     }
-    await vault.delete(profile.id);
+    // Tombstone first: a worker already running cannot recreate this account.
     store.removeServer(profile.id);
+    await backgroundDownloads.removeProfile(profile.id);
+    await vault.delete(profile.id);
+    // Running engines observe the tombstone, abort their streams, and release.
+    // A crashed process loses its bounded lease after at most 30 seconds.
+    while (store.accountTransferring(profile.id)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
     final dir = Directory(p.join(directory.path, profile.id));
     if (await dir.exists()) await dir.delete(recursive: true);
     notifyListeners();
@@ -240,6 +248,7 @@ class AppController extends ChangeNotifier {
 
   void disconnect() {
     _selection++;
+    backgroundDownloads.attach(null);
     repository?.dispose();
     repository = null;
     store.setSetting('activeServer', null);

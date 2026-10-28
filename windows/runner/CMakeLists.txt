@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "reader_ocr.cpp"
+  "background_downloads.cpp"
   "main.cpp"
   "utils.cpp"
   "win32_window.cpp"
@@ -41,4 +42,4 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
 # WinRT OCR and image decoding use installed Windows language packs.
-target_link_libraries(${BINARY_NAME} PRIVATE windowsapp)
+target_link_libraries(${BINARY_NAME} PRIVATE windowsapp taskschd oleaut32 advapi32)

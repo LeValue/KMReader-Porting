@@ -8,12 +8,13 @@
 
 #include "win32_window.h"
 #include "reader_ocr.h"
+#include "background_downloads.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
  public:
   // Creates a new FlutterWindow hosting a Flutter view running |project|.
-  explicit FlutterWindow(const flutter::DartProject& project);
+  explicit FlutterWindow(const flutter::DartProject& project, bool background = false);
   virtual ~FlutterWindow();
 
  protected:
@@ -24,6 +25,8 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  bool background_;
+  std::unique_ptr<BackgroundDownloads> background_downloads_;
   std::unique_ptr<ReaderOcr> reader_ocr_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> privacy_channel_;
 

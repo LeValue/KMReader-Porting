@@ -5,8 +5,8 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
-FlutterWindow::FlutterWindow(const flutter::DartProject& project)
-    : project_(project) {}
+FlutterWindow::FlutterWindow(const flutter::DartProject& project, bool background)
+    : background_(background), project_(project) {}
 
 FlutterWindow::~FlutterWindow() {}
 
@@ -26,6 +26,7 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  background_downloads_=std::make_unique<BackgroundDownloads>(flutter_controller_->engine()->messenger());
   reader_ocr_=std::make_unique<ReaderOcr>(flutter_controller_->engine()->messenger(),GetHandle());
   privacy_channel_=std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
     flutter_controller_->engine()->messenger(),"dev.levalue.kmreader/privacy",&flutter::StandardMethodCodec::GetInstance());
@@ -40,7 +41,7 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    if (!background_) this->Show();
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -52,6 +53,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  background_downloads_.reset();
   if(privacy_channel_) {privacy_channel_->SetMethodCallHandler(nullptr);privacy_channel_.reset();}
   reader_ocr_.reset();
   if (flutter_controller_) {

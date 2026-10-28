@@ -894,17 +894,17 @@ class Repository extends ChangeNotifier {
 
   void setOffline(bool value) {
     offline = value;
+    store.setSetting('offline:${profile.id}', value);
     if (offline) {
-      for (final id in downloading.keys.toList()) {
-        cancelDownload(id);
-      }
+      pauseDownloads();
       _eventReconnect?.cancel();
       _cancelEvents();
     } else {
       unawaited(sync());
       listen();
-      _pumpDownloads();
+      resumeDownloads();
     }
+    onDownloadQueueChanged?.call();
     changed();
   }
 
@@ -982,6 +982,7 @@ class Repository extends ChangeNotifier {
         );
       }
     }
+    _pumpDownloads();
   }
 
   void _pumpDownloads() {
@@ -1148,6 +1149,12 @@ class Repository extends ChangeNotifier {
       }
       if (!_disposed) store.saveDownload(profile.id, book, 'ready', size: size);
     } catch (e) {
+      if (!_disposed &&
+          (store.accountRemoved(profile.id) ||
+              store.download(profile.id, book.id)?['status'] == 'cancelled')) {
+        _pausing.remove(book.id);
+        _cancelled.add(book.id);
+      }
       if (!_disposed && leased) {
         store.saveDownload(
           profile.id,
