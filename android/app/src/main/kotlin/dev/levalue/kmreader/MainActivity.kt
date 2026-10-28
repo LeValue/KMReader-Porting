@@ -1,5 +1,11 @@
 package dev.levalue.kmreader
 
+import android.content.pm.ApplicationInfo
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.view.PixelCopy
+import java.io.ByteArrayOutputStream
 import android.os.Build
 import android.view.View
 import android.view.WindowInsets
@@ -40,7 +46,22 @@ class MainActivity : FlutterFragmentActivity() {
         readerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "dev.levalue.kmreader/reader_display")
         readerChannel!!.setMethodCallHandler { call, result ->
-            if (call.method == "setReaderMode" && call.arguments is Boolean) {
+            if (call.method == "captureScreenshot" &&
+                (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // PixelCopy captures WebView hybrid composition without replacing
+                // Flutter's rendering surface (which can stall test screenshots).
+                val bitmap = Bitmap.createBitmap(window.decorView.width, window.decorView.height, Bitmap.Config.ARGB_8888)
+                PixelCopy.request(window, bitmap, { status ->
+                    try {
+                        if (status != PixelCopy.SUCCESS) result.error("capture_failed", "PixelCopy failed: $status", null)
+                        else ByteArrayOutputStream().use { output ->
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+                            result.success(output.toByteArray())
+                        }
+                    } finally { bitmap.recycle() }
+                }, Handler(Looper.getMainLooper()))
+            } else if (call.method == "setReaderMode" && call.arguments is Boolean) {
                 setReaderMode(call.arguments as Boolean)
                 result.success(readerInsets())
             } else {
