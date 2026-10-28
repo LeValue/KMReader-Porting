@@ -58,7 +58,13 @@ void main() {
           if (ready()) return;
           await Future<void>.delayed(const Duration(milliseconds: 100));
         }
-        fail('Native EPUB did not reach its expected state.');
+        final labels = find
+            .byType(Text)
+            .evaluate()
+            .map((e) => (e.widget as Text).data)
+            .whereType<String>()
+            .join(' | ');
+        fail('Native EPUB did not reach its expected state. UI: $labels');
       }
 
       try {

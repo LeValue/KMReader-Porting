@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
     private var ocr: ReaderOcr? = null
+    private var privacyChannel: MethodChannel? = null
     private var readerActive = false
     private var previousCutout = 0
     private var previousVisibility = 0
@@ -26,6 +27,14 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
+        privacyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.levalue.kmreader/privacy")
+        privacyChannel!!.setMethodCallHandler { call, result ->
+            if (call.method == "setProtected" && call.arguments is Boolean) {
+                if (call.arguments as Boolean) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                result.success(null)
+            } else result.notImplemented()
+        }
         readerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "dev.levalue.kmreader/reader_display")
         readerChannel!!.setMethodCallHandler { call, result ->
@@ -150,6 +159,8 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        privacyChannel?.setMethodCallHandler(null)
+        privacyChannel = null
         ocr?.close()
         ocr = null
         window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(insetObserver)

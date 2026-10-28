@@ -8,6 +8,7 @@ import 'offline_catalog.dart';
 class LocalStore {
   LocalStore(this.db) {
     db.execute('PRAGMA foreign_keys=ON');
+    db.execute('PRAGMA busy_timeout=5000');
     db.execute('PRAGMA journal_mode=WAL');
     db.execute(
       '''CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)''',
@@ -59,7 +60,24 @@ class LocalStore {
         rethrow;
       }
     }
-    db.execute('PRAGMA user_version=3');
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS removed_accounts(server TEXT PRIMARY KEY)',
+    );
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS transfer_leases(server TEXT NOT NULL,book TEXT NOT NULL,owner TEXT NOT NULL,expires INTEGER NOT NULL,PRIMARY KEY(server,book))',
+    );
+    for (final table in [
+      'cache',
+      'progress',
+      'downloads',
+      'catalog_records',
+      'transfer_leases',
+    ]) {
+      db.execute(
+        'CREATE TRIGGER IF NOT EXISTS ${table}_removed_account BEFORE INSERT ON $table WHEN EXISTS(SELECT 1 FROM removed_accounts WHERE server=new.server) BEGIN SELECT RAISE(IGNORE); END',
+      );
+    }
+    db.execute('PRAGMA user_version=4');
   }
   final Database db;
   late final OfflineCatalog offlineCatalog;
@@ -81,20 +99,35 @@ class LocalStore {
         (r) => ServerProfile.fromJson(object(jsonDecode(r['value'] as String))),
       )
       .toList();
-  void saveServer(ServerProfile s) => db.execute(
-    'INSERT OR REPLACE INTO servers(id,value) VALUES(?,?)',
-    [s.id, jsonEncode(s.toJson())],
-  );
+  void saveServer(ServerProfile s) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      db.execute('DELETE FROM removed_accounts WHERE server=?', [s.id]);
+      db.execute('INSERT OR REPLACE INTO servers(id,value) VALUES(?,?)', [
+        s.id,
+        jsonEncode(s.toJson()),
+      ]);
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
   void removeServer(String id) {
     _progress.removeWhere((key, _) => key.startsWith('$id:'));
     db.execute('BEGIN IMMEDIATE');
     try {
+      db.execute('INSERT OR IGNORE INTO removed_accounts(server) VALUES(?)', [
+        id,
+      ]);
       db.execute('DELETE FROM servers WHERE id=?', [id]);
       for (final table in [
         'cache',
         'progress',
         'downloads',
         'catalog_records',
+        'transfer_leases',
       ]) {
         db.execute('DELETE FROM $table WHERE server=?', [id]);
       }
@@ -276,6 +309,43 @@ class LocalStore {
         ? null
         : object(jsonDecode(rows.first['value'] as String));
   }
+
+  bool accountRemoved(String server) => db.select(
+    'SELECT 1 FROM removed_accounts WHERE server=?',
+    [server],
+  ).isNotEmpty;
+  bool claimTransfer(
+    String server,
+    String book,
+    String owner, {
+    int? now,
+    int lifetime = 30000,
+  }) {
+    final stamp = now ?? DateTime.now().millisecondsSinceEpoch;
+    db.execute(
+      'INSERT INTO transfer_leases(server,book,owner,expires) VALUES(?,?,?,?) ON CONFLICT(server,book) DO UPDATE SET owner=excluded.owner,expires=excluded.expires WHERE transfer_leases.expires<=? OR transfer_leases.owner=excluded.owner',
+      [server, book, owner, stamp + lifetime, stamp],
+    );
+    return db.updatedRows == 1;
+  }
+
+  void refreshTransfer(String server, String book, String owner) => db.execute(
+    'UPDATE transfer_leases SET expires=? WHERE server=? AND book=? AND owner=?',
+    [DateTime.now().millisecondsSinceEpoch + 30000, server, book, owner],
+  );
+  bool transferring(String server, String book) => db.select(
+    'SELECT 1 FROM transfer_leases WHERE server=? AND book=? AND expires>?',
+    [server, book, DateTime.now().millisecondsSinceEpoch],
+  ).isNotEmpty;
+  void releaseTransfer(String server, String book, String owner) => db.execute(
+    'DELETE FROM transfer_leases WHERE server=? AND book=? AND owner=?',
+    [server, book, owner],
+  );
+  void downloadFraction(String server, String book, double fraction) =>
+      db.execute(
+        "UPDATE downloads SET value=json_set(value,'\$.fraction',?,'\$.status','downloading') WHERE server=? AND book=? AND json_extract(value,'\$.status') NOT IN ('cancelled','ready')",
+        [fraction, server, book],
+      );
 
   void deleteDownload(String server, String book) => db.execute(
     'DELETE FROM downloads WHERE server=? AND book=?',

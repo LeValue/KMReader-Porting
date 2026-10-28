@@ -16,10 +16,16 @@ with sync_playwright() as playwright:
     first = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
     assert first['pages'] > 1, first
     assert first['changed'] is False
+    page.set_viewport_size({'width': 421, 'height': 699})
     page.evaluate('window.reader.next()')
     second = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
     assert second['cfi'] != first['cfi'] and second['changed'] is True, second
     assert second['progression'] > first['progression'], (first, second)
+    import base64
+    snapshot = 'data:image/png;base64,' + base64.b64encode(page.screenshot()).decode()
+    for style in ['slide', 'cover', 'curl']:
+        page.evaluate('(value)=>window.reader.turn(value)', {'delta': 1, 'style': style, 'snapshot': snapshot})
+        assert not page.evaluate("Boolean(document.querySelector('#page-transition'))")
     page.evaluate('readerMessages.length=0')
     preferences = {**config['preferences'], 'fontSize': 28, 'columns': 1}
     page.evaluate('(value)=>window.reader.preferences(value)', preferences)

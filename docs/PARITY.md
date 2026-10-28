@@ -52,7 +52,7 @@ This is a development implementation, not a claim of a finished perfect port.
 ## Work in progress after 0.5.0
 
 The changes above are not part of the published 0.5.0 APK. The development
-branch passes 122 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
+branch passes 126 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
 and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
 added to Android and Windows CI; results are still pending. The Android WebView
 plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
@@ -78,3 +78,17 @@ corrections (redundant member qualifiers, a missing dependent-false template,
 and string mutators). See its `third_party/` patch notes. Native verification
 is being rerun; the previous emulator could not allocate its data partition
 after the build, so unused runner SDK images/NDKs are removed before boot.
+
+On the API 35 emulator, the new offline ML Kit OCR and portable ONNX upscaler
+passed native image tests. EPUB navigation exposed a resize/navigation race,
+now reproduced and fixed in the browser regression: the host owns resizing
+with numeric viewport dimensions, and waits for reflow before turning. EPUB
+transitions now run inside the visible browser rather than covering the native
+view during its layout work. Windows compilation is being rerun after the
+WebView join accumulator and local_auth's obsolete /await flag were corrected.
+
+The next background-download increment adds cross-connection transfer leases,
+pause/resume coordination and deletion tombstones that reject late writes from
+a removed account. Its OS scheduling integration remains in progress. App lock
+also protects OS capture/preview surfaces while enabled and avoids repeating
+a cancelled authentication prompt in the same foreground session.
