@@ -1,3 +1,4 @@
+import 'package:kmreader/core/background_downloads.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -93,3 +94,7 @@ class KMReaderApp extends StatelessWidget {
     },
   );
 }
+
+@pragma('vm:entry-point')
+Future<void> backgroundDownloadMain(List<String> arguments) =>
+    runWindowsDownloadWorker(arguments);

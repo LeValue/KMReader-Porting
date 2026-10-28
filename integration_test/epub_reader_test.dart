@@ -1,3 +1,5 @@
+import 'package:kmreader/core/background_downloads.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -18,9 +20,11 @@ import 'package:kmreader/ui/theme.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../test/support/epub_fixture.dart';
+import 'support/background_download_check.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  verifyNativeBackgroundDownloads();
   testWidgets(
     'native WebView paginates, persists CFI and reflows without moving saved progress',
     (tester) async {
@@ -216,3 +220,7 @@ void main() {
     }
   });
 }
+
+@pragma('vm:entry-point')
+Future<void> backgroundDownloadMain(List<String> arguments) =>
+    runWindowsDownloadWorker(arguments);

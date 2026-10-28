@@ -7,7 +7,7 @@ import 'package:crypto/crypto.dart';
 
 import 'package:http/http.dart' as http;
 
-import 'app_controller.dart';
+import 'credentials.dart';
 import 'models.dart';
 import 'store.dart';
 

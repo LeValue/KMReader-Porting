@@ -11,6 +11,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
+    private var transferConditions: TransferConditions? = null
     private var ocr: ReaderOcr? = null
     private var privacyChannel: MethodChannel? = null
     private var readerActive = false
@@ -26,6 +27,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        transferConditions = TransferConditions(this, flutterEngine.dartExecutor.binaryMessenger)
         ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
         privacyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.levalue.kmreader/privacy")
         privacyChannel!!.setMethodCallHandler { call, result ->
@@ -159,6 +161,8 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        transferConditions?.close()
+        transferConditions = null
         privacyChannel?.setMethodCallHandler(null)
         privacyChannel = null
         ocr?.close()

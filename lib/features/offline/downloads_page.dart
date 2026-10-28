@@ -53,7 +53,11 @@ class DownloadsPage extends StatelessWidget {
           itemBuilder: (context, index) {
             final item = items[index];
             final book = repository.overlay(Book(object(item['book'])));
-            final progress = repository.downloading[book.id];
+            final progress =
+                repository.downloading[book.id] ??
+                (item['status'] == 'downloading' && item['fraction'] is num
+                    ? (item['fraction'] as num).toDouble().clamp(0, 1)
+                    : null);
             final queued = repository.queued(book.id);
             return ListTile(
               contentPadding: const EdgeInsets.symmetric(
@@ -79,6 +83,8 @@ class DownloadsPage extends StatelessWidget {
                   Text(
                     progress != null
                         ? '${(progress * 100).round()}%'
+                        : item['status'] == 'paused'
+                        ? tr(context, 'Waiting for download conditions')
                         : queued
                         ? tr(context, 'Queued')
                         : item['status'] == 'ready'

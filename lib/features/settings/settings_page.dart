@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_controller.dart';
 import '../../core/models.dart';
+import '../../core/download_policy.dart';
 import '../../core/repository.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
@@ -178,6 +179,57 @@ class SettingsPage extends StatelessWidget {
                 title: Text(tr(context, 'Offline Mode')),
                 value: repository.offline,
                 onChanged: repository.setOffline,
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.downloading),
+                title: Text(tr(context, 'Background Downloads')),
+                subtitle: Text(
+                  tr(context, 'Continue downloads when the app is closed'),
+                ),
+                value: app.backgroundDownloads.policy.background,
+                onChanged: (value) {
+                  final policy = app.backgroundDownloads.policy;
+                  app.backgroundDownloads.setPolicy(
+                    DownloadPolicy(
+                      background: value,
+                      unmetered: policy.unmetered,
+                      charging: policy.charging,
+                    ),
+                  );
+                  repository.changed();
+                },
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.wifi),
+                title: Text(tr(context, 'Unmetered Downloads Only')),
+                value: app.backgroundDownloads.policy.unmetered,
+                onChanged: (value) {
+                  final policy = app.backgroundDownloads.policy;
+                  app.backgroundDownloads.setPolicy(
+                    DownloadPolicy(
+                      background: policy.background,
+                      unmetered: value,
+                      charging: policy.charging,
+                    ),
+                  );
+                  repository.changed();
+                },
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.battery_charging_full),
+                title: Text(tr(context, 'Download While Charging')),
+                value: app.backgroundDownloads.policy.charging,
+                onChanged: (value) {
+                  final policy = app.backgroundDownloads.policy;
+                  app.backgroundDownloads.setPolicy(
+                    DownloadPolicy(
+                      background: policy.background,
+                      unmetered: policy.unmetered,
+                      charging: value,
+                    ),
+                  );
+                  repository.changed();
+                },
               ),
               ListTile(
                 leading: repository.metadataIndexing
