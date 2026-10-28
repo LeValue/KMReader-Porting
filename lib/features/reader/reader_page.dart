@@ -1420,10 +1420,7 @@ class _PageImageState extends State<_PageImage>
   late Future<(Uint8List, PageCrop?)> _future;
   Future<(Uint8List, PageCrop?)> _load({bool refresh = false}) async {
     final bytes = refresh
-        ? await widget.repository.image(
-            '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages/${widget.page}',
-            refresh: true,
-          )
+        ? await widget.repository.refreshPage(widget.book.id, widget.page)
         : await widget.repository.page(widget.book.id, widget.page);
     return (bytes, await pageCrop(bytes, widget.preferences.borderCrop));
   }

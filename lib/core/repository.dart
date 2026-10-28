@@ -14,6 +14,7 @@ import 'cache.dart';
 import 'document_cache.dart';
 import 'page_formats.dart';
 import 'read_list_reading.dart';
+import 'server_event.dart';
 import '../features/reader/page_upscaler.dart';
 
 class Repository extends ChangeNotifier {
@@ -62,7 +63,19 @@ class Repository extends ChangeNotifier {
   late final ReadListReading readLists = ReadListReading(this);
   bool _syncing = false;
   bool _disposed = false;
-  StreamSubscription<String>? _events;
+  StreamSubscription<ServerEvent>? _events;
+  String? _lastEventId;
+  final imageChanges = ValueNotifier<Set<String>>({});
+  late final taskQueueStatus = ValueNotifier<Json>(
+    object(store.cached(profile.id, 'taskQueueStatus')),
+  );
+  String? _lastTaskQueue;
+  Timer? _taskQueueTimer, _imageEventTimer;
+  final _pendingImageEvents = <String>{};
+  Future<void> _imageMaintenance = Future.value();
+  int _imageOperation = 0;
+  final _imageRevalidations = <String, Future<void>>{};
+  final _byteVersions = <String, int>{};
   Timer? _refreshTimer, _reconnect;
   int revision = 0;
   int contentRevision = 0;
@@ -601,38 +614,206 @@ class Repository extends ChangeNotifier {
 
   Future<Uint8List> image(String path, {bool refresh = false}) =>
       _image(path, refresh: refresh);
+  Future<void> _imageFileOperation(
+    String path,
+    int version,
+    Uint8List bytes,
+  ) async {
+    final resource = 'media:${fileKey(path)}';
+    final owner = '$_transferOwner-${++_imageOperation}';
+    var leased = false;
+    Timer? heartbeat;
+    try {
+      while (!leased) {
+        if (_disposed || store.accountRemoved(profile.id)) return;
+        leased = store.claimTransfer(profile.id, resource, owner);
+        if (!leased) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      }
+      heartbeat = Timer.periodic(const Duration(seconds: 5), (timer) {
+        try {
+          store.refreshTransfer(profile.id, resource, owner);
+        } catch (_) {
+          timer.cancel();
+        }
+      });
+      if (_disposed || store.imageVersion(profile.id, path) != version) return;
+      final file = cachedFile(path);
+      await file.parent.create(recursive: true);
+      final partial = File(
+        '${file.path}.${fileKey(owner).substring(0, 16)}.part',
+      );
+      try {
+        await partial.writeAsBytes(bytes);
+        await partial.rename(file.path);
+        if (!_disposed) store.markImageStored(profile.id, path, version);
+      } on FileSystemException {
+        /* An optional cache write must not interrupt a displayed image. */
+      } finally {
+        if (await partial.exists()) await partial.delete();
+      }
+    } on FileSystemException {
+      // Storage availability must not discard an image received successfully.
+    } finally {
+      heartbeat?.cancel();
+      if (leased) {
+        try {
+          store.releaseTransfer(profile.id, resource, owner);
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<void> invalidateImage(String path) async {
+    if (_disposed) return;
+    store.advanceImageVersion(profile.id, path);
+    _bytes.remove(path);
+    _byteVersions.remove(path);
+  }
+
+  void _queueImageEvent(String path) {
+    _pendingImageEvents.add(path);
+    _imageEventTimer ??= Timer(const Duration(milliseconds: 150), () {
+      _imageEventTimer = null;
+      final paths = _pendingImageEvents.toSet();
+      _pendingImageEvents.clear();
+      _imageMaintenance = _imageMaintenance
+          .then((_) async {
+            await Future.wait(paths.map(invalidateImage));
+            if (!_disposed) imageChanges.value = paths;
+          })
+          .catchError((Object _) {});
+    });
+  }
+
+  void _revalidateImage(String path, Json state) {
+    if (_disposed ||
+        offline ||
+        _imageRevalidations.containsKey(path) ||
+        DateTime.now().millisecondsSinceEpoch - integer(state['validated']) <
+            const Duration(minutes: 30).inMilliseconds) {
+      return;
+    }
+    final version = integer(state['generation']);
+    final future = _imageRequests
+        .run('validate:$version:$path', () async {
+          if (_disposed ||
+              offline ||
+              store.imageVersion(profile.id, path) != version) {
+            return;
+          }
+          final result = await api.mediaBytes(
+            path,
+            etag: state['etag'] as String?,
+            modified: state['modified'] as String?,
+          );
+          if (_disposed || store.imageVersion(profile.id, path) != version) {
+            return;
+          }
+          if (result.notModified) {
+            store.imageValidated(
+              profile.id,
+              path,
+              version,
+              etag: result.etag,
+              modified: result.modified,
+            );
+            return;
+          }
+          final bytes = result.bytes!;
+          store.advanceImageVersion(profile.id, path);
+          final next = store.imageVersion(profile.id, path);
+          await _imageFileOperation(path, next, bytes);
+          if (_disposed || store.imageVersion(profile.id, path) != next) return;
+          store.imageValidated(
+            profile.id,
+            path,
+            next,
+            etag: result.etag,
+            modified: result.modified,
+          );
+          _bytes.put(path, bytes);
+          _byteVersions[path] = next;
+          imageChanges.value = {path};
+          _scheduleTrim();
+        }, speculative: true)
+        .catchError((Object _) {})
+        .whenComplete(() => _imageRevalidations.remove(path));
+    _imageRevalidations[path] = future;
+  }
+
   Future<Uint8List> _image(
     String path, {
     bool refresh = false,
     bool speculative = false,
   }) {
-    if (refresh) _bytes.remove(path);
+    if (_disposed) {
+      return Future.error(
+        const ApiFailure('The server connection was closed.'),
+      );
+    }
+    if (refresh) {
+      store.advanceImageVersion(profile.id, path);
+      _bytes.remove(path);
+      _byteVersions.remove(path);
+    }
+    final state = store.imageState(profile.id, path);
+    final version = integer(state['generation']);
     final cached = _bytes[path];
-    if (!refresh && cached != null) return SynchronousFuture(cached);
-    return _imageRequests.run(path, () async {
+    if (!refresh &&
+        cached != null &&
+        (offline || (_byteVersions[path] ?? 0) == version)) {
+      _revalidateImage(path, state);
+      return SynchronousFuture(cached);
+    }
+    return _imageRequests.run('$version:$path', () async {
       final file = cachedFile(path);
-      if (!refresh && await file.exists()) {
+      final storedVersion = store.storedImageVersion(profile.id, path);
+      if (!refresh &&
+          (offline || storedVersion == version) &&
+          await file.exists()) {
         try {
           final bytes = await file.readAsBytes();
           unawaited(
             file.setLastModified(DateTime.now()).catchError((Object _) => file),
           );
-          _bytes.put(path, bytes);
+          if (!_disposed && store.imageVersion(profile.id, path) == version) {
+            _bytes.put(path, bytes);
+            _byteVersions[path] = storedVersion;
+            _revalidateImage(path, state);
+          }
           return bytes;
         } on FileSystemException {
-          // A concurrent trim can remove an entry between lookup and read.
+          /* A concurrent trim can remove the entry. */
         }
       }
       if (offline) {
         throw const ApiFailure('Image unavailable offline.', offline: true);
       }
-      final bytes = await api.bytes(path);
-      await file.parent.create(recursive: true);
-      final partial = File('${file.path}.part');
-      await partial.writeAsBytes(bytes);
-      await partial.rename(file.path);
-      if (!_disposed) _bytes.put(path, bytes);
-      _scheduleTrim();
+      final result = await api.mediaBytes(path);
+      final bytes = result.bytes;
+      if (bytes == null) {
+        throw const ApiFailure('Unexpected empty image response.');
+      }
+      if (!_disposed) {
+        await _imageFileOperation(path, version, bytes);
+        if (!_disposed && store.imageVersion(profile.id, path) == version) {
+          store.imageValidated(
+            profile.id,
+            path,
+            version,
+            etag: result.etag,
+            modified: result.modified,
+          );
+          _bytes.put(path, bytes);
+          _byteVersions[path] = version;
+          if (_byteVersions.length > 512) {
+            _byteVersions.removeWhere((key, _) => !_bytes.containsKey(key));
+          }
+          _scheduleTrim();
+        }
+      }
       return bytes;
     }, speculative: speculative);
   }
@@ -650,6 +831,23 @@ class Repository extends ChangeNotifier {
       return _compatiblePage(id, page, bytes);
     }
     return _compatiblePage(id, page, await image(_pagePath(id, page)));
+  }
+
+  Future<Uint8List> refreshPage(String id, int number) async {
+    final path = '/api/v1/books/${Uri.encodeComponent(id)}/pages/$number';
+    final pending = _pageConversions[path];
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {}
+    }
+    await invalidateImage(path);
+    await invalidateImage('$path?convert=png');
+    return _compatiblePage(
+      id,
+      number,
+      await _image(_pagePath(id, number), refresh: true),
+    );
   }
 
   Future<Uint8List> prefetchPage(String id, int number) async {
@@ -929,30 +1127,65 @@ class Repository extends ChangeNotifier {
 
   void listen() {
     if (_disposed || offline || _events != null) return;
-    _events = api.events().listen(
-      (type) {
-        if (type == 'TaskQueueStatus') {
-          return;
-        }
-        _refreshTimer?.cancel();
-        _refreshTimer = Timer(
-          const Duration(milliseconds: 600),
-          refreshContent,
+    _events = api
+        .serverEvents(lastEventId: _lastEventId)
+        .listen(
+          (event) {
+            _lastEventId = event.id ?? _lastEventId;
+            final type = event.type;
+            final data = event.object;
+            if (type == 'TaskQueueStatus') {
+              if (data == null) return;
+              final encoded = jsonEncode(data);
+              if (encoded == _lastTaskQueue) return;
+              _lastTaskQueue = encoded;
+              taskQueueStatus.value = data;
+              _taskQueueTimer?.cancel();
+              _taskQueueTimer = Timer(const Duration(milliseconds: 300), () {
+                if (!_disposed) {
+                  store.cache(profile.id, 'taskQueueStatus', data);
+                }
+              });
+              return;
+            }
+            if (type.startsWith('Thumbnail')) {
+              if (data == null || data['selected'] == false) return;
+              final (kind, id) = type.startsWith('ThumbnailBook')
+                  ? ('books', text(data['bookId']))
+                  : type.startsWith('ThumbnailSeriesCollection')
+                  ? ('collections', text(data['collectionId']))
+                  : type.startsWith('ThumbnailSeries')
+                  ? ('series', text(data['seriesId']))
+                  : type.startsWith('ThumbnailReadList')
+                  ? ('readlists', text(data['readListId']))
+                  : ('', '');
+              if (kind.isNotEmpty && id.isNotEmpty) {
+                _queueImageEvent(
+                  '/api/v1/$kind/${Uri.encodeComponent(id)}/thumbnail',
+                );
+              }
+              return;
+            }
+            if (type == 'message') return;
+            _refreshTimer?.cancel();
+            _refreshTimer = Timer(
+              const Duration(milliseconds: 600),
+              refreshContent,
+            );
+          },
+          onError: (Object error) {
+            _events = null;
+            if (_disposed || offline) return;
+            _eventReconnect?.cancel();
+            _eventReconnect = Timer(const Duration(seconds: 10), listen);
+          },
+          onDone: () {
+            _events = null;
+            if (_disposed || offline) return;
+            _eventReconnect?.cancel();
+            _eventReconnect = Timer(const Duration(seconds: 10), listen);
+          },
         );
-      },
-      onError: (Object error) {
-        _events = null;
-        if (_disposed || offline) return;
-        _eventReconnect?.cancel();
-        _eventReconnect = Timer(const Duration(seconds: 10), listen);
-      },
-      onDone: () {
-        _events = null;
-        if (_disposed || offline) return;
-        _eventReconnect?.cancel();
-        _eventReconnect = Timer(const Duration(seconds: 10), listen);
-      },
-    );
   }
 
   Future<void> download(Book book) {
@@ -992,6 +1225,8 @@ class Repository extends ChangeNotifier {
         (future) => future.then<void>((_) {}, onError: (Object _) {}),
       ),
       _imageRequests.settled,
+      _imageMaintenance,
+      ..._imageRevalidations.values,
       documents.settled,
       pageUpscaler.settled,
       ..._pageConversions.values.map(
@@ -1258,6 +1493,8 @@ class Repository extends ChangeNotifier {
     pageUpscaler.close();
     _cacheEvents?.cancel();
     _cacheTrim?.cancel();
+    _taskQueueTimer?.cancel();
+    _imageEventTimer?.cancel();
     _disposed = true;
     _cancelEvents();
     _refreshTimer?.cancel();
@@ -1281,6 +1518,8 @@ class Repository extends ChangeNotifier {
     _queryValues.clear();
     _queryDates.clear();
     _queryGenerations.clear();
+    imageChanges.dispose();
+    taskQueueStatus.dispose();
     catalogChanges.dispose();
     api.close();
     super.dispose();

@@ -5,6 +5,15 @@ set -euo pipefail
 # never a corrupt staging directory, before starting Gradle or the emulator.
 km_ndk_version=28.2.13676358
 km_ndk_root="${ANDROID_HOME:?Android SDK is required}/ndk/$km_ndk_version"
+# Only a disposable Actions runner may discard its unused preinstalled NDKs.
+if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+  for km_unused_ndk in "$ANDROID_HOME"/ndk/*; do
+    if [[ -d "$km_unused_ndk" && "$km_unused_ndk" != "$km_ndk_root" ]]; then
+      rm -rf -- "$km_unused_ndk"
+    fi
+  done
+fi
+
 km_ndk_ready() {
   [[ -f "$km_ndk_root/source.properties" &&
      -x "$km_ndk_root/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" &&

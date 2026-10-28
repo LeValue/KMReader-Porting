@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show compute;
 
 import 'models.dart';
+import 'server_event.dart';
 
 class ApiFailure implements Exception {
   const ApiFailure(
@@ -207,8 +208,61 @@ class KomgaApi {
   }
 
   Future<Uint8List> bytes(String path) async {
-    final response = await send(path, extra: {'Accept': '*/*'});
-    return response.stream.toBytes().timeout(const Duration(seconds: 45));
+    final result = await mediaBytes(path);
+    if (result.bytes == null) {
+      throw const ApiFailure('Unexpected empty image response.');
+    }
+    return result.bytes!;
+  }
+
+  Future<({Uint8List? bytes, String? etag, String? modified, bool notModified})>
+  mediaBytes(String path, {String? etag, String? modified}) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        final response = await send(
+          path,
+          acceptedStatuses: const {304},
+          extra: {
+            'Accept': '*/*',
+            if (etag != null && etag.isNotEmpty)
+              'If-None-Match': etag
+            else if (modified != null && modified.isNotEmpty)
+              'If-Modified-Since': modified,
+          },
+        );
+        if (response.statusCode == 304) {
+          await response.stream.drain<void>();
+          return (
+            bytes: null,
+            etag: response.headers['etag'] ?? etag,
+            modified: response.headers['last-modified'] ?? modified,
+            notModified: true,
+          );
+        }
+        final bytes = await response.stream.toBytes().timeout(
+          const Duration(seconds: 45),
+        );
+        return (
+          bytes: bytes,
+          etag: response.headers['etag'],
+          modified: response.headers['last-modified'],
+          notModified: false,
+        );
+      } catch (error) {
+        final transient =
+            error is SocketException ||
+            error is HttpException ||
+            error is TimeoutException ||
+            (error is http.ClientException &&
+                error is! http.RequestAbortedException) ||
+            (error is ApiFailure &&
+                (error.retryable ||
+                    error.offline ||
+                    (error.status ?? 0) >= 500));
+        if (attempt >= 1 || _closed || !transient) rethrow;
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
+    }
   }
 
   Future<void> download(
@@ -420,19 +474,20 @@ class KomgaApi {
     }
   }
 
-  Stream<String> events() async* {
+  Stream<String> events() => serverEvents().map((event) => event.type);
+  Stream<ServerEvent> serverEvents({String? lastEventId}) async* {
     if (_closed) return;
     final response = await send(
       '/sse/v1/events',
-      extra: {'Accept': 'text/event-stream'},
+      extra: {
+        'Accept': 'text/event-stream',
+        if (lastEventId != null &&
+            lastEventId.isNotEmpty &&
+            !lastEventId.contains(RegExp(r'[\r\n\x00]')))
+          'Last-Event-ID': lastEventId,
+      },
     );
-    await for (final line
-        in response.stream
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())) {
-      if (_closed) return;
-      if (line.startsWith('event:')) yield line.substring(6).trim();
-    }
+    yield* decodeServerEvents(response.stream);
   }
 
   Future<Json> user() async => object(await request('/api/v2/users/me'));

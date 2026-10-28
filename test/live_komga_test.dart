@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:kmreader/core/api.dart';
+import 'package:kmreader/core/server_event.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
@@ -393,6 +394,13 @@ void main() {
         await tools.deleteList('collections', text(collection['id']));
         final emptyFolder = await Directory('${directory.path}/empty-library')
             .create();
+        final sseResponse = await api.send(
+          '/sse/v1/events',
+          extra: {'Accept': 'text/event-stream'},
+        );
+        final libraryEvent = decodeServerEvents(sseResponse.stream)
+            .firstWhere((event) => event.type == 'LibraryAdded')
+            .timeout(const Duration(seconds: 15));
         final newLibrary = object(
           await api.request(
             '/api/v1/libraries',
@@ -407,6 +415,7 @@ void main() {
             ),
           ),
         );
+        expect((await libraryEvent).object?['libraryId'], newLibrary['id']);
         await api.request(
           '/api/v1/libraries/${newLibrary['id']}',
           method: 'PATCH',
