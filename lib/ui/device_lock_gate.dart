@@ -64,8 +64,9 @@ class _DeviceLockGateState extends State<DeviceLockGate>
     if (background ||
         state == AppLifecycleState.inactive &&
             defaultTargetPlatform == TargetPlatform.windows) {
-      if (!widget.lock.busy && (background || !widget.lock.locked))
+      if (!widget.lock.busy && (background || !widget.lock.locked)) {
         _autoAttempted = false;
+      }
       widget.lock.lock();
     } else if (state == AppLifecycleState.resumed && !_autoAttempted) {
       _unlock();
