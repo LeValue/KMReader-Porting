@@ -13,6 +13,7 @@ import 'store.dart';
 import 'cache.dart';
 import 'page_formats.dart';
 import 'read_list_reading.dart';
+import '../features/reader/page_upscaler.dart';
 
 class Repository extends ChangeNotifier {
   Repository({
@@ -27,6 +28,7 @@ class Repository extends ChangeNotifier {
   final LocalStore store;
   final Directory directory;
   final DateTime Function() cacheClock;
+  late final PageUpscaler pageUpscaler = PageUpscaler(imageDirectory);
   bool offline = false;
   late final ReadListReading readLists = ReadListReading(this);
   bool _syncing = false;
@@ -158,6 +160,7 @@ class Repository extends ChangeNotifier {
   Future<void> clearImageCache() async {
     _bytes.clear();
     await trimMediaCache(imageDirectory, 0);
+    await trimMediaCache(Directory('${imageDirectory.path}/upscaled'), 0);
     changed();
   }
 
@@ -1100,6 +1103,7 @@ class Repository extends ChangeNotifier {
 
   @override
   void dispose() {
+    pageUpscaler.close();
     _cacheEvents?.cancel();
     _cacheTrim?.cancel();
     _disposed = true;

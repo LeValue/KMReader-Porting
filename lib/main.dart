@@ -26,6 +26,11 @@ Future<void> main() async {
       ], await rootBundle.loadString('assets/epub/$file'));
     }
   });
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Waifu2x portable model',
+    ], await rootBundle.loadString('assets/models/LICENSE'));
+  });
   await Strings.initialize();
   try {
     final app = await AppController.open();

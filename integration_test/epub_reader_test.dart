@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:kmreader/features/reader/reader_ocr.dart';
+import 'package:kmreader/features/reader/page_upscaler.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -172,4 +173,40 @@ void main() {
       }
     },
   );
+  testWidgets('native portable Waifu2x produces a cached 2x image', (
+    tester,
+  ) async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kmreader-native-upscale-',
+    );
+    final upscaler = PageUpscaler(directory);
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder)..drawColor(Colors.white, BlendMode.src);
+      canvas.drawRect(
+        const Rect.fromLTWH(0, 0, 11, 24),
+        Paint()..color = Colors.red,
+      );
+      final picture = recorder.endRecording(),
+          image = await picture.toImage(22, 24);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      picture.dispose();
+      final output = await upscaler.enhance(
+        data!.buffer.asUint8List(),
+        const Size(100, 100),
+      );
+      expect(output, isNotNull, reason: upscaler.error);
+      final codec = await ui.instantiateImageCodec(output!);
+      final result = (await codec.getNextFrame()).image;
+      expect(result.width, 44);
+      expect(result.height, 48);
+      result.dispose();
+      codec.dispose();
+    } finally {
+      upscaler.close();
+      await Future<void>.delayed(const Duration(seconds: 1));
+      await directory.delete(recursive: true);
+    }
+  });
 }
