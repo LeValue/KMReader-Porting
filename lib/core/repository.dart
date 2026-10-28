@@ -22,11 +22,21 @@ class Repository extends ChangeNotifier {
     required this.store,
     required this.directory,
     this.cacheClock = DateTime.now,
+    this.backgroundTransfer = false,
   });
   final ServerProfile profile;
   final KomgaApi api;
   final LocalStore store;
   final Directory directory;
+  final bool backgroundTransfer;
+  VoidCallback? onDownloadQueueChanged;
+  bool Function()? canTransfer;
+  final _transferOwner = sha256
+      .convert(List.generate(32, (_) => Random.secure().nextInt(256)))
+      .toString();
+  final _activeTransfers = <String, Future<void>>{};
+  final _pausing = <String>{};
+  bool _downloadSuspended = false;
   final DateTime Function() cacheClock;
   late final PageUpscaler pageUpscaler = PageUpscaler(imageDirectory);
   bool offline = false;
@@ -186,6 +196,7 @@ class Repository extends ChangeNotifier {
           [
             'queued',
             'downloading',
+            'paused',
           ].contains(store.download(profile.id, id)?['status']);
   int get pendingCount => store.pendingCount(profile.id);
   bool get closed => _disposed;
@@ -936,15 +947,36 @@ class Repository extends ChangeNotifier {
     final task = Completer<void>();
     _downloadTasks[book.id] = task;
     _downloadQueue.add(book);
-    store.saveDownload(profile.id, book, 'queued');
+    if (!store.transferring(profile.id, book.id)) {
+      store.saveDownload(profile.id, book, 'queued');
+    }
+    onDownloadQueueChanged?.call();
     changed();
     _pumpDownloads();
     return task.future;
   }
 
+  void pauseDownloads() {
+    _downloadSuspended = true;
+    for (final book in _downloadTasks.keys.toList()) {
+      _pausing.add(book);
+      _cancelled.add(book);
+      final abort = _downloadAborts[book];
+      if (abort != null && !abort.isCompleted) abort.complete();
+    }
+    changed();
+  }
+
+  Future<void> stopDownloadWork() async {
+    final active = _activeTransfers.values.toList();
+    dispose();
+    await Future.wait(active.map((f) => f.catchError((Object _) {})));
+  }
+
   void resumeDownloads() {
+    _downloadSuspended = false;
     for (final row in store.downloads(profile.id)) {
-      if (['queued', 'downloading'].contains(row['status'])) {
+      if (['queued', 'downloading', 'paused'].contains(row['status'])) {
         unawaited(
           download(Book(object(row['book']))).catchError((Object _) {}),
         );
@@ -953,37 +985,93 @@ class Repository extends ChangeNotifier {
   }
 
   void _pumpDownloads() {
-    if (_disposed || offline) return;
-    while (downloading.length < downloadConcurrency &&
+    if (_disposed ||
+        offline ||
+        _downloadSuspended ||
+        !(canTransfer?.call() ?? true)) {
+      return;
+    }
+    while (_activeTransfers.length < downloadConcurrency &&
         _downloadQueue.isNotEmpty) {
       final book = _downloadQueue.removeAt(0);
-      final task = _downloadTasks[book.id]!;
-      unawaited(
-        _downloadBook(book)
-            .then<void>(
-              (_) {
-                if (!task.isCompleted) task.complete();
-              },
-              onError: (Object e, StackTrace stack) {
-                if (!task.isCompleted) task.completeError(e, stack);
-              },
-            )
-            .whenComplete(() {
-              _downloadTasks.remove(book.id);
-              _pumpDownloads();
-            }),
-      );
+      // Read by id independently of mutations to the pending queue.
+      final completion = _downloadTasks[book.id];
+      if (completion == null) continue;
+      var paused = false;
+      final future = _downloadBook(book)
+          .then<void>(
+            (_) {
+              if (!completion.isCompleted) completion.complete();
+            },
+            onError: (Object error, StackTrace stack) {
+              if (error is _TransferPaused && !_disposed) {
+                paused = true;
+                _downloadQueue.add(book);
+              } else if (!completion.isCompleted) {
+                completion.completeError(error, stack);
+              }
+            },
+          )
+          .whenComplete(() {
+            _activeTransfers.remove(book.id);
+            if (!paused) _downloadTasks.remove(book.id);
+            if (!_disposed) onDownloadQueueChanged?.call();
+            _pumpDownloads();
+          });
+      _activeTransfers[book.id] = future;
+    }
+  }
+
+  Future<void> _transferLease(Book book) async {
+    while (true) {
+      if (_disposed ||
+          _cancelled.contains(book.id) ||
+          store.accountRemoved(profile.id)) {
+        throw const ApiFailure('Download cancelled.');
+      }
+      if (store.claimTransfer(profile.id, book.id, _transferOwner)) return;
+      if (backgroundTransfer) throw const TransferBusy();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
     }
   }
 
   Future<void> _downloadBook(Book book) async {
     _cancelled.remove(book.id);
+    _pausing.remove(book.id);
+    var leased = false;
+    Timer? heartbeat;
+    var lastStored = DateTime.fromMillisecondsSinceEpoch(0);
+    void fraction() {
+      if (!_disposed &&
+          DateTime.now().difference(lastStored).inMilliseconds >= 300) {
+        store.downloadFraction(profile.id, book.id, downloading[book.id] ?? 0);
+        lastStored = DateTime.now();
+      }
+    }
+
     final abort = Completer<void>();
     _downloadAborts[book.id] = abort;
-    downloading[book.id] = 0;
-    store.saveDownload(profile.id, book, 'downloading');
-    changed();
     try {
+      await _transferLease(book);
+      leased = true;
+      if (store.download(profile.id, book.id)?['status'] == 'ready' &&
+          await bookFile(book).exists()) {
+        return;
+      }
+      if (_disposed) throw const ApiFailure('Download cancelled.');
+      downloading[book.id] = 0;
+      store.saveDownload(profile.id, book, 'downloading');
+      changed();
+      heartbeat = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+        if (_disposed) return;
+        final row = store.download(profile.id, book.id);
+        if (store.accountRemoved(profile.id) || row?['status'] == 'cancelled') {
+          _cancelled.add(book.id);
+          if (!abort.isCompleted) abort.complete();
+        } else if (timer.tick % 10 == 0) {
+          store.refreshTransfer(profile.id, book.id, _transferOwner);
+        }
+      });
       try {
         await Future.any([
           image('/api/v1/books/${Uri.encodeComponent(book.id)}/thumbnail'),
@@ -1003,6 +1091,7 @@ class Repository extends ChangeNotifier {
             downloading[book.id] = total == null || total == 0
                 ? 0
                 : count / total * .5;
+            fraction();
             changed();
           },
           cancelled: () => _cancelled.contains(book.id),
@@ -1040,6 +1129,7 @@ class Repository extends ChangeNotifier {
           if (DateTime.now().difference(lastNotification).inMilliseconds >=
                   100 ||
               i == book.pages) {
+            fraction();
             changed();
             lastNotification = DateTime.now();
           }
@@ -1058,16 +1148,30 @@ class Repository extends ChangeNotifier {
       }
       if (!_disposed) store.saveDownload(profile.id, book, 'ready', size: size);
     } catch (e) {
-      if (!_disposed) {
+      if (!_disposed && leased) {
         store.saveDownload(
           profile.id,
           book,
-          _cancelled.contains(book.id) ? 'cancelled' : 'failed',
+          _pausing.contains(book.id)
+              ? 'paused'
+              : _cancelled.contains(book.id)
+              ? 'cancelled'
+              : 'failed',
           error: e.toString(),
         );
       }
+      if (_pausing.contains(book.id)) throw const _TransferPaused();
       rethrow;
     } finally {
+      heartbeat?.cancel();
+      if (leased) {
+        try {
+          store.releaseTransfer(profile.id, book.id, _transferOwner);
+        } catch (_) {
+          /* A closed foreground profile leaves a bounded lease for recovery. */
+        }
+      }
+      _pausing.remove(book.id);
       downloading.remove(book.id);
       _downloadAborts.remove(book.id);
       changed();
@@ -1075,19 +1179,22 @@ class Repository extends ChangeNotifier {
   }
 
   void cancelDownload(String id) {
+    _pausing.remove(id);
     _cancelled.add(id);
     final abort = _downloadAborts[id];
     if (abort != null && !abort.isCompleted) abort.complete();
-    if (downloading.containsKey(id)) return;
+    final active = _activeTransfers.containsKey(id);
     _downloadQueue.removeWhere((b) => b.id == id);
-    final task = _downloadTasks.remove(id);
+    final task = active ? null : _downloadTasks.remove(id);
     if (task != null && !task.isCompleted) {
       task.completeError(const ApiFailure('Download cancelled.'));
     }
     final row = store.download(profile.id, id);
-    if (row != null && ['queued', 'downloading'].contains(row['status'])) {
+    if (row != null &&
+        ['queued', 'downloading', 'paused'].contains(row['status'])) {
       store.saveDownload(profile.id, Book(object(row['book'])), 'cancelled');
     }
+    onDownloadQueueChanged?.call();
     changed();
   }
 
@@ -1095,14 +1202,22 @@ class Repository extends ChangeNotifier {
     if (downloading.containsKey(id) || _downloadQueue.any((b) => b.id == id)) {
       throw const ApiFailure('Cancel the active download first.');
     }
+    for (var i = 0; store.transferring(profile.id, id) && i < 10; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    if (store.transferring(profile.id, id)) {
+      throw const ApiFailure('Wait for the active download to stop.');
+    }
     final dir = bookDirectory(id);
     if (await dir.exists()) await dir.delete(recursive: true);
     store.deleteDownload(profile.id, id);
+    onDownloadQueueChanged?.call();
     changed();
   }
 
   @override
   void dispose() {
+    if (_disposed) return;
     pageUpscaler.close();
     _cacheEvents?.cancel();
     _cacheTrim?.cancel();
@@ -1133,4 +1248,12 @@ class Repository extends ChangeNotifier {
     api.close();
     super.dispose();
   }
+}
+
+class TransferBusy implements Exception {
+  const TransferBusy();
+}
+
+class _TransferPaused implements Exception {
+  const _TransferPaused();
 }

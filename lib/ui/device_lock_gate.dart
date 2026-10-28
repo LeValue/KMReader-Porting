@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../core/device_lock.dart';
 import 'strings.dart';
@@ -15,25 +17,57 @@ class DeviceLockGate extends StatefulWidget {
 
 class _DeviceLockGateState extends State<DeviceLockGate>
     with WidgetsBindingObserver {
+  static const _privacy = MethodChannel('dev.levalue.kmreader/privacy');
+  bool? _protected;
+  bool _autoAttempted = false;
+  void _protect() {
+    if (_protected == widget.lock.enabled) return;
+    _protected = widget.lock.enabled;
+    unawaited(
+      _privacy
+          .invokeMethod<void>('setProtected', widget.lock.enabled)
+          .catchError((Object _) {}),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.lock.addListener(_protect);
+    _protect();
     WidgetsBinding.instance.addPostFrameCallback((_) => _unlock());
   }
 
+  @override
+  void didUpdateWidget(DeviceLockGate old) {
+    super.didUpdateWidget(old);
+    if (old.lock != widget.lock) {
+      old.lock.removeListener(_protect);
+      widget.lock.addListener(_protect);
+      _protected = null;
+      _protect();
+    }
+  }
+
   void _unlock() {
-    if (mounted && widget.lock.locked) {
+    if (mounted && widget.lock.locked && !widget.lock.busy) {
+      _autoAttempted = true;
       unawaited(widget.lock.unlock(tr(context, 'Unlock KMReader')));
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
+    final background =
+        state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
+    if (background ||
+        state == AppLifecycleState.inactive &&
+            defaultTargetPlatform == TargetPlatform.windows) {
+      if (!widget.lock.busy && (background || !widget.lock.locked))
+        _autoAttempted = false;
       widget.lock.lock();
-    } else if (state == AppLifecycleState.resumed) {
+    } else if (state == AppLifecycleState.resumed && !_autoAttempted) {
       _unlock();
     }
   }
@@ -41,6 +75,7 @@ class _DeviceLockGateState extends State<DeviceLockGate>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.lock.removeListener(_protect);
     super.dispose();
   }
 

@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
-  let restoring = true, disposed = false, userMove = false, relocationTimer, resizeTimer;
+  let restoring = true, disposed = false, userMove = false, relocationTimer, resizeTimer = null, layoutJobs = 0;
   const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const send = (type, value = {}) => {
     if (disposed || !config) return;
@@ -119,16 +119,24 @@
       if (!selection.isCollapsed && selection.toString().trim()) send('selection', {text: selection.toString().slice(0, 16000)});
     });
   }
+  async function waitForLayout() {
+    const deadline = Date.now() + 10000;
+    while (restoring || resizeTimer !== null || layoutJobs > 0) {
+      if (disposed) return;
+      if (Date.now() > deadline) throw new Error('The EPUB layout did not settle.');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
   async function preserve(change) {
     if (!rendition) return;
     const cfi = anchor || (location && location.start.cfi);
-    restoring = true; userMove = false; clearTimeout(relocationTimer);
+    layoutJobs++; restoring = true; userMove = false; clearTimeout(relocationTimer);
     try {
       await change();
       await stable(rendition.getContents());
       if (cfi) await rendition.display(cfi);
       await tick();
-    } finally { restoring = false; position(false); }
+    } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); }
   }
   function setPreferences(value) {
     preferences = value;
@@ -145,14 +153,16 @@
     });
   }
   async function next() {
-    if (!rendition || restoring || auxiliary) return;
+    if (!rendition || auxiliary) return;
+    await waitForLayout();
     if (location && location.atEnd) { send('end'); return; }
     restoring = true;
     try { await rendition.next(); await stable(rendition.getContents()); }
     finally { restoring = false; userMove = false; position(true); }
   }
   async function previous() {
-    if (!rendition || restoring || auxiliary) return;
+    if (!rendition || auxiliary) return;
+    await waitForLayout();
     restoring = true;
     try { await rendition.prev(); await stable(rendition.getContents()); }
     finally { restoring = false; userMove = false; position(true); }
@@ -162,6 +172,36 @@
     restoring = true;
     try { await rendition.display(target); await stable(rendition.getContents()); }
     finally { restoring = false; userMove = false; position(changed); }
+  }
+  async function turn(value) {
+    if (!rendition || auxiliary) return;
+    await waitForLayout();
+    const move = value.delta > 0 ? next : previous;
+    if (!value.snapshot || value.style === 'none' || (value.delta > 0 && location.atEnd)) return move();
+    if (!/^data:image\/(jpeg|png);base64,/.test(value.snapshot)) return move();
+    // Keep the native WebView visible: a Flutter raster overlay can suspend
+    // its animation-frame callbacks before pagination has settled.
+    const image = new Image(); image.src = value.snapshot;
+    try { await timeout(image.decode(), 250); } catch (_) { return move(); }
+    image.id = 'page-transition';
+    Object.assign(image.style, {position:'fixed',inset:'0',width:'100%',height:'100%',zIndex:'1000',pointerEvents:'none',objectFit:'fill'});
+    document.body.appendChild(image);
+    const viewer = document.getElementById('viewer');
+    try {
+      await tick(); await move();
+      const sign = (value.delta > 0) !== (config.direction === 'rtl') ? -1 : 1;
+      const timing = {duration:190,easing:'cubic-bezier(.2,.7,.2,1)',fill:'forwards'};
+      let old;
+      if (value.style === 'curl') {
+        image.style.transformOrigin = sign < 0 ? 'left center' : 'right center';
+        old = image.animate([{transform:'perspective(1200px) rotateY(0deg)',filter:'brightness(1)'},
+          {transform:`perspective(1200px) rotateY(${sign*100}deg)`,filter:'brightness(.7)'}],timing);
+      } else old = image.animate([{transform:'translateX(0)'},{transform:`translateX(${sign*100}%)`}],timing);
+      let incoming;
+      if (value.style === 'slide') incoming = viewer.animate([{transform:`translateX(${-sign*100}%)`},{transform:'translateX(0)'}],timing);
+      await old.finished;
+      if (incoming) {await incoming.finished;incoming.cancel();}
+    } finally {image.remove();}
   }
   async function legacyProgress(progression) {
     const contents = rendition.getContents()[0];
@@ -184,7 +224,7 @@
     document.getElementById('viewer').style.background = colors()[0];
     book = ePub(value.url, {openAs: 'opf', replacements: 'none'});
     await book.ready;
-    rendition = book.renderTo('viewer', {width: '100%', height: '100%',
+    rendition = book.renderTo('viewer', {width: window.innerWidth, height: window.innerHeight, resizeOnOrientationChange: false,
       flow: preferences.flow === 'scrolled' ? 'scrolled-doc' : 'paginated',
       spread: preferences.columns === 1 ? 'none' : preferences.columns === 2 ? 'always' : 'auto',
       minSpreadWidth: 800, gap: preferences.margin * 2, direction: value.direction,
@@ -210,7 +250,7 @@
     window.addEventListener('resize', () => {
       restoring = true;
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => preserve(() => rendition.resize(window.innerWidth, window.innerHeight)), 150);
+      resizeTimer = setTimeout(() => { resizeTimer = null; preserve(() => rendition.resize(window.innerWidth, window.innerHeight)); }, 150);
     });
   }
   async function search(term) {
@@ -245,6 +285,6 @@
     }, true);
     send('auxiliary', {active: true});
   }
-  window.reader = {open, next, previous, display, preferences: setPreferences, search, openAuxiliary, closeAuxiliary,
+  window.reader = {open, next, previous, turn, display, preferences: setPreferences, search, openAuxiliary, closeAuxiliary,
     position: () => location, destroy: () => { disposed = true; clearTimeout(relocationTimer); clearTimeout(resizeTimer); if (rendition) rendition.destroy(); if (book) book.destroy(); }};
 })();

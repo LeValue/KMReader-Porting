@@ -18,7 +18,6 @@ import '../../ui/theme.dart';
 import 'epub_document.dart';
 import 'epub_session.dart';
 import 'reader_display.dart';
-import 'page_transition.dart';
 import 'tap_zones.dart';
 import 'reader_text_page.dart';
 
@@ -46,8 +45,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   InAppWebViewController? _browser;
   WebViewEnvironment? _environment;
   bool _initialized = false, _controls = true;
+  final _closed = Completer<void>();
   String? _error, _selection;
-  final _transition = GlobalKey<ReaderPageTransitionState>();
+  bool _turning = false;
+  final _turns = <int>[];
   ThemeData? _readerTheme;
   Brightness? _readerBrightness;
   final _nonce = base64Url.encode(
@@ -99,11 +100,32 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Future<dynamic> _call(String method, [dynamic value]) async {
     if (_browser == null || !mounted) return null;
     try {
-      final result = await _browser!.callAsyncJavaScript(
+      assert(() {
+        debugPrint('EPUB command $method started');
+        return true;
+      }());
+      final work = _browser!.callAsyncJavaScript(
         functionBody:
             'return await window.reader.$method(${value == null ? '' : jsonEncode(value)});',
       );
+      final result =
+          await Future.any<CallAsyncJavaScriptResult?>([
+            work,
+            _closed.future.then((_) => null),
+          ]).timeout(
+            Duration(
+              seconds: method == 'search'
+                  ? 60
+                  : method == 'open'
+                  ? 30
+                  : 12,
+            ),
+          );
       if (result?.error != null) throw StateError(result!.error!);
+      assert(() {
+        debugPrint('EPUB command $method completed');
+        return true;
+      }());
       return result?.value;
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -120,20 +142,37 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Future<void> _turn(int delta) async {
     final session = _session;
     if (session == null || !session.ready || session.auxiliary) return;
-    Future<void> move() async {
-      await _call(delta > 0 ? 'next' : 'previous');
-    }
-
-    final transition = _transition.currentState;
-    if (transition == null) {
-      await move();
+    if (_turning) {
+      if (_turns.length < 8) _turns.add(delta);
       return;
     }
-    await transition.turn(
-      session.preferences.transition,
-      session.host.direction == 'rtl' ? -delta : delta,
-      move,
-    );
+    _turning = true;
+    try {
+      Uint8List? snapshot;
+      if (session.preferences.transition != 'none') {
+        try {
+          snapshot = await _browser
+              ?.takeScreenshot(
+                screenshotConfiguration: ScreenshotConfiguration(
+                  compressFormat: CompressFormat.JPEG,
+                  quality: 85,
+                ),
+              )
+              .timeout(const Duration(milliseconds: 250));
+        } catch (_) {
+          /* A missing animation snapshot must never block a page. */
+        }
+      }
+      await _call('turn', {
+        'delta': delta,
+        'style': session.preferences.transition,
+        if (snapshot != null)
+          'snapshot': 'data:image/jpeg;base64,${base64Encode(snapshot)}',
+      });
+    } finally {
+      _turning = false;
+      if (mounted && _turns.isNotEmpty) unawaited(_turn(_turns.removeAt(0)));
+    }
   }
 
   void _event(dynamic value) {
@@ -144,6 +183,14 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return;
     }
     final event = object(value);
+    assert(() {
+      if (event['type'] == 'position') {
+        debugPrint(
+          'EPUB position: page=${event['page']} pages=${event['pages']} valid=${event['progression'] is num} changed=${event['changed']}',
+        );
+      }
+      return true;
+    }());
     switch (event['type']) {
       case 'turn':
         unawaited(_turn(integer(event['delta'], 1)));
@@ -723,6 +770,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   @override
   void dispose() {
+    if (!_closed.isCompleted) _closed.complete();
     _session?.removeListener(_changed);
     unawaited(_session?.close() ?? Future.value());
     super.dispose();
@@ -814,8 +862,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             bottom: !_controls,
             child: Column(
               children: [
-                if (!session.ready && _error == null)
-                  const LinearProgressIndicator(),
                 if (_error != null)
                   MaterialBanner(
                     content: Text(_error!),
@@ -827,81 +873,70 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                     ],
                   ),
                 Expanded(
-                  child: ReaderPageTransition(
-                    key: _transition,
-                    capture: () =>
-                        _browser?.takeScreenshot(
-                          screenshotConfiguration: ScreenshotConfiguration(
-                            compressFormat: CompressFormat.JPEG,
-                            quality: 92,
-                          ),
-                        ) ??
-                        Future.value(),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        InAppWebView(
-                          webViewEnvironment: _environment,
-                          initialUrlRequest: URLRequest(
-                            url: WebUri(session.host.reader.toString()),
-                          ),
-                          initialSettings: InAppWebViewSettings(
-                            javaScriptEnabled: true,
-                            allowFileAccess: false,
-                            allowContentAccess: false,
-                            useShouldOverrideUrlLoading: true,
-                            transparentBackground: false,
-                            supportZoom: false,
-                            isInspectable: false,
-                          ),
-                          onWebViewCreated: (controller) {
-                            _browser = controller;
-                            controller.addJavaScriptHandler(
-                              handlerName: 'readerEvent',
-                              callback: (args) {
-                                if (args.isNotEmpty) _event(args.first);
-                                return null;
-                              },
-                            );
-                          },
-                          onLoadStop: (_, _) => _load(),
-                          shouldOverrideUrlLoading: (controller, action) async {
-                            final uri = action.request.url;
-                            if (uri == null) {
-                              return NavigationActionPolicy.CANCEL;
-                            }
-                            if (!action.isForMainFrame &&
-                                uri.scheme == 'about' &&
-                                ['blank', 'srcdoc'].contains(uri.path)) {
-                              return NavigationActionPolicy.ALLOW;
-                            }
-                            if (!action.isForMainFrame &&
-                                uri.scheme == 'blob' &&
-                                uri.path.startsWith(session.host.base.origin)) {
-                              return NavigationActionPolicy.ALLOW;
-                            }
-                            return uri.scheme == session.host.base.scheme &&
-                                    uri.authority ==
-                                        session.host.base.authority &&
-                                    uri.path.startsWith(session.host.base.path)
-                                ? NavigationActionPolicy.ALLOW
-                                : NavigationActionPolicy.CANCEL;
-                          },
-                          onReceivedError: (_, request, error) {
-                            if (request.isForMainFrame == true && mounted) {
-                              setState(() => _error = error.description);
-                            }
-                          },
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      InAppWebView(
+                        webViewEnvironment: _environment,
+                        initialUrlRequest: URLRequest(
+                          url: WebUri(session.host.reader.toString()),
                         ),
-                        if (!session.ready)
-                          ColoredBox(
-                            color: background,
-                            child: const Center(
-                              child: CircularProgressIndicator.adaptive(),
-                            ),
+                        initialSettings: InAppWebViewSettings(
+                          javaScriptEnabled: true,
+                          allowFileAccess: false,
+                          allowContentAccess: false,
+                          useShouldOverrideUrlLoading: true,
+                          transparentBackground: false,
+                          supportZoom: false,
+                          isInspectable: false,
+                        ),
+                        onWebViewCreated: (controller) {
+                          _browser = controller;
+                          controller.addJavaScriptHandler(
+                            handlerName: 'readerEvent',
+                            callback: (args) {
+                              if (args.isNotEmpty) _event(args.first);
+                              return null;
+                            },
+                          );
+                        },
+                        onLoadStop: (_, _) => _load(),
+                        shouldOverrideUrlLoading: (controller, action) async {
+                          final uri = action.request.url;
+                          if (uri == null) {
+                            return NavigationActionPolicy.CANCEL;
+                          }
+                          if (!action.isForMainFrame &&
+                              uri.scheme == 'about' &&
+                              ['blank', 'srcdoc'].contains(uri.path)) {
+                            return NavigationActionPolicy.ALLOW;
+                          }
+                          if (!action.isForMainFrame &&
+                              uri.scheme == 'blob' &&
+                              uri.path.startsWith(session.host.base.origin)) {
+                            return NavigationActionPolicy.ALLOW;
+                          }
+                          return uri.scheme == session.host.base.scheme &&
+                                  uri.authority ==
+                                      session.host.base.authority &&
+                                  uri.path.startsWith(session.host.base.path)
+                              ? NavigationActionPolicy.ALLOW
+                              : NavigationActionPolicy.CANCEL;
+                        },
+                        onReceivedError: (_, request, error) {
+                          if (request.isForMainFrame == true && mounted) {
+                            setState(() => _error = error.description);
+                          }
+                        },
+                      ),
+                      if (!session.ready)
+                        ColoredBox(
+                          color: background,
+                          child: const Center(
+                            child: CircularProgressIndicator.adaptive(),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ),
                 if (_controls)
@@ -917,6 +952,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         Expanded(
                           child: Text(
                             '${session.document.chapters[session.chapter].title} · ${session.page}/${session.pages}',
+                            key: const ValueKey('epub-position'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,

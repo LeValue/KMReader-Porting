@@ -18,11 +18,11 @@ namespace flutter_inappwebview_plugin
     Size2D(const flutter::EncodableMap& map);
     ~Size2D() = default;
 
-    bool operator==(const Size2D& other)
+    bool operator==(const Size2D& other) const
     {
       return width == other.width && height == other.height;
     }
-    bool operator!=(const Size2D& other)
+    bool operator!=(const Size2D& other) const
     {
       return !(*this == other);
     }

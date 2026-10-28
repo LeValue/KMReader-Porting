@@ -1,6 +1,7 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -26,6 +27,16 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   reader_ocr_=std::make_unique<ReaderOcr>(flutter_controller_->engine()->messenger(),GetHandle());
+  privacy_channel_=std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+    flutter_controller_->engine()->messenger(),"dev.levalue.kmreader/privacy",&flutter::StandardMethodCodec::GetInstance());
+  privacy_channel_->SetMethodCallHandler([this](const auto& call,auto result) {
+    const auto* enabled=call.arguments()?std::get_if<bool>(call.arguments()):nullptr;
+    if(call.method_name()!="setProtected" || !enabled) {result->NotImplemented();return;}
+    if(!SetWindowDisplayAffinity(GetHandle(),*enabled?WDA_EXCLUDEFROMCAPTURE:WDA_NONE) && *enabled) {
+      SetWindowDisplayAffinity(GetHandle(),WDA_MONITOR);
+    }
+    result->Success();
+  });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -41,6 +52,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if(privacy_channel_) {privacy_channel_->SetMethodCallHandler(nullptr);privacy_channel_.reset();}
   reader_ocr_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

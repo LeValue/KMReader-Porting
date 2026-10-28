@@ -7,4 +7,4 @@ Modern MSVC/C++20 compatibility corrections:
 
 The application requests standard C++20 so Windows SDK WinRT uses standard
 coroutines instead of the removed experimental coroutine implementation.
-All other Dart and native implementation files are retained unchanged.
+Other source changes are limited to line-ending/trailing-whitespace normalization.
