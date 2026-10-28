@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -5,6 +7,39 @@ import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/models.dart';
 
 void main() {
+  test('original-file GET retries an interrupted connection but never retries authentication failure', () async {
+    final directory = Directory.systemTemp.createTempSync('transfer-retry-');
+    var calls = 0, unauthorized = false;
+    final api = KomgaApi(
+      Uri.parse('https://example.invalid'),
+      authentication: Authentication.apiKey,
+      credential: '',
+      client: MockClient((request) async {
+        calls++;
+        if (unauthorized) return http.Response('', 401);
+        if (calls == 1) {
+          throw http.ClientException('Connection closed before headers');
+        }
+        return http.Response.bytes([1, 2, 3], 200, headers: {'etag': '"v1"'});
+      }),
+    );
+    try {
+      final target = File('${directory.path}/original');
+      await api.download('/file', target);
+      expect(await target.readAsBytes(), [1, 2, 3]);
+      expect(calls, 2);
+      calls = 0;
+      unauthorized = true;
+      await expectLater(
+        api.download('/private', File('${directory.path}/private')),
+        throwsA(isA<ApiFailure>().having((e) => e.status, 'status', 401)),
+      );
+      expect(calls, 1);
+    } finally {
+      api.close();
+      directory.deleteSync(recursive: true);
+    }
+  });
   test('safe catalog reads recover from a stale connection; writes are never replayed', () async {
     var count = 0;
     final api = KomgaApi(

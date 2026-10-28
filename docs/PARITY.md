@@ -10,7 +10,7 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | Dashboard | Keep Reading, On Deck, new books/series, updated series, recently read and recently released books; hide/reorder sections, persistent library scope, matching See All filters/sort, opt-in ordered read-list continuation with upstream-compatible client-settings sync and durable stop tombstones, compact empty sections, persistent large/medium/small/horizontal card styles | Native acceptance for read-list continuation |
 | Catalog | Paginated series/books, submitted search, library browser, sort/read-status and nested typed metadata filters, per-account saved filters, selection of loaded items or all matching paginated results, batch read/unread/download/list actions; account-scoped SQLite FTS metadata index with full snapshot preparation, Unicode search, nested filters, sorts and local progress | Every upstream card/sort/filter presentation; offline special-list and On Deck parity |
 | Details and lists | Covers, metadata/summary, read/unread, collections/read lists; metadata editing with field locks and explicit batch changes; nonempty list creation, membership editing/reordering/deletion, personal pins; kmrs server smart-list CRUD, visibility and admin sharing, preserving uneditable conditions | Custom thumbnails, all detail layouts, real kmrs smart-list/sharing acceptance tests |
-| Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, optional automatic original-model Waifu2x upscaling, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, incognito and continuation | Curl/cover animations, wide-page scrolling, device frame-time/memory acceptance |
+| Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, optional automatic original-model Waifu2x upscaling, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, height-fitted wide-page panning with gesture ownership/edge turns, GPU cover/slide transitions, incognito and continuation | Curl animation, wide-page pan-position persistence, device frame-time/memory acceptance |
 | PDF | PDFium viewer, text search/highlights after document readiness, outline, jump/resume, auto/paged/continuous/single/dual layouts, cover-alone and RTL options, themes, password retry without persistence, original-file offline reading | Quality presets/offline raster rendering, DIVINA alternative, exact upstream gesture/animation behavior, device acceptance |
 | EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/scrolled reading, CFI resume and remote progression, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, slide/cover/curl overlays, incognito, next-book continuation | CJK/vertical and fixed-layout edge cases, continuous cross-chapter scroll, selection/dictionary/translation tools, exact upstream typography and native gesture/performance acceptance |
 | Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline reading | Android OS scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
@@ -52,7 +52,7 @@ This is a development implementation, not a claim of a finished perfect port.
 ## Work in progress after 0.5.0
 
 The changes above are not part of the published 0.5.0 APK. The development
-branch passes 139 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
+branch passes 145 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
 and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
 added to Android and Windows CI; results are still pending. The Android WebView
 plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
@@ -125,3 +125,23 @@ orphan accumulation. The conditional HEAD flow also passed against real Komga
 quota. Resuming online through the older direct offline property also restores
 the transfer queue, fixing the live integration timeout exposed after pausing
 was added. PDF detection accepts media type, profile and filename fallbacks.
+
+
+Comic wide-page scrolling fills the viewport height and uses one drag owner per
+gesture: an interior drag pans the spread, while a drag starting at its outer
+edge turns the page. A late second finger cancels the drag before zooming.
+Tests cover LTR/RTL, zoomed taps and edge routing. Cover transitions use the
+existing PageView position and GPU transforms; pixel tests prove that outgoing
+artwork stays stationary under the incoming page. Existing saved animation
+choices migrate to slide; new reader defaults use cover as upstream does.
+
+Immutable file GETs now retry transient connection failures up to twice, using
+the validated partial journal between attempts. Authentication failures and
+cancellation are not replayed. This addresses an interrupted original-file
+connection exposed by the GitHub Komga acceptance run; both the fault-injection
+regressions and the real Komga test pass locally.
+
+The emulator action executes script lines in separate `/bin/sh` invocations.
+The bounded native test sequence is now an explicit Bash script, preserving its
+logcat process, cleanup trap and timeout configuration in one shell. Gradle
+dependency and pinned NDK caches reduce repeated CI setup work.

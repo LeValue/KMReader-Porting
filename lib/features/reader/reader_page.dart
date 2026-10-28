@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -19,6 +20,8 @@ import 'reading_session.dart';
 import 'tap_zones.dart';
 import 'page_parts.dart';
 import 'reader_viewport.dart';
+import 'wide_page.dart';
+import 'cover_page.dart';
 import 'reader_display.dart';
 import 'page_crop.dart';
 import 'reader_ocr.dart';
@@ -123,6 +126,7 @@ class _ReaderPageState extends State<ReaderPage> {
   bool _controls = true, _verticalReady = false;
   final Set<int> _readyPages = {};
   List<Json> _dimensions = [];
+  Map<int, double> _aspects = {};
   List<PagePart> _parts = [];
   Set<int> _splitPages = {};
   int _partIndex = 0, _geometryRevision = 0;
@@ -188,8 +192,16 @@ class _ReaderPageState extends State<ReaderPage> {
       );
       if (!mounted) return;
       _dimensions = (data as List).map(object).toList();
+      _aspects = {
+        for (final page in _dimensions)
+          if (integer(page['height']) > 0 && integer(page['width']) > 0)
+            integer(page['number']):
+                integer(page['width']) / integer(page['height']),
+      };
       _dimensionsLoaded = true;
-      if (_initialPartPending && !widget.book.completed) {
+      if (_initialPartPending &&
+          !widget.book.completed &&
+          _session.preferences.splitWide != 'scroll') {
         final position = object(
           widget.repository.store.cached(
             widget.repository.profile.id,
@@ -272,6 +284,17 @@ class _ReaderPageState extends State<ReaderPage> {
       _pages.jumpToPage(index);
     }
   }
+
+  Widget _motion(int index, Widget child, Color background) =>
+      _session.preferences.animate && _session.preferences.transition == 'cover'
+      ? CoverPage(
+          controller: _pages,
+          index: index,
+          reverse: _session.preferences.direction == ReadingDirection.rtl,
+          background: background,
+          child: child,
+        )
+      : child;
 
   Timer? _preloadTimer;
   int _preloadGeneration = 0;
@@ -630,6 +653,7 @@ class _ReaderPageState extends State<ReaderPage> {
                               'auto': 'reader.tapZoneMode.auto',
                               'ltr': 'Left to Right',
                               'rtl': 'Right to Left',
+                              'scroll': 'reader.splitWidePage.scroll',
                             }[p.splitWide] ??
                             p.splitWide,
                       ),
@@ -644,6 +668,7 @@ class _ReaderPageState extends State<ReaderPage> {
                           'auto': 'reader.tapZoneMode.auto',
                           'ltr': 'Left to Right',
                           'rtl': 'Right to Left',
+                          'scroll': 'reader.splitWidePage.scroll',
                         },
                       );
                       if (value != null && mounted && context.mounted) {
@@ -853,6 +878,32 @@ class _ReaderPageState extends State<ReaderPage> {
                       Text('${p.doubleTapZoom.toStringAsFixed(1)}×'),
                     ],
                   ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Page Transition Style')),
+                    subtitle: Text(
+                      tr(
+                        context,
+                        p.transition == 'cover'
+                            ? 'reader.page_transition.cover'
+                            : 'reader.page_transition.scroll',
+                      ),
+                    ),
+                    onTap: () async {
+                      final value = await chooseValue(
+                        context,
+                        title: 'Page Transition Style',
+                        selected: p.transition,
+                        choices: const {
+                          'slide': 'reader.page_transition.scroll',
+                          'cover': 'reader.page_transition.cover',
+                        },
+                      );
+                      if (value != null && mounted && context.mounted) {
+                        apply(p.copy(transition: value));
+                      }
+                    },
+                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(tr(context, 'Page Turn Animation')),
@@ -1014,20 +1065,24 @@ class _ReaderPageState extends State<ReaderPage> {
                               itemBuilder: (context, index) {
                                 if (_split) {
                                   final part = _parts[index];
-                                  return _PageImage(
-                                    repository: widget.repository,
-                                    book: widget.book,
-                                    page: part.page,
-                                    half: part.half,
-                                    halfAspect: part.aspect,
-                                    decodeZoom: index == _viewIndex
-                                        ? _decodeZoom
-                                        : 1,
-                                    preferences: settings,
-                                    onReady: () {
-                                      _readyPages.add(part.page);
-                                      _commitIfReady();
-                                    },
+                                  return _motion(
+                                    index,
+                                    _PageImage(
+                                      repository: widget.repository,
+                                      book: widget.book,
+                                      page: part.page,
+                                      half: part.half,
+                                      halfAspect: part.aspect,
+                                      decodeZoom: index == _viewIndex
+                                          ? _decodeZoom
+                                          : 1,
+                                      preferences: settings,
+                                      onReady: () {
+                                        _readyPages.add(part.page);
+                                        _commitIfReady();
+                                      },
+                                    ),
+                                    background,
                                   );
                                 }
                                 final page = index * _session.step + 1;
@@ -1043,6 +1098,19 @@ class _ReaderPageState extends State<ReaderPage> {
                                         repository: widget.repository,
                                         book: widget.book,
                                         page: i,
+                                        pageAspect: _aspects[i] ?? 1,
+                                        active: index == _viewIndex,
+                                        startPageScroll: (details) =>
+                                            _pages.hasClients
+                                            ? _pages.position.drag(
+                                                details,
+                                                () {},
+                                              )
+                                            : null,
+                                        onWideTap: _tap,
+                                        onControls: () => setState(
+                                          () => _controls = !_controls,
+                                        ),
                                         decodeZoom: index == _viewIndex
                                             ? _decodeZoom
                                             : 1,
@@ -1054,12 +1122,17 @@ class _ReaderPageState extends State<ReaderPage> {
                                       ),
                                     ),
                                 ];
-                                return Row(
-                                  textDirection:
-                                      settings.direction == ReadingDirection.rtl
-                                      ? TextDirection.rtl
-                                      : TextDirection.ltr,
-                                  children: children,
+                                return _motion(
+                                  index,
+                                  Row(
+                                    textDirection:
+                                        settings.direction ==
+                                            ReadingDirection.rtl
+                                        ? TextDirection.rtl
+                                        : TextDirection.ltr,
+                                    children: children,
+                                  ),
+                                  background,
                                 );
                               },
                             ),
@@ -1252,7 +1325,17 @@ class _PageImage extends StatefulWidget {
     this.halfAspect = 1,
     this.decodeZoom = 1,
     this.onActivityChanged,
+    this.pageAspect = 1,
+    this.active = true,
+    this.startPageScroll,
+    this.onWideTap,
+    this.onControls,
   });
+  final double pageAspect;
+  final bool active;
+  final Drag? Function(DragStartDetails)? startPageScroll;
+  final void Function(Offset, Size)? onWideTap;
+  final VoidCallback? onControls;
   final Repository repository;
   final Book book;
   final int page;
@@ -1281,7 +1364,7 @@ class _PageImageState extends State<_PageImage>
 
   final _transform = TransformationController();
   bool _reported = false;
-  double _verticalStart = 0, _verticalDecode = 1;
+  double _verticalStart = 0, _verticalDecode = 1, _wideDecode = 1;
   bool _gestureActive = false;
   @override
   bool get wantKeepAlive => widget.vertical && _gestureActive;
@@ -1335,6 +1418,25 @@ class _PageImageState extends State<_PageImage>
         }
         final crop = snapshot.data!.$2;
         final halfAspect = crop == null ? widget.halfAspect : crop.aspect / 2;
+        final aspect = crop?.aspect ?? widget.pageAspect;
+        final orientedAspect = widget.preferences.rotation.isOdd
+            ? 1 / aspect
+            : aspect;
+        final wide =
+            !widget.vertical &&
+            widget.half == 0 &&
+            widget.preferences.splitWide == 'scroll' &&
+            orientedAspect > 1 &&
+            widget.startPageScroll != null;
+        final decodeFactor = wide
+            ? (MediaQuery.sizeOf(context).height *
+                          orientedAspect /
+                          MediaQuery.sizeOf(context).width)
+                      .clamp(1, 8) *
+                  _wideDecode
+            : widget.vertical
+            ? _verticalDecode
+            : widget.decodeZoom;
         final fit = widget.vertical
             ? BoxFit.fitWidth
             : switch (widget.preferences.fit) {
@@ -1361,9 +1463,7 @@ class _PageImageState extends State<_PageImage>
             cacheWidth:
                 (MediaQuery.sizeOf(context).width *
                         MediaQuery.devicePixelRatioOf(context) *
-                        (widget.vertical
-                            ? _verticalDecode
-                            : widget.decodeZoom) *
+                        decodeFactor *
                         (widget.half == 0 ? 1 : 2))
                     .ceil()
                     .clamp(1, 4096),
@@ -1391,7 +1491,7 @@ class _PageImageState extends State<_PageImage>
         final cropped = crop == null
             ? image
             : PageCropView(crop: crop, fit: fit, child: image);
-        return RotatedBox(
+        final rotated = RotatedBox(
           quarterTurns: widget.preferences.rotation,
           child: widget.half == 0
               ? cropped
@@ -1426,6 +1526,25 @@ class _PageImageState extends State<_PageImage>
                   },
                 ),
         );
+        return wide
+            ? WidePage(
+                key: ValueKey('wide:${widget.book.id}:${widget.page}'),
+                aspect: orientedAspect,
+                rtl: widget.preferences.direction == ReadingDirection.rtl,
+                active: widget.active,
+                doubleTapZoom: widget.preferences.doubleTapZoom,
+                startPageScroll: widget.startPageScroll!,
+                onTap: widget.onWideTap,
+                onControls: widget.onControls,
+                onZoomSettled: (scale) {
+                  final decode = scale > 1.1 ? 2.0 : 1.0;
+                  if (mounted && decode != _wideDecode) {
+                    setState(() => _wideDecode = decode);
+                  }
+                },
+                child: rotated,
+              )
+            : rotated;
       },
     );
     if (!widget.vertical) return RepaintBoundary(child: content);

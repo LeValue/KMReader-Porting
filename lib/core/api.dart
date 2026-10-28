@@ -230,7 +230,7 @@ class KomgaApi {
       }
       return existing.future;
     }
-    final future = _transfer(
+    final future = _retryTransfer(
       path,
       target,
       progress: progress,
@@ -239,6 +239,51 @@ class KomgaApi {
     ).whenComplete(() => _transfers.remove(key));
     _transfers[key] = (path: path, future: future);
     return future;
+  }
+
+  Future<void> _retryTransfer(
+    String path,
+    File target, {
+    void Function(int, int?)? progress,
+    bool Function()? cancelled,
+    Future<void>? abortTrigger,
+  }) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        await _transfer(
+          path,
+          target,
+          progress: progress,
+          cancelled: cancelled,
+          abortTrigger: abortTrigger,
+        );
+        return;
+      } catch (error) {
+        final transient =
+            error is SocketException ||
+            error is HttpException ||
+            error is TimeoutException ||
+            (error is http.ClientException &&
+                error is! http.RequestAbortedException) ||
+            (error is ApiFailure &&
+                (error.retryable ||
+                    error.offline ||
+                    error.status == 408 ||
+                    error.status == 429 ||
+                    (error.status ?? 0) >= 500));
+        if (!transient ||
+            attempt >= 2 ||
+            _closed ||
+            cancelled?.call() == true) {
+          rethrow;
+        }
+        // Only immutable GET transfers are retried. Their journal validates
+        // retained bytes with Range/If-Range before any append.
+        await Future<void>.delayed(
+          Duration(milliseconds: attempt == 0 ? 200 : 800),
+        );
+      }
+    }
   }
 
   Future<void> _transfer(
