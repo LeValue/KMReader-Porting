@@ -19,8 +19,11 @@ class WidePage extends StatefulWidget {
     this.onZoomSettled,
     this.active = true,
     this.doubleTapZoom = 2,
+    this.initialFraction = 0,
+    this.onPanSettled,
   });
-  final double aspect, doubleTapZoom;
+  final double aspect, doubleTapZoom, initialFraction;
+  final ValueChanged<double>? onPanSettled;
   final bool rtl, active;
   final Widget child;
   final Drag? Function(DragStartDetails) startPageScroll;
@@ -35,14 +38,60 @@ class _WidePageState extends State<WidePage> {
   final _scroll = ScrollController(keepScrollOffset: false);
   final _zoom = TransformationController();
   double _gestureStart = 0;
+  bool _restorePending = true, _panning = false, _cancelledPan = false;
+  double? _restoreFraction, _lastFraction;
+  Size? _size;
+  void _restore() {
+    if (!_restorePending) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_restorePending ||
+          !_scroll.hasClients ||
+          !_scroll.position.hasContentDimensions) {
+        return;
+      }
+      final fraction = (_restoreFraction ?? widget.initialFraction);
+      _restorePending = false;
+      _restoreFraction = null;
+      _lastFraction = fraction.isFinite ? fraction.clamp(0, 1) : 0;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent * _lastFraction!);
+    });
+  }
+
+  bool _notification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _panning = true;
+    }
+    if (notification is ScrollEndNotification && _panning) {
+      _panning = false;
+      if (!_cancelledPan &&
+          !_restorePending &&
+          _scroll.hasClients &&
+          _scroll.position.maxScrollExtent > 0) {
+        _lastFraction = (_scroll.offset / _scroll.position.maxScrollExtent)
+            .clamp(0, 1);
+        widget.onPanSettled?.call(_lastFraction!);
+      }
+    }
+    return false;
+  }
+
   @override
   void didUpdateWidget(WidePage old) {
     super.didUpdateWidget(old);
+    if (!old.active && widget.active) {
+      _restorePending = true;
+      _restoreFraction = widget.initialFraction;
+    }
     if (old.active && !widget.active ||
         old.rtl != widget.rtl ||
         old.aspect != widget.aspect) {
       _zoom.value = Matrix4.identity();
+      _cancelledPan = true;
       if (_scroll.hasClients) _scroll.jumpTo(0);
+      _restorePending = widget.active;
     }
   }
 
@@ -56,6 +105,15 @@ class _WidePageState extends State<WidePage> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      if (_size != null && _size != constraints.biggest && _scroll.hasClients) {
+        _restoreFraction = _scroll.position.maxScrollExtent > 0
+            ? (_scroll.offset / _scroll.position.maxScrollExtent).clamp(0, 1)
+            : _lastFraction ?? widget.initialFraction;
+        _restorePending = true;
+        _cancelledPan = true;
+      }
+      _size = constraints.biggest;
+      _restore();
       final width = math.max(
         constraints.maxWidth,
         constraints.maxHeight * widget.aspect,
@@ -63,9 +121,12 @@ class _WidePageState extends State<WidePage> {
       return ReaderViewport(
         controller: _zoom,
         doubleTapZoom: widget.doubleTapZoom,
-        onContact: () =>
-            _gestureStart = _scroll.hasClients ? _scroll.offset : 0,
+        onContact: () {
+          _gestureStart = _scroll.hasClients ? _scroll.offset : 0;
+          _cancelledPan = false;
+        },
         onPinch: () {
+          _cancelledPan = true;
           if (_scroll.hasClients) _scroll.jumpTo(_gestureStart);
         },
         onZoomSettled: widget.onZoomSettled,
@@ -87,17 +148,20 @@ class _WidePageState extends State<WidePage> {
         },
         startScroll: (details) =>
             _EdgeDrag(details, _scroll.position, widget.startPageScroll),
-        child: SingleChildScrollView(
-          controller: _scroll,
-          scrollDirection: Axis.horizontal,
-          reverse: widget.rtl,
-          physics: const NeverScrollableScrollPhysics(
-            parent: ClampingScrollPhysics(),
-          ),
-          child: SizedBox(
-            width: width,
-            height: constraints.maxHeight,
-            child: widget.child,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _notification,
+          child: SingleChildScrollView(
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            reverse: widget.rtl,
+            physics: const NeverScrollableScrollPhysics(
+              parent: ClampingScrollPhysics(),
+            ),
+            child: SizedBox(
+              width: width,
+              height: constraints.maxHeight,
+              child: widget.child,
+            ),
           ),
         ),
       );

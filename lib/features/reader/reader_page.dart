@@ -253,6 +253,42 @@ class _ReaderPageState extends State<ReaderPage> {
     _partIndex = index < 0 ? 0 : index;
   }
 
+  late Json _savedPan = object(
+    widget.repository.store.cached(
+      widget.repository.profile.id,
+      'readerPan:${widget.book.id}',
+    ),
+  );
+  double _panFraction(int page) {
+    if (integer(_savedPan['page']) != page ||
+        _savedPan['direction'] != _session.preferences.direction.name) {
+      return 0;
+    }
+    final saved = DateTime.tryParse(text(_savedPan['modified']));
+    final remote = DateTime.tryParse(
+      text(widget.book.progress['lastModified']),
+    );
+    if (saved == null || remote != null && remote.isAfter(saved)) return 0;
+    return _savedPan['fraction'] is num
+        ? (_savedPan['fraction'] as num).toDouble().clamp(0, 1)
+        : 0;
+  }
+
+  void _savePan(int page, double fraction) {
+    if (widget.incognito || !fraction.isFinite || !mounted) return;
+    _savedPan = {
+      'page': page,
+      'fraction': fraction.clamp(0, 1),
+      'direction': _session.preferences.direction.name,
+      'modified': DateTime.now().toUtc().toIso8601String(),
+    };
+    widget.repository.store.cache(
+      widget.repository.profile.id,
+      'readerPan:${widget.book.id}',
+      _savedPan,
+    );
+  }
+
   void _rememberPart() {
     if (widget.incognito || !_split) return;
     final part = _parts[_partIndex];
@@ -1099,6 +1135,9 @@ class _ReaderPageState extends State<ReaderPage> {
                                         book: widget.book,
                                         page: i,
                                         pageAspect: _aspects[i] ?? 1,
+                                        initialPan: _panFraction(i),
+                                        onPanSettled: (fraction) =>
+                                            _savePan(i, fraction),
                                         active: index == _viewIndex,
                                         startPageScroll: (details) =>
                                             _pages.hasClients
@@ -1326,12 +1365,15 @@ class _PageImage extends StatefulWidget {
     this.decodeZoom = 1,
     this.onActivityChanged,
     this.pageAspect = 1,
+    this.initialPan = 0,
+    this.onPanSettled,
     this.active = true,
     this.startPageScroll,
     this.onWideTap,
     this.onControls,
   });
-  final double pageAspect;
+  final double pageAspect, initialPan;
+  final ValueChanged<double>? onPanSettled;
   final bool active;
   final Drag? Function(DragStartDetails)? startPageScroll;
   final void Function(Offset, Size)? onWideTap;
@@ -1530,6 +1572,8 @@ class _PageImageState extends State<_PageImage>
             ? WidePage(
                 key: ValueKey('wide:${widget.book.id}:${widget.page}'),
                 aspect: orientedAspect,
+                initialFraction: widget.initialPan,
+                onPanSettled: widget.onPanSettled,
                 rtl: widget.preferences.direction == ReadingDirection.rtl,
                 active: widget.active,
                 doubleTapZoom: widget.preferences.doubleTapZoom,

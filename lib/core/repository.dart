@@ -361,7 +361,6 @@ class Repository extends ChangeNotifier {
   Book overlay(Book book) {
     final local = store.progress(profile.id, book.id);
     if (local == null) return book;
-    if (local['reset'] == true) return book.withProgress(null);
     final remoteDate = DateTime.tryParse(text(book.progress['lastModified']));
     final localDate = DateTime.tryParse(text(local['lastModified']));
     if (remoteDate != null &&
@@ -370,6 +369,7 @@ class Repository extends ChangeNotifier {
         !store.isPending(profile.id, book.id)) {
       return book;
     }
+    if (local['reset'] == true) return book.withProgress(null);
     if (local['kind'] == 'epub') {
       final total = object(
         object(object(local['progression'])['locator'])['locations'],
