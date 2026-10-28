@@ -68,3 +68,13 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// On-device OCR: models are bundled so downloaded comics work offline.
+dependencies {
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
+}

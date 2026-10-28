@@ -14,11 +14,12 @@ class ApiFailure implements Exception {
     this.status,
     this.offline = false,
     this.path,
+    this.retryable = false,
   });
   final String? path;
   final String message;
   final int? status;
-  final bool offline;
+  final bool offline, retryable;
   @override
   String toString() => message;
 }
@@ -112,16 +113,23 @@ class KomgaApi {
     } on http.RequestAbortedException {
       throw const ApiFailure('Download cancelled.');
     } on TimeoutException {
-      throw const ApiFailure(
+      throw ApiFailure(
         'The server took too long to respond.',
         offline: true,
+        path: path,
       );
     } on SocketException {
-      throw const ApiFailure('Unable to reach the server.', offline: true);
+      throw ApiFailure(
+        'Unable to reach the server.',
+        offline: true,
+        path: path,
+      );
     } on http.ClientException {
-      throw const ApiFailure(
+      throw ApiFailure(
         'The connection to the server was interrupted.',
         offline: true,
+        retryable: true,
+        path: path,
       );
     }
   }
@@ -133,23 +141,66 @@ class KomgaApi {
     Map<String, dynamic>? query,
     Map<String, String>? extra,
   }) async {
-    final response = await send(
-      path,
-      method: method,
-      body: body,
-      query: query,
-      extra: extra,
-    );
-    final bytes = await response.stream.toBytes().timeout(
-      const Duration(seconds: 30),
-    );
-    if (bytes.isEmpty) return null;
-    try {
-      return bytes.length > 256 * 1024
-          ? await compute(_decodeJson, bytes)
-          : _decodeJson(bytes);
-    } on FormatException {
-      throw const ApiFailure('The server returned an unexpected response.');
+    final retryable =
+        method == 'GET' ||
+        method == 'POST' &&
+            RegExp(r'^/api/v1/(books|series)/list$').hasMatch(path);
+    for (var attempt = 0; ; attempt++) {
+      try {
+        final response = await send(
+          path,
+          method: method,
+          body: body,
+          query: query,
+          extra: extra,
+        );
+        final bytes = await response.stream.toBytes().timeout(
+          const Duration(seconds: 30),
+        );
+        if (bytes.isEmpty) return null;
+        try {
+          return bytes.length > 256 * 1024
+              ? await compute(_decodeJson, bytes)
+              : _decodeJson(bytes);
+        } on FormatException {
+          throw ApiFailure(
+            'The server returned an unexpected response.',
+            path: path,
+          );
+        }
+      } on ApiFailure catch (error) {
+        if (attempt == 0 && retryable && error.retryable && !_closed) {
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+          continue;
+        }
+        rethrow;
+      } on http.ClientException {
+        if (attempt == 0 && retryable && !_closed) {
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+          continue;
+        }
+        throw ApiFailure(
+          'The connection to the server was interrupted.',
+          offline: true,
+          path: path,
+        );
+      } on SocketException {
+        if (attempt == 0 && retryable && !_closed) {
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+          continue;
+        }
+        throw ApiFailure(
+          'Unable to reach the server.',
+          offline: true,
+          path: path,
+        );
+      } on TimeoutException {
+        throw ApiFailure(
+          'The server took too long to respond.',
+          offline: true,
+          path: path,
+        );
+      }
     }
   }
 

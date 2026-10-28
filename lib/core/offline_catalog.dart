@@ -114,6 +114,7 @@ class OfflineCatalog {
         );
       }
     }
+    List<String>? listOrder;
     if (path != null) {
       final match = RegExp(
         r'^/api/v1/(series|collections|readlists)/([^/]+)/(books|series)$',
@@ -135,6 +136,12 @@ class OfflineCatalog {
                         )[kind == 'books' ? 'bookIds' : 'seriesIds']
                         as List? ??
                     []);
+          if (match[1] == 'readlists' &&
+              list.isNotEmpty &&
+              object(jsonDecode(list.first['value'] as String))['ordered'] ==
+                  true) {
+            listOrder = ids.whereType<String>().toList();
+          }
           if (ids.isEmpty) {
             clauses.add('0');
           } else {
@@ -164,7 +171,15 @@ class OfflineCatalog {
           .first['n'],
     );
     final order = <String>[];
-    for (final part in serverSort(kind, sort)) {
+    final orderArgs = <Object?>[];
+    if (listOrder != null && listOrder.isNotEmpty) {
+      order.add(
+        "CASE c.id ${[for (var i = 0; i < listOrder.length; i++) 'WHEN ? THEN $i'].join(' ')} END",
+      );
+      orderArgs.addAll(listOrder);
+    }
+    for (final part
+        in listOrder == null ? serverSort(kind, sort) : <String>[]) {
       final pieces = part.split(',');
       final expression = sql.sortField(pieces.first);
       order.add('$expression ${pieces.last == 'desc' ? 'DESC' : 'ASC'}');
@@ -174,7 +189,7 @@ class OfflineCatalog {
     page = page.clamp(0, 1 << 30);
     final records = db.select(
       'SELECT c.value FROM $from WHERE $where ORDER BY ${order.join(',')} LIMIT ? OFFSET ?',
-      [...args, size, page * size],
+      [...args, ...orderArgs, size, page * size],
     );
     return CatalogPage(
       records
@@ -258,6 +273,21 @@ class _OfflineSql {
           final name = entry.key,
               filter = object(entry.value),
               op = text(filter['operator']);
+          if (name == 'readListId' || name == 'collectionId') {
+            if (!['is', 'isNot'].contains(op)) {
+              throw const ApiFailure(
+                'Unsupported offline membership filter.',
+                offline: true,
+              );
+            }
+            args.add(filter['value']);
+            final listKind = name == 'readListId' ? 'readlists' : 'collections';
+            final member = name == 'readListId' ? 'bookIds' : 'seriesIds';
+            final compare = name == 'collectionId' && kind == 'books'
+                ? "json_extract(c.value,'\$.seriesId')"
+                : 'c.id';
+            return "${op == 'isNot' ? 'NOT ' : ''}EXISTS(SELECT 1 FROM catalog_records l,json_each(l.value,'\$.$member') member WHERE l.server=c.server AND l.kind='$listKind' AND l.id=? AND member.value=$compare)";
+          }
           final arrayPath = switch (name) {
             'author' => 'metadata.authors',
             'tag' => 'metadata.tags',

@@ -80,7 +80,7 @@ jobs:
           path: build/windows/x64/runner/Release/
   android_reader_display:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - name: Reserve disk space for the emulator and Android build
@@ -107,6 +107,20 @@ jobs:
           printf '%s\n' 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Bound build memory before starting the emulator
+        run: |
+          python3 - <<'PYMEM'
+          from pathlib import Path
+          p=Path('android/gradle.properties')
+          lines=p.read_text().splitlines()
+          lines=[line for line in lines if not line.startswith(('org.gradle.jvmargs=','org.gradle.workers.max=','kotlin.daemon.jvmargs='))]
+          lines += ['org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m','org.gradle.workers.max=2','kotlin.daemon.jvmargs=-Xmx768m']
+          p.write_text('\n'.join(lines)+'\n')
+          PYMEM
+      - name: Compile native test dependencies before allocating emulator memory
+        run: flutter build apk --debug --target=integration_test/reader_display_test.dart --no-pub
+        env:
+          ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
       - name: Exercise real Android WindowInsets with a simulated notch
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -117,6 +131,8 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disk-size: 4096M
+          ram-size: 1536M
+          heap-size: 256M
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |

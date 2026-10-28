@@ -319,6 +319,41 @@ void main() {
           force: true,
         );
         expect(readOnly.items.map((b) => b.id), [comic.id]);
+        await repository.readLists.setEnabled(true);
+        await repository.readLists.record(text(list['id']), comic.id);
+        await repository.readLists.sync();
+        expect(repository.readLists.error, isNull);
+        final settings = object(
+          await api.request('/api/v1/client-settings/user/list'),
+        );
+        final settingKey =
+            'kmreader.readlist.${text(list['id']).toLowerCase()}';
+        expect(
+          jsonDecode(text(object(settings[settingKey])['value']))['bookId'],
+          comic.id,
+        );
+        await repository.readLists.stop(text(list['id']));
+        expect(
+          object(await api.request('/api/v1/client-settings/user/list'))
+              .containsKey(settingKey),
+          false,
+        );
+        await repository.readLists.setEnabled(false);
+        await repository.prepareOfflineCatalog();
+        expect(repository.metadataIndexError, isNull);
+        expect(store.offlineCatalog.count(profile.id, 'books'), 3);
+        repository.setOffline(true);
+        final localSearch = await repository.catalog(
+          'books',
+          search: 'Synthetic',
+        );
+        expect(localSearch.total, 3);
+        final localList = await repository.catalog(
+          'books',
+          path: '/api/v1/readlists/${list['id']}/books',
+        );
+        expect(localList.items.map((b) => b.id), [pdf.id, comic.id]);
+        repository.setOffline(false);
         final stats = await ReadingStats(repository).load();
         expect(stats['source'], 'local');
         expect(object(stats['summary'])['totalBooks'], 3);
@@ -417,8 +452,8 @@ void main() {
         } finally {
           keyApi.close();
         }
-      } on ApiFailure catch (e) {
-        fail('Komga HTTP ${e.status} at ${e.path}: ${e.message}');
+      } on ApiFailure catch (e, stack) {
+        fail('Komga HTTP ${e.status} at ${e.path}: ${e.message}\n$stack');
       } finally {
         repository.dispose();
         store.close();

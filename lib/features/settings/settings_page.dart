@@ -148,6 +148,15 @@ class SettingsPage extends StatelessWidget {
           child: Column(
             children: [
               SwitchListTile(
+                secondary: const Icon(Icons.playlist_play),
+                title: Text(tr(context, 'Read List Continuation')),
+                subtitle: Text(
+                  tr(context, 'Continue ordered read lists across devices'),
+                ),
+                value: repository.readLists.enabled,
+                onChanged: repository.readLists.setEnabled,
+              ),
+              SwitchListTile(
                 secondary: const Icon(CupertinoIcons.wifi_slash),
                 title: Text(tr(context, 'Offline Mode')),
                 value: repository.offline,

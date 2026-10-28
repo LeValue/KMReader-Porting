@@ -11,6 +11,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
+    private var ocr: ReaderOcr? = null
     private var readerActive = false
     private var previousCutout = 0
     private var previousVisibility = 0
@@ -24,6 +25,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
         readerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "dev.levalue.kmreader/reader_display")
         readerChannel!!.setMethodCallHandler { call, result ->
@@ -148,6 +150,8 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        ocr?.close()
+        ocr = null
         window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(insetObserver)
         readerChannel?.setMethodCallHandler(null)
         readerChannel = null

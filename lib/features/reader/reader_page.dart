@@ -19,6 +19,8 @@ import 'page_parts.dart';
 import 'reader_viewport.dart';
 import 'reader_display.dart';
 import 'page_crop.dart';
+import 'reader_ocr.dart';
+import 'reader_text_page.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -38,6 +40,7 @@ class ReaderPage extends StatefulWidget {
 
 class _ReaderPageState extends State<ReaderPage> {
   late ReadingSession _session;
+  late final String? _readListId;
   late PageController _pages;
   final _zoom = TransformationController();
   int _gesturePage = 0;
@@ -340,6 +343,13 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    _readListId =
+        widget.readListId ?? widget.repository.readLists.owner(widget.book.id);
+    if (!widget.incognito && _readListId != null) {
+      unawaited(
+        widget.repository.readLists.record(_readListId, widget.book.id),
+      );
+    }
     _focus = FocusNode();
     final json = widget.repository.store.cached(
       widget.repository.profile.id,
@@ -481,11 +491,38 @@ class _ReaderPageState extends State<ReaderPage> {
     return file;
   }
 
+  bool _ocrOpening = false;
+  Future<void> _recognizeText() async {
+    if (_ocrOpening) return;
+    setState(() => _ocrOpening = true);
+    try {
+      final bytes = await widget.repository.page(widget.book.id, _session.page);
+      if (!mounted) return;
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReaderDisplay(
+            child: ReaderTextPage(
+              bytes: bytes,
+              ocr: ReaderOcr(widget.repository.bookDirectory(widget.book.id)),
+              title: '${widget.book.title} · ${_session.page}',
+              incognito: widget.incognito,
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      if (mounted) setState(() => _ocrOpening = false);
+    }
+  }
+
   Future<void> _nextBook() async {
     try {
-      final prefix = widget.readListId == null
+      final prefix = _readListId == null
           ? '/api/v1/books/${Uri.encodeComponent(widget.book.id)}'
-          : '/api/v1/readlists/${Uri.encodeComponent(widget.readListId!)}/books/${Uri.encodeComponent(widget.book.id)}';
+          : '/api/v1/readlists/${Uri.encodeComponent(_readListId)}/books/${Uri.encodeComponent(widget.book.id)}';
       final data = await widget.repository.get('$prefix/next');
       if (!mounted || data == null) return;
       Navigator.of(context).pushReplacement(
@@ -494,7 +531,7 @@ class _ReaderPageState extends State<ReaderPage> {
             repository: widget.repository,
             book: Book(object(data)),
             incognito: widget.incognito,
-            readListId: widget.readListId,
+            readListId: _readListId,
           ),
         ),
       );
@@ -1048,6 +1085,12 @@ class _ReaderPageState extends State<ReaderPage> {
                           icon: const Icon(
                             CupertinoIcons.arrow_up_left_arrow_down_right,
                           ),
+                        ),
+                        IconButton(
+                          color: Colors.white,
+                          tooltip: tr(context, 'Recognize Text'),
+                          onPressed: _ocrOpening ? null : _recognizeText,
+                          icon: const Icon(Icons.text_fields),
                         ),
                         IconButton(
                           color: Colors.white,
