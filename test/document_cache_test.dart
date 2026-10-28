@@ -201,7 +201,7 @@ void main() {
         return;
       }
       files++;
-      if (request.headers.value('Range') == 'bytes=2-') {
+      if (files > 3 && request.headers.value('Range') == 'bytes=2-') {
         expect(request.headers.value('If-Range'), '"source-v1"');
         request.response.statusCode = 206;
         request.response.headers.set('Content-Range', 'bytes 2-4/5');
@@ -212,10 +212,12 @@ void main() {
       }
       final socket = await request.response.detachSocket(writeHeaders: false);
       socket.add(
-        'HTTP/1.1 200 OK\r\nContent-Length: 5\r\nETag: "source-v1"\r\nConnection: close\r\n\r\n'
+        (files == 1
+                ? 'HTTP/1.1 200 OK\r\nContent-Length: 5\r\nETag: "source-v1"\r\nConnection: close\r\n\r\n'
+                : 'HTTP/1.1 206 Partial Content\r\nContent-Length: 3\r\nContent-Range: bytes 2-4/5\r\nETag: "source-v1"\r\nConnection: close\r\n\r\n')
             .codeUnits,
       );
-      socket.add([1, 2]);
+      if (files == 1) socket.add([1, 2]);
       await socket.flush();
       await socket.close();
     };
@@ -228,7 +230,7 @@ void main() {
     expect(partials, hasLength(1));
     expect(await partials.single.readAsBytes(), [1, 2]);
     final lease = await open();
-    expect(files, 2);
+    expect(files, 4);
     expect(await lease.file.readAsBytes(), [1, 2, 3, 4, 5]);
     expect(
       cache.directory.listSync().whereType<File>().where(

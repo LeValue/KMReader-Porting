@@ -180,6 +180,7 @@ class ReaderPreferences {
     this.tapInversion = 'auto',
     this.preload = 'balanced',
     this.animate = true,
+    this.transition = 'cover',
     this.splitWide = 'none',
     this.useSeriesDirection = true,
     this.borderCrop = 'disabled',
@@ -193,6 +194,7 @@ class ReaderPreferences {
   final String background, fit;
   final String tapMode, tapInversion, preload;
   final bool animate;
+  final String transition;
   final String splitWide;
   final bool useSeriesDirection;
   final String borderCrop;
@@ -214,6 +216,11 @@ class ReaderPreferences {
     tapInversion: text(j['tapInversion'], 'auto'),
     preload: text(j['preload'], 'balanced'),
     animate: j['animate'] != false,
+    transition: ['cover', 'slide'].contains(j['transition'])
+        ? j['transition'] as String
+        : j.containsKey('animate')
+        ? 'slide'
+        : 'cover',
     splitWide: text(j['splitWide'], 'none'),
     useSeriesDirection: j['useSeriesDirection'] != false,
     borderCrop: ['conservative', 'aggressive'].contains(j['borderCrop'])
@@ -237,6 +244,7 @@ class ReaderPreferences {
     'tapInversion': tapInversion,
     'preload': preload,
     'animate': animate,
+    'transition': transition,
     'splitWide': splitWide,
     'useSeriesDirection': useSeriesDirection,
     'borderCrop': borderCrop,
@@ -254,6 +262,7 @@ class ReaderPreferences {
     String? tapInversion,
     String? preload,
     bool? animate,
+    String? transition,
     String? splitWide,
     bool? useSeriesDirection,
     String? borderCrop,
@@ -270,6 +279,7 @@ class ReaderPreferences {
     tapInversion: tapInversion ?? this.tapInversion,
     preload: preload ?? this.preload,
     animate: animate ?? this.animate,
+    transition: transition ?? this.transition,
     splitWide: splitWide ?? this.splitWide,
     useSeriesDirection: useSeriesDirection ?? this.useSeriesDirection,
     borderCrop: borderCrop ?? this.borderCrop,
