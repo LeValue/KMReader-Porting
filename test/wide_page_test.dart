@@ -6,6 +6,53 @@ import 'package:kmreader/features/reader/wide_page.dart';
 void main() {
   for (final rtl in [false, true]) {
     testWidgets(
+      'wide-page offset restores through rotation without recording navigation; RTL=$rtl',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var writes = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: WidePage(
+                aspect: 2,
+                rtl: rtl,
+                initialFraction: .5,
+                onPanSettled: (_) => writes++,
+                startPageScroll: (_) => null,
+                child: const ColoredBox(color: Colors.blue),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final controller = tester
+            .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+            .controller!;
+        expect(controller.offset, closeTo(400, 1));
+        expect(writes, 0);
+        tester.view.physicalSize = const Size(1000, 400);
+        await tester.pumpAndSettle();
+        expect(controller.position.maxScrollExtent, 0);
+        expect(writes, 0);
+        tester.view.physicalSize = const Size(400, 600);
+        await tester.pumpAndSettle();
+        expect(controller.offset, closeTo(400, 1));
+        expect(writes, 0);
+        await tester.timedDrag(
+          find.byType(WidePage),
+          Offset(rtl ? 100 : -100, 0),
+          const Duration(seconds: 1),
+        );
+        await tester.pumpAndSettle();
+        expect(writes, 1);
+        expect(controller.offset, greaterThan(450));
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+    testWidgets(
       'wide-page panning owns its gesture and turns only from the edge; RTL=$rtl',
       (tester) async {
         tester.view.physicalSize = const Size(400, 600);

@@ -11,6 +11,83 @@ import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
 
 void main() {
+  test(
+    'a synchronized unread reset does not hide newer reading on another device',
+    () {
+      final store = LocalStore(sqlite3.openInMemory());
+      final directory = Directory.systemTemp.createTempSync('reset-overlay-');
+      final repository = Repository(
+        profile: const ServerProfile(
+          id: 's',
+          name: 'Fixture',
+          url: 'https://example.invalid',
+          email: '',
+          authentication: Authentication.apiKey,
+        ),
+        api: KomgaApi(
+          Uri.parse('https://example.invalid'),
+          authentication: Authentication.apiKey,
+          credential: '',
+        ),
+        store: store,
+        directory: directory,
+      );
+      try {
+        store.recordProgress('s', 'b', {
+          'reset': true,
+          'lastModified': '2026-01-01T00:00:00Z',
+        });
+        final newer = Book({
+          'id': 'b',
+          'media': {'pagesCount': 10},
+          'readProgress': {'page': 7, 'lastModified': '2026-01-02T00:00:00Z'},
+        });
+        expect(
+          repository.overlay(newer).page,
+          0,
+          reason: 'An unsent reset remains authoritative.',
+        );
+        final pending = store.pending('s').single;
+        store.acknowledge('s', 'b', pending['revision']);
+        expect(repository.overlay(newer).page, 7);
+        expect(
+          repository
+              .overlay(
+                Book({
+                  ...newer.json,
+                  'readProgress': {
+                    'page': 3,
+                    'lastModified': '2025-12-31T00:00:00Z',
+                  },
+                }),
+              )
+              .page,
+          0,
+        );
+      } finally {
+        repository.dispose();
+        store.close();
+        directory.deleteSync(recursive: true);
+      }
+    },
+  );
+  test('external database changes invalidate memoized progress when the window polls its revision', () {
+    final directory = Directory.systemTemp.createTempSync('window-progress-');
+    final first = LocalStore(sqlite3.open('${directory.path}/db.sqlite'));
+    final second = LocalStore(sqlite3.open('${directory.path}/db.sqlite'));
+    try {
+      first.recordProgress('s', 'b', {'page': 2});
+      final previous = first.externalRevision;
+      expect(first.progress('s', 'b')?['page'], 2);
+      second.recordProgress('s', 'b', {'page': 7});
+      expect(first.externalRevision, isNot(previous));
+      expect(first.progress('s', 'b')?['page'], 7);
+    } finally {
+      first.close();
+      second.close();
+      directory.deleteSync(recursive: true);
+    }
+  });
   test('newer server progress is not overwritten without explicit conflict resolution', () async {
     final store = LocalStore(sqlite3.openInMemory());
     final directory = Directory.systemTemp.createTempSync('kmreader-conflict-');
