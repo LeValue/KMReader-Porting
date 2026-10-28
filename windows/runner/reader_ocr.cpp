@@ -9,6 +9,9 @@
 #include <winrt/Windows.Storage.FileProperties.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <vector>
 #include <cmath>
 #include <mutex>
 #include <string>
@@ -44,11 +47,26 @@ EncodableValue Recognize(const EncodableMap& args) {
   using namespace winrt::Windows::Media::Ocr;
   const auto path = StringArg(args,"path"), language = StringArg(args,"language");
   if (path.empty()) throw std::invalid_argument("Image path is missing.");
-  auto file = winrt::Windows::Storage::StorageFile::GetFileFromPathAsync(winrt::to_hstring(path)).get();
-  if (file.GetBasicPropertiesAsync().get().Size() > 32ULL * 1024 * 1024) {
-    throw std::invalid_argument("Choose an image smaller than 32 MiB.");
+  // WinRT StorageFile rejects mixed-separator paths produced by Dart on
+  // Windows. Read the bounded private file with Win32-compatible filesystem
+  // paths, then decode a WinRT memory stream, independent of path syntax.
+  auto native_path = winrt::to_hstring(path);
+  std::wstring normalized(native_path.c_str());
+  std::replace(normalized.begin(),normalized.end(),L'/',L'\\');
+  std::ifstream input(std::filesystem::path(normalized),std::ios::binary|std::ios::ate);
+  if(!input) throw std::runtime_error("The OCR image could not be opened.");
+  const std::streamoff length=input.tellg();
+  if(length<=0 || length>32LL*1024*1024) throw std::invalid_argument("Choose an image smaller than 32 MiB.");
+  std::vector<uint8_t> bytes(static_cast<size_t>(length));
+  input.seekg(0);input.read(reinterpret_cast<char*>(bytes.data()),length);
+  if(!input) throw std::runtime_error("The OCR image could not be read.");
+  input.close();
+  winrt::Windows::Storage::Streams::InMemoryRandomAccessStream stream;
+  {
+    winrt::Windows::Storage::Streams::DataWriter writer(stream);
+    writer.WriteBytes(bytes);writer.StoreAsync().get();writer.DetachStream();
   }
-  auto stream = file.OpenAsync(winrt::Windows::Storage::FileAccessMode::Read).get();
+  bytes.clear();bytes.shrink_to_fit();stream.Seek(0);
   auto decoder = BitmapDecoder::CreateAsync(stream).get();
   const double max_size = std::min(4096.0,static_cast<double>(OcrEngine::MaxImageDimension()));
   const double scale = std::min(1.0,max_size / std::max(decoder.PixelWidth(),decoder.PixelHeight()));
@@ -109,9 +127,11 @@ ReaderOcr::ReaderOcr(flutter::BinaryMessenger* messenger, HWND window)
     std::thread([shared,method,args=std::move(args),result=std::move(result)]() mutable {
       auto reply=std::make_unique<Reply>();reply->result=std::move(result);
       try {
-        winrt::init_apartment(winrt::apartment_type::multi_threaded);
+        struct Apartment {
+          Apartment() {winrt::init_apartment(winrt::apartment_type::multi_threaded);}
+          ~Apartment() {winrt::uninit_apartment();}
+        } apartment;
         reply->value=method=="capabilities"?Capabilities():Recognize(args);
-        winrt::uninit_apartment();
       } catch (const winrt::hresult_error& failure) {
         reply->error=winrt::to_string(failure.message());
       } catch (const std::exception& failure) { reply->error=failure.what(); }

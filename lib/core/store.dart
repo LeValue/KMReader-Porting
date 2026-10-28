@@ -354,5 +354,7 @@ class LocalStore {
     'DELETE FROM downloads WHERE server=? AND book=?',
     [server, book],
   );
+  int get externalRevision =>
+      db.select('PRAGMA data_version').first.values.first as int;
   void close() => db.close();
 }

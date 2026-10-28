@@ -65,6 +65,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
   bool _disposed = false;
   bool _initialized = false;
   bool _reset = false;
+  int? _externalRevision;
   String? failure;
   DownloadPolicy get policy => DownloadPolicy.read(store);
   bool get supported => Platform.isAndroid || Platform.isWindows;
@@ -89,17 +90,14 @@ class BackgroundDownloads with WidgetsBindingObserver {
     });
     await _readConditions();
     // Also notices another engine's persisted fractions/completion/cancellation.
-    _poll = Timer.periodic(const Duration(seconds: 1), (_) {
-      unawaited(_readConditions());
-      final repository = _repository;
-      if (repository != null &&
-          store
-              .downloads(repository.profile.id)
-              .any(
-                (r) =>
-                    ['queued', 'downloading', 'paused'].contains(r['status']),
-              )) {
-        repository.changed();
+    _externalRevision = store.externalRevision;
+    _poll = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (timer.tick % 5 == 0) unawaited(_readConditions());
+      final revision = store.externalRevision;
+      if (revision != _externalRevision) {
+        _externalRevision = revision;
+        _repository?.changed();
+        refresh();
       }
     });
     refresh();

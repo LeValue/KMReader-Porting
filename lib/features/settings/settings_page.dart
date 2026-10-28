@@ -300,6 +300,59 @@ class SettingsPage extends StatelessWidget {
                   }
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.storage),
+                title: Text(tr(context, 'Document Cache Limit')),
+                subtitle: Text(
+                  '${app.store.setting<int>('documentCacheMb') ?? 1024} MB',
+                ),
+                trailing: PopupMenuButton<int>(
+                  tooltip: tr(context, 'Document Cache Limit'),
+                  onSelected: (value) {
+                    app.store.setSetting('documentCacheMb', value);
+                    repository.documents.scheduleTrim();
+                    repository.changed();
+                  },
+                  itemBuilder: (_) => [
+                    for (final value in [128, 256, 512, 1024, 2048, 4096, 8192])
+                      CheckedPopupMenuItem(
+                        value: value,
+                        checked:
+                            (app.store.setting<int>('documentCacheMb') ??
+                                1024) ==
+                            value,
+                        child: Text('$value MB'),
+                      ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.cleaning_services),
+                title: Text(tr(context, 'Clear Temporary Documents')),
+                subtitle: Text(
+                  tr(context, 'Downloaded books and open documents are kept.'),
+                ),
+                onTap: () async {
+                  if (!await confirm(
+                    context,
+                    'Clear Temporary Documents',
+                    'Downloaded books and open documents are kept.',
+                  )) {
+                    return;
+                  }
+                  try {
+                    await repository.documents.trim(clear: true);
+                  } catch (error) {
+                    if (context.mounted) showError(context, error);
+                  }
+                },
+              ),
+              if (app.backgroundDownloads.failure != null)
+                ListTile(
+                  leading: const Icon(Icons.sync_problem),
+                  title: Text(tr(context, 'Background Downloads Unavailable')),
+                  subtitle: Text(app.backgroundDownloads.failure!),
+                ),
               if (repository.syncFailure != null)
                 ListTile(
                   title: Text(repository.syncFailure!),

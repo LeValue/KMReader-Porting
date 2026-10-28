@@ -77,6 +77,7 @@ class KomgaApi {
     Map<String, dynamic>? query,
     Map<String, String>? extra,
     Future<void>? abortTrigger,
+    Set<int> acceptedStatuses = const {},
   }) async {
     if (_closed) throw const ApiFailure('The server connection was closed.');
     final request = http.AbortableRequest(
@@ -93,7 +94,8 @@ class KomgaApi {
       final response = await _client
           .send(request)
           .timeout(const Duration(seconds: 25));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      if ((response.statusCode < 200 || response.statusCode >= 300) &&
+          !acceptedStatuses.contains(response.statusCode)) {
         await response.stream.drain<void>();
         final status = response.statusCode;
         throw ApiFailure(

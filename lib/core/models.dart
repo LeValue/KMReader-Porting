@@ -114,7 +114,10 @@ class Book {
   int get pages => integer(media['pagesCount']);
   int get page => integer(progress['page']);
   bool get completed => progress['completed'] == true;
-  String get format => text(media['mediaType']).toLowerCase().contains('pdf')
+  String get format =>
+      text(media['mediaType']).toLowerCase().contains('pdf') ||
+          text(media['mediaProfile']).toLowerCase() == 'pdf' ||
+          text(json['name']).toLowerCase().endsWith('.pdf')
       ? 'pdf'
       : text(media['mediaType']).toLowerCase().contains('epub') ||
             text(media['mediaProfile']).toLowerCase() == 'epub' ||
