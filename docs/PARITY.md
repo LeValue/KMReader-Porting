@@ -39,9 +39,10 @@ test passed.
 
 Screenshots at mobile and desktop sizes are review artifacts. There is no
 Apple-host screenshot baseline, so exact visual parity has not been verified.
-The current Linux machine cannot run a Windows build or an accelerated Android
-emulator. Windows compilation, all 90 automated tests and native window startup passed
-for preview 0.4.1 on a GitHub Windows runner. See `VALIDATION.md` for the exact
+The current Linux machine cannot run Windows or an accelerated Android emulator.
+The API 35 GitHub runner executes a native simulated-cutout display test; it is
+not physical-device gesture/performance acceptance. Windows compilation, all 96 automated tests and native window startup passed
+for preview 0.5.0 on a GitHub Windows runner. See `VALIDATION.md` for the exact
 source/job, startup screenshot and published artifact verification.
 Device-native secure storage, accessibility,
 background behavior, performance, and Windows interactions need target testing.
