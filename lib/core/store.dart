@@ -77,7 +77,31 @@ class LocalStore {
         'CREATE TRIGGER IF NOT EXISTS ${table}_removed_account BEFORE INSERT ON $table WHEN EXISTS(SELECT 1 FROM removed_accounts WHERE server=new.server) BEGIN SELECT RAISE(IGNORE); END',
       );
     }
-    db.execute('PRAGMA user_version=4');
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS image_versions(server TEXT NOT NULL,path TEXT NOT NULL,generation INTEGER NOT NULL DEFAULT 0,stored_generation INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(server,path))',
+    );
+    if (!db
+        .select('PRAGMA table_info(image_versions)')
+        .any((row) => row['name'] == 'stored_generation')) {
+      db.execute(
+        'ALTER TABLE image_versions ADD COLUMN stored_generation INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+    for (final (name, definition) in [
+      ('etag', 'TEXT'),
+      ('modified', 'TEXT'),
+      ('validated', 'INTEGER NOT NULL DEFAULT 0'),
+    ]) {
+      if (!db
+          .select('PRAGMA table_info(image_versions)')
+          .any((row) => row['name'] == name)) {
+        db.execute('ALTER TABLE image_versions ADD COLUMN $name $definition');
+      }
+    }
+    db.execute(
+      "CREATE TRIGGER IF NOT EXISTS image_versions_removed_account BEFORE INSERT ON image_versions WHEN EXISTS(SELECT 1 FROM removed_accounts WHERE server=new.server) BEGIN SELECT RAISE(IGNORE); END",
+    );
+    db.execute('PRAGMA user_version=5');
   }
   final Database db;
   late final OfflineCatalog offlineCatalog;
@@ -127,6 +151,7 @@ class LocalStore {
         'progress',
         'downloads',
         'catalog_records',
+        'image_versions',
       ]) {
         db.execute('DELETE FROM $table WHERE server=?', [id]);
       }
@@ -354,6 +379,58 @@ class LocalStore {
     'DELETE FROM downloads WHERE server=? AND book=?',
     [server, book],
   );
+  Json imageState(String server, String path) {
+    final rows = db.select(
+      'SELECT * FROM image_versions WHERE server=? AND path=?',
+      [server, path],
+    );
+    return rows.isEmpty ? {} : Map<String, dynamic>.from(rows.first);
+  }
+
+  void imageValidated(
+    String server,
+    String path,
+    int version, {
+    String? etag,
+    String? modified,
+  }) => db.execute(
+    'INSERT INTO image_versions(server,path,generation,etag,modified,validated) VALUES(?,?,?,?,?,?) ON CONFLICT(server,path) DO UPDATE SET etag=excluded.etag,modified=excluded.modified,validated=excluded.validated WHERE image_versions.generation=excluded.generation',
+    [
+      server,
+      path,
+      version,
+      etag,
+      modified,
+      DateTime.now().millisecondsSinceEpoch,
+    ],
+  );
+
+  int imageVersion(String server, String path) {
+    final rows = db.select(
+      'SELECT generation FROM image_versions WHERE server=? AND path=?',
+      [server, path],
+    );
+    return rows.isEmpty ? 0 : rows.first['generation'] as int;
+  }
+
+  int storedImageVersion(String server, String path) {
+    final rows = db.select(
+      'SELECT stored_generation FROM image_versions WHERE server=? AND path=?',
+      [server, path],
+    );
+    return rows.isEmpty ? 0 : rows.first['stored_generation'] as int;
+  }
+
+  void markImageStored(String server, String path, int version) => db.execute(
+    'INSERT INTO image_versions(server,path,generation,stored_generation) VALUES(?,?,?,?) ON CONFLICT(server,path) DO UPDATE SET stored_generation=excluded.stored_generation WHERE image_versions.generation=excluded.generation',
+    [server, path, version, version],
+  );
+
+  void advanceImageVersion(String server, String path) => db.execute(
+    'INSERT INTO image_versions(server,path,generation) VALUES(?,?,1) ON CONFLICT(server,path) DO UPDATE SET generation=generation+1',
+    [server, path],
+  );
+
   int? _externalCacheVersion;
   int get externalRevision {
     final version = db.select('PRAGMA data_version').first.values.first as int;

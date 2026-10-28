@@ -36,6 +36,7 @@ class WeightedCache<K, V> {
   final _values = <K, V>{};
   int _weight = 0;
   int get currentWeight => _weight;
+  bool containsKey(K key) => _values.containsKey(key);
   V? operator [](K key) {
     final value = _values.remove(key);
     if (value != null) _values[key] = value;

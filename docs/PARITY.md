@@ -15,8 +15,8 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/scrolled reading, CFI resume and remote progression, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, slide/cover/curl overlays, incognito, next-book continuation | CJK/vertical and fixed-layout edge cases, continuous cross-chapter scroll, dictionary tools, exact upstream typography and native gesture/performance acceptance |
 | Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline reading | Android OS scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
 | Progress | Durable coalesced outbox, revision acknowledgements, retained failures, newer-remote conflict resolution | More multi-device/reconnect/device-clock stress tests; parity for every reader transition |
-| Live updates | SSE subscription, debounced refresh and reconnect | Full event-specific invalidation and real SSE acceptance tests |
-| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, versioned EPUB/PDF source cache with conditional HEAD revalidation and configurable 128 MiB–8 GiB quota (1 GiB default), protection of active and downloaded originals, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, conditional thumbnail/page revalidation, advanced preload policies |
+| Live updates | SSE subscription, debounced refresh and reconnect | More event-specific metadata invalidation |
+| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, versioned EPUB/PDF source cache with conditional HEAD revalidation and configurable 128 MiB–8 GiB quota (1 GiB default), protection of active and downloaded originals, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, advanced preload policies |
 | Settings | Theme, original ten-language catalog, dashboard sections, offline mode, downloads, server info | Some new labels/errors still need translations; full upstream preference surface |
 | API keys | List/create/copy/revoke, optional automatically created and independently verified key on password login, password fallback for unsupported servers, identification/protection of the managed active key | Manual-key identity discovery, authentication/session history, target-vault acceptance |
 | Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors | Duplicate detection, tasks/sessions/logs, komf, all server settings and import tools |
@@ -52,7 +52,7 @@ This is a development implementation, not a claim of a finished perfect port.
 ## Work in progress after 0.5.0
 
 The changes above are not part of the published 0.5.0 APK. The development
-branch passes 154 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
+branch passes 162 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
 and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
 added to Android and Windows CI; results are still pending. The Android WebView
 plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
@@ -193,3 +193,27 @@ across nested readers and released for hidden/locked readers, backgrounding and
 last close. Four Android/Windows widget variants exercise those transitions;
 an additional native OS request/release test is added for CI. Wide-page preload
 now decodes the same height-fitted width used by its visible viewport.
+
+
+Media cache updates now use persisted generations and cross-process file leases,
+so delayed foreground/background responses cannot restore an invalidated cover.
+Cover widgets subscribe to their own path updates; thumbnail events do not reload
+the whole catalog. Thirty-minute stale media remains immediately visible while
+conditional GET validation uses ETag/Last-Modified; HTTP 304 avoids body transfer,
+and changed bytes notify only their affected image. Legacy cache files remain
+usable and are validated in the background. Retry of TIFF/JPEG2000 comic pages
+keeps portable PNG conversion instead of bypassing it.
+
+SSE decoding now preserves complete multiline UTF-8 payloads and event IDs,
+ignores heartbeat comments/truncated messages, resumes with Last-Event-ID, and
+retains a debounced task-queue snapshot independently of catalog invalidation.
+Real Komga acceptance receives and checks LibraryAdded data. Cache tests cover
+304/changed responses, immediate stale display, offline reuse and a late worker
+using a separate SQLite connection. The complete suite passes 162 tests.
+
+The 38b0af0 native Android and Windows jobs passed, including the new OS display
+wake request/release test. Its ordinary Android runner failed because its disk
+filled during release compilation (the check annotation reports ENOSPC and the
+runner could not retain its log). The ordinary build now reserves disposable
+runner space like the emulator job, and unused preinstalled NDKs are removed
+only when GITHUB_ACTIONS is true. No successful whole-run claim is made for it.

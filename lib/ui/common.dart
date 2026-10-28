@@ -196,15 +196,32 @@ class Cover extends StatefulWidget {
 
 class _CoverState extends State<Cover> {
   late Future<Uint8List> _image;
+  void _changed() {
+    if (mounted && widget.repository.imageChanges.value.contains(widget.path)) {
+      setState(() => _image = widget.repository.image(widget.path));
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _image = widget.repository.image(widget.path);
+    widget.repository.imageChanges.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    widget.repository.imageChanges.removeListener(_changed);
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(Cover oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      oldWidget.repository.imageChanges.removeListener(_changed);
+      widget.repository.imageChanges.addListener(_changed);
+    }
     if (oldWidget.path != widget.path ||
         oldWidget.repository != widget.repository) {
       _image = widget.repository.image(widget.path);

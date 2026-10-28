@@ -66,6 +66,20 @@ void main() {
     store.close();
     directory.deleteSync(recursive: true);
   });
+  test('retrying a comic page keeps portable conversion and bypasses stale converted bytes', () async {
+    expect(await repository.page('book', 1), png);
+    final before = requests
+        .where((request) => request.url.queryParameters['convert'] == 'png')
+        .length;
+    expect(await repository.refreshPage('book', 1), png);
+    expect(
+      requests
+          .where((request) => request.url.queryParameters['convert'] == 'png')
+          .length,
+      before + 1,
+    );
+    expect(portablePageBytes(await repository.page('book', 1)), true);
+  });
   test(
     'portable image routing distinguishes TIFF and JPEG2000 from PNG/JPEG',
     () {
