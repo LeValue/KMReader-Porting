@@ -1,6 +1,7 @@
 import 'package:kmreader/core/background_downloads.dart';
 
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:kmreader/features/reader/reader_ocr.dart';
@@ -118,9 +119,18 @@ void main() {
         await tester.tapAt(const Offset(8, 8));
         await tester.pumpAndSettle();
         if (Platform.isAndroid) {
-          await binding.convertFlutterSurfaceToImage();
-          await tester.pump();
-          await binding.takeScreenshot('epub-native-paged');
+          debugPrint('Native EPUB PixelCopy capture started');
+          final bytes = await ReaderDisplay.channel
+              .invokeMethod<Uint8List>('captureScreenshot')
+              .timeout(const Duration(seconds: 10));
+          expect(bytes, isNotEmpty);
+          binding.reportData ??= <String, dynamic>{};
+          binding.reportData!['screenshots'] ??= <dynamic>[];
+          (binding.reportData!['screenshots'] as List).add({
+            'screenshotName': 'epub-native-paged',
+            'bytes': bytes!,
+          });
+          debugPrint('Native EPUB PixelCopy capture completed');
         }
         await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
         await Future<void>.delayed(const Duration(seconds: 1));
