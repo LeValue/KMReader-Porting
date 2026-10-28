@@ -42,6 +42,7 @@ class PageUpscaler {
       // Bound the complete output raster, in addition to per-tile inference.
       if (w * h > 2 * 1024 * 1024) return null;
       final id = await compute(_imageHash, bytes);
+      if (_closed) return null;
       final existing = _requests[id];
       if (existing != null) return await existing;
       if (_requests.length >= 2) return null;
@@ -101,6 +102,7 @@ class PageUpscaler {
       } finally {
         codec.dispose();
       }
+      if (_closed) return null;
       final worker = await (_worker ??= _UpscaleWorker.open());
       if (_closed) return null;
       final result = await worker.process(pixels, width, height);
@@ -138,6 +140,12 @@ class PageUpscaler {
       return null;
     }
   }
+
+  Future<void> get settled => Future.wait(
+    _requests.values.map(
+      (future) => future.then<void>((_) {}, onError: (Object _) {}),
+    ),
+  );
 
   void close() {
     _closed = true;

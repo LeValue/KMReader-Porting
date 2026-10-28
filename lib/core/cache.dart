@@ -110,6 +110,13 @@ class ImageRequests {
     }
   }
 
+  Future<void> get settled => Future.wait(
+    _known.values.map(
+      (request) =>
+          request.result.future.then<void>((_) {}, onError: (Object _) {}),
+    ),
+  );
+
   void close() {
     _closed = true;
     for (final request in _waiting) {

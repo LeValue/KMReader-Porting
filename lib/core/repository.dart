@@ -987,9 +987,19 @@ class Repository extends ChangeNotifier {
   }
 
   Future<void> stopDownloadWork() async {
-    final active = _activeTransfers.values.toList();
+    final active = <Future<void>>[
+      ..._activeTransfers.values.map(
+        (future) => future.then<void>((_) {}, onError: (Object _) {}),
+      ),
+      _imageRequests.settled,
+      documents.settled,
+      pageUpscaler.settled,
+      ..._pageConversions.values.map(
+        (future) => future.then<void>((_) {}, onError: (Object _) {}),
+      ),
+    ];
     dispose();
-    await Future.wait(active.map((f) => f.catchError((Object _) {})));
+    await Future.wait(active);
   }
 
   void resumeDownloads() {
