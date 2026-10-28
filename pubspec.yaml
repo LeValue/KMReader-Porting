@@ -49,6 +49,9 @@ dependencies:
   xml: ^7.1.0
   html: ^0.15.7
   scrollable_positioned_list: ^0.3.8
+  flutter_inappwebview: ^6.1.5
+  local_auth: ^3.0.2
+  file_selector: ^1.1.0
 
 dev_dependencies:
   integration_test:
@@ -75,6 +78,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/epub/
     - assets/logo.png
     - assets/strings.json
     - assets/port_strings.json
@@ -111,3 +115,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Stable WebView Android plugin with the AGP 9 ProGuard compatibility fix.
+dependency_overrides:
+  flutter_inappwebview_android:
+    path: third_party/flutter_inappwebview_android

@@ -809,6 +809,7 @@ class _ReaderPageState extends State<ReaderPage> {
     if (widget.book.format != 'comic') {
       return ReaderDisplay(
         child: DocumentReader(
+          onNextBook: _nextBook,
           repository: widget.repository,
           book: widget.book,
           load: _document,

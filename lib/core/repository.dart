@@ -238,6 +238,7 @@ class Repository extends ChangeNotifier {
   void removeCatalogItem(String kind, String id) {
     if (_disposed) return;
     _removed.add('$kind:$id');
+    store.offlineCatalog.remove(profile.id, kind, id);
     store.setSetting('removed:${profile.id}', _removed.toList());
     store.deleteCache(profile.id, 'detail:$kind:$id');
     refreshContent();
@@ -324,7 +325,6 @@ class Repository extends ChangeNotifier {
   Book overlay(Book book) {
     final local = store.progress(profile.id, book.id);
     if (local == null) return book;
-    if (local['kind'] == 'epub') return book;
     if (local['reset'] == true) return book.withProgress(null);
     final remoteDate = DateTime.tryParse(text(book.progress['lastModified']));
     final localDate = DateTime.tryParse(text(local['lastModified']));
@@ -333,6 +333,22 @@ class Repository extends ChangeNotifier {
         remoteDate.isAfter(localDate) &&
         !store.isPending(profile.id, book.id)) {
       return book;
+    }
+    if (local['kind'] == 'epub') {
+      final total = object(
+        object(object(local['progression'])['locator'])['locations'],
+      )['totalProgression'];
+      if (total is! num || !total.isFinite) return book;
+      return book.withProgress({
+        'page': total >= 1
+            ? book.pages
+            : (total * book.pages).floor().clamp(
+                1,
+                book.pages > 0 ? book.pages : 1,
+              ),
+        'completed': total >= 1,
+        'lastModified': local['lastModified'],
+      });
     }
     return book.withProgress(local);
   }
@@ -348,6 +364,36 @@ class Repository extends ChangeNotifier {
     int size = 40,
     String? libraryId,
   }) async {
+    if (offline &&
+        ['books', 'series', 'collections', 'readlists'].contains(kind)) {
+      try {
+        final result = store.offlineCatalog.query(
+          profile.id,
+          kind,
+          page: page,
+          size: size,
+          search: search,
+          condition: condition,
+          path: path,
+          sort: sort,
+          libraryId: libraryId,
+        );
+        return CatalogPage(
+          result.items
+              .where((item) => !_removed.contains('$kind:${item.id}'))
+              .map(
+                (item) => kind == 'books'
+                    ? CatalogItem(kind, overlay(item.book).json)
+                    : item,
+              )
+              .toList(),
+          result.last,
+          result.total,
+        );
+      } on ApiFailure {
+        if (path == null) rethrow; /* Saved special server lists use the exact cached response below. */
+      }
+    }
     String? readStatus(Json? condition) {
       if (condition == null) return null;
       final status = object(condition['readStatus']);
@@ -415,6 +461,72 @@ class Repository extends ChangeNotifier {
       result.last,
       result.total,
     );
+  }
+
+  bool metadataIndexing = false;
+  int metadataIndexed = 0;
+  bool _cancelMetadata = false;
+  String? metadataIndexError;
+  void cancelMetadataIndex() {
+    _cancelMetadata = true;
+  }
+
+  Future<void> prepareOfflineCatalog() async {
+    if (metadataIndexing || offline || _disposed) return;
+    metadataIndexing = true;
+    metadataIndexed = 0;
+    _cancelMetadata = false;
+    metadataIndexError = null;
+    changed();
+    try {
+      await get('/api/v1/libraries', force: true);
+      for (final kind in ['series', 'books', 'collections', 'readlists']) {
+        final seen = <String>{};
+        for (var page = 0; ; page++) {
+          if (_disposed || _cancelMetadata || offline) return;
+          final chunk = await catalog(
+            kind,
+            page: page,
+            size: 200,
+            force: true,
+            path: ['collections', 'readlists'].contains(kind)
+                ? '/api/v1/$kind'
+                : null,
+            sort: kind == 'books' || kind == 'series'
+                ? 'metadata.titleSort,asc'
+                : 'name,asc',
+          );
+          if (_disposed) return;
+          store.cacheItems(profile.id, chunk.items);
+          seen.addAll(chunk.items.map((v) => v.id));
+          metadataIndexed += chunk.items.length;
+          changed();
+          if (chunk.last || chunk.items.isEmpty) break;
+        }
+        if (_cancelMetadata || _disposed || offline) return;
+        final obsolete = store.db
+            .select(
+              'SELECT id FROM catalog_records WHERE server=? AND kind=?',
+              [profile.id, kind],
+            )
+            .map((r) => r['id'] as String)
+            .where((id) => !seen.contains(id))
+            .toList();
+        for (final id in obsolete) {
+          store.offlineCatalog.remove(profile.id, kind, id);
+        }
+      }
+      store.setSetting('offlineCatalogSnapshot:${profile.id}', {
+        'modified': DateTime.now().toUtc().toIso8601String(),
+        'items': metadataIndexed,
+      });
+      localCatalogChanged();
+    } catch (error) {
+      if (!_disposed) metadataIndexError = error.toString();
+    } finally {
+      metadataIndexing = false;
+      if (!_disposed) changed();
+    }
   }
 
   Future<Book> book(String id) async {
@@ -554,8 +666,9 @@ class Repository extends ChangeNotifier {
     Book book,
     String href,
     double progression,
-    double total,
-  ) {
+    double total, {
+    String? cfi,
+  }) {
     if (_disposed) return;
     var device = store.setting<String>('deviceId');
     if (device == null) {
@@ -578,7 +691,7 @@ class Repository extends ChangeNotifier {
           'href': href,
           'type': 'application/xhtml+xml',
           'locations': {
-            'fragments': <String>[],
+            'fragments': <String>[if (cfi != null && cfi.isNotEmpty) cfi],
             'progression': progression,
             'totalProgression': total,
           },

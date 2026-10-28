@@ -205,9 +205,10 @@ void main() {
         repository.setProgress(sampleBook(), 3);
         final result = await repository.catalog('books');
         expect(result.items.single.book.page, 3);
-        await expectLater(
-          repository.catalog('series'),
-          throwsA(isA<ApiFailure>()),
+        expect((await repository.catalog('series')).items, isEmpty);
+        expect(
+          (await repository.catalog('books', search: 'not present')).items,
+          isEmpty,
         );
       },
     );

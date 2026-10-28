@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import 'api.dart';
+import 'device_lock.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'store.dart';
@@ -38,6 +39,7 @@ class AppController extends ChangeNotifier {
     required this.vault,
     this.apiFactory,
   });
+  late final DeviceLock deviceLock = DeviceLock(store, SystemAuthenticator());
   final LocalStore store;
   final Directory directory;
   final CredentialVault vault;

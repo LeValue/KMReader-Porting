@@ -5,14 +5,14 @@ This matrix distinguishes implemented behavior from full upstream parity.
 
 | Area | Implemented | Remaining work |
 | --- | --- | --- |
-| Authentication | Password, API key, first-server claim, account-scoped profiles, OS credential vault | Device biometrics/Windows Hello; device-level vault validation |
+| Authentication | Password, API key, first-server claim, account-scoped profiles, OS credential vault; optional device biometrics/PIN/Windows Hello app lock with cold-start and background protection | Device-level vault and OS authentication acceptance |
 | Server management | Add, reconnect, switch, remove; isolated caches/files/outbox | More server editing and protection options |
 | Dashboard | Keep Reading, On Deck, new books/series, updated series, recently read and recently released books; hide/reorder sections, persistent library scope, matching See All filters/sort, compact empty sections, persistent large/medium/small/horizontal card styles | Read-list continuation section |
-| Catalog | Paginated series/books, submitted search, library browser, sort/read-status and nested typed metadata filters, per-account saved filters, selection of loaded items, batch read/unread/download/list actions | Full offline metadata index/search, server-wide selection, every upstream card/sort/filter presentation |
+| Catalog | Paginated series/books, submitted search, library browser, sort/read-status and nested typed metadata filters, per-account saved filters, selection of loaded items or all matching paginated results, batch read/unread/download/list actions; account-scoped SQLite FTS metadata index with full snapshot preparation, Unicode search, nested filters, sorts and local progress | Every upstream card/sort/filter presentation; offline special-list and On Deck parity |
 | Details and lists | Covers, metadata/summary, read/unread, collections/read lists; metadata editing with field locks and explicit batch changes; nonempty list creation, membership editing/reordering/deletion, personal pins; kmrs server smart-list CRUD, visibility and admin sharing, preserving uneditable conditions | Custom thumbnails, all detail layouts, real kmrs smart-list/sharing acceptance tests |
 | Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, incognito and continuation | Curl/cover animations, wide-page scrolling, device frame-time/memory acceptance |
 | PDF | PDFium viewer, text search/highlights after document readiness, outline, jump/resume, auto/paged/continuous/single/dual layouts, cover-alone and RTL options, themes, password retry without persistence, original-file offline reading | Quality presets/offline raster rendering, DIVINA alternative, exact upstream gesture/animation behavior, device acceptance |
-| EPUB | ZIP/OPF spine, scrolling HTML, hierarchical EPUB 3 nav/EPUB 2 NCX with spine fallback, chapter/section hyperlinks and non-spine footnotes with a return to the canonical reading position, text size/font/theme, position-preserving text changes, local position, canonical remote progression | Paged/curl/cover, columns, embedded fonts, exact CSS/layout parity, robust image-layout restoration |
+| EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/scrolled reading, CFI resume and remote progression, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, slide/cover/curl overlays, incognito, next-book continuation | CJK/vertical and fixed-layout edge cases, continuous cross-chapter scroll, selection/dictionary/translation tools, exact upstream typography and native gesture/performance acceptance |
 | Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, manual resume after restart, validated HTTP range/If-Range transfer resume, offline reading | Background OS jobs, network policies, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
 | Progress | Durable coalesced outbox, revision acknowledgements, retained failures, newer-remote conflict resolution | More multi-device/reconnect/device-clock stress tests; parity for every reader transition |
 | Live updates | SSE subscription, debounced refresh and reconnect | Full event-specific invalidation and real SSE acceptance tests |
@@ -48,3 +48,12 @@ Device-native secure storage, accessibility,
 background behavior, performance, and Windows interactions need target testing.
 
 This is a development implementation, not a claim of a finished perfect port.
+
+## Work in progress after 0.5.0
+
+The changes above are not part of the published 0.5.0 APK. The development
+branch passes 108 automated tests including a real Chromium EPUB layout run,
+and compiles an Android debug APK. Native WebView interaction tests have been
+added to Android and Windows CI; results are still pending. The Android WebView
+plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
+for AGP 9.1; original source and license are retained in `third_party/`.
