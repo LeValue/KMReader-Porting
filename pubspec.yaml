@@ -52,6 +52,8 @@ dependencies:
   flutter_inappwebview: ^6.1.5
   local_auth: ^3.0.2
   file_selector: ^1.1.0
+  onnxruntime_v2: ^1.23.2+2
+  ffi: ^2.2.0
 
 dev_dependencies:
   integration_test:
@@ -79,6 +81,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/epub/
+    - assets/models/
     - assets/logo.png
     - assets/strings.json
     - assets/port_strings.json
@@ -120,3 +123,5 @@ flutter:
 dependency_overrides:
   flutter_inappwebview_android:
     path: third_party/flutter_inappwebview_android
+  flutter_inappwebview_windows:
+    path: third_party/flutter_inappwebview_windows

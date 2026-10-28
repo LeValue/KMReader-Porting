@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_controller.dart';
 import '../../core/models.dart';
 import '../../core/repository.dart';
+import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../auth/login_page.dart';
@@ -12,6 +13,7 @@ import '../catalog/dashboard.dart';
 import '../catalog/history_page.dart';
 import 'api_keys_page.dart';
 import 'library_editor.dart';
+import 'translation_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.app, required this.repository});
@@ -147,6 +149,21 @@ class SettingsPage extends StatelessWidget {
         Card(
           child: Column(
             children: [
+              ListTile(
+                leading: const Icon(Icons.translate),
+                title: Text(tr(context, 'Translation Providers')),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TranslationSettingsPage(
+                      providers: TranslationProviders(
+                        app.store,
+                        vault: app.vault,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               SwitchListTile(
                 secondary: const Icon(Icons.playlist_play),
                 title: Text(tr(context, 'Read List Continuation')),

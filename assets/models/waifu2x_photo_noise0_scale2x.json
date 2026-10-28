@@ -1,0 +1,15 @@
+{
+  "sourceRepository": "https://github.com/kmworks/kmreader",
+  "sourceRef": "e2b35f8796cc830fc6e7464e161b2172d8f916e9",
+  "sourcePath": "KMReader/Resources/Upscaling/waifu2x_photo_noise0_scale2x.mlmodel",
+  "sourceSha256": "9de0ffbe522c747f6230152112005aa079726e994f30b67da85d7592e656234a",
+  "onnxSha256": "3122f9237c9a55220bdcee6cf530e49214e57e68f36c1119d9137f7ee28e4558",
+  "license": "MIT",
+  "scale": 2,
+  "shrink": 7,
+  "tileSize": 156,
+  "validationMaxAbsoluteErrors": [
+    1.210719347000122e-06,
+    7.152557373046875e-07
+  ]
+}

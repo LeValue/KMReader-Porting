@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/models.dart';
 import '../../core/repository.dart';
+import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../../ui/theme.dart';
@@ -19,6 +20,7 @@ import 'epub_session.dart';
 import 'reader_display.dart';
 import 'page_transition.dart';
 import 'tap_zones.dart';
+import 'reader_text_page.dart';
 
 class BrowserEpubReader extends StatefulWidget {
   const BrowserEpubReader({
@@ -181,7 +183,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         Navigator.maybePop(context);
         return;
       case 'selection':
-        _selection = text(event['text']);
+        setState(() => _selection = text(event['text']));
         return;
       case 'link':
         unawaited(_link(text(event['href'])));
@@ -427,6 +429,23 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _translateSelection() async {
+    if (_selection?.trim().isNotEmpty != true) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderDisplay(
+          child: ReaderTextPage(
+            initialText: _selection,
+            providers: TranslationProviders(widget.repository.store),
+            title: widget.book.title,
+            incognito: widget.incognito,
           ),
         ),
       ),
@@ -769,6 +788,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         'contents' => _contents(),
                         'search' => _search(),
                         'bookmarks' => _bookmarks(),
+                        'translate' => _translateSelection(),
                         _ => _settings(),
                       },
                       itemBuilder: (_) => [
@@ -776,6 +796,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           'contents': 'Table of Contents',
                           'search': 'Search',
                           'bookmarks': 'Bookmarks',
+                          if (_selection?.trim().isNotEmpty == true)
+                            'translate': 'Translate Selected Text',
                           'settings': 'Text Settings',
                         }.entries)
                           PopupMenuItem(

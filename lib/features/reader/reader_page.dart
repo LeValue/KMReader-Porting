@@ -9,6 +9,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../core/models.dart';
 import '../../core/api.dart';
 import '../../core/repository.dart';
+import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../../ui/theme.dart';
@@ -21,6 +22,7 @@ import 'reader_display.dart';
 import 'page_crop.dart';
 import 'reader_ocr.dart';
 import 'reader_text_page.dart';
+import 'page_upscaler.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -503,6 +505,7 @@ class _ReaderPageState extends State<ReaderPage> {
         MaterialPageRoute(
           builder: (_) => ReaderDisplay(
             child: ReaderTextPage(
+              providers: TranslationProviders(widget.repository.store),
               bytes: bytes,
               ocr: ReaderOcr(widget.repository.bookDirectory(widget.book.id)),
               title: '${widget.book.title} · ${_session.page}',
@@ -780,6 +783,54 @@ class _ReaderPageState extends State<ReaderPage> {
                       }
                     },
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tr(context, 'Waifu2x Upscaling')),
+                    subtitle: Text(
+                      tr(context, 'Automatically enhance low-resolution pages'),
+                    ),
+                    value:
+                        widget.repository.store.setting<String>(
+                          'imageUpscalingMode',
+                        ) ==
+                        'auto',
+                    onChanged: (value) {
+                      widget.repository.store.setSetting(
+                        'imageUpscalingMode',
+                        value ? 'auto' : 'disabled',
+                      );
+                      apply(p);
+                    },
+                  ),
+                  if (widget.repository.store.setting<String>(
+                        'imageUpscalingMode',
+                      ) ==
+                      'auto')
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(tr(context, 'Upscale Trigger Scale')),
+                      subtitle: Slider(
+                        value:
+                            (widget.repository.store.setting<double>(
+                                      'imageUpscaleAutoTriggerScale',
+                                    ) ??
+                                    1.05)
+                                .clamp(1, 3),
+                        min: 1,
+                        max: 3,
+                        divisions: 40,
+                        label:
+                            '${(widget.repository.store.setting<double>('imageUpscaleAutoTriggerScale') ?? 1.05).toStringAsFixed(2)}x',
+                        onChanged: (value) {
+                          widget.repository.store.setSetting(
+                            'imageUpscaleAutoTriggerScale',
+                            value,
+                          );
+                          update(() {});
+                        },
+                        onChangeEnd: (_) => apply(p),
+                      ),
+                    ),
                   Text(tr(context, 'Double Tap Zoom Scale')),
                   Row(
                     children: [
@@ -1286,33 +1337,50 @@ class _PageImageState extends State<_PageImage>
                 'cover' => BoxFit.cover,
                 _ => BoxFit.contain,
               };
-        final image = Image.memory(
-          snapshot.data!.$1,
-          cacheWidth:
-              (MediaQuery.sizeOf(context).width *
-                      MediaQuery.devicePixelRatioOf(context) *
-                      (widget.vertical ? _verticalDecode : widget.decodeZoom) *
-                      (widget.half == 0 ? 1 : 2))
-                  .ceil()
-                  .clamp(1, 4096),
-          width: double.infinity,
-          fit: crop == null ? fit : BoxFit.fill,
-          gaplessPlayback: true,
-          frameBuilder: (context, child, frame, synchronous) {
-            if ((frame != null || synchronous) && !_reported) {
-              _reported = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) widget.onReady();
-              });
-            }
-            return child;
-          },
-          errorBuilder: (context, error, stack) => FailureView(
-            error: error,
-            retry: () => setState(() {
-              _reported = false;
-              _future = _load(refresh: true);
-            }),
+        final image = UpscaledPageImage(
+          bytes: snapshot.data!.$1,
+          upscaler: widget.repository.pageUpscaler,
+          enabled:
+              widget.repository.store.setting<String>('imageUpscalingMode') ==
+              'auto',
+          threshold:
+              widget.repository.store.setting<double>(
+                'imageUpscaleAutoTriggerScale',
+              ) ??
+              1.05,
+          screen:
+              MediaQuery.sizeOf(context) *
+              MediaQuery.devicePixelRatioOf(context),
+          builder: (bytes) => Image.memory(
+            bytes,
+            cacheWidth:
+                (MediaQuery.sizeOf(context).width *
+                        MediaQuery.devicePixelRatioOf(context) *
+                        (widget.vertical
+                            ? _verticalDecode
+                            : widget.decodeZoom) *
+                        (widget.half == 0 ? 1 : 2))
+                    .ceil()
+                    .clamp(1, 4096),
+            width: double.infinity,
+            fit: crop == null ? fit : BoxFit.fill,
+            gaplessPlayback: true,
+            frameBuilder: (context, child, frame, synchronous) {
+              if ((frame != null || synchronous) && !_reported) {
+                _reported = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) widget.onReady();
+                });
+              }
+              return child;
+            },
+            errorBuilder: (context, error, stack) => FailureView(
+              error: error,
+              retry: () => setState(() {
+                _reported = false;
+                _future = _load(refresh: true);
+              }),
+            ),
           ),
         );
         final cropped = crop == null

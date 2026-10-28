@@ -40,6 +40,8 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed lib test integration_test test_driver
       - run: flutter analyze
       - run: flutter test
+      - name: Verify portable Waifu2x with the real ONNX runtime
+        run: KMREADER_ONNX_TEST=1 LD_LIBRARY_PATH="$PUB_CACHE/hosted/pub.dev/onnxruntime_v2-1.23.2+2/linux" flutter test test/upscaler_test.dart --no-pub
       - name: Test the client against Komga
         run: |
           curl --fail --location https://github.com/gotson/komga/releases/download/1.29.1/komga-1.29.1.jar --output /tmp/komga.jar
@@ -121,6 +123,18 @@ jobs:
         run: flutter build apk --debug --target=integration_test/reader_display_test.dart --no-pub
         env:
           ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
+      - name: Reserve AVD space after the dependency build
+        run: |
+          sudo python3 - "$ANDROID_SDK_ROOT" <<'PYDISK'
+          import shutil,sys
+          from pathlib import Path
+          sdk=Path(sys.argv[1])
+          for version in (sdk/'ndk').iterdir():
+              if version.is_dir() and version.name!='28.2.13676358': shutil.rmtree(version)
+          # The action below installs its one required API 35 image.
+          if (sdk/'system-images').exists(): shutil.rmtree(sdk/'system-images')
+          PYDISK
+          df -h .
       - name: Exercise real Android WindowInsets with a simulated notch
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -130,7 +144,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          disk-size: 4096M
+          disk-size: 2048M
           ram-size: 1536M
           heap-size: 256M
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
