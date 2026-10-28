@@ -12,6 +12,7 @@ import 'models.dart';
 import 'store.dart';
 import 'cache.dart';
 import 'page_formats.dart';
+import 'read_list_reading.dart';
 
 class Repository extends ChangeNotifier {
   Repository({
@@ -27,6 +28,7 @@ class Repository extends ChangeNotifier {
   final Directory directory;
   final DateTime Function() cacheClock;
   bool offline = false;
+  late final ReadListReading readLists = ReadListReading(this);
   bool _syncing = false;
   bool _disposed = false;
   StreamSubscription<String>? _events;
@@ -214,6 +216,7 @@ class Repository extends ChangeNotifier {
 
   void refreshContent() {
     if (_disposed) return;
+    if (readLists.enabled && !offline) unawaited(readLists.sync());
     _invalidated = cacheClock();
     _invalidationGeneration++;
     contentRevision++;

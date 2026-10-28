@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../../core/repository.dart';
+import '../../core/read_list_reading.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'catalog_page.dart';
@@ -10,6 +11,7 @@ import 'catalog_page.dart';
 const dashboardSections = [
   'dashboard.keepReading',
   'dashboard.onDeck',
+  'dashboard.readListsInProgress',
   'dashboard.recentlyReleasedBooks',
   'dashboard.recentlyAddedBooks',
   'dashboard.recentlyAddedSeries',
@@ -198,13 +200,21 @@ class Dashboard extends StatelessWidget {
               ),
             ),
             for (final title in order)
-              if (!hidden.contains(title))
-                _DashboardSection(
-                  key: ValueKey('$title:$library'),
-                  repository: repository,
-                  title: title,
-                  libraryId: library.isEmpty ? null : library,
-                ),
+              if (!hidden.contains(title) &&
+                  (title != 'dashboard.readListsInProgress' ||
+                      repository.readLists.enabled))
+                if (title == 'dashboard.readListsInProgress')
+                  _ReadListSection(
+                    repository: repository,
+                    libraryId: library.isEmpty ? null : library,
+                  )
+                else
+                  _DashboardSection(
+                    key: ValueKey('$title:$library'),
+                    repository: repository,
+                    title: title,
+                    libraryId: library.isEmpty ? null : library,
+                  ),
           ],
         ),
       );
@@ -425,5 +435,121 @@ class _ContinueCard extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+class _ReadListSection extends StatelessWidget {
+  const _ReadListSection({required this.repository, this.libraryId});
+  final Repository repository;
+  final String? libraryId;
+  @override
+  Widget build(BuildContext context) => AsyncPanel<List<ReadListContinuation>>(
+    revision:
+        repository.contentRevision +
+        repository.progressRevision +
+        repository.cacheRevision,
+    load: () => repository.readLists.continuations(libraryId: libraryId),
+    builder: (context, values) => values.isEmpty
+        ? const SizedBox.shrink()
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                child: Text(
+                  tr(context, 'dashboard.readListsInProgress'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              SizedBox(
+                height: 146,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: values.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 16),
+                  itemBuilder: (context, index) {
+                    final entry = values[index];
+                    return SizedBox(
+                      width: 300,
+                      child: Card(
+                        child: InkWell(
+                          onTap: () => openItem(
+                            context,
+                            repository,
+                            CatalogItem(
+                              'books',
+                              entry.book.json,
+                              readListId: entry.list.id,
+                            ),
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 50,
+                                  height: 76,
+                                  child: Cover(
+                                    repository: repository,
+                                    path:
+                                        '/api/v1/books/${Uri.encodeComponent(entry.book.id)}/thumbnail',
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        entry.list.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        entry.book.title,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        '${entry.read}/${entry.count} ${tr(context, 'Books')}',
+                                      ),
+                                      LinearProgressIndicator(
+                                        value: entry.count == 0
+                                            ? 0
+                                            : entry.read / entry.count,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
+                                  onSelected: (_) =>
+                                      repository.readLists.stop(entry.list.id),
+                                  itemBuilder: (_) => [
+                                    PopupMenuItem(
+                                      value: 'stop',
+                                      child: Text(tr(context, 'Stop Reading')),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
   );
 }

@@ -350,7 +350,7 @@ void main() {
       await tester.pumpAndSettle();
       final order = app.store.setting<List<dynamic>>('dashboardOrder:fixture');
       expect(order, isNotNull);
-      expect(order!.length, 7);
+      expect(order!.length, 8);
       expect(order.first, isNot('dashboard.keepReading'));
       expect(
         requests.length,

@@ -161,6 +161,7 @@ void main() {
     store.cache('a', 'detail:readlists:list', {
       'id': 'list',
       'name': 'List',
+      'ordered': true,
       'bookIds': ['three', 'one'],
     });
     expect(
@@ -168,7 +169,7 @@ void main() {
           .query('a', 'books', path: '/api/v1/readlists/list/books')
           .items
           .map((v) => v.id),
-      ['one', 'three'],
+      ['three', 'one'],
     );
     final db = sqlite3.openInMemory();
     db.execute(

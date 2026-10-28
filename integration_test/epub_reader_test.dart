@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:kmreader/features/reader/reader_ocr.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,6 +118,56 @@ void main() {
       } finally {
         repository.dispose();
         store.close();
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+  testWidgets(
+    'native on-device OCR recognizes a rendered image without retaining private text',
+    (tester) async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kmreader-native-ocr-',
+      );
+      try {
+        final reader = ReaderOcr(directory);
+        final languages = await reader.languages();
+        if (languages.isEmpty) {
+          markTestSkipped(
+            'No OCR language pack is installed on this Windows runner.',
+          );
+          return;
+        }
+        final recorder = ui.PictureRecorder();
+        final paintCanvas = Canvas(recorder);
+        paintCanvas.drawColor(Colors.white, BlendMode.src);
+        final builder = ui.ParagraphBuilder(ui.ParagraphStyle(fontSize: 72))
+          ..pushStyle(ui.TextStyle(color: Colors.black, fontSize: 72))
+          ..addText('HELLO READER');
+        final paragraph = builder.build()
+          ..layout(const ui.ParagraphConstraints(width: 760));
+        paintCanvas.drawParagraph(paragraph, const Offset(20, 60));
+        final picture = recorder.endRecording(),
+            image = await picture.toImage(800, 240);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        final recognized = await reader.recognize(
+          bytes!.buffer.asUint8List(),
+          languages.contains('latin')
+              ? 'latin'
+              : languages.contains('en-US')
+              ? 'en-US'
+              : languages.first,
+          cache: false,
+        );
+        expect(
+          recognized.text.toUpperCase(),
+          allOf(contains('HELLO'), contains('READER')),
+        );
+        expect(recognized.blocks, isNotEmpty);
+        expect(directory.listSync(recursive: true).whereType<File>(), isEmpty);
+        image.dispose();
+        picture.dispose();
+        paragraph.dispose();
+      } finally {
         await directory.delete(recursive: true);
       }
     },

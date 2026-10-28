@@ -7,7 +7,7 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | --- | --- | --- |
 | Authentication | Password, API key, first-server claim, account-scoped profiles, OS credential vault; optional device biometrics/PIN/Windows Hello app lock with cold-start and background protection | Device-level vault and OS authentication acceptance |
 | Server management | Add, reconnect, switch, remove; isolated caches/files/outbox | More server editing and protection options |
-| Dashboard | Keep Reading, On Deck, new books/series, updated series, recently read and recently released books; hide/reorder sections, persistent library scope, matching See All filters/sort, compact empty sections, persistent large/medium/small/horizontal card styles | Read-list continuation section |
+| Dashboard | Keep Reading, On Deck, new books/series, updated series, recently read and recently released books; hide/reorder sections, persistent library scope, matching See All filters/sort, opt-in ordered read-list continuation with upstream-compatible client-settings sync and durable stop tombstones, compact empty sections, persistent large/medium/small/horizontal card styles | Native acceptance for read-list continuation |
 | Catalog | Paginated series/books, submitted search, library browser, sort/read-status and nested typed metadata filters, per-account saved filters, selection of loaded items or all matching paginated results, batch read/unread/download/list actions; account-scoped SQLite FTS metadata index with full snapshot preparation, Unicode search, nested filters, sorts and local progress | Every upstream card/sort/filter presentation; offline special-list and On Deck parity |
 | Details and lists | Covers, metadata/summary, read/unread, collections/read lists; metadata editing with field locks and explicit batch changes; nonempty list creation, membership editing/reordering/deletion, personal pins; kmrs server smart-list CRUD, visibility and admin sharing, preserving uneditable conditions | Custom thumbnails, all detail layouts, real kmrs smart-list/sharing acceptance tests |
 | Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, incognito and continuation | Curl/cover animations, wide-page scrolling, device frame-time/memory acceptance |
@@ -21,7 +21,7 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | API keys | List/create/copy/revoke, optional automatically created and independently verified key on password login, password fallback for unsupported servers, identification/protection of the managed active key | Manual-key identity discovery, authentication/session history, target-vault acceptance |
 | Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors | Duplicate detection, tasks/sessions/logs, komf, all server settings and import tools |
 | History/statistics | Reading-history catalog, paginated admin server events, library-scoped summaries/distributions/heatmap/top authors/genres/tags; extended reading-stat endpoints with 404-only local fallback and 24-hour capability retry; offline snapshots and local progress overlay | Real extended-server acceptance, complete offline metadata indexing, all history filters/detail layouts and richer charts |
-| AI/OCR | Not implemented | Cross-platform OCR, bubble detection/typesetting, model catalog, translation providers, upscaling |
+| AI/OCR | Offline ML Kit OCR for Latin/Japanese/Chinese/Korean/Devanagari on Android, WinRT OCR with installed Windows language packs, selectable text/region preview, per-image/language cache and incognito exclusion | Native OCR acceptance; bubble detection/typesetting, model catalog, translation providers, upscaling |
 | OS integrations | Android/Windows launch targets and original logo; Windows portable packaging/runtime and isolated native-startup CI probe | Widgets, search indexing, quick actions, notifications/live activities, native background work and multiple reader windows; production installers/signing |
 | Artwork/localization | Original MIT logo, light/dark tokens, card dimensions, original 1,520 localization keys plus translated aliases and new Italian labels | Complete glyph/typography/animation matching; translations for new labels/errors in every language |
 
@@ -52,8 +52,15 @@ This is a development implementation, not a claim of a finished perfect port.
 ## Work in progress after 0.5.0
 
 The changes above are not part of the published 0.5.0 APK. The development
-branch passes 108 automated tests including a real Chromium EPUB layout run,
-and compiles an Android debug APK. Native WebView interaction tests have been
+branch passes 114 automated tests including a real Chromium EPUB layout run,
+and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
 added to Android and Windows CI; results are still pending. The Android WebView
 plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
 for AGP 9.1; original source and license are retained in `third_party/`.
+
+Ordered read-list sync and full offline-catalog snapshot preparation also passed
+the real Komga 1.29.1 acceptance test. The first new native CI run exposed the
+WebView plugin's C++17/experimental-coroutine incompatibility with current MSVC;
+the runner and plugin now request standard C++20. The emulator build heap and
+worker count are bounded, and dependencies are compiled before the emulator
+starts, after its first run lost the device connection following display tests.

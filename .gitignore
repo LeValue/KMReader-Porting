@@ -54,3 +54,6 @@ app.*.map.json
 
 # Kotlin compiler session cache
 /android/.kotlin/
+
+# Gradle outputs from local path plugins.
+/android/build/
