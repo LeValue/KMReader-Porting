@@ -986,5 +986,101 @@
     "zh-Hant": "伺服器將停止。請在其主機上重新啟動後再連線。",
     "ru": "Сервер будет остановлен. Для подключения запустите его снова на хосте.",
     "es": "El servidor se detendrá. Inícialo de nuevo en su equipo para volver a conectarte."
+  },
+  "Komf is not connected to this server.": {
+    "en": "Komf is not connected to this server.",
+    "it": "Komf non è collegato a questo server.",
+    "de": "Komf ist nicht mit diesem Server verbunden.",
+    "fr": "Komf n’est pas connecté à ce serveur.",
+    "ja": "Komf はこのサーバーに接続されていません。",
+    "ko": "Komf가 이 서버에 연결되어 있지 않습니다.",
+    "zh-Hans": "Komf 未连接到此服务器。",
+    "zh-Hant": "Komf 未連線至此伺服器。",
+    "ru": "Komf не подключён к этому серверу.",
+    "es": "Komf no está conectado a este servidor."
+  },
+  "Komf job running": {
+    "en": "Komf job running",
+    "it": "Operazione Komf in corso",
+    "de": "Komf-Auftrag läuft",
+    "fr": "Opération Komf en cours",
+    "ja": "Komf ジョブ実行中",
+    "ko": "Komf 작업 실행 중",
+    "zh-Hans": "Komf 任务正在运行",
+    "zh-Hant": "Komf 工作執行中",
+    "ru": "Задание Komf выполняется",
+    "es": "Operación Komf en curso"
+  },
+  "Komf job completed": {
+    "en": "Komf job completed",
+    "it": "Operazione Komf completata",
+    "de": "Komf-Auftrag abgeschlossen",
+    "fr": "Opération Komf terminée",
+    "ja": "Komf ジョブ完了",
+    "ko": "Komf 작업 완료",
+    "zh-Hans": "Komf 任务已完成",
+    "zh-Hant": "Komf 工作已完成",
+    "ru": "Задание Komf завершено",
+    "es": "Operación Komf completada"
+  },
+  "Komf job failed": {
+    "en": "Komf job failed",
+    "it": "Operazione Komf non riuscita",
+    "de": "Komf-Auftrag fehlgeschlagen",
+    "fr": "Échec de l’opération Komf",
+    "ja": "Komf ジョブ失敗",
+    "ko": "Komf 작업 실패",
+    "zh-Hans": "Komf 任务失败",
+    "zh-Hant": "Komf 工作失敗",
+    "ru": "Задание Komf завершилось ошибкой",
+    "es": "Error en la operación Komf"
+  },
+  "Komf tracking stopped; the server job may still be running.": {
+    "en": "Komf tracking stopped; the server job may still be running.",
+    "it": "Monitoraggio Komf interrotto; l’operazione potrebbe essere ancora in corso sul server.",
+    "de": "Komf-Überwachung beendet; der Auftrag auf dem Server läuft möglicherweise noch.",
+    "fr": "Suivi Komf arrêté ; l’opération peut encore être en cours sur le serveur.",
+    "ja": "Komf の監視を停止しました。サーバーでは引き続き実行中の可能性があります。",
+    "ko": "Komf 추적이 중지되었습니다. 서버 작업은 아직 실행 중일 수 있습니다.",
+    "zh-Hans": "已停止跟踪 Komf；服务器任务可能仍在运行。",
+    "zh-Hant": "已停止追蹤 Komf；伺服器工作可能仍在執行。",
+    "ru": "Отслеживание Komf остановлено; задание на сервере может ещё выполняться.",
+    "es": "Se detuvo el seguimiento de Komf; la operación puede seguir ejecutándose en el servidor."
+  },
+  "Reset this series metadata using Komf?": {
+    "en": "Reset this series metadata using Komf?",
+    "it": "Ripristinare i metadati di questa serie tramite Komf?",
+    "de": "Metadaten dieser Serie mit Komf zurücksetzen?",
+    "fr": "Réinitialiser les métadonnées de cette série avec Komf ?",
+    "ja": "Komf でこのシリーズのメタデータをリセットしますか？",
+    "ko": "Komf로 이 시리즈의 메타데이터를 초기화할까요?",
+    "zh-Hans": "使用 Komf 重置此系列的元数据？",
+    "zh-Hant": "使用 Komf 重設此系列的中繼資料？",
+    "ru": "Сбросить метаданные этой серии с помощью Komf?",
+    "es": "¿Restablecer los metadatos de esta serie mediante Komf?"
+  },
+  "Open in Browser": {
+    "en": "Open in Browser",
+    "it": "Apri nel browser",
+    "de": "Im Browser öffnen",
+    "fr": "Ouvrir dans le navigateur",
+    "ja": "ブラウザーで開く",
+    "ko": "브라우저에서 열기",
+    "zh-Hans": "在浏览器中打开",
+    "zh-Hant": "在瀏覽器中開啟",
+    "ru": "Открыть в браузере",
+    "es": "Abrir en el navegador"
+  },
+  "No Results": {
+    "en": "No Results",
+    "it": "Nessun risultato",
+    "de": "Keine Ergebnisse",
+    "fr": "Aucun résultat",
+    "ja": "結果なし",
+    "ko": "결과 없음",
+    "zh-Hans": "没有结果",
+    "zh-Hant": "沒有結果",
+    "ru": "Нет результатов",
+    "es": "Sin resultados"
   }
 }

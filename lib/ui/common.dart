@@ -97,7 +97,7 @@ Future<T?> chooseValue<T>(
 
 void showError(BuildContext context, Object error) {
   ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(error.toString())));
+      .showSnackBar(SnackBar(content: Text(tr(context, error.toString()))));
 }
 
 Future<bool> confirm(

@@ -19,7 +19,7 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, instant stale-media display with conditional GET revalidation, persisted image generations and cross-process write leases, versioned EPUB/PDF source cache with conditional HEAD revalidation and configurable 128 MiB–8 GiB quota (1 GiB default), protection of active and downloaded originals, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, advanced preload policies |
 | Settings | Theme, original ten-language catalog, dashboard sections, offline mode, downloads, server info | Some new labels/errors still need translations; full upstream preference surface |
 | API keys | List/create/copy/revoke, optional automatically created and independently verified key on password login, password fallback for unsupported servers, identification/protection of the managed active key | Manual-key identity discovery, authentication/session history, target-vault acceptance |
-| Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors; duplicate-file catalog; live task queue and execution metrics (extended-server/Actuator fallback), scheduled tasks, session listing/revocation with per-user Komga fallback, shutdown, bounded log viewer and native file export | Komf, all server settings and import tools |
+| Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors; duplicate-file catalog; live task queue and execution metrics (extended-server/Actuator fallback), scheduled tasks, session listing/revocation with per-user Komga fallback, shutdown, bounded log viewer and native file export; optional kmrs Komf search/identify/match/reset, provider links and own-job tracking with metadata refresh | Connected Komf backend acceptance, all server settings and import tools |
 | History/statistics | Reading-history catalog, paginated admin server events, library-scoped summaries/distributions/heatmap/top authors/genres/tags; extended reading-stat endpoints with 404-only local fallback and 24-hour capability retry; offline snapshots and local progress overlay | Real extended-server acceptance, complete offline metadata indexing, all history filters/detail layouts and richer charts |
 | AI/OCR | Offline ML Kit OCR for Latin/Japanese/Chinese/Korean/Devanagari on Android, WinRT OCR with installed Windows language packs, selectable text/region preview; OpenAI-compatible/OpenRouter/local provider configuration and model lists, secure API keys, strict-ID batched translations, selected EPUB text translation, translated region overlays, per-image/language cache and incognito exclusion; original Waifu2x model converted to portable ONNX with numerical source-network validation, worker-isolate inference, bounded input/output memory and disk cache | Learned bubble detection and exact typesetting, downloadable OCR/vision model catalog and additional recognition scripts |
 | OS integrations | Android/Windows launch targets and original logo; Windows portable packaging/runtime and isolated native-startup CI probe | Widgets, search indexing, quick actions, notifications/live activities, multiple reader windows; production installers/signing |
@@ -60,7 +60,7 @@ OCR, ONNX inference, and OS display-awake request/release. Android also checks
 simulated notch geometry/rotation and captures the composed EPUB via PixelCopy.
 These are controlled native fixtures, not physical-device performance measurements.
 
-The development suite passes 176 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
+The development suite passes 190 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
 progress conflicts between SQLite connections, multi-worker media generations,
 conditional HTTP 304 validation, immutable document refresh, download pause/resume,
 account deletion with active writes, wide-page gesture ownership and pan restoration.
@@ -85,3 +85,12 @@ runs in a worker isolate with bounded tiles/memory while original artwork stays 
 The current published release is still 0.5.0. Development changes require a new
 versioned, signed release and download verification before delivery. The remaining
 functional gaps are listed above; exact visual parity has no Apple-host baseline.
+
+Komf capability probing is account-scoped, coalesced and caches only HTTP 404
+for 24 hours. Pending connections are checked again on the next visit. Provider
+search ignores superseded responses; oneshots can use book-level provider links.
+Job polling never overlaps, pauses offline and stops with the repository on a
+server switch. Timeout or repeated errors report tracking stopped without
+claiming that the server job failed. Controlled tests cover these flows and
+320/1280-pixel layouts. Stock Komga 1.29.1 acceptance verifies unsupported fallback;
+a connected kmrs/Komf instance has not been available for live acceptance.

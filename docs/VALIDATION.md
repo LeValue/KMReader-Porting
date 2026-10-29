@@ -19,8 +19,15 @@ remain unmeasured. Later source changes need their own checks.
 
 The subsequent management implementation passes static analysis, 176 automated
 tests (Chromium and ONNX enabled), separate real Komga 1.29.1 acceptance and an
-Android debug build locally. Added native export-boundary checks await their CI
-run. This is not a new published release.
+Android debug build locally. All three jobs for management source `c1ee4afe094e336fbd240e36018c38fd3f4ee371`
+passed in [workflow 40792014992](https://github.com/LeValue/KMReader-Porting/actions/runs/40792014992),
+including the Android native export boundary check. This is not a new published release.
+
+The following Komf implementation passes static analysis, 190 automated tests
+(Chromium/ONNX enabled), separate real Komga acceptance and an Android debug build
+locally. Its connected-server behavior uses controlled HTTP fixtures; stock Komga
+verifies the unsupported integration path. Native checks for that later source
+will be run separately.
 
 ## 0.5.0 preview — verified notch handling and reader/dashboard options
 
