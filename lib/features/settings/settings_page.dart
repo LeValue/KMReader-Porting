@@ -13,6 +13,7 @@ import '../offline/downloads_page.dart';
 import '../catalog/dashboard.dart';
 import '../catalog/history_page.dart';
 import 'api_keys_page.dart';
+import 'password_page.dart';
 import 'library_editor.dart';
 import 'translation_settings.dart';
 import 'server_management_page.dart';
@@ -45,6 +46,29 @@ class SettingsPage extends StatelessWidget {
                     builder: (_) => ApiKeysPage(repository: repository),
                   ),
                 ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.password),
+                title: Text(tr(context, 'account.details.changePassword')),
+                enabled: !repository.offline,
+                onTap: () async {
+                  final changed = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PasswordPage(app: app, repository: repository),
+                    ),
+                  );
+                  if (changed == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          tr(context, 'account.details.passwordUpdated'),
+                        ),
+                      ),
+                    );
+                  }
+                },
               ),
               ListTile(
                 leading: const Icon(CupertinoIcons.clock),

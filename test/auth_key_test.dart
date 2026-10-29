@@ -30,6 +30,11 @@ void main() {
     test('automatic API key login: $mode', () async {
       final directory = Directory.systemTemp.createTempSync('auth-key-');
       final store = LocalStore(sqlite3.openInMemory());
+      final serverId = ServerProfile.identity(
+        Uri.parse('https://example.invalid'),
+        'user',
+      );
+      store.setSetting('offline:$serverId', true);
       final vault = _Vault();
       final requests = <http.Request>[];
       final app = AppController(
@@ -91,6 +96,8 @@ void main() {
         );
         expect(profile.apiKeyId, mode == 'verified' ? 'generated' : null);
         expect(profile.managedKey, mode == 'verified');
+        expect(app.repository!.offline, false);
+        expect(store.setting<bool>('offline:$serverId'), false);
         expect(
           vault.values[profile.id],
           mode == 'verified'
