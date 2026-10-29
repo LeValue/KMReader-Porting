@@ -396,3 +396,17 @@ smoke script now selects the supported `--no-dds` direct VM connection, retainin
 the existing per-drive timeout and all test assertions. Verification of that
 script change is pending its new CI run. Failure logcat is retained locally
 under ignored `artifacts/verification-post-0.5/auth-history-native-failure/`.
+
+## Portable bubble detection development
+
+All three jobs for OCR lifecycle/direct-driver source
+`dffae2cf7d9c6687e37ed63781663e3ecbf959d5` passed in
+[workflow 40801945481](https://github.com/LeValue/KMReader-Porting/actions/runs/40801945481),
+including Android native integration with `--no-dds`.
+
+The later portable bubble detector passes static analysis, all 211 automated
+tests with Chromium/ONNX enabled, and Android debug compilation locally.
+The actual ONNX worker and source-network probe comparison pass; widget tests
+cover opt-in, pending work, incognito and native OCR fallback at 320/1280 pixels
+with enlarged text. Native Android/Windows model execution is added to CI and
+is pending for this source. No new installable preview has been published.

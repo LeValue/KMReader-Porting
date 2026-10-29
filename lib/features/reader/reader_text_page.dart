@@ -9,12 +9,14 @@ import '../../ui/strings.dart';
 import '../settings/translation_settings.dart';
 import 'reader_display.dart';
 import 'reader_ocr.dart';
+import 'bubble_detector.dart';
 
 class ReaderTextPage extends StatefulWidget {
   const ReaderTextPage({
     super.key,
     this.bytes,
     this.ocr,
+    this.detector,
     this.initialText,
     required this.providers,
     required this.title,
@@ -22,6 +24,7 @@ class ReaderTextPage extends StatefulWidget {
   }) : assert(initialText != null || bytes != null && ocr != null);
   final Uint8List? bytes;
   final ReaderOcr? ocr;
+  final BubbleDetector? detector;
   final String? initialText;
   final TranslationProviders providers;
   final String title;
@@ -41,6 +44,8 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
       _translated = false;
   int _generation = 0;
   final _client = TranslationClient();
+  late bool _groupBubbles =
+      widget.providers.store.setting<bool>('ocrGroupBubbles') == true;
   @override
   void initState() {
     super.initState();
@@ -88,11 +93,31 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
       _translated = false;
     });
     try {
-      final doc = await widget.ocr!.recognize(
+      var doc = await widget.ocr!.recognize(
         widget.bytes!,
         _language!,
         cache: !widget.incognito,
       );
+      if (!mounted || generation != _generation) return;
+      if (_groupBubbles && widget.detector != null) {
+        try {
+          final detection = await widget.detector!.detect(
+            widget.bytes!,
+            cache: !widget.incognito,
+          );
+          doc = groupOcrBubbles(doc, detection.boxes);
+        } catch (_) {
+          if (mounted && generation == _generation) {
+            showError(
+              context,
+              tr(
+                context,
+                'Bubble detection failed. System OCR regions are still available.',
+              ),
+            );
+          }
+        }
+      }
       if (mounted && generation == _generation) setState(() => _document = doc);
     } catch (error) {
       if (mounted && generation == _generation) {
@@ -212,6 +237,14 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
               Clipboard.setData(ClipboardData(text: _textValue));
             }
             if (value == 'regions') setState(() => _overlay = !_overlay);
+            if (value == 'bubbles') {
+              setState(() => _groupBubbles = !_groupBubbles);
+              widget.providers.store.setSetting(
+                'ocrGroupBubbles',
+                _groupBubbles,
+              );
+              unawaited(_recognize());
+            }
           },
           itemBuilder: (_) => [
             PopupMenuItem(
@@ -228,6 +261,13 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
                 value: 'regions',
                 enabled: _document != null,
                 child: Text(tr(context, 'Show Text Regions')),
+              ),
+            if (widget.bytes != null && widget.detector != null)
+              CheckedPopupMenuItem(
+                value: 'bubbles',
+                checked: _groupBubbles,
+                enabled: !_busy && !_translating,
+                child: Text(tr(context, 'Group Text by Speech Bubbles')),
               ),
           ],
         ),

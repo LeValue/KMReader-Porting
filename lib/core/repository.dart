@@ -18,6 +18,7 @@ import 'server_event.dart';
 import 'komf.dart';
 import '../features/reader/page_upscaler.dart';
 import '../features/reader/reader_ocr.dart';
+import '../features/reader/bubble_detector.dart';
 
 class Repository extends ChangeNotifier {
   Repository({
@@ -50,6 +51,8 @@ class Repository extends ChangeNotifier {
   );
   late final PageUpscaler pageUpscaler = PageUpscaler(imageDirectory);
   ReaderOcr? _ocr;
+  BubbleDetector? _bubbles;
+  BubbleDetector get bubbles => _bubbles ??= BubbleDetector();
   ReaderOcr get ocr => _ocr ??= ReaderOcr(
     Directory(p.join(directory.path, profile.id, 'recognition')),
   );
@@ -1242,6 +1245,7 @@ class Repository extends ChangeNotifier {
       documents.settled,
       pageUpscaler.settled,
       if (_ocr != null) _ocr!.settled,
+      if (_bubbles != null) _bubbles!.settled,
       ..._pageConversions.values.map(
         (future) => future.then<void>((_) {}, onError: (Object _) {}),
       ),
@@ -1504,6 +1508,7 @@ class Repository extends ChangeNotifier {
     if (_disposed) return;
     _komf?.dispose();
     _ocr?.close();
+    if (_bubbles != null) unawaited(_bubbles!.close());
     documents.close();
     pageUpscaler.close();
     _cacheEvents?.cancel();

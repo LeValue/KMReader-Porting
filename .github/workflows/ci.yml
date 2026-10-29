@@ -48,8 +48,8 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed lib test integration_test test_driver
       - run: flutter analyze
       - run: flutter test
-      - name: Verify portable Waifu2x with the real ONNX runtime
-        run: KMREADER_ONNX_TEST=1 LD_LIBRARY_PATH="$PUB_CACHE/hosted/pub.dev/onnxruntime_v2-1.23.2+2/linux" flutter test test/upscaler_test.dart --no-pub
+      - name: Verify portable image models with the real ONNX runtime
+        run: KMREADER_ONNX_TEST=1 LD_LIBRARY_PATH="$PUB_CACHE/hosted/pub.dev/onnxruntime_v2-1.23.2+2/linux" flutter test test/upscaler_test.dart test/bubble_detector_test.dart --no-pub
       - name: Test the client against Komga
         run: |
           curl --fail --location https://github.com/gotson/komga/releases/download/1.29.1/komga-1.29.1.jar --output /tmp/komga.jar
