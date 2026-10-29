@@ -8,6 +8,7 @@ import '../../core/repository.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import 'pdf_reader_settings.dart';
 import '../auth/login_page.dart';
 import '../offline/downloads_page.dart';
 import '../catalog/dashboard.dart';
@@ -221,6 +222,16 @@ class SettingsPage extends StatelessWidget {
                 ),
                 value: repository.readLists.enabled,
                 onChanged: repository.readLists.setEnabled,
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf),
+                title: Text(tr(context, 'PDF Reader')),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PdfReaderSettingsPage(store: app.store),
+                  ),
+                ),
               ),
               SwitchListTile(
                 secondary: const Icon(CupertinoIcons.wifi_slash),

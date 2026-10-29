@@ -6,6 +6,8 @@ import 'dart:ui' as ui;
 import 'package:kmreader/features/reader/reader_ocr.dart';
 import 'package:kmreader/features/reader/bubble_detector.dart';
 import 'package:kmreader/features/reader/page_upscaler.dart';
+import 'package:kmreader/features/reader/pdf_raster_pages.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +24,7 @@ import 'package:kmreader/ui/theme.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../test/support/epub_fixture.dart';
+import '../test/support/pdf_fixture.dart';
 import 'support/background_download_check.dart';
 
 void main() {
@@ -265,6 +268,46 @@ void main() {
       await detector.close();
     }
   });
+  testWidgets(
+    'native PDFium renders offline comic pages with the chosen quality',
+    (tester) async {
+      await pdfrxInitialize();
+      final document = await PdfDocument.openData(
+        rasterPdfFixture(),
+        sourceName: 'native-pdf-raster',
+      );
+      final source = PdfRasterPages(
+        document,
+        quality: PdfRasterQuality.compact,
+      );
+      try {
+        expect(source.dimensions, hasLength(2));
+        final bytes = await source.page(2);
+        final codec = await ui.instantiateImageCodec(bytes);
+        final image = (await codec.getNextFrame()).image;
+        try {
+          expect(image.width, 2048);
+          expect(image.height, 1365);
+          final pixels = await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          );
+          final center =
+              (image.height ~/ 2 * image.width + image.width ~/ 2) * 4;
+          expect(pixels!.buffer.asUint8List().sublist(center, center + 4), [
+            0,
+            0,
+            255,
+            255,
+          ]);
+        } finally {
+          image.dispose();
+          codec.dispose();
+        }
+      } finally {
+        await source.close();
+      }
+    },
+  );
   testWidgets('native portable Waifu2x produces a cached 2x image', (
     tester,
   ) async {

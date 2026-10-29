@@ -11,6 +11,7 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'epub_document.dart';
 import 'pdf_reader.dart';
+import 'pdf_raster_reader.dart';
 import 'reader_display.dart';
 import 'epub_reader.dart';
 
@@ -62,13 +63,21 @@ class _DocumentReaderState extends State<DocumentReader> {
         );
       }
       return widget.book.format == 'pdf'
-          ? PdfReader(
-              file: snapshot.data!,
-              repository: widget.repository,
-              book: widget.book,
-              incognito: widget.incognito,
-              onNextBook: widget.onNextBook,
-            )
+          ? widget.repository.store.setting<bool>('useNativePdfReader') == false
+                ? PdfRasterReader(
+                    file: snapshot.data!,
+                    repository: widget.repository,
+                    book: widget.book,
+                    incognito: widget.incognito,
+                    onNextBook: widget.onNextBook,
+                  )
+                : PdfReader(
+                    file: snapshot.data!,
+                    repository: widget.repository,
+                    book: widget.book,
+                    incognito: widget.incognito,
+                    onNextBook: widget.onNextBook,
+                  )
           : widget.browserEpub && (Platform.isAndroid || Platform.isWindows)
           ? BrowserEpubReader(
               onNextBook: widget.onNextBook,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,9 +12,15 @@ import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/pdf_preferences.dart';
 import 'package:kmreader/features/reader/pdf_reader.dart';
+import 'package:kmreader/features/reader/pdf_raster_pages.dart';
+import 'package:kmreader/features/reader/pdf_raster_reader.dart';
+import 'package:kmreader/features/reader/reader_page.dart';
+import 'package:kmreader/features/settings/pdf_reader_settings.dart';
 import 'package:kmreader/features/reader/document_readers.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:sqlite3/sqlite3.dart';
+
+import 'support/pdf_fixture.dart';
 
 Future<void> until(WidgetTester tester, bool Function() ready) async {
   for (var i = 0; i < 300; i++) {
@@ -43,6 +50,302 @@ void main() {
     await pdfrxInitialize();
   });
   tearDownAll(() => directory.deleteSync(recursive: true));
+
+  test(
+    'portable PDF fixture renders mixed-size pages with correct colors',
+    () async {
+      final document = await PdfDocument.openData(
+        rasterPdfFixture(),
+        sourceName: 'raster-fixture',
+      );
+      final source = PdfRasterPages(
+        document,
+        quality: PdfRasterQuality.compact,
+      );
+      try {
+        expect(source.dimensions.map((p) => p['width']), [300, 450]);
+        final codec = await ui.instantiateImageCodec(await source.page(2));
+        final image = (await codec.getNextFrame()).image;
+        try {
+          expect(image.width, 2048);
+          expect(image.height, 1365);
+          final pixels = await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          );
+          final center =
+              (image.height ~/ 2 * image.width + image.width ~/ 2) * 4;
+          expect(pixels!.buffer.asUint8List().sublist(center, center + 4), [
+            0,
+            0,
+            255,
+            255,
+          ]);
+        } finally {
+          image.dispose();
+          codec.dispose();
+        }
+      } finally {
+        await source.close();
+      }
+    },
+  );
+
+  testWidgets('encrypted comic PDF retries without persisting the password', (
+    tester,
+  ) async {
+    final store = LocalStore(sqlite3.openInMemory());
+    store.setSetting('useNativePdfReader', false);
+    store.setSetting('pdfOfflineRenderQuality', 'compact');
+    const profile = ServerProfile(
+      id: 'encrypted-raster',
+      name: 'Fixture',
+      url: 'https://example.invalid',
+      email: '',
+      authentication: Authentication.password,
+    );
+    final repo = Repository(
+      profile: profile,
+      api: KomgaApi(
+        Uri.parse(profile.url),
+        authentication: Authentication.password,
+        credential: '',
+        client: MockClient((_) async => throw StateError('Unexpected HTTP')),
+      ),
+      store: store,
+      directory: directory,
+    )..setOffline(true);
+    addTearDown(() {
+      repo.dispose();
+      store.close();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DocumentReader(
+          load: () async => File('test/fixtures/reader-encrypted.pdf'),
+          repository: repo,
+          book: Book({
+            'id': 'secret',
+            'media': {'mediaType': 'application/pdf', 'pagesCount': 5},
+          }),
+          incognito: true,
+        ),
+      ),
+    );
+    await until(tester, () => find.text('PDF Password').evaluate().isNotEmpty);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.enterText(find.byType(TextField), 'incorrect');
+    await tester.tap(find.text('Open'));
+    await until(
+      tester,
+      () => find.text('Incorrect password. Try again.').evaluate().isNotEmpty,
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.enterText(find.byType(TextField), 'fixture-only');
+    await tester.tap(find.text('Open'));
+    await until(
+      tester,
+      () =>
+          find.byType(ReaderPage).evaluate().isNotEmpty &&
+          tester
+              .widgetList<RawImage>(find.byType(RawImage))
+              .any((image) => image.image != null),
+    );
+    expect(find.text('1 / 5'), findsOneWidget);
+    expect(repo.pendingCount, 0);
+    expect(
+      store.db.select('SELECT value FROM cache').toString(),
+      isNot(contains('fixture-only')),
+    );
+    expect(tester.takeException(), isNull);
+    final source =
+        tester.widget<ReaderPage>(find.byType(ReaderPage)).rasterPages!
+            as PdfRasterPages;
+    await tester.pumpWidget(const SizedBox.shrink());
+    var closed = false;
+    final closing = source.close().then((_) => closed = true);
+    await until(tester, () => closed);
+    await closing;
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  test(
+    'local PDF raster pages coalesce, honor quality and release on close',
+    () async {
+      final document = await PdfDocument.openFile(
+        'test/fixtures/reader-modes.pdf',
+      );
+      final source = PdfRasterPages(
+        document,
+        quality: PdfRasterQuality.compact,
+      );
+      try {
+        expect(source.dimensions, hasLength(5));
+        expect(PdfRasterQuality.parse('invalid'), PdfRasterQuality.balanced);
+        final results = await Future.wait([source.page(1), source.page(1)]);
+        expect(identical(results[0], results[1]), true);
+        final codec = await ui.instantiateImageCodec(results.first);
+        final image = (await codec.getNextFrame()).image;
+        expect(image.height, 2048);
+        expect(
+          image.width,
+          (document.pages.first.width / document.pages.first.height * 2048)
+              .floor(),
+        );
+        image.dispose();
+        codec.dispose();
+        expect(identical(await source.page(1), results.first), true);
+        expect(
+          identical(await source.page(1, refresh: true), results.first),
+          false,
+        );
+        await expectLater(source.page(0), throwsRangeError);
+        final pending = source.page(5);
+        final stopped = source.close();
+        await expectLater(pending, throwsStateError);
+        await stopped;
+        await expectLater(source.page(1), throwsStateError);
+      } finally {
+        await source.close();
+      }
+    },
+  );
+
+  for (final incognito in [false, true]) {
+    testWidgets(
+      'PDF comic mode reads local pages and preserves continuation; incognito=$incognito',
+      (tester) async {
+        tester.view.physicalSize = const Size(1000, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final store = LocalStore(sqlite3.openInMemory());
+        store.setSetting('useNativePdfReader', false);
+        store.setSetting('pdfOfflineRenderQuality', 'compact');
+        store.setSetting(
+          'readerDefault',
+          const ReaderPreferences(animate: false).toJson(),
+        );
+        const profile = ServerProfile(
+          id: 'raster',
+          name: 'Fixture',
+          url: 'https://example.invalid',
+          email: '',
+          authentication: Authentication.password,
+        );
+        var requests = 0, nextCalls = 0;
+        final nextGate = Completer<void>();
+        final repo = Repository(
+          profile: profile,
+          api: KomgaApi(
+            Uri.parse(profile.url),
+            authentication: Authentication.password,
+            credential: '',
+            client: MockClient((_) async {
+              requests++;
+              return http.Response('{}', 500);
+            }),
+          ),
+          store: store,
+          directory: directory,
+        )..setOffline(true);
+        addTearDown(() {
+          repo.dispose();
+          store.close();
+        });
+        final book = Book({
+          'id': 'raster',
+          'name': 'Local comic PDF',
+          'media': {'mediaType': 'application/pdf', 'pagesCount': 5},
+          'readProgress': {'page': 3},
+        });
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DocumentReader(
+              load: () async => File('test/fixtures/reader-modes.pdf'),
+              repository: repo,
+              book: book,
+              incognito: incognito,
+              onNextBook: () {
+                nextCalls++;
+                return nextGate.future;
+              },
+            ),
+          ),
+        );
+        await until(
+          tester,
+          () =>
+              find.byType(ReaderPage).evaluate().isNotEmpty &&
+              tester
+                  .widgetList<RawImage>(find.byType(RawImage))
+                  .any((image) => image.image != null),
+        );
+        expect(find.byType(PdfRasterReader), findsOneWidget);
+        expect(find.byType(PdfViewer), findsNothing);
+        expect(find.text('3 / 5'), findsOneWidget);
+        expect(repo.pendingCount, 0);
+        tester.widget<Slider>(find.byType(Slider)).onChanged!(5);
+        await until(
+          tester,
+          () =>
+              find.text('5 / 5').evaluate().isNotEmpty &&
+              (incognito || repo.pendingCount == 1),
+        );
+        await tester.tap(find.text('Next Book'));
+        await tester.pump();
+        await tester.tap(find.text('Next Book'));
+        await tester.pump();
+        expect(nextCalls, 1);
+        nextGate.complete();
+        final source =
+            tester.widget<ReaderPage>(find.byType(ReaderPage)).rasterPages!
+                as PdfRasterPages;
+        await until(
+          tester,
+          () =>
+              !source.isRendering &&
+              find.byType(CircularProgressIndicator).evaluate().isEmpty,
+        );
+        await tester.pumpAndSettle();
+        expect(repo.pendingCount, incognito ? 0 : 1);
+        if (!incognito) {
+          expect(store.progress(profile.id, book.id)?['completed'], true);
+        }
+        expect(requests, 0);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 200)),
+        );
+      },
+    );
+  }
+
+  for (final width in [320.0, 1280.0]) {
+    testWidgets('PDF engine and quality preferences fit $width pixels', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = LocalStore(sqlite3.openInMemory());
+      addTearDown(store.close);
+      await tester.pumpWidget(
+        MaterialApp(home: PdfReaderSettingsPage(store: store)),
+      );
+      expect(find.text('Balanced (3072 px)'), findsNothing);
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Ultra (5120 px)'));
+      await tester.tap(find.text('Ultra (5120 px)'));
+      await tester.pumpAndSettle();
+      expect(store.setting<bool>('useNativePdfReader'), false);
+      expect(store.setting<String>('pdfOfflineRenderQuality'), 'ultra');
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   test('PDF layout preserves canonical order, cover and complete mixed-size spreads', () {
     const sizes = [
