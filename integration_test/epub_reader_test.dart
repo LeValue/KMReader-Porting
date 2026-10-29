@@ -271,7 +271,7 @@ void main() {
   testWidgets(
     'native PDFium renders offline comic pages with the chosen quality',
     (tester) async {
-      await pdfrxInitialize();
+      await pdfrxFlutterInitialize();
       final document = await PdfDocument.openData(
         rasterPdfFixture(),
         sourceName: 'native-pdf-raster',

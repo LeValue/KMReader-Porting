@@ -76,7 +76,7 @@ class _PdfRasterReaderState extends State<PdfRasterReader> {
   }
 
   Future<PdfRasterPages> _open() async {
-    await pdfrxInitialize();
+    await pdfrxFlutterInitialize();
     if (!mounted) throw StateError('PDF reader closed.');
     final document = await PdfDocument.openFile(
       widget.file.path,
