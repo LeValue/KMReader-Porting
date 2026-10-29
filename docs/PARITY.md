@@ -60,7 +60,7 @@ OCR, ONNX inference, and OS display-awake request/release. Android also checks
 simulated notch geometry/rotation and captures the composed EPUB via PixelCopy.
 These are controlled native fixtures, not physical-device performance measurements.
 
-The development suite passes 202 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
+The development suite passes 204 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
 progress conflicts between SQLite connections, multi-worker media generations,
 conditional HTTP 304 validation, immutable document refresh, download pause/resume,
 account deletion with active writes, wide-page gesture ownership and pan restoration.
@@ -129,3 +129,10 @@ disabled while opening. Actual PDFium tests exercise layout/theme preservation,
 normal/incognito completion and continuation through DocumentReader, plus
 password retry without persisted credentials. All 202 automated checks pass,
 as do static analysis and an Android debug build.
+
+OCR is now owned and drained by the account repository. Closing/removing an
+account waits for native recognition and private source-file cleanup, rejects
+new requests and suppresses late cache writes. Concurrent recognitions use
+independent temporary files and best-effort atomic cache replacement. Two
+regressions cover removal during recognition and simultaneous results; all 204
+automated checks, static analysis and Android debug compilation pass locally.

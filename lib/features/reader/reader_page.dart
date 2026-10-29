@@ -24,7 +24,6 @@ import 'wide_page.dart';
 import 'cover_page.dart';
 import 'reader_display.dart';
 import 'page_crop.dart';
-import 'reader_ocr.dart';
 import 'reader_text_page.dart';
 import 'page_upscaler.dart';
 
@@ -583,7 +582,7 @@ class _ReaderPageState extends State<ReaderPage> {
             child: ReaderTextPage(
               providers: TranslationProviders(widget.repository.store),
               bytes: bytes,
-              ocr: ReaderOcr(widget.repository.bookDirectory(widget.book.id)),
+              ocr: widget.repository.ocr,
               title: '${widget.book.title} · ${_session.page}',
               incognito: widget.incognito,
             ),

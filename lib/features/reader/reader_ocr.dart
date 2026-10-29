@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -77,7 +79,17 @@ class ReaderOcr {
   });
   final Directory directory;
   final MethodChannel channel;
+  bool _closed = false;
+  final _active = <Future<OcrDocument>>{};
+  Future<void> get settled => Future.wait(
+    _active.map((work) => work.then<void>((_) {}, onError: (Object _) {})),
+  );
+  void close() {
+    _closed = true;
+  }
+
   Future<List<String>> languages() async {
+    if (_closed) throw const FormatException('Text recognition was closed.');
     final result = object(await channel.invokeMethod<dynamic>('capabilities'));
     return (result['languages'] as List? ?? []).whereType<String>().toList();
   }
@@ -86,6 +98,21 @@ class ReaderOcr {
     Uint8List bytes,
     String language, {
     bool cache = true,
+  }) {
+    if (_closed) {
+      return Future.error(
+        const FormatException('Text recognition was closed.'),
+      );
+    }
+    final work = _recognize(bytes, language, cache: cache);
+    _active.add(work);
+    return work.whenComplete(() => _active.remove(work));
+  }
+
+  Future<OcrDocument> _recognize(
+    Uint8List bytes,
+    String language, {
+    required bool cache,
   }) async {
     if (bytes.length > 32 * 1024 * 1024) {
       throw const FormatException('Choose an image smaller than 32 MiB.');
@@ -94,6 +121,7 @@ class ReaderOcr {
       throw const FormatException('Unsupported OCR language.');
     }
     final id = await compute(_ocrImageHash, bytes);
+    if (_closed) throw const FormatException('Text recognition was closed.');
     final target = File('${directory.path}/ocr/$id-$language-v1.json');
     if (cache && await target.exists()) {
       try {
@@ -105,23 +133,32 @@ class ReaderOcr {
       }
     }
     await target.parent.create(recursive: true);
-    final source = File(
-      '${target.parent.path}/$id-${DateTime.now().microsecondsSinceEpoch}.image',
-    );
+    final operation =
+        '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32).toRadixString(16)}';
+    final source = File('${target.parent.path}/$id-$operation.image');
     try {
+      if (_closed) throw const FormatException('Text recognition was closed.');
       await source.writeAsBytes(bytes, flush: true);
+      if (_closed) throw const FormatException('Text recognition was closed.');
       final value = object(
-        await channel.invokeMethod<dynamic>('recognize', {
-          'path': source.absolute.path,
-          'language': language,
-        }),
+        await channel
+            .invokeMethod<dynamic>('recognize', {
+              'path': source.absolute.path,
+              'language': language,
+            })
+            .timeout(const Duration(seconds: 45)),
       );
       final document = OcrDocument.parse(value);
-      if (cache) {
-        final temporary = File('${target.path}.part');
-        await temporary.writeAsString(jsonEncode(value), flush: true);
-        if (await target.exists()) await target.delete();
-        await temporary.rename(target.path);
+      if (cache && !_closed) {
+        final temporary = File('${target.path}.$operation.part');
+        try {
+          await temporary.writeAsString(jsonEncode(value), flush: true);
+          await temporary.rename(target.path);
+        } on FileSystemException {
+          // Cache failure must not discard successfully recognized text.
+        } finally {
+          if (await temporary.exists()) await temporary.delete();
+        }
       }
       return document;
     } finally {
