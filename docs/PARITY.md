@@ -2,7 +2,7 @@
 
 Reference: kmworks/kmreader `e2b35f8796cc830fc6e7464e161b2172d8f916e9`.
 This matrix distinguishes implemented behavior from full upstream parity.
-Published downloads are 0.6.0; later EPUB changes below are in development.
+Published downloads are 0.6.1, including the EPUB layout corrections below.
 
 | Area | Implemented | Remaining work |
 | --- | --- | --- |
@@ -83,9 +83,9 @@ The original Waifu2x weights are converted to portable ONNX; independent source
 network probes agree within 1.3e-6 and output packing within one byte. Enhancement
 runs in a worker isolate with bounded tiles/memory while original artwork stays visible.
 
-The current published release is 0.6.0, source `98c42f7`. Its Android/Windows
-artifacts were downloaded and verified after publication. Later development
-changes need their own versioned release and target verification. The remaining
+The current published release is 0.6.1, source `e94e45e`. Its Android/Windows
+artifacts were downloaded and verified after publication, including their embedded
+source/version records. All three exact-source verification jobs passed. The remaining
 functional gaps are listed above; exact visual parity has no Apple-host baseline.
 
 Komf capability probing is account-scoped, coalesced and caches only HTTP 404
@@ -159,7 +159,7 @@ is forwarded with duplicate taps suppressed. All 218 automated checks, static
 analysis and Android debug compilation pass locally. Bulk raster preparation
 and a persistent derivative quota remain separate work.
 
-## EPUB layout corrections after 0.6.0 (unpublished)
+## EPUB layout corrections delivered in 0.6.1
 
 Fixed-layout publications retain their authored font metrics, colors and positioned
 content. Automatic page spreads respect publisher metadata; settings show page
@@ -174,8 +174,8 @@ All 226 automated checks with Chromium/ONNX, static analysis and Android debug
 compilation pass locally. Browser acceptance exercises both flows for fixed and
 vertical books, search/fragment visibility, font reflow with visible CFI anchors,
 publisher typography and viewport changes. Native CI now exercises reflowable,
-fixed and vertical publications separately on Android/Windows; that new source
-is awaiting its own native verification and versioned preview. Mixed-writing
+fixed and vertical publications separately on Android/Windows; all eleven native
+reader checks passed on both platforms for the published 0.6.1 source. Mixed-writing
 publications and exact typography/performance still need further acceptance.
 
 The CJK regression matrix now includes phone/tablet/desktop widths and the

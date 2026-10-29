@@ -1,5 +1,51 @@
 # Development validation
 
+## 0.6.1 preview — published with embedded source provenance
+
+Source: `e94e45ef58d74ead79bcdcf91a58cce03ae9b7f4`. All three verification jobs
+passed in [workflow 40853768874](https://github.com/LeValue/KMReader-Porting/actions/runs/40853768874).
+Publication [40856199505](https://github.com/LeValue/KMReader-Porting/actions/runs/40856199505)
+reused that exact successful source/run before publishing
+[0.6.1](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.6.1-preview.1).
+
+226 Dart checks pass locally with Chromium and ONNX enabled, alongside static
+analysis and six Python release-gate/provenance checks. CI additionally passes
+real isolated Komga acceptance, Android release compilation, API 35 notch/rotation,
+and Windows release compilation/startup. All eleven reader integration checks
+pass on both native platforms, including separate reflowable, fixed-layout and
+vertical CJK EPUBs, OCR, bubble detection, Waifu2x, PDFium and background transfers.
+
+Earlier 0.6.1 sources exposed a genuine vertical-text locator regression after
+large-font reflow. The browser matrix now covers 390/411/1044-pixel widths, both
+flows and 52/60-pixel fonts, including visible anchors and subsequent page turns.
+Native Android and Windows confirm the correction on the source above. Android
+native test applications are built before starting the emulator to avoid compiler
+and emulator resource overlap; assertions were retained. Cleanup now releases
+WebView files before removing fixtures, preserving the original failure report.
+
+Each application embeds its source/version/build. Staging rejects a stale APK
+before uploading, including a real same-version APK from the earlier source.
+The publishing gate verifies both Android and Windows provenance. After publication,
+all five assets were downloaded again: their sizes/SHA256 match GitHub asset
+digests and the checksum manifest. Android bytes match the staged signed files;
+every one of the 57 Windows files matches the exact successful CI artifact.
+Windows PE x64 binaries, ELF64 Dart AOT, PDFium, ONNX, both models and MSVC runtime
+are present. The Windows bundle is not Authenticode signed.
+
+Android package `dev.levalue.kmreader.preview`, version 0.6.1/code 8 and the retained
+certificate permit Preview updates. Each ABI download is a complete application;
+APK ZIP alignment is checked at 16 KiB. All nine ELF libraries in each 64-bit
+APK also have LOAD segment alignment of at least 16 KiB; this does not assert
+16 KiB native compatibility for the older 32-bit ARMv7 libraries. Physical-device frame times and exact
+Apple-host visual parity remain unverified. This is a preview, not full parity.
+
+| Download | Bytes | SHA256 |
+| --- | ---: | --- |
+| ARM64 APK | 76,095,456 | `048092f1023c98c034f268f0f63a321303033373ce7649b42a55007ca1a217ae` |
+| ARMv7 APK | 62,297,906 | `325a67eb0c1d8d6be6729142bcfcadd6d00582bf011dd3e37ae5361a474ab32f` |
+| x86_64 APK | 82,265,765 | `8a834f81667ca9c9e90f9074924e20306a1e577712bb69700fdd9ff8a7d84ca5` |
+| Windows ZIP | 33,606,087 | `b80eac325cb2501b35239eeed6653585f2165c73cd1b13cddd3fae562900d325` |
+
 ## 0.6.0 preview — published and downloaded again
 
 Source: `98c42f7ea84d732e7079df795dc26b97caabd0fc`. All three verification jobs passed
