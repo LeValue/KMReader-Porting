@@ -1,5 +1,27 @@
 # Development validation
 
+## Unpublished development — native checks complete
+
+Source: `81c3a1dcef7f322358b42af03314738da4f5d82a`. All three build/test jobs passed in
+[workflow 40789619987](https://github.com/LeValue/KMReader-Porting/actions/runs/40789619987).
+The publishing job was deliberately not requested; the published preview stays 0.5.0.
+
+Android release, 162 automated checks, real Komga acceptance, API 35 notch/rotation,
+actual WorkManager/vault downloads, native EPUB CFI/reflow/PixelCopy, OCR and ONNX
+passed. Windows native Task Scheduler/vault transfers, EPUB CFI/reflow, OCR, ONNX,
+release compilation and isolated startup also passed. The added native display-awake
+request/release check passed on both platforms.
+
+This run verifies the disk-space correction after the earlier ordinary Android
+runner exhausted its filesystem. The complete runs for `5eb6257` and `434b67d`
+also passed. Physical-device frame times and exact Apple-host screenshot parity
+remain unmeasured. Later source changes need their own checks.
+
+The subsequent management implementation passes static analysis, 176 automated
+tests (Chromium and ONNX enabled), separate real Komga 1.29.1 acceptance and an
+Android debug build locally. Added native export-boundary checks await their CI
+run. This is not a new published release.
+
 ## 0.5.0 preview — verified notch handling and reader/dashboard options
 
 Source: `d95a360f48d3045dc133458f19f3b539715cd19a`. All four jobs passed in

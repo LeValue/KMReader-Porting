@@ -1140,10 +1140,14 @@ class Repository extends ChangeNotifier {
               if (encoded == _lastTaskQueue) return;
               _lastTaskQueue = encoded;
               taskQueueStatus.value = data;
-              _taskQueueTimer?.cancel();
-              _taskQueueTimer = Timer(const Duration(milliseconds: 300), () {
+              _taskQueueTimer ??= Timer(const Duration(milliseconds: 300), () {
+                _taskQueueTimer = null;
                 if (!_disposed) {
-                  store.cache(profile.id, 'taskQueueStatus', data);
+                  store.cache(
+                    profile.id,
+                    'taskQueueStatus',
+                    taskQueueStatus.value,
+                  );
                 }
               });
               return;

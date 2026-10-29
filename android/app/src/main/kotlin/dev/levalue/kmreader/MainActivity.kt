@@ -19,6 +19,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private var transferConditions: TransferConditions? = null
     private var ocr: ReaderOcr? = null
+    private var exporter: FileExporter? = null
     private var privacyChannel: MethodChannel? = null
     private var readerActive = false
     private var ownsKeepAwake = false
@@ -37,6 +38,7 @@ class MainActivity : FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         transferConditions = TransferConditions(this, flutterEngine.dartExecutor.binaryMessenger)
         ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
+        exporter = FileExporter(this, flutterEngine.dartExecutor.binaryMessenger)
         privacyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.levalue.kmreader/privacy")
         privacyChannel!!.setMethodCallHandler { call, result ->
             if (call.method == "setProtected" && call.arguments is Boolean) {
@@ -204,6 +206,8 @@ class MainActivity : FlutterFragmentActivity() {
         privacyChannel = null
         ocr?.close()
         ocr = null
+        exporter?.close()
+        exporter = null
         window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(insetObserver)
         readerChannel?.setMethodCallHandler(null)
         readerChannel = null

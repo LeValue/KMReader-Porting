@@ -13,16 +13,16 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, optional automatic original-model Waifu2x upscaling, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, height-fitted wide-page panning with saved pan positions, rotation restoration and gesture ownership/edge turns, GPU cover/slide transitions, incognito and continuation | Curl animation, device frame-time/memory acceptance |
 | PDF | PDFium viewer, text search/highlights after document readiness, outline, jump/resume, auto/paged/continuous/single/dual layouts, cover-alone and RTL options, themes, password retry without persistence, original-file offline reading | Quality presets/offline raster rendering, DIVINA alternative, exact upstream gesture/animation behavior, device acceptance |
 | EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/scrolled reading, CFI resume and remote progression, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, slide/cover/curl overlays, incognito, next-book continuation | CJK/vertical and fixed-layout edge cases, continuous cross-chapter scroll, dictionary tools, exact upstream typography and native gesture/performance acceptance |
-| Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline reading | Android OS scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
+| Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline reading | OEM scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
 | Progress | Durable coalesced outbox, revision acknowledgements, retained failures, newer-remote conflict resolution | More multi-device/reconnect/device-clock stress tests; parity for every reader transition |
-| Live updates | SSE subscription, debounced refresh and reconnect | More event-specific metadata invalidation |
-| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, versioned EPUB/PDF source cache with conditional HEAD revalidation and configurable 128 MiB–8 GiB quota (1 GiB default), protection of active and downloaded originals, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, advanced preload policies |
+| Live updates | Complete multiline UTF-8 SSE events, Last-Event-ID reconnect, targeted thumbnail generations and path subscriptions, independent persisted task-queue updates, debounced content refresh | More event-specific metadata invalidation |
+| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, 512 MiB temporary-image disk target and cleanup, instant stale-media display with conditional GET revalidation, persisted image generations and cross-process write leases, versioned EPUB/PDF source cache with conditional HEAD revalidation and configurable 128 MiB–8 GiB quota (1 GiB default), protection of active and downloaded originals, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, advanced preload policies |
 | Settings | Theme, original ten-language catalog, dashboard sections, offline mode, downloads, server info | Some new labels/errors still need translations; full upstream preference surface |
 | API keys | List/create/copy/revoke, optional automatically created and independently verified key on password login, password fallback for unsupported servers, identification/protection of the managed active key | Manual-key identity discovery, authentication/session history, target-vault acceptance |
-| Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors | Duplicate detection, tasks/sessions/logs, komf, all server settings and import tools |
+| Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors; duplicate-file catalog; live task queue and execution metrics (extended-server/Actuator fallback), scheduled tasks, session listing/revocation with per-user Komga fallback, shutdown, bounded log viewer and native file export | Komf, all server settings and import tools |
 | History/statistics | Reading-history catalog, paginated admin server events, library-scoped summaries/distributions/heatmap/top authors/genres/tags; extended reading-stat endpoints with 404-only local fallback and 24-hour capability retry; offline snapshots and local progress overlay | Real extended-server acceptance, complete offline metadata indexing, all history filters/detail layouts and richer charts |
-| AI/OCR | Offline ML Kit OCR for Latin/Japanese/Chinese/Korean/Devanagari on Android, WinRT OCR with installed Windows language packs, selectable text/region preview; OpenAI-compatible/OpenRouter/local provider configuration and model lists, secure API keys, strict-ID batched translations, selected EPUB text translation, translated region overlays, per-image/language cache and incognito exclusion; original Waifu2x model converted to portable ONNX with numerical source-network validation, worker-isolate inference, bounded input/output memory and disk cache | Native OCR/ONNX acceptance; learned bubble detection and exact typesetting, downloadable OCR/vision model catalog and additional recognition scripts |
-| OS integrations | Android/Windows launch targets and original logo; Windows portable packaging/runtime and isolated native-startup CI probe | Widgets, search indexing, quick actions, notifications/live activities, native background work and multiple reader windows; production installers/signing |
+| AI/OCR | Offline ML Kit OCR for Latin/Japanese/Chinese/Korean/Devanagari on Android, WinRT OCR with installed Windows language packs, selectable text/region preview; OpenAI-compatible/OpenRouter/local provider configuration and model lists, secure API keys, strict-ID batched translations, selected EPUB text translation, translated region overlays, per-image/language cache and incognito exclusion; original Waifu2x model converted to portable ONNX with numerical source-network validation, worker-isolate inference, bounded input/output memory and disk cache | Learned bubble detection and exact typesetting, downloadable OCR/vision model catalog and additional recognition scripts |
+| OS integrations | Android/Windows launch targets and original logo; Windows portable packaging/runtime and isolated native-startup CI probe | Widgets, search indexing, quick actions, notifications/live activities, multiple reader windows; production installers/signing |
 | Artwork/localization | Original MIT logo, light/dark tokens, card dimensions, original 1,520 localization keys plus translated aliases and new Italian labels | Complete glyph/typography/animation matching; translations for new labels/errors in every language |
 
 ## Validation boundaries
@@ -49,171 +49,39 @@ background behavior, performance, and Windows interactions need target testing.
 
 This is a development implementation, not a claim of a finished perfect port.
 
-## Work in progress after 0.5.0
+## Development after 0.5.0 (unpublished)
 
-The changes above are not part of the published 0.5.0 APK. The development
-branch passes 162 automated tests including a real Chromium EPUB layout run and actual ONNX inference,
-and compiles an Android debug APK including the bundled OCR recognizers. Native WebView interaction tests have been
-added to Android and Windows CI; results are still pending. The Android WebView
-plugin is vendored at stable 1.1.3 with only its two ProGuard defaults updated
-for AGP 9.1; original source and license are retained in `third_party/`.
+Source `81c3a1dcef7f322358b42af03314738da4f5d82a` passed all three build/test jobs
+in [workflow 40789619987](https://github.com/LeValue/KMReader-Porting/actions/runs/40789619987):
+Android release, API 35 native integration, and Windows native integration/release/startup.
+The native checks execute real WorkManager/Task Scheduler workers with vault
+credential lookup and HTTP transfers, WebView/WebView2 EPUB navigation/CFI/reflow,
+OCR, ONNX inference, and OS display-awake request/release. Android also checks
+simulated notch geometry/rotation and captures the composed EPUB via PixelCopy.
+These are controlled native fixtures, not physical-device performance measurements.
 
-Ordered read-list sync and full offline-catalog snapshot preparation also passed
-the real Komga 1.29.1 acceptance test. The first new native CI run exposed the
-WebView plugin's C++17/experimental-coroutine incompatibility with current MSVC;
-the runner and plugin now request standard C++20. The emulator build heap and
-worker count are bounded, and dependencies are compiled before the emulator
-starts, after its first run lost the device connection following display tests.
+The development suite passes 176 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
+progress conflicts between SQLite connections, multi-worker media generations,
+conditional HTTP 304 validation, immutable document refresh, download pause/resume,
+account deletion with active writes, wide-page gesture ownership and pan restoration.
+Server-management tests additionally cover permissions, optional capabilities,
+per-user session fallback, offline snapshots, bounded uncached logs and streaming
+export, plus 320/1280-pixel layouts with enlarged text. Read-only management and
+duplicate-file listing also pass against isolated Komga 1.29.1; destructive actions
+use isolated transport fixtures.
 
-The bundled Waifu2x conversion preserves all source convolutions, transposed
-convolution, activations and clipping. An independent NumPy evaluation of the
-source protobuf agrees with ONNX within 1.3e-6 on the conversion probes; the
-Dart inference/packing test agrees with independently computed output pixels
-within one byte. This does not substitute for device performance acceptance.
-The optional enhancement leaves the source page visible while processing,
-limits input to 2 megapixels/two requests and trims its own 256 MiB disk cache.
+Active/downloaded documents are protected from the temporary document quota.
+Background jobs receive only account/book identifiers and private directory paths;
+credentials are loaded from the OS vault in the worker. Logs are not cached in
+SQLite. Explicit log exports stream to a private temporary file, use Android SAF
+or the Windows Save dialog, and remove temporary files afterwards.
 
-The Windows WebView stable plugin is also retained locally with narrow C++20
-corrections (redundant member qualifiers, a missing dependent-false template,
-and string mutators). See its `third_party/` patch notes. Native verification
-is being rerun; the previous emulator could not allocate its data partition
-after the build, so unused runner SDK images/NDKs are removed before boot.
+Stable WebView and Windows authentication plugins are vendored with their original
+licenses and narrow AGP/C++20 compatibility patches documented in `third_party/`.
+The original Waifu2x weights are converted to portable ONNX; independent source
+network probes agree within 1.3e-6 and output packing within one byte. Enhancement
+runs in a worker isolate with bounded tiles/memory while original artwork stays visible.
 
-On the API 35 emulator, the new offline ML Kit OCR and portable ONNX upscaler
-passed native image tests. EPUB navigation exposed a resize/navigation race,
-now reproduced and fixed in the browser regression: the host owns resizing
-with numeric viewport dimensions, and waits for reflow before turning. EPUB
-transitions now run inside the visible browser rather than covering the native
-view during its layout work. Windows compilation is being rerun after the
-WebView join accumulator and local_auth's obsolete /await flag were corrected.
-
-The next background-download increment adds cross-connection transfer leases,
-pause/resume coordination and deletion tombstones that reject late writes from
-a removed account. Its OS scheduling integration remains in progress. App lock
-also protects OS capture/preview surfaces while enabled and avoids repeating
-a cancelled authentication prompt in the same foreground session.
-
-
-Background downloads now use persisted OS scheduling with secure-vault lookups
-inside the worker; job arguments contain only the data directory and account/book
-identifiers. Android uses constrained per-book WorkManager jobs with bounded
-8-minute runs and validated partial-file resume. Windows uses one hidden worker
-per account, with Task Scheduler network/power conditions and periodic retry.
-Foreground transfers obey the same metered/charging policy. Independent SQLite
-connections verify lease exclusion, pause/resume, cancellation, worker timeout,
-and offline/deleted-account handling. Native scheduler acceptance is added to
-the Android/Windows integration target and is pending CI execution.
-
-Current MSVC also rejects local_auth_windows 2.0.2's nonstandard `return` in a
-coroutine. Its stable source/license are retained locally with `co_return` and
-standard C++20 options. See `third_party/local_auth_windows/PORTING.md`.
-
-
-The Windows native run for 409a791 passed real Task Scheduler worker execution,
-EPUB navigation/CFI/reflow and ONNX inference. Its OCR test exposed WinRT's path
-handling for Dart temporary files; bounded native reading into a memory stream
-replaces StorageFile path parsing and is pending the next native run. Android
-native completion is still pending; per-drive timeouts and retained logcat output
-now make an emulator/service disconnection diagnosable instead of waiting for the
-whole-job timeout.
-
-The versioned document cache tests verify HTTP 304 body avoidance, immutable
-refresh while a reader is open, cross-connection source leases, LRU eviction,
-legacy-source migration, offline/pinned preservation and range resume without
-orphan accumulation. The conditional HEAD flow also passed against real Komga
-1.29.1. Cached originals are disposable; explicit downloads remain outside the
-quota. Resuming online through the older direct offline property also restores
-the transfer queue, fixing the live integration timeout exposed after pausing
-was added. PDF detection accepts media type, profile and filename fallbacks.
-
-
-Comic wide-page scrolling fills the viewport height and uses one drag owner per
-gesture: an interior drag pans the spread, while a drag starting at its outer
-edge turns the page. A late second finger cancels the drag before zooming.
-Tests cover LTR/RTL, zoomed taps and edge routing. Cover transitions use the
-existing PageView position and GPU transforms; pixel tests prove that outgoing
-artwork stays stationary under the incoming page. Existing saved animation
-choices migrate to slide; new reader defaults use cover as upstream does.
-
-Immutable file GETs now retry transient connection failures up to twice, using
-the validated partial journal between attempts. Authentication failures and
-cancellation are not replayed. This addresses an interrupted original-file
-connection exposed by the GitHub Komga acceptance run; both the fault-injection
-regressions and the real Komga test pass locally.
-
-The emulator action executes script lines in separate `/bin/sh` invocations.
-The bounded native test sequence is now an explicit Bash script, preserving its
-logcat process, cleanup trap and timeout configuration in one shell. Gradle
-dependency and pinned NDK caches reduce repeated CI setup work.
-
-
-Source 119d61a passed the complete Windows job, including native OCR,
-Task Scheduler/vault worker execution, WebView2 EPUB CFI/reflow, ONNX inference,
-release compilation and isolated application startup (run 40755554173).
-The Android ordinary job for that source also passed real Komga acceptance and
-release compilation; its native job failed in the emulator action's shell setup,
-now fixed by the dedicated Bash script. Native verification of later reader
-changes remains pending.
-
-Account removal now awaits active image writes, document refreshes, page
-conversions and upscaler output before deleting account files. Upscaler shutdown
-also rejects work still awaiting image hashing/decoding, preventing a late worker
-from being created after close. A real HTTP regression verifies image work has
-settled when removal returns. The disposable GitHub NDK installation is verified
-and retried on truncated SDK archives before Gradle starts.
-
-
-Wide-page offsets now persist per book and reading direction, respect newer
-remote reading dates, and stay unchanged during pinch cancellation or layout
-restoration. LTR/RTL tests restore the same fraction through a rotation where
-the whole spread fits on screen, then back to a narrower viewport, without
-recording navigation. Incognito excludes the stored position.
-
-An acknowledged unread-reset tombstone now yields to newer server progress;
-unsent resets continue to win until synchronization. Window polling of SQLite's
-external revision also clears memoized progress after another connection writes.
-Both cases have dedicated regressions, bringing the complete local suite to
-150 passing tests with Chromium and ONNX enabled (the live server test is run
-separately).
-
-
-All three CI jobs passed for 5eb6257 (run 40759525935), including the API 35
-notch/rotation tests, actual Android WorkManager/vault transfer, EPUB CFI/reflow
-and PixelCopy screenshot, on-device OCR, and ONNX inference. The Windows native
-integration, release build and startup also passed. The following 434b67d run
-40760866452 passed all three jobs as well. Native screenshots and job metadata
-are retained locally under ignored `artifacts/verification-post-0.5/`.
-
-EPUB external HTTP(S) links now offer explicit system-browser opening, without
-Komga credentials; other schemes retain copy/close behavior. The existing
-url_launcher dependency is declared directly. The optional upstream
-keep-screen-awake preference remains disabled by default and now uses native
-Android window flags / Windows thread execution requests. Ownership is counted
-across nested readers and released for hidden/locked readers, backgrounding and
-last close. Four Android/Windows widget variants exercise those transitions;
-an additional native OS request/release test is added for CI. Wide-page preload
-now decodes the same height-fitted width used by its visible viewport.
-
-
-Media cache updates now use persisted generations and cross-process file leases,
-so delayed foreground/background responses cannot restore an invalidated cover.
-Cover widgets subscribe to their own path updates; thumbnail events do not reload
-the whole catalog. Thirty-minute stale media remains immediately visible while
-conditional GET validation uses ETag/Last-Modified; HTTP 304 avoids body transfer,
-and changed bytes notify only their affected image. Legacy cache files remain
-usable and are validated in the background. Retry of TIFF/JPEG2000 comic pages
-keeps portable PNG conversion instead of bypassing it.
-
-SSE decoding now preserves complete multiline UTF-8 payloads and event IDs,
-ignores heartbeat comments/truncated messages, resumes with Last-Event-ID, and
-retains a debounced task-queue snapshot independently of catalog invalidation.
-Real Komga acceptance receives and checks LibraryAdded data. Cache tests cover
-304/changed responses, immediate stale display, offline reuse and a late worker
-using a separate SQLite connection. The complete suite passes 162 tests.
-
-The 38b0af0 native Android and Windows jobs passed, including the new OS display
-wake request/release test. Its ordinary Android runner failed because its disk
-filled during release compilation (the check annotation reports ENOSPC and the
-runner could not retain its log). The ordinary build now reserves disposable
-runner space like the emulator job, and unused preinstalled NDKs are removed
-only when GITHUB_ACTIONS is true. No successful whole-run claim is made for it.
+The current published release is still 0.5.0. Development changes require a new
+versioned, signed release and download verification before delivery. The remaining
+functional gaps are listed above; exact visual parity has no Apple-host baseline.
