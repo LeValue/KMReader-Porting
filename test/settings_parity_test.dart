@@ -300,6 +300,45 @@ void main() {
     expect(calls, 1);
   });
 
+  test(
+    'retry preferences also control foreground image and file GETs',
+    () async {
+      var calls = 0;
+      final repository = repo(
+        client: MockClient((_) async {
+          calls++;
+          return calls < 3
+              ? http.Response('temporary', 503)
+              : http.Response('image', 200);
+        }),
+      );
+      store.setSetting('apiRetryCount', 0);
+      await expectLater(
+        repository.api.bytes('/image'),
+        throwsA(isA<ApiFailure>()),
+      );
+      expect(calls, 1);
+      calls = 0;
+      store.setSetting('apiRetryCount', 2);
+      expect(utf8.decode(await repository.api.bytes('/image')), 'image');
+      expect(calls, 3);
+      calls = 0;
+      store.setSetting('apiRetryCount', 0);
+      final target = File('${directory.path}/foreground.bin');
+      await expectLater(
+        repository.api.download('/file', target),
+        throwsA(isA<ApiFailure>()),
+      );
+      expect(calls, 1);
+      expect(target.existsSync(), false);
+      calls = 0;
+      store.setSetting('apiRetryCount', 2);
+      await repository.api.download('/file', target);
+      expect(calls, 3);
+      expect(await target.readAsString(), 'image');
+    },
+  );
+
   testWidgets(
     'authentication timeout follows the configured value rather than the request timeout',
     (tester) async {
@@ -532,6 +571,62 @@ void main() {
       expect(restored['fontSize'], 22.0);
       expect(restored['flow'], 'paged');
       expect(restored['tapMode'], 'kindle');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'EPUB flow and advanced layout expose only relevant persisted controls',
+    (tester) async {
+      store.setSetting('epubDefault', {
+        'flow': 'paged',
+        'advancedLayout': false,
+      });
+      await tester.pumpWidget(
+        MaterialApp(home: EpubSettingsPage(store: store)),
+      );
+      final flow = find.byKey(const ValueKey('preference:epubDefault:flow'));
+      await tester.tap(flow);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continuous').last);
+      await tester.pumpAndSettle();
+      expect(object(store.setting<dynamic>('epubDefault'))['flow'], 'scrolled');
+      expect(
+        find.byKey(const ValueKey('preference:epubDefault:animate')),
+        findsNothing,
+      );
+      final scroll = find.byKey(
+        const ValueKey('preference:epubDefault:tapScroll'),
+      );
+      await tester.ensureVisible(scroll);
+      await tester.pumpAndSettle();
+      expect(scroll, findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(home: EpubThemeSettingsPage(repository: repo())),
+      );
+      await tester.pumpAndSettle();
+      final advanced = find.byKey(
+        const ValueKey('preference:epubDefault:advancedLayout'),
+      );
+      await tester.ensureVisible(advanced);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('preference:epubDefault:lineHeight')),
+        findsNothing,
+      );
+      await tester.tap(advanced);
+      await tester.pumpAndSettle();
+      final height = find.byKey(
+        const ValueKey('preference:epubDefault:lineHeight'),
+      );
+      await tester.ensureVisible(height);
+      await tester.pumpAndSettle();
+      expect(height, findsOneWidget);
+      expect(
+        object(store.setting<dynamic>('epubDefault'))['advancedLayout'],
+        true,
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },
