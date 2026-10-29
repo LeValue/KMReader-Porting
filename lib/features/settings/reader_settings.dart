@@ -455,7 +455,9 @@ class EpubSettingsPage extends StatelessWidget {
               }[entry.key] ??
               'none',
           bucket: 'epubOverlay',
-          section: 'Reader Overlay',
+          section: entry.key.startsWith('controls')
+              ? 'epub.overlay.controls'
+              : 'epub.overlay.reading',
           choices: const {
             'none': 'epub.overlay.item.none',
             'bookTitle': 'epub.overlay.item.book_title',
@@ -472,6 +474,7 @@ class EpubSettingsPage extends StatelessWidget {
         'Show Progress Bar While Reading',
         false,
         bucket: 'epubOverlay',
+        section: 'epub.overlay.reading',
       ),
     ],
   );

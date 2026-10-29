@@ -258,7 +258,7 @@
       "status": "implemented",
       "storage": "same key",
       "implementation": "lib/core/network_preferences.dart",
-      "note": ""
+      "note": "Applies to safe foreground JSON/image/file reads. Native OS-managed background-transfer recovery retains its own policy. Mutations are never automatically replayed."
     },
     "appColorScheme": {
       "status": "implemented",

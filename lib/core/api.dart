@@ -297,7 +297,7 @@ class KomgaApi {
                 (error.retryable ||
                     error.offline ||
                     (error.status ?? 0) >= 500));
-        if (attempt >= 1 || _closed || !transient) rethrow;
+        if (attempt >= network.retries || _closed || !transient) rethrow;
         await Future<void>.delayed(const Duration(milliseconds: 150));
       }
     }
@@ -364,7 +364,7 @@ class KomgaApi {
                     error.status == 429 ||
                     (error.status ?? 0) >= 500));
         if (!transient ||
-            attempt >= 2 ||
+            attempt >= (readNetworkPreferences == null ? 2 : network.retries) ||
             _closed ||
             cancelled?.call() == true) {
           rethrow;

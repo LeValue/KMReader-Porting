@@ -4,7 +4,7 @@
 
 [Settings audit](SETTINGS_AUDIT.md) records 128 persisted keys/structured fields,
 227 control declarations and the exact upstream source. Local static analysis is
-clean; 249 Flutter checks pass with Chromium and ONNX enabled, alongside eight
+clean; 251 Flutter checks pass with Chromium and ONNX enabled, alongside eight
 Python checks and the separate real Komga acceptance test. A debug Android APK
 compiles. New launcher/window-icon, fullscreen and status-bar integration tests
 are added, but native results for this source have not yet been recorded here.

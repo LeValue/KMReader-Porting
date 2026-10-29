@@ -35,11 +35,11 @@ server data and installed fonts differ from the synthetic comparison fixtures.
 
 | Supplied view | Outstanding difference |
 | --- | --- |
-| Settings index | Global DIVINA/EPUB theme/EPUB preferences and real-time-update settings need their own complete category pages. The port exposes several of those options inside the readers today. |
+| Settings index | Global DIVINA, EPUB theme/preferences, PDF, reader-general and real-time category pages are implemented; verify native spacing, row heights and popovers against the original. See [settings audit](SETTINGS_AUDIT.md) for adaptations and remaining model-library gaps. |
 | Sidebar | The original's exact Offline/Server destinations, collapsible library section and sidebar-collapse control are not yet reproduced. |
 | Offline | Match the two summary tiles, library/size scope, grid presets and downloaded-book status presentation. |
 | Reading statistics | Match metric tiles, heatmap/donut styling, time ranges and data semantics against the same library. |
-| Cache | The current image disk cache is a shared 512 MiB target. Separate page/cover quotas, cover expiry, byte/count statistics and current-account/all-account clearing need implementation and validation. Downloaded originals must remain protected. |
+| Cache | Separate page/cover quotas, cover expiry, byte/count statistics and current/all-account clearing are implemented, with migration and protection of downloaded originals. Native visual matching and physical-device cache acceptance remain. |
 | Typography and controls | Check production fonts, native switches/popovers, row metrics, dark mode, accessibility and more screen sizes. |
 
 The preview images below are Flutter widget renders using synthetic data, not
