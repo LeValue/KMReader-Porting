@@ -248,10 +248,11 @@
   async function advance(delta) {
     const manager = rendition.manager;
     if (!isFixedLayout() && !manager.isPaginated && manager.settings.axis === 'horizontal') {
-      manager.scrollBy(delta * manager.container.clientWidth * (Number(preferences.tapScroll) || 100) / 100, 0, true);
+      const fraction = preferences.flow === 'scrolled' ? (Number(preferences.tapScroll) || 80) / 100 : 1;
+      manager.scrollBy(delta * manager.container.clientWidth * fraction, 0, true);
       await manager.q.enqueue(() => manager.check());
       rendition.reportLocation();
-    } else if (!isFixedLayout() && !manager.isPaginated && manager.container) {
+    } else if (!isFixedLayout() && preferences.flow === 'scrolled' && !manager.isPaginated && manager.container) {
       manager.scrollBy(0, delta * manager.container.clientHeight * (Number(preferences.tapScroll) || 80) / 100, true);
       await manager.q.enqueue(() => manager.check());
       rendition.reportLocation();

@@ -7,7 +7,10 @@
 clean; 251 Flutter checks pass with Chromium and ONNX enabled, alongside eight
 Python checks and the separate real Komga acceptance test. A debug Android APK
 compiles. New launcher/window-icon, fullscreen and status-bar integration tests
-are added, but native results for this source have not yet been recorded here.
+are added. The first native Android run exposed percentage scrolling being applied
+to paged vertical CJK; that branch is now restricted to continuous flow, with
+a browser regression check for the WebView manager flag. Source-matched native
+results for the correction have not yet been recorded here.
 The audit explicitly tracks Apple-only exclusions, partial Core ML model-library
 management, reader/default/engine adaptations and multi-library dashboard scope.
 These changes are not yet included in a published release.

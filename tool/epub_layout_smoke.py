@@ -13,6 +13,15 @@ with sync_playwright() as playwright:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script("window.readerMessages=[]; addEventListener('readerEvent', event=>readerMessages.push(event.detail));")
     page.goto(url)
+    if config.get('kind') == 'vertical' and config['preferences']['flow'] == 'paged':
+        page.evaluate("""() => {
+            const renderTo = ePub.Book.prototype.renderTo;
+            ePub.Book.prototype.renderTo = function(...args) {
+                const rendition = renderTo.apply(this, args);
+                window.fixtureRendition = rendition;
+                return rendition;
+            };
+        }""")
     page.evaluate('(config)=>window.reader.open(config)', config)
     page.wait_for_function("readerMessages.some(m=>m.type==='ready')")
 
@@ -36,7 +45,24 @@ with sync_playwright() as playwright:
             page.wait_for_timeout(600)
         else:
             assert first['displayed']['total'] > 1, first
+            # Android WebView can report isPaginated=false while the CJK
+            # publication still has paged flow and a vertical manager axis.
+            # The engine must own page advancement in that case.
+            page.evaluate("""() => {
+                const manager = window.fixtureRendition.manager;
+                const paginated = manager.isPaginated;
+                const next = manager.next.bind(manager);
+                window.fixturePagedTurns = 0;
+                manager.isPaginated = false;
+                manager.next = (...args) => {
+                    window.fixturePagedTurns++;
+                    manager.isPaginated = paginated;
+                    manager.next = next;
+                    return next(...args);
+                };
+            }""")
             page.evaluate('window.reader.next()')
+            assert page.evaluate('window.fixturePagedTurns') == 1
         second = page.evaluate('window.reader.position().start')
         assert second['cfi'] != first['cfi'], (first, second)
         for font_size in [52, 60]:
