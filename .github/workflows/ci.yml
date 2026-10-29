@@ -166,12 +166,20 @@ jobs:
           from pathlib import Path
           p=Path('android/gradle.properties')
           lines=p.read_text().splitlines()
-          lines=[line for line in lines if not line.startswith(('org.gradle.jvmargs=','org.gradle.workers.max=','kotlin.daemon.jvmargs='))]
-          lines += ['org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m','org.gradle.workers.max=2','kotlin.daemon.jvmargs=-Xmx768m']
+          lines=[line for line in lines if not line.startswith(('org.gradle.jvmargs=','org.gradle.workers.max=','kotlin.daemon.jvmargs=','kotlin.compiler.execution.strategy='))]
+          lines += ['org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m','org.gradle.workers.max=2','kotlin.compiler.execution.strategy=in-process']
           p.write_text('\n'.join(lines)+'\n')
           PYMEM
-      - name: Compile native test dependencies before allocating emulator memory
-        run: flutter build apk --debug --target=integration_test/reader_display_test.dart --no-pub
+      - name: Compile both native test applications before allocating emulator memory
+        run: |
+          set -euo pipefail
+          mkdir -p .dart_tool/native-test-apks
+          flutter build apk --debug --target=integration_test/reader_display_test.dart --no-pub
+          cp build/app/outputs/flutter-apk/app-debug.apk .dart_tool/native-test-apks/display.apk
+          flutter build apk --debug --target=integration_test/epub_reader_test.dart --no-pub
+          cp build/app/outputs/flutter-apk/app-debug.apk .dart_tool/native-test-apks/reader.apk
+          android/gradlew -p android --stop
+          free -m
         env:
           ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
       - name: Reserve AVD space after the dependency build
@@ -201,6 +209,13 @@ jobs:
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash tool/android_native_smoke.sh
+      - name: Capture native runner resource diagnostics
+        if: always()
+        run: |
+          free -m
+          df -h /
+          ps -eo pid,rss,comm --sort=-rss | head -12 || true
+          sudo dmesg --ctime | rg -i 'out of memory|oom-kill|killed process' | tail -20 || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
