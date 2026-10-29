@@ -15,7 +15,9 @@ fresh/upgrade defaults, vertical PDF geometry, calendar/leap/locale ranges,
 Italian compact/wide settings and statistics, numeric timeout validation, either
 spread page solo without progress changes, PNG export success/cancel/failure and
 private temporary-file cleanup. The original native Android export rejection
-check now exercises both log and image export.
+check now exercises both log and image export. A further native test opens the
+EPUB text sheet using the expanded global typography limits (76px, line height
+0.5 and letter spacing 1em), covering the old inline-slider assertion.
 
 The [reference comparison](IPAD_REFERENCE.md) includes actual Flutter fixture
 renders. These do not establish native pixel parity or physical Windows mouse
