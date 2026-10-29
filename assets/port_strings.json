@@ -1082,5 +1082,41 @@
     "zh-Hant": "沒有結果",
     "ru": "Нет результатов",
     "es": "Sin resultados"
+  },
+  "Enter a new password.": {
+    "en": "Enter a new password.",
+    "it": "Inserisci una nuova password.",
+    "de": "Geben Sie ein neues Passwort ein.",
+    "fr": "Saisissez un nouveau mot de passe.",
+    "ja": "新しいパスワードを入力してください。",
+    "ko": "새 비밀번호를 입력하세요.",
+    "zh-Hans": "请输入新密码。",
+    "zh-Hant": "請輸入新密碼。",
+    "ru": "Введите новый пароль.",
+    "es": "Introduce una nueva contraseña."
+  },
+  "Password changed. Sign in again to save the new credentials on this device.": {
+    "en": "Password changed. Sign in again to save the new credentials on this device.",
+    "it": "Password modificata. Accedi di nuovo per salvare le nuove credenziali su questo dispositivo.",
+    "de": "Passwort geändert. Melden Sie sich erneut an, um die neuen Zugangsdaten auf diesem Gerät zu speichern.",
+    "fr": "Mot de passe modifié. Reconnectez-vous pour enregistrer les nouveaux identifiants sur cet appareil.",
+    "ja": "パスワードを変更しました。この端末に新しい認証情報を保存するには再ログインしてください。",
+    "ko": "비밀번호가 변경되었습니다. 이 기기에 새 자격 증명을 저장하려면 다시 로그인하세요.",
+    "zh-Hans": "密码已更改。请重新登录，以在此设备上保存新凭据。",
+    "zh-Hant": "密碼已變更。請重新登入，以在此裝置上儲存新憑證。",
+    "ru": "Пароль изменён. Войдите снова, чтобы сохранить новые данные на этом устройстве.",
+    "es": "Contraseña cambiada. Vuelve a iniciar sesión para guardar las nuevas credenciales en este dispositivo."
+  },
+  "Reconnect to manage the server.": {
+    "en": "Reconnect to manage the server.",
+    "it": "Riconnettiti per amministrare il server.",
+    "de": "Verbinden Sie sich erneut, um den Server zu verwalten.",
+    "fr": "Reconnectez-vous pour administrer le serveur.",
+    "ja": "サーバーを管理するには再接続してください。",
+    "ko": "서버를 관리하려면 다시 연결하세요.",
+    "zh-Hans": "请重新连接以管理服务器。",
+    "zh-Hant": "請重新連線以管理伺服器。",
+    "ru": "Подключитесь снова для управления сервером.",
+    "es": "Vuelve a conectarte para administrar el servidor."
   }
 }

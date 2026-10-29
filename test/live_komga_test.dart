@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:kmreader/core/api.dart';
+import 'package:kmreader/core/app_controller.dart';
 import 'package:kmreader/core/server_event.dart';
 import 'package:kmreader/core/server_management.dart';
 import 'package:kmreader/core/models.dart';
@@ -18,6 +19,21 @@ import 'package:kmreader/features/catalog/metadata_editor.dart';
 import 'package:kmreader/features/catalog/dashboard.dart';
 import 'package:kmreader/features/settings/library_editor.dart';
 import 'package:kmreader/features/reader/epub_document.dart';
+
+class _TransientVault implements CredentialVault {
+  final _values = <String, String>{};
+  @override
+  Future<String?> read(String id) async => _values[id];
+  @override
+  Future<void> write(String id, String value) async {
+    _values[id] = value;
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _values.remove(id);
+  }
+}
 
 class _CountingClient extends http.BaseClient {
   final _inner = http.Client();
@@ -481,6 +497,35 @@ void main() {
           );
         } finally {
           keyApi.close();
+        }
+        // Mutate only this disposable instance, then restore its generated
+        // fixture password. Exercise the real account/vault/reconnect flow.
+        final vault = _TransientVault();
+        final originalPassword =
+            Platform.environment['KMREADER_TEST_PASSWORD']!;
+        store.saveServer(profile);
+        await vault.write(
+          profile.id,
+          base64Encode(utf8.encode('${profile.email}:$originalPassword')),
+        );
+        final account = AppController(
+          store: store,
+          directory: directory,
+          vault: vault,
+        )..repository = repository;
+        try {
+          await account.changePassword(repository, '$originalPassword-updated');
+          expect((await account.repository!.api.user())['id'], user['id']);
+          await account.changePassword(account.repository!, originalPassword);
+          expect((await account.repository!.api.user())['id'], user['id']);
+          expect(
+            await vault.read(profile.id),
+            base64Encode(utf8.encode('${profile.email}:$originalPassword')),
+          );
+        } finally {
+          await account.repository?.stopDownloadWork();
+          account.disconnect();
+          account.dispose();
         }
       } on ApiFailure catch (e, stack) {
         fail('Komga HTTP ${e.status} at ${e.path}: ${e.message}\n$stack');

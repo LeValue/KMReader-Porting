@@ -342,3 +342,13 @@ The browser test verifies both chapter boundaries, exact-section CFI resume on
 a cold start, stable progress through repeated flow/font changes, and teardown
 without browser errors. Native flow-switch checks have been added for the next CI
 run; physical scrolling smoothness is not established by this browser fixture.
+
+## Account password development
+
+The password increment passes static analysis, 200 automated tests with Chromium
+and ONNX enabled, Android debug compilation and separate real Komga 1.29.1
+acceptance. The live fixture changes/restores its own generated password through
+the actual controller, secure-store interface and reconnection flow. Controlled
+fault tests cover a lost response, denied operation, offline guard, failed vault
+write, account removal and server switch. Form tests validate confirmation and
+prevent closing an in-flight mutation. Native CI for this later source is pending.

@@ -164,6 +164,7 @@ class AppController extends ChangeNotifier {
       final previous = servers.where((s) => s.id == profile.id).firstOrNull;
       await vault.write(profile.id, credential);
       store.saveServer(profile);
+      store.setSetting('offline:${profile.id}', false);
       await activate(profile);
       if (createdKeyId != null &&
           previous?.managedKey == true &&
@@ -193,6 +194,72 @@ class AppController extends ChangeNotifier {
       rethrow;
     } finally {
       api.close();
+    }
+  }
+
+  Future<void> changePassword(Repository target, String password) async {
+    if (!identical(repository, target) || target.closed) {
+      throw const ApiFailure('The server connection was closed.');
+    }
+    if (target.offline) {
+      throw const ApiFailure('Reconnect to manage the server.', offline: true);
+    }
+    if (password.isEmpty) throw const ApiFailure('Enter a new password.');
+    final selection = _selection;
+    final profile = target.profile;
+    final userId = profile.userId ?? text((await target.api.user())['id']);
+    if (userId.isEmpty) {
+      throw const ApiFailure('The server returned an unexpected response.');
+    }
+    final credential = base64Encode(utf8.encode('${profile.email}:$password'));
+    try {
+      await target.api.request(
+        '/api/v2/users/${Uri.encodeComponent(userId)}/password',
+        method: 'PATCH',
+        body: {'password': password},
+      );
+    } on ApiFailure catch (error) {
+      if (!error.offline || profile.authentication != Authentication.password) {
+        rethrow;
+      }
+      // A lost response can follow an applied password change. Verify the new
+      // credential instead of replaying the mutation with the obsolete one.
+      final probe = _api(
+        Uri.parse(profile.url),
+        Authentication.password,
+        credential,
+      );
+      var applied = false;
+      try {
+        applied = (await probe.user())['id'] == userId;
+      } catch (_) {
+        /* Keep the original transport failure if verification fails. */
+      } finally {
+        probe.close();
+      }
+      if (!applied) rethrow;
+    }
+    if (profile.authentication != Authentication.password) return;
+    final saved = servers.where((s) => s.id == profile.id).firstOrNull;
+    if (saved == null || saved.authentication != Authentication.password) {
+      return;
+    }
+    try {
+      await vault.write(profile.id, credential);
+    } catch (_) {
+      if (selection == _selection && identical(repository, target)) {
+        disconnect();
+      }
+      throw const ApiFailure(
+        'Password changed. Sign in again to save the new credentials on this device.',
+      );
+    }
+    if (!servers.any((s) => s.id == profile.id)) {
+      await vault.delete(profile.id);
+      return;
+    }
+    if (selection == _selection && identical(repository, target)) {
+      await activate(saved);
     }
   }
 

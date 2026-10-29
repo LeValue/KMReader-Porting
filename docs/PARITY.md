@@ -5,7 +5,7 @@ This matrix distinguishes implemented behavior from full upstream parity.
 
 | Area | Implemented | Remaining work |
 | --- | --- | --- |
-| Authentication | Password, API key, first-server claim, account-scoped profiles, OS credential vault; optional device biometrics/PIN/Windows Hello app lock with cold-start and background protection | Device-level vault and OS authentication acceptance |
+| Authentication | Password, API key, first-server claim, account-scoped profiles, OS credential vault, self-service password changes with Basic credential replacement/reconnect and API-key preservation; optional device biometrics/PIN/Windows Hello app lock with cold-start and background protection | Device-level vault and OS authentication acceptance |
 | Server management | Add, reconnect, switch, remove; isolated caches/files/outbox | More server editing and protection options |
 | Dashboard | Keep Reading, On Deck, new books/series, updated series, recently read and recently released books; hide/reorder sections, persistent library scope, matching See All filters/sort, opt-in ordered read-list continuation with upstream-compatible client-settings sync and durable stop tombstones, compact empty sections, persistent large/medium/small/horizontal card styles | Native acceptance for read-list continuation |
 | Catalog | Paginated series/books, submitted search, library browser, sort/read-status and nested typed metadata filters, per-account saved filters, selection of loaded items or all matching paginated results, batch read/unread/download/list actions; account-scoped SQLite FTS metadata index with full snapshot preparation, Unicode search, nested filters, sorts and local progress | Every upstream card/sort/filter presentation; offline special-list and On Deck parity |
@@ -60,7 +60,7 @@ OCR, ONNX inference, and OS display-awake request/release. Android also checks
 simulated notch geometry/rotation and captures the composed EPUB via PixelCopy.
 These are controlled native fixtures, not physical-device performance measurements.
 
-The development suite passes 190 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
+The development suite passes 200 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
 progress conflicts between SQLite connections, multi-worker media generations,
 conditional HTTP 304 validation, immutable document refresh, download pause/resume,
 account deletion with active writes, wide-page gesture ownership and pan restoration.
@@ -104,3 +104,13 @@ queues, timers and listeners. Real Chromium acceptance covers crossing both ways
 repeated flow switches, font reflow without progress, second-chapter cold resume,
 backward scrolling after resume, and teardown. Native CI additionally switches
 flow in the actual WebView settings and navigates after restoring paged mode.
+
+Account password changes now use the self-service v2 endpoint, replace only
+Basic credentials in the OS vault, and reconnect the same account. API-key
+authentication remains independent. Lost-response verification avoids replaying
+the password mutation, and removal/server-switch races cannot retarget another
+account or restore deleted credentials. Secure-store failure explicitly requires
+sign-in; passwords never enter SQLite. Tests cover those cases plus pending form
+navigation and confirmation at 320/1280 pixels. Disposable real Komga acceptance
+changes the fixture password, verifies authentication, restores it, and verifies
+authentication again. Successful re-login also clears a previous offline flag.
