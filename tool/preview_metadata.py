@@ -10,6 +10,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--github-env', action='store_true')
     parser.add_argument('--apk-badging', type=Path)
+    parser.add_argument('--abi', choices=['arm64-v8a', 'armeabi-v7a', 'x86_64'])
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     match = re.search(r'^version: (\d+\.\d+\.\d+)\+([1-9]\d*)$',
@@ -31,8 +32,14 @@ def main():
             raise SystemExit('APK identity/version does not match this source')
         if 'application-debuggable' in badging:
             raise SystemExit('Publish an optimized, non-debuggable APK')
+        if args.abi:
+            native = re.search(r'^native-code: (.+)$', badging, re.M)
+            if not native or re.findall(r"'([^']+)'", native.group(1)) != [args.abi]:
+                raise SystemExit('Unexpected APK architecture')
     values = {'RELEASE_VERSION': version, 'RELEASE_BUILD': build, 'RELEASE_TAG': tag,
-              'APK_NAME': f'KMReader-{version}-android-preview.apk',
+              'APK_NAME': f'KMReader-{version}-android-arm64-preview.apk',
+              'ARMV7_NAME': f'KMReader-{version}-android-armv7-preview.apk',
+              'X64_NAME': f'KMReader-{version}-android-x64-preview.apk',
               'WINDOWS_NAME': f'KMReader-{version}-windows-x64-preview.zip'}
     if args.github_env:
         with Path(os.environ['GITHUB_ENV']).open('a') as output:
