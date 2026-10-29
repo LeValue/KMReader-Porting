@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_controller.dart';
+import '../../core/app_version.dart';
 import '../../core/models.dart';
 import '../../core/download_policy.dart';
 import '../../core/repository.dart';
@@ -623,7 +624,7 @@ class SettingsPage extends StatelessWidget {
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: 'KMReader',
-                  applicationVersion: '0.5.0',
+                  applicationVersion: '$appVersion ($appBuildNumber)',
                   applicationLegalese: 'Based on KMReader by everpcpc (MIT).\nPorting for Android and Windows.',
                 ),
               ),

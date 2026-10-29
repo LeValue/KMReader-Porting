@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show compute;
 
 import 'models.dart';
+import 'app_version.dart';
 import 'server_event.dart';
 
 class ApiFailure implements Exception {
@@ -63,7 +64,7 @@ class KomgaApi {
 
   Map<String, String> get headers => {
     'Accept': 'application/json',
-    'User-Agent': 'KMReader-Porting/0.5.0',
+    'User-Agent': 'KMReader-Porting/$appVersion',
     if (_credential.isNotEmpty)
       if (authentication == Authentication.apiKey)
         'X-API-Key': _credential
