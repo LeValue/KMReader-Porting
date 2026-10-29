@@ -15,6 +15,8 @@ import '../catalog/history_page.dart';
 import 'api_keys_page.dart';
 import 'library_editor.dart';
 import 'translation_settings.dart';
+import 'server_management_page.dart';
+import '../catalog/catalog_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.app, required this.repository});
@@ -523,6 +525,41 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ),
               ),
+              if (repository.profile.admin) ...[
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings_outlined),
+                  title: Text(tr(context, 'Server Management')),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          ServerManagementPage(repository: repository),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.copy_all),
+                  title: Text(tr(context, 'Duplicate Files')),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          title: Text(tr(context, 'Duplicate Files')),
+                        ),
+                        body: CatalogPageView(
+                          repository: repository,
+                          kind: 'books',
+                          path: '/api/v1/books/duplicates',
+                          title: 'Duplicate Files',
+                          searchEnabled: false,
+                          initialSort: 'fileSize,desc',
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               if (repository.profile.admin)
                 ListTile(
                   leading: const Icon(CupertinoIcons.wrench),

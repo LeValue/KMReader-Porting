@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/server_event.dart';
+import 'package:kmreader/core/server_management.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
@@ -66,6 +67,17 @@ void main() {
         directory: directory,
       );
       try {
+        final management = ServerManagement(repository);
+        expect(await management.scheduledTasks(), isNotEmpty);
+        expect((await management.sessions()).ownOnly, true);
+        await management.taskMetrics();
+        expect(
+          (await repository.catalog(
+            'books',
+            path: '/api/v1/books/duplicates',
+          )).total,
+          0,
+        );
         final cold = Stopwatch()..start();
         final books = await repository.catalog('books');
         cold.stop();

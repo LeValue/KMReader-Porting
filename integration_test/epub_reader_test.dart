@@ -1,13 +1,13 @@
 import 'package:kmreader/core/background_downloads.dart';
 
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:kmreader/features/reader/reader_ocr.dart';
 import 'package:kmreader/features/reader/page_upscaler.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kmreader/core/api.dart';
@@ -26,6 +26,18 @@ import 'support/background_download_check.dart';
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   verifyNativeBackgroundDownloads();
+  testWidgets('Android export rejects files outside app-private storage', (
+    tester,
+  ) async {
+    if (!Platform.isAndroid) return;
+    await expectLater(
+      const MethodChannel('dev.levalue.kmreader/export')
+          .invokeMethod<bool>('exportLog', {'path': '/system/build.prop'}),
+      throwsA(
+        isA<PlatformException>().having((e) => e.code, 'code', 'export_failed'),
+      ),
+    );
+  });
   testWidgets('native display-awake request releases its OS ownership', (
     tester,
   ) async {
