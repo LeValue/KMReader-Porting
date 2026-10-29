@@ -34,13 +34,19 @@ void main() {
     tester,
   ) async {
     if (!Platform.isAndroid) return;
-    await expectLater(
-      const MethodChannel('dev.levalue.kmreader/export')
-          .invokeMethod<bool>('exportLog', {'path': '/system/build.prop'}),
-      throwsA(
-        isA<PlatformException>().having((e) => e.code, 'code', 'export_failed'),
-      ),
-    );
+    for (final method in ['exportLog', 'exportImage']) {
+      await expectLater(
+        const MethodChannel('dev.levalue.kmreader/export')
+            .invokeMethod<bool>(method, {'path': '/system/build.prop'}),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'export_failed',
+          ),
+        ),
+      );
+    }
   });
   testWidgets('native display-awake request releases its OS ownership', (
     tester,

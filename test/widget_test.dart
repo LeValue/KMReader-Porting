@@ -233,7 +233,12 @@ void main() {
         isEmpty,
         reason: 'Unvisited tabs must not start network requests',
       );
-      expect(requests.length, 7);
+      expect(
+        requests.length,
+        inInclusiveRange(3, 7),
+        reason: 'Dashboard loads visible shelves lazily',
+      );
+      final initialDashboardRequests = requests.length;
       for (final style in ['Medium', 'Horizontal']) {
         await tester.tap(find.byTooltip('Card Style').first);
         await tester.pumpAndSettle();
@@ -249,17 +254,18 @@ void main() {
         );
         expect(
           requests.length,
-          7,
+          initialDashboardRequests,
           reason: 'Changing card presentation must reuse cached results',
         );
       }
       await tester.tap(find.text('All Libraries'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Comics'));
+      await tester.tap(find.text('Done'));
       await tester.pumpAndSettle();
       expect(
-        object(app.store.setting<dynamic>('dashboardLibrary:fixture'))['id'],
-        'library',
+        object(app.store.setting<dynamic>('dashboardLibrary:fixture'))['ids'],
+        ['library'],
       );
       expect(
         requests.any(
@@ -322,15 +328,27 @@ void main() {
         scrollable: settingsScroll,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'System').first);
+      await tester.tap(
+        find.byKey(const ValueKey('preference::appColorScheme')),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Light').last);
+      await tester.tap(
+        find.widgetWithText(CheckedPopupMenuItem<Object>, 'Light').last,
+      );
       await tester.pumpAndSettle();
       expect(app.theme, ThemeMode.light);
-      await tester.tap(find.widgetWithText(TextButton, 'English'));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('preference::language')),
+        -250,
+        scrollable: settingsScroll,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('preference::language')));
       await tester.pumpAndSettle();
       await screenshot(tester, key, 'language-menu-${size.width.toInt()}');
-      await tester.tap(find.text('Italiano'));
+      await tester.tap(
+        find.widgetWithText(CheckedPopupMenuItem<Object>, 'Italiano'),
+      );
       await tester.pumpAndSettle();
       expect(app.language, 'it');
       expect(tester.takeException(), isNull);

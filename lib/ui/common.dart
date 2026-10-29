@@ -13,7 +13,38 @@ Future<T?> chooseValue<T>(
   required Map<T, String> choices,
   bool translateChoices = true,
   bool searchable = false,
+  bool anchored = false,
 }) {
+  if (anchored && !searchable && choices.length <= 20) {
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    final row = context.findRenderObject()! as RenderBox;
+    final origin = row.localToGlobal(Offset.zero, ancestor: overlay);
+    return showMenu<T>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        origin.dx + row.size.width * .45,
+        origin.dy + row.size.height,
+        16,
+        0,
+      ),
+      constraints: BoxConstraints(
+        minWidth: 220,
+        maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(220, 420),
+      ),
+      initialValue: selected,
+      items: [
+        for (final entry in choices.entries)
+          CheckedPopupMenuItem<T>(
+            value: entry.key,
+            checked: entry.key == selected,
+            child: Text(
+              translateChoices ? tr(context, entry.value) : entry.value,
+            ),
+          ),
+      ],
+    );
+  }
   var query = '';
   Widget content(BuildContext sheet) => StatefulBuilder(
     builder: (sheet, update) {
@@ -300,7 +331,11 @@ class AsyncPanel<T> extends StatefulWidget {
     required this.load,
     required this.builder,
     this.revision = 0,
+    this.pullToRefresh = true,
+    this.loading,
   });
+  final bool pullToRefresh;
+  final Widget? loading;
   final int revision;
   final Future<T> Function() load;
   final Widget Function(BuildContext, T) builder;
@@ -331,7 +366,11 @@ class _AsyncPanelState<T> extends State<AsyncPanel<T>> {
         return FailureView(error: snapshot.error!, retry: _reload);
       }
       if (!snapshot.hasData) {
-        return const Center(child: CircularProgressIndicator.adaptive());
+        return widget.loading ??
+            const Center(child: CircularProgressIndicator.adaptive());
+      }
+      if (!widget.pullToRefresh) {
+        return widget.builder(context, snapshot.data as T);
       }
       return RefreshIndicator(
         onRefresh: () async {

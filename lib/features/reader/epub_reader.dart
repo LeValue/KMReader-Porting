@@ -682,7 +682,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       ],
                     ),
                     if (!_fixedLayout)
-                      slider('Text Size', 'fontSize', p.fontSize, 8, 60, 52),
+                      slider('Text Size', 'fontSize', p.fontSize, 4.75, 76, 75),
                     Text(tr(context, 'Page Turn Animation')),
                     Wrap(
                       spacing: 8,
@@ -748,7 +748,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         3,
                         30,
                       ),
-                      slider('Paragraph Indent', 'indent', p.indent, 0, 4, 20),
+                      slider('Paragraph Indent', 'indent', p.indent, 0, 8, 20),
                       slider(
                         'Letter Spacing',
                         'letterSpacing',

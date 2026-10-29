@@ -9,10 +9,10 @@
       "note": ""
     },
     "DashboardConfiguration.libraryIds": {
-      "status": "adapted",
+      "status": "implemented",
       "storage": "dashboardLibrary:<account>",
       "implementation": "lib/features/catalog/dashboard.dart",
-      "note": "Current dashboard scopes to one library or all libraries; upstream stores a selection of multiple libraries."
+      "note": "Account-scoped multiple-library selection reaches shelves, See All pagination and selection actions; legacy single selections migrate on read."
     },
     "DashboardConfiguration.sections": {
       "status": "implemented",
@@ -102,7 +102,7 @@
       "status": "adapted",
       "storage": "epubDefault.fontSize",
       "implementation": "lib/features/reader/epub_session.dart",
-      "note": "Applied to the browser engine; fixed-layout publications retain authored typography. Port uses 8–60 CSS px instead of original Readium font scale; legacy default 19 px."
+      "note": "The UI exposes 0.25–4x in 0.05x increments. The EPUB.js adapter stores 4.75–76 CSS px (19 px per 1x); Readium applies its own publisher-relative scale. Fixed-layout publications retain authored typography."
     },
     "EpubThemePreferences.fontWeight": {
       "status": "implemented",
@@ -354,7 +354,7 @@
       "status": "implemented",
       "storage": "readerDefault.imageContextMenu",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
+      "note": "Context menu offers either spread page as a solo full-page view, PNG export through the OS document picker, OCR and rotation. Native sharing-sheet semantics remain adapted."
     },
     "enableLiveText": {
       "status": "adapted",
@@ -695,8 +695,8 @@
     "suggestNextUnreadBook": {
       "status": "adapted",
       "storage": "same key",
-      "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Reader next navigation requests server skipRead. Older-server local unread fallback and settings-controlled series continuation are not yet matched to upstream."
+      "implementation": "lib/core/next_book.dart",
+      "note": "End-of-book navigation requests skipRead and falls back to later locally known unread siblings for older servers and offline ordered lists. The upstream series Continue Reading entrypoint remains to be matched."
     },
     "tapZoneInversionMode": {
       "status": "implemented",

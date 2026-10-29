@@ -22,6 +22,7 @@ class PdfPreferences {
   const PdfPreferences({
     this.presentation = PdfPresentation.auto,
     this.rtl = false,
+    this.vertical = false,
     this.coverSolo = true,
     this.background = 'white',
     this.useSeriesDirection = true,
@@ -29,7 +30,12 @@ class PdfPreferences {
     this.showProgress = false,
   });
   final PdfPresentation presentation;
-  final bool rtl, coverSolo, useSeriesDirection, controlsGradient, showProgress;
+  final bool rtl,
+      vertical,
+      coverSolo,
+      useSeriesDirection,
+      controlsGradient,
+      showProgress;
   final String background;
   factory PdfPreferences.fromJson(Json json) => PdfPreferences(
     presentation: PdfPresentation.values.firstWhere(
@@ -37,6 +43,7 @@ class PdfPreferences {
       orElse: () => PdfPresentation.auto,
     ),
     rtl: json['rtl'] == true,
+    vertical: json['vertical'] == true,
     coverSolo: json['coverSolo'] != false,
     background:
         const [
@@ -55,6 +62,7 @@ class PdfPreferences {
   Json toJson() => {
     'presentation': presentation.value,
     'rtl': rtl,
+    'vertical': vertical,
     'coverSolo': coverSolo,
     'background': background,
     'useSeriesDirection': useSeriesDirection,
@@ -64,6 +72,7 @@ class PdfPreferences {
   PdfPreferences copy({
     PdfPresentation? presentation,
     bool? rtl,
+    bool? vertical,
     bool? coverSolo,
     String? background,
     bool? useSeriesDirection,
@@ -72,6 +81,7 @@ class PdfPreferences {
   }) => PdfPreferences(
     presentation: presentation ?? this.presentation,
     rtl: rtl ?? this.rtl,
+    vertical: vertical ?? this.vertical,
     coverSolo: coverSolo ?? this.coverSolo,
     background: background ?? this.background,
     useSeriesDirection: useSeriesDirection ?? this.useSeriesDirection,
@@ -81,12 +91,9 @@ class PdfPreferences {
   PdfPreferences forSeries(Json metadata) {
     if (!useSeriesDirection) return this;
     return switch (metadata['readingDirection']) {
-      'RIGHT_TO_LEFT' => copy(rtl: true),
-      'LEFT_TO_RIGHT' => copy(rtl: false),
-      'VERTICAL' || 'WEBTOON' => copy(
-        rtl: false,
-        presentation: PdfPresentation.singleContinuous,
-      ),
+      'RIGHT_TO_LEFT' => copy(rtl: true, vertical: false),
+      'LEFT_TO_RIGHT' => copy(rtl: false, vertical: false),
+      'VERTICAL' || 'WEBTOON' => copy(rtl: false, vertical: true),
       _ => this,
     };
   }
@@ -119,21 +126,27 @@ class PdfReaderLayout {
       );
       final height = width / ratio;
       for (var i = 0; i < sizes.length; i++) {
-        final x = (preferences.rtl ? sizes.length - i - 1 : i) * width;
+        final x = preferences.vertical
+            ? 0.0
+            : (preferences.rtl ? sizes.length - i - 1 : i) * width;
+        final y = preferences.vertical ? i * height : 0.0;
         pages[i] = Rect.fromLTWH(
           x + (width - sizes[i].width) / 2,
-          (height - sizes[i].height) / 2,
+          y + (height - sizes[i].height) / 2,
           sizes[i].width,
           sizes[i].height,
         );
-        slots[i] = Rect.fromLTWH(x, 0, width, height);
+        slots[i] = Rect.fromLTWH(x, y, width, height);
       }
       return PdfReaderLayout._(
         pages,
         slots,
-        Size(width * sizes.length, height),
+        preferences.vertical
+            ? Size(width, height * sizes.length)
+            : Size(width * sizes.length, height),
       );
     }
+
     final dual = mode == PdfPresentation.dualContinuous;
     final width = (dual ? 2 : 1) * maxWidth + (dual ? 3 : 2) * margin;
     var y = margin;

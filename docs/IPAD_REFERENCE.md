@@ -2,8 +2,9 @@
 
 The user supplied five Italian iPad screenshots on 2026-10-29: the settings index,
 offline books, browse/card preferences, reading statistics and image-cache settings.
-They provide a partial visual reference. They do not cover the readers, every
-setting, dark mode, animation or the Windows/Android interaction model. The books,
+They provide a partial visual reference. The subsequent dark DIVINA and statistics references additionally guide reader
+preferences. They do not cover every setting, animation or the Windows/Android
+interaction model. The books,
 server data and installed fonts differ from the synthetic comparison fixtures.
 
 ## Implemented from this comparison
@@ -29,7 +30,7 @@ server data and installed fonts differ from the synthetic comparison fixtures.
   image bytes. Search bypass omits user filters while retaining the view's
   structural scope and library; clearing the query restores the filters.
   Select-all uses the same effective conditions and library as the visible query.
-- Reading statistics opens the statistics tab directly; history remains available.
+- Reading statistics opens a separate page from Settings; history remains available separately. Seven summary tiles, weekly heatmap with all seven periods and a status donut follow the reference.
 
 ## Comparison still required
 
@@ -38,7 +39,7 @@ server data and installed fonts differ from the synthetic comparison fixtures.
 | Settings index | Global DIVINA, EPUB theme/preferences, PDF, reader-general and real-time category pages are implemented; verify native spacing, row heights and popovers against the original. See [settings audit](SETTINGS_AUDIT.md) for adaptations and remaining model-library gaps. |
 | Sidebar | The original's exact Offline/Server destinations, collapsible library section and sidebar-collapse control are not yet reproduced. |
 | Offline | Match the two summary tiles, library/size scope, grid presets and downloaded-book status presentation. |
-| Reading statistics | Match metric tiles, heatmap/donut styling, time ranges and data semantics against the same library. |
+| Reading statistics | Metric tiles, weekly heatmap, seven time ranges and status donut are implemented. Compare native rendering and data semantics using the same library. |
 | Cache | Separate page/cover quotas, cover expiry, byte/count statistics and current/all-account clearing are implemented, with migration and protection of downloaded originals. Native visual matching and physical-device cache acceptance remain. |
 | Typography and controls | Check production fonts, native switches/popovers, row metrics, dark mode, accessibility and more screen sizes. |
 
@@ -49,3 +50,15 @@ matches the supplied 1280 × 889 images; the phone viewport is 390 × 844.
 ![Settings index with persistent sidebar](screenshots/settings-index-ipad-reference.png)
 ![Browse options with shared card previews](screenshots/browse-settings-ipad-reference.png)
 ![Browse options on a phone](screenshots/browse-settings-phone-reference.png)
+
+## 0.8.0 settings refinement
+
+DIVINA forms follow the reference groups and order, with the unified four-direction picker, inverted Force Default toggle, conditional layout/cover/split rows and full captions. Values align to the trailing edge on wide windows; narrow windows stack long labels and values. A shared theme supplies grouped backgrounds, separators, green switches and consistent row/caption metrics. Cache rows no longer nest two cards. Appearance follows Language, App Icon, Theme, Navigation and Privacy. Settings index order matches reference groups, with port-specific download/account actions retained below them.
+
+EPUB themes use the four original theme swatches, typography scale ranges, weight override, advanced groups and separate preset/font screens. Native PDF includes Vertical; rendering/presentation controls follow source visibility rules. Network uses numeric timeout fields and retry stepper; real-time sections include source explanatory footers. Apple-only settings are not replaced by inert controls; model-library gaps remain explicit in the audit.
+
+Widget fixtures verify 320/1280 widths, Italian localization and enlarged text. They do not establish pixel equality on physical Android/Windows devices.
+
+![DIVINA grouped settings, wide dark fixture](screenshots/divina-settings-wide-0.8.0.png)
+![DIVINA compact fixture with enlarged Italian text](screenshots/divina-settings-phone-0.8.0.png)
+![Reading statistics, synthetic reference data](screenshots/reading-stats-0.8.0.png)

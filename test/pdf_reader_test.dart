@@ -340,8 +340,16 @@ void main() {
         find.widgetWithText(SwitchListTile, 'Use Native PDF Reader'),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Ultra (5120 px)'));
-      await tester.tap(find.text('Ultra (5120 px)'));
+      await tester.tap(
+        find.byKey(const ValueKey('preference::pdfOfflineRenderQuality')),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.widgetWithText(CheckedPopupMenuItem<Object>, 'Ultra (5120 px)'),
+      );
+      await tester.tap(
+        find.widgetWithText(CheckedPopupMenuItem<Object>, 'Ultra (5120 px)'),
+      );
       await tester.pumpAndSettle();
       expect(store.setting<bool>('useNativePdfReader'), false);
       expect(store.setting<String>('pdfOfflineRenderQuality'), 'ultra');
@@ -406,8 +414,8 @@ void main() {
     expect(
       const PdfPreferences().forSeries({
         'readingDirection': 'WEBTOON',
-      }).presentation,
-      PdfPresentation.singleContinuous,
+      }).vertical,
+      isTrue,
     );
     expect(
       const PdfPreferences(useSeriesDirection: false)

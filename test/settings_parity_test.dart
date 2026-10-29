@@ -510,7 +510,9 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(layout);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Double Page').last);
+        await tester.tap(
+          find.widgetWithText(CheckedPopupMenuItem<Object>, 'Dual Page').last,
+        );
         await tester.pumpAndSettle();
         expect(
           ReaderPreferences.fromJson(
@@ -518,6 +520,16 @@ void main() {
           ).spread,
           isTrue,
         );
+        expect(
+          find.byKey(const ValueKey('preference:readerDefault:splitWide')),
+          findsNothing,
+        );
+        await tester.tap(layout);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(CheckedPopupMenuItem<Object>, 'Auto').last,
+        );
+        await tester.pumpAndSettle();
         final split = find.byKey(
           const ValueKey('preference:readerDefault:splitWide'),
         );
@@ -525,7 +537,11 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(split);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Left to Right').last);
+        await tester.tap(
+          find
+              .widgetWithText(CheckedPopupMenuItem<Object>, 'Left to Right')
+              .last,
+        );
         await tester.pumpAndSettle();
         final restored = ReaderPreferences.fromJson(
           object(store.setting<dynamic>('readerDefault')),
@@ -565,6 +581,8 @@ void main() {
         'fontSize': 30.0,
         'tapMode': 'kindle',
       });
+      await tester.tap(find.text('Load Preset'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Evening'));
       await tester.pumpAndSettle();
       final restored = object(store.setting<dynamic>('epubDefault'));
@@ -589,17 +607,23 @@ void main() {
       final flow = find.byKey(const ValueKey('preference:epubDefault:flow'));
       await tester.tap(flow);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Continuous').last);
+      await tester.tap(
+        find.widgetWithText(CheckedPopupMenuItem<Object>, 'Continuous').last,
+      );
       await tester.pumpAndSettle();
       expect(object(store.setting<dynamic>('epubDefault'))['flow'], 'scrolled');
       expect(
         find.byKey(const ValueKey('preference:epubDefault:animate')),
-        findsNothing,
+        findsOneWidget,
       );
       final scroll = find.byKey(
         const ValueKey('preference:epubDefault:tapScroll'),
       );
-      await tester.ensureVisible(scroll);
+      await tester.scrollUntilVisible(
+        scroll,
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
       expect(scroll, findsOneWidget);
       await tester.pumpWidget(
@@ -609,7 +633,11 @@ void main() {
       final advanced = find.byKey(
         const ValueKey('preference:epubDefault:advancedLayout'),
       );
-      await tester.ensureVisible(advanced);
+      await tester.scrollUntilVisible(
+        advanced,
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('preference:epubDefault:lineHeight')),
@@ -620,7 +648,11 @@ void main() {
       final height = find.byKey(
         const ValueKey('preference:epubDefault:lineHeight'),
       );
-      await tester.ensureVisible(height);
+      await tester.scrollUntilVisible(
+        height,
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
       expect(height, findsOneWidget);
       expect(

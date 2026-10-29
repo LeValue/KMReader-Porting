@@ -11,11 +11,11 @@ python3 tool/extract_upstream_settings.py /path/to/kmreader --output docs/upstre
 python3 -m unittest discover -s tool/tests
 ```
 
-Delivered in [0.7.0 preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.7.0-preview.1), source `4041b8ca631f4113c6d9f81c8c6fccbc851b4ef8`. Exact native and downloaded-package verification is recorded in [validation](VALIDATION.md).
+The original inventory shipped in 0.7.0. The 0.8.0 implementation adds grouped settings matching the reference order, captions, inline/adaptive pickers, conditional controls, preset/font subpages and reading-statistics charts. Exact verification is recorded in [validation](VALIDATION.md).
 
 ## Current coverage
 
-**10 adapted**, **104 implemented**, **3 internal**, **5 partial**, **6 platform-unavailable**. Implemented means the control has a corresponding runtime effect; it does not assert pixel parity, matching defaults or verified native behavior. See [validation](VALIDATION.md).
+**9 adapted**, **105 implemented**, **3 internal**, **5 partial**, **6 platform-unavailable**. Implemented means the control has a corresponding runtime effect; it does not assert pixel parity, matching defaults or verified native behavior. See [validation](VALIDATION.md).
 
 The remaining original model-library functionality is **partial**: catalog URL editing, catalog downloads, independent model-role selection, archive download/deletion and Core ML recognizers are not ported. The application shows the actual bundled ONNX bubble detector and native OCR languages, with an explicit compatibility explanation. It does not offer dummy selectors for those archives.
 
@@ -25,11 +25,11 @@ Handoff, Spotlight and Live Activities have no implementation on these operating
 
 - Appearance: system/light/dark, language, classic wide navigation, preview/capture privacy and the three original launcher icons. Android changes launcher components; Windows changes its window/taskbar icon, not arbitrary existing shortcuts.
 - Browse: all nine original card/search switches, previews and immediate updates.
-- Dashboard: section visibility/order/reset, card-kind menu and gradient. Library scope currently selects one library or all, rather than an arbitrary subset.
+- Dashboard: section visibility/order/reset, card-kind menu and gradient. Library scope selects any subset or all libraries, including See All queries and batch selection.
 - Reader general: offline-first preparation, confirmed automatic completed-download removal, threshold, next unread, list continuation, keyboard help/Space action, fullscreen and keep-awake. Removal waits for the last non-incognito reader to release files.
-- DIVINA: direction, metadata override, layouts/cover/splitting, appearance, tap gestures, zoom, Webtoon width/scroll, preload, crop, Waifu2x and text/context-menu actions. Curl is a portable snapshot effect for discrete turns; swipe remains slide. Live Text opens selectable native OCR text.
+- DIVINA: direction, metadata override, layouts/cover/splitting, appearance, tap gestures, zoom, Webtoon width/scroll, preload, crop, Waifu2x and text/context-menu actions. Curl is a portable snapshot effect for discrete turns; swipe remains slide. Live Text opens selectable native OCR text. Context actions offer either spread page solo and PNG export through the system document picker; this adapts Apple sharing-sheet behavior.
 - PDF: native/raster engine, all four raster qualities, direction/metadata, presentation/cover, background, gradient and progress.
-- EPUB: flow/animation/transition/tap zones/status bar/percentage scrolling, eight overlay slots and progress; original theme families, color scheme, font weight, typography/columns/alignment/margins, custom font import/removal and named preset save/apply/delete. Native HTML fallback does not have browser-engine feature parity. Fixed-layout publications retain authored CSS.
+- EPUB: flow/animation/transition/tap zones/status bar/percentage scrolling, eight overlay slots and progress; original theme families, color scheme, font weight, typography/columns/alignment/margins, custom font import/removal and named preset save/apply/rename/delete. Native HTML fallback does not have browser-engine feature parity. Fixed-layout publications retain authored CSS.
 - Translation: provider add/edit/select/delete, secure key replacement/removal, model discovery/selection, source and target language, system target, metadata opt-in, translation visibility/direction and translation-cache removal. Bubble grouping uses the bundled detector.
 - Cache: independent page/cover quotas, cover expiry, current-server counts/size, clear current/all accounts; downloaded originals and progress are retained. Cache totals are bounded across accounts. The document-cache controls from the existing port are retained.
 - Network and real time: request/download/authentication timeout and safe-read retries; SSE enable/automatic refresh/in-app notices. Mutations are never automatically replayed. Turning SSE off cancels even a request still awaiting response headers.
@@ -37,16 +37,18 @@ Handoff, Spotlight and Live Activities have no implementation on these operating
 
 ## Persistence and default differences
 
-Existing installations retain their preferences. Global reader defaults merge with saved per-book values, whose saved snapshots take precedence. This differs from upstream global AppStorage behavior. Legacy fallbacks remain for several controls: comic single-page/black background/cover not isolated/tap hints off/zoom 2; progress threshold 0; EPUB sepia/advanced layout enabled/19 CSS px. Upstream uses auto/system/isolated cover/hints on/zoom 3, threshold 3 and system/publisher typography. The available controls expose the original choices; upgrading does not silently replace existing reader behavior. Readium font-scale and spacing units are adapted to CSS px/em in the browser engine.
+Existing installations retain saved preferences and legacy fallbacks. New installations seed original auto layout, system backgrounds, solo cover, page shadow, tap hints, zoom 3, progress threshold 3 and EPUB publisher typography. Changing a global reader preference now removes only that preference from older per-book snapshots, across accounts, while retaining locators, progress and unrelated choices. In-reader edits still save per-book snapshots; they do not update upstream-style global AppStorage.
 
-The next-unread preference requests `skipRead` from the server. Older-server local fallback and settings-controlled series continuation are not yet fully equivalent to upstream.
+EPUB theme sliders display original scale units and ranges; the browser adapter converts them to CSS px/em. The native HTML fallback remains reduced and is not equivalent to Readium. Original layout structure is used for the global settings forms; Android/Windows controls, fonts, compact-width adaptation and Apple-only options still differ.
+
+Next-unread navigation requests `skipRead`, with an older-server fallback over locally known siblings and offline ordered-list continuation. Source-equivalent series-level Continue Reading selection remains open.
 
 ## Persisted-key mapping
 
 | Original key or field | Status | Port storage | Runtime implementation |
 | --- | --- | --- | --- |
 | `DashboardConfiguration.cardKindOverrides` | implemented | `dashboardCard:<account>:<section>` | [dashboard.dart](../lib/features/catalog/dashboard.dart) |
-| `DashboardConfiguration.libraryIds` | adapted | `dashboardLibrary:<account>` | [dashboard.dart](../lib/features/catalog/dashboard.dart) |
+| `DashboardConfiguration.libraryIds` | implemented | `dashboardLibrary:<account>` | [dashboard.dart](../lib/features/catalog/dashboard.dart) |
 | `DashboardConfiguration.sections` | implemented | `dashboardHidden:<account> / dashboardOrder:<account>` | [settings_page.dart](../lib/features/settings/settings_page.dart) |
 | `EpubOverlayPreferences.controlsFooterCenter` | implemented | `epubOverlay.controlsFooterCenter` | [epub_overlay.dart](../lib/features/reader/epub_overlay.dart) |
 | `EpubOverlayPreferences.controlsHeaderCenter` | implemented | `epubOverlay.controlsHeaderCenter` | [epub_overlay.dart](../lib/features/reader/epub_overlay.dart) |
@@ -160,7 +162,7 @@ The next-unread preference requests `skipRead` from the server. Older-server loc
 | `showTapZoneHints` | implemented | `readerDefault.showTapHints` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `spaceKeyAction` | implemented | `spaceKeyAction` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `splitWidePageMode` | implemented | `readerDefault.splitWide` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
-| `suggestNextUnreadBook` | adapted | `same key` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
+| `suggestNextUnreadBook` | adapted | `same key` | [next_book.dart](../lib/core/next_book.dart) |
 | `tapZoneInversionMode` | implemented | `readerDefault.tapInversion` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `tapZoneMode` | implemented | `readerDefault.tapMode` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `taskQueueStatus` | internal | `live task queue` | [repository.dart](../lib/core/repository.dart) |

@@ -230,7 +230,10 @@ class ReadListReading {
     _write(values);
   }
 
-  Future<List<ReadListContinuation>> continuations({String? libraryId}) async {
+  Future<List<ReadListContinuation>> continuations({
+    String? libraryId,
+    List<String>? libraryIds,
+  }) async {
     if (!enabled || repository.closed) return [];
     final entries =
         states.entries.where((e) => object(e.value)['stopped'] != true).toList()
@@ -297,7 +300,11 @@ class ReadListReading {
         }
         if (index < 0) continue;
         final book = byId[ids[index]];
-        if (book == null || libraryId != null && book.libraryId != libraryId) {
+        if (book == null ||
+            libraryId != null && book.libraryId != libraryId ||
+            libraryIds != null &&
+                libraryIds.isNotEmpty &&
+                !libraryIds.contains(book.libraryId)) {
           continue;
         }
         result.add(

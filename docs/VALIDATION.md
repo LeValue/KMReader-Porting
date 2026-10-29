@@ -1,5 +1,27 @@
 # Development validation
 
+## 0.8.0 candidate — Dashboard boundary and original settings layout
+
+Local analysis is clean. All **267 Flutter checks** pass with Chromium and the
+real ONNX runtime enabled; eight Python checks and the pinned upstream inventory
+check pass. The separately executed isolated Komga acceptance covers real
+CBZ/EPUB/PDF download, caching, offline progress and WebPub synchronization.
+The large-font CJK browser regression now also verifies navigation/CFI at 76px.
+
+New checks cover stable Windows-platform Dashboard wheel bounds without shelf
+reloads, multi-library POST/GET/offline scopes, old-server and offline next-unread
+resolution, global-default changes retaining locators and unrelated book choices,
+fresh/upgrade defaults, vertical PDF geometry, calendar/leap/locale ranges,
+Italian compact/wide settings and statistics, numeric timeout validation, either
+spread page solo without progress changes, PNG export success/cancel/failure and
+private temporary-file cleanup. The original native Android export rejection
+check now exercises both log and image export.
+
+The [reference comparison](IPAD_REFERENCE.md) includes actual Flutter fixture
+renders. These do not establish native pixel parity or physical Windows mouse
+wheel/GPU performance. Source-matched native/build and package verification are
+required before this candidate is published; results are recorded here afterwards.
+
 ## 0.7.0 preview — settings audit and verified native controls
 
 Source: `4041b8ca631f4113c6d9f81c8c6fccbc851b4ef8`. All three jobs passed in
