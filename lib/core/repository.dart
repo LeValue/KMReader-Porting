@@ -15,6 +15,7 @@ import 'document_cache.dart';
 import 'page_formats.dart';
 import 'read_list_reading.dart';
 import 'server_event.dart';
+import 'komf.dart';
 import '../features/reader/page_upscaler.dart';
 
 class Repository extends ChangeNotifier {
@@ -61,6 +62,8 @@ class Repository extends ChangeNotifier {
   }
 
   late final ReadListReading readLists = ReadListReading(this);
+  Komf? _komf;
+  Komf get komf => _komf ??= Komf(this);
   bool _syncing = false;
   bool _disposed = false;
   StreamSubscription<ServerEvent>? _events;
@@ -1493,6 +1496,7 @@ class Repository extends ChangeNotifier {
   @override
   void dispose() {
     if (_disposed) return;
+    _komf?.dispose();
     documents.close();
     pageUpscaler.close();
     _cacheEvents?.cancel();

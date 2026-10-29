@@ -12,6 +12,7 @@ import 'catalog_page.dart';
 import 'list_actions.dart';
 import 'list_editor.dart';
 import 'metadata_editor.dart';
+import 'komf_page.dart';
 import '../../core/catalog_tools.dart';
 
 class DetailPage extends StatelessWidget {
@@ -43,6 +44,8 @@ class _DetailContent extends StatelessWidget {
     appBar: AppBar(
       title: Text(item.title),
       actions: [
+        if (repository.profile.admin && ['books', 'series'].contains(item.kind))
+          KomfButton(repository: repository, item: item),
         if (item.kind == 'readlists' || item.kind == 'collections')
           IconButton(
             tooltip: tr(

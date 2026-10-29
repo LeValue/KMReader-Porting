@@ -71,6 +71,7 @@ void main() {
         expect(await management.scheduledTasks(), isNotEmpty);
         expect((await management.sessions()).ownOnly, true);
         await management.taskMetrics();
+        expect(await repository.komf.checkIntegration(), isNull);
         expect(
           (await repository.catalog(
             'books',
