@@ -351,8 +351,9 @@ void main() {
       for (var i = 0; i < 180; i++) {
         await tester.pump(const Duration(milliseconds: 250));
         if (find.byTooltip('Next Page').evaluate().isNotEmpty &&
-            find.byType(CircularProgressIndicator).evaluate().isEmpty)
+            find.byType(CircularProgressIndicator).evaluate().isEmpty) {
           break;
+        }
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
       expect(find.byTooltip('Next Page'), findsOneWidget);
