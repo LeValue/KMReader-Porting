@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models.dart';
+import '../../core/api.dart';
 import '../../core/repository.dart';
 import '../../core/reading_stats.dart';
 import '../../ui/common.dart';
@@ -373,9 +374,27 @@ class _ReadingStatsPageState extends State<ReadingStatsPage> {
   );
 }
 
-class ServerEventsPage extends StatefulWidget {
-  const ServerEventsPage({super.key, required this.repository});
+class AuthenticationActivityPage extends StatelessWidget {
+  const AuthenticationActivityPage({super.key, required this.repository});
   final Repository repository;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(tr(context, 'Authentication Activity'))),
+    body: SafeArea(
+      top: false,
+      child: ServerEventsPage(repository: repository, authentication: true),
+    ),
+  );
+}
+
+class ServerEventsPage extends StatefulWidget {
+  const ServerEventsPage({
+    super.key,
+    required this.repository,
+    this.authentication = false,
+  });
+  final Repository repository;
+  final bool authentication;
   @override
   State<ServerEventsPage> createState() => _ServerEventsPageState();
 }
@@ -385,6 +404,7 @@ class _ServerEventsPageState extends State<ServerEventsPage> {
   final _scroll = ScrollController();
   int _page = 0, _generation = 0;
   bool _loading = false, _last = false;
+  bool _retryReset = false;
   Object? _error;
   @override
   void initState() {
@@ -394,6 +414,7 @@ class _ServerEventsPageState extends State<ServerEventsPage> {
   }
 
   void _more() {
+    if (_error != null) return;
     if (_scroll.hasClients && _scroll.position.extentAfter < 500) _load();
   }
 
@@ -419,11 +440,20 @@ class _ServerEventsPageState extends State<ServerEventsPage> {
     try {
       final data = object(
         await widget.repository.get(
-          '/api/v1/history',
-          query: {'page': _page, 'size': 50, 'sort': 'timestamp,desc'},
+          widget.authentication
+              ? '/api/v2/users/me/authentication-activity'
+              : '/api/v1/history',
+          query: {
+            'page': _page,
+            'size': widget.authentication ? 20 : 50,
+            if (!widget.authentication) 'sort': 'timestamp,desc',
+          },
         ),
       );
       if (!mounted || generation != _generation) return;
+      if (data['content'] is! List) {
+        throw const ApiFailure('The server returned an unexpected response.');
+      }
       setState(() {
         if (reset) _events.clear();
         _events.addAll((data['content'] as List? ?? []).map(object));
@@ -432,7 +462,12 @@ class _ServerEventsPageState extends State<ServerEventsPage> {
         _page++;
       });
     } catch (e) {
-      if (mounted && generation == _generation) setState(() => _error = e);
+      if (mounted && generation == _generation) {
+        setState(() {
+          _error = e;
+          _retryReset = reset;
+        });
+      }
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _loading = false);
@@ -445,16 +480,28 @@ class _ServerEventsPageState extends State<ServerEventsPage> {
     onRefresh: () => _load(reset: true),
     child: ListView.builder(
       controller: _scroll,
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _events.length + 1,
       itemBuilder: (context, index) {
         if (index == _events.length) {
           if (_error != null) {
-            return FailureView(error: _error!, retry: () => _load());
+            return FailureView(
+              error: _error!,
+              retry: () => _load(reset: _retryReset),
+            );
           }
           if (_loading) {
             return const Padding(
               padding: EdgeInsets.all(24),
               child: Center(child: CircularProgressIndicator.adaptive()),
+            );
+          }
+          if (!_last) {
+            return Center(
+              child: TextButton(
+                onPressed: _load,
+                child: Text(tr(context, 'Load More')),
+              ),
             );
           }
           return Padding(
@@ -470,6 +517,46 @@ class _ServerEventsPageState extends State<ServerEventsPage> {
           );
         }
         final event = _events[index];
+        if (widget.authentication) {
+          final date = DateTime.tryParse(text(event['dateTime']));
+          return ExpansionTile(
+            leading: Icon(
+              event['success'] == true
+                  ? Icons.check_circle_outline
+                  : Icons.error_outline,
+              color: event['success'] == true
+                  ? Theme.of(context).colorScheme.secondary
+                  : Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              text(
+                event['source'],
+                tr(context, event['success'] == true ? 'Success' : 'Failed'),
+              ),
+            ),
+            subtitle: Text(
+              date == null
+                  ? text(event['dateTime'])
+                  : DateFormat.yMd(
+                      Localizations.localeOf(context).toLanguageTag(),
+                    ).add_Hms().format(date.toLocal()),
+            ),
+            children: [
+              for (final entry in {
+                'apiKeyComment': 'API Key',
+                'userAgent': 'User Agent',
+                'ip': 'IP Address',
+                'error': 'Error',
+              }.entries)
+                if (event[entry.key] != null &&
+                    text(event[entry.key]).isNotEmpty)
+                  ListTile(
+                    title: Text(tr(context, entry.value)),
+                    subtitle: SelectableText(text(event[entry.key])),
+                  ),
+            ],
+          );
+        }
         return ExpansionTile(
           leading: const Icon(CupertinoIcons.clock),
           title: Text(

@@ -352,3 +352,16 @@ the actual controller, secure-store interface and reconnection flow. Controlled
 fault tests cover a lost response, denied operation, offline guard, failed vault
 write, account removal and server switch. Form tests validate confirmation and
 prevent closing an in-flight mutation. Native CI for this later source is pending.
+
+## Authentication activity development
+
+Static analysis, 202 automated tests (Chromium/ONNX enabled), Android debug
+compilation and separate real Komga acceptance pass locally. Two enlarged-text
+widget variants verify pagination, expanded details, refresh rejection/retry and
+offline reuse without HTTP requests. Stock Komga returns the real current-user
+authentication activity page. Native verification for this later source is pending.
+
+All three jobs for Komf source `969927feed1bbcac1a2b0f7c7626664879a3590f` passed in
+[workflow 40795789235](https://github.com/LeValue/KMReader-Porting/actions/runs/40795789235).
+The continuous EPUB source `797c269694ea9edd213ed8b1ed4cdcbd420e10c4` has passed both
+Android jobs; its Windows release job is still running at this checkpoint.
