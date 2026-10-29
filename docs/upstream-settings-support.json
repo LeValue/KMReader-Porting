@@ -252,7 +252,7 @@
       "status": "implemented",
       "storage": "readerDefault.animate",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "apiRetryCount": {
       "status": "implemented",
@@ -312,31 +312,31 @@
       "status": "implemented",
       "storage": "readerDefault.direction",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "divinaPageBorderCropMode": {
       "status": "implemented",
       "storage": "readerDefault.borderCrop",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "divinaPreloadProfile": {
       "status": "implemented",
       "storage": "readerDefault.preload",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "doubleTapZoomMode": {
       "status": "implemented",
       "storage": "readerDefault.doubleTapEnabled",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "doubleTapZoomScale": {
       "status": "implemented",
       "storage": "readerDefault.doubleTapZoom",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
     },
     "downloadTimeout": {
       "status": "implemented",
@@ -354,7 +354,7 @@
       "status": "implemented",
       "storage": "readerDefault.imageContextMenu",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "enableLiveText": {
       "status": "adapted",
@@ -462,7 +462,7 @@
       "status": "implemented",
       "storage": "readerDefault.useSeriesDirection (inverse)",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "imageUpscaleAutoTriggerScale": {
       "status": "implemented",
@@ -486,7 +486,7 @@
       "status": "implemented",
       "storage": "readerDefault.soloCover",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
     },
     "keepScreenAwakeWhileReading": {
       "status": "implemented",
@@ -534,7 +534,7 @@
       "status": "implemented",
       "storage": "readerDefault.pageLayout",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
     },
     "pageTransitionStyle": {
       "status": "adapted",
@@ -600,7 +600,7 @@
       "status": "implemented",
       "storage": "readerDefault.background",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
     },
     "requestTimeout": {
       "status": "implemented",
@@ -636,13 +636,13 @@
       "status": "implemented",
       "storage": "readerDefault.controlsGradient",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "showDivinaProgressBarWhileReading": {
       "status": "implemented",
       "storage": "readerDefault.showProgress",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "showKeyboardHelpOverlay": {
       "status": "adapted",
@@ -654,13 +654,13 @@
       "status": "implemented",
       "storage": "readerDefault.showPageNumber",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "showPageShadow": {
       "status": "implemented",
       "storage": "readerDefault.showPageShadow",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "showPdfControlsGradientBackground": {
       "status": "implemented",
@@ -678,7 +678,7 @@
       "status": "implemented",
       "storage": "readerDefault.showTapHints",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
     },
     "spaceKeyAction": {
       "status": "implemented",
@@ -690,25 +690,25 @@
       "status": "implemented",
       "storage": "readerDefault.splitWide",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "suggestNextUnreadBook": {
-      "status": "implemented",
+      "status": "adapted",
       "storage": "same key",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": ""
+      "note": "Reader next navigation requests server skipRead. Older-server local unread fallback and settings-controlled series continuation are not yet matched to upstream."
     },
     "tapZoneInversionMode": {
       "status": "implemented",
       "storage": "readerDefault.tapInversion",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "tapZoneMode": {
       "status": "implemented",
       "storage": "readerDefault.tapMode",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "taskQueueStatus": {
       "status": "internal",
@@ -762,13 +762,13 @@
       "status": "implemented",
       "storage": "readerDefault.webtoonWidth",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     },
     "webtoonTapScrollPercentage": {
       "status": "implemented",
       "storage": "readerDefault.tapScroll",
       "implementation": "lib/features/reader/reader_page.dart",
-      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+      "note": "Global defaults merge with saved per-book preferences; saved per-book snapshots take precedence."
     }
   }
 }
