@@ -72,10 +72,10 @@ class EpubPreferences {
       colorScheme: choice('colorScheme', ['system', 'light', 'dark'], 'system'),
       animate: data['animate'] != false,
       advancedLayout: data['advancedLayout'] != false,
-      fontWeight: integer(data['fontWeight']).clamp(0, 900),
+      fontWeight: integer(data['fontWeight']).clamp(0, 1000),
       tapScroll: number('tapScroll', 80, 25, 100),
-      fontSize: number('fontSize', 19, 8, 60),
-      lineHeight: number('lineHeight', 1.65, 1, 3),
+      fontSize: number('fontSize', 19, 4.75, 76),
+      lineHeight: number('lineHeight', 1.65, .5, 3),
       margin: number('margin', 24, 0, 100),
       columns: [0, 1, 2].contains(data['columns'])
           ? integer(data['columns'])
@@ -88,8 +88,8 @@ class EpubPreferences {
         'center',
       ], 'publisher'),
       paragraphSpacing: number('paragraphSpacing', .5, 0, 3),
-      indent: number('indent', 0, 0, 4),
-      letterSpacing: number('letterSpacing', 0, -.05, .3),
+      indent: number('indent', 0, 0, 8),
+      letterSpacing: number('letterSpacing', 0, -.05, 1),
       wordSpacing: number('wordSpacing', 0, 0, 1),
       transition: choice('transition', [
         'slide',
@@ -136,6 +136,13 @@ class EpubPreferences {
   };
 }
 
+(String, String) epubThemePalette(String theme, bool dark) => switch (theme) {
+  'quiet' => dark ? ('#1E1E1E', '#BDBDBD') : ('#FAFAFA', '#111111'),
+  'green' => dark ? ('#1B261B', '#D1E0D1') : ('#C7EDCC', '#1A3A1F'),
+  'sepia' => dark ? ('#382E25', '#E3D5C1') : ('#F4ECD8', '#5C4A37'),
+  _ => dark ? ('#000000', '#E0E0E0') : ('#FFFFFF', '#000000'),
+};
+
 class EpubSession extends ChangeNotifier {
   EpubSession._(
     this.repository,
@@ -162,12 +169,7 @@ class EpubSession extends ChangeNotifier {
       preferences.theme != 'white' &&
           (preferences.colorScheme == 'dark' ||
               preferences.colorScheme == 'system' && darkEnvironment);
-  (String, String) get themeColors => switch (preferences.theme) {
-    'quiet' => dark ? ('#1E1E1E', '#BDBDBD') : ('#FAFAFA', '#111111'),
-    'green' => dark ? ('#1B261B', '#D1E0D1') : ('#C7EDCC', '#1A3A1F'),
-    'sepia' => dark ? ('#382E25', '#E3D5C1') : ('#F4ECD8', '#5C4A37'),
-    _ => dark ? ('#000000', '#E0E0E0') : ('#FFFFFF', '#000000'),
-  };
+  (String, String) get themeColors => epubThemePalette(preferences.theme, dark);
   CustomFontStore get fonts =>
       CustomFontStore(repository.store, repository.directory);
   Json get browserPreferences => {

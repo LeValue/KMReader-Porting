@@ -7,6 +7,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'preference_controls.dart';
+import 'settings_style.dart';
 
 class CacheSettingsPage extends StatefulWidget {
   const CacheSettingsPage({super.key, required this.repository});
@@ -72,17 +73,15 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(tr(context, 'Cache')),
-      actions: [
-        IconButton(
-          tooltip: tr(context, 'Refresh'),
-          onPressed: () => setState(() => _stats = _load()),
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: 'Cache',
+    actions: [
+      IconButton(
+        tooltip: tr(context, 'Refresh'),
+        onPressed: () => setState(() => _stats = _load()),
+        icon: const Icon(Icons.refresh),
+      ),
+    ],
     body: FutureBuilder<List<MediaCacheStats>>(
       future: _stats,
       builder: (context, snapshot) => ListView(
@@ -106,26 +105,31 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
                   PreferencePage(
                     title: 'Cache',
                     embedded: true,
+                    decorateGroups: false,
                     store: widget.repository.store,
                     onChanged: _scheduleTrim,
                     specs: kind == MediaCacheKind.pages
-                        ? const [
+                        ? [
                             PreferenceSpec(
                               'maxPageCacheSize',
-                              'Maximum Size (GB)',
+                              'Maximum Size',
                               8,
                               min: 1,
                               max: 20,
+                              formatValue: (v) => '${v.round()} GB',
+                              caption: 'Adjust the maximum size of the page cache. Cache will be cleaned automatically when exceeded.',
                             ),
                           ]
-                        : const [
+                        : [
                             PreferenceSpec(
                               'maxCoverCacheSize',
-                              'Maximum Size (MB)',
+                              'Maximum Size',
                               512,
                               min: 128,
                               max: 8192,
                               step: 128,
+                              formatValue: (v) => '${v.round()} MB',
+                              caption: 'Adjust the maximum size of the cover cache. Cache will be cleaned automatically when exceeded.',
                             ),
                             PreferenceSpec(
                               'coverCacheExpirationDays',
@@ -133,9 +137,14 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
                               7,
                               min: 1,
                               max: 90,
+                              formatValue: (v) =>
+                                  '${v.round()} ${tr(context, 'Days')}',
+                              caption:
+                                  'Refresh cached covers after this many days.',
                             ),
                           ],
                   ),
+                  const Divider(indent: 20, endIndent: 20),
                   ListTile(
                     title: Text(tr(context, 'Cached Size')),
                     trailing: Text(
@@ -144,6 +153,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
                           : '…',
                     ),
                   ),
+                  const Divider(indent: 20, endIndent: 20),
                   ListTile(
                     title: Text(
                       tr(
@@ -161,27 +171,43 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
                   ),
                   Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: _busy ? null : () => _clear(kind, true),
-                            child: Text(
-                              tr(context, 'Clear All'),
-                              style: const TextStyle(color: Colors.red),
-                            ),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        textButtonTheme: TextButtonThemeData(
+                          style: TextButton.styleFrom(
+                            backgroundColor: Theme.of(context).dividerColor
+                                .withValues(alpha: .08),
+                            foregroundColor: Colors.red,
                           ),
                         ),
-                        Expanded(
-                          child: TextButton(
-                            onPressed: _busy ? null : () => _clear(kind, false),
-                            child: Text(
-                              tr(context, 'Clear Current'),
-                              style: const TextStyle(color: Colors.red),
+                      ),
+                      child: Row(
+                        spacing: 8,
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _clear(kind, true),
+                              child: Text(
+                                tr(context, 'Clear All'),
+                                style: const TextStyle(color: Colors.red),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          Expanded(
+                            child: TextButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _clear(kind, false),
+                              child: Text(
+                                tr(context, 'Clear Current'),
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -194,7 +220,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
             embedded: true,
             store: widget.repository.store,
             onChanged: (_) => widget.repository.documents.scheduleTrim(),
-            specs: const [
+            specs: [
               PreferenceSpec(
                 'documentCacheMb',
                 'Document Cache Limit',

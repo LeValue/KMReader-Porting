@@ -1418,5 +1418,21 @@
     "zh-Hant": "統計針對目前伺服器。空間限制適用於所有伺服器的快取。",
     "ru": "Статистика относится к текущему серверу. Лимиты действуют на кэш всех серверов.",
     "es": "Las estadísticas son del servidor actual. Los límites se aplican a la caché de todos los servidores."
+  },
+  "Save Image": {
+    "en": "Save Image",
+    "it": "Salva immagine",
+    "de": "Bild speichern",
+    "fr": "Enregistrer l’image",
+    "ja": "画像を保存",
+    "ko": "이미지 저장",
+    "zh-Hans": "保存图片",
+    "zh-Hant": "儲存圖片",
+    "ru": "Сохранить изображение",
+    "es": "Guardar imagen"
+  },
+  "settings.reader.contextMenu.port.caption": {
+    "en": "Show a context menu to view a full page, save its image, recognize text or rotate it. Live Text uses long press when enabled.",
+    "it": "Mostra un menu per visualizzare una pagina da sola, salvarne l’immagine, riconoscere il testo o ruotarla. Con Live Text attivo, la pressione prolungata riconosce il testo."
   }
 }

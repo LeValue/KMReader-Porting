@@ -14,11 +14,12 @@ import 'browse_settings.dart';
 import 'reader_settings.dart';
 import 'cache_settings.dart';
 import 'service_settings.dart';
-import 'app_icon_picker.dart';
+import 'appearance_settings.dart';
 import 'client_logs_page.dart';
 import 'about_page.dart';
 import 'system_features_page.dart';
 import 'preference_controls.dart';
+import 'settings_style.dart';
 import '../auth/login_page.dart';
 import '../offline/downloads_page.dart';
 import '../catalog/dashboard.dart';
@@ -41,14 +42,17 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _navigator = GlobalKey<NavigatorState>();
   @override
-  Widget build(BuildContext context) => NavigatorPopHandler<Object?>(
-    enabled: TickerMode.valuesOf(context).enabled,
-    onPopWithResult: (result) => _navigator.currentState!.pop(result),
-    child: Navigator(
-      key: _navigator,
-      onGenerateRoute: (_) => MaterialPageRoute<void>(
-        builder: (_) =>
-            _SettingsIndex(app: widget.app, repository: widget.repository),
+  Widget build(BuildContext context) => Theme(
+    data: settingsTheme(Theme.of(context)),
+    child: NavigatorPopHandler<Object?>(
+      enabled: TickerMode.valuesOf(context).enabled,
+      onPopWithResult: (result) => _navigator.currentState!.pop(result),
+      child: Navigator(
+        key: _navigator,
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) =>
+              _SettingsIndex(app: widget.app, repository: widget.repository),
+        ),
       ),
     ),
   );
@@ -110,8 +114,9 @@ class _SettingsIndex extends StatelessWidget {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(tr(context, 'Settings'))),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: 'Settings',
+    showBackButton: false,
     body: ListView(
       padding: const EdgeInsets.fromLTRB(22, 26, 22, 0),
       children: [
@@ -144,7 +149,7 @@ class _SettingsIndex extends StatelessWidget {
             'Reading Stats',
             CupertinoIcons.chart_bar,
             Colors.deepPurple,
-            HistoryPage(repository: repository, initialTab: 1),
+            ReadingStatsPage(repository: repository, standalone: true),
           ),
         ]),
         _group([
@@ -169,17 +174,17 @@ class _SettingsIndex extends StatelessWidget {
           ),
           _link(
             context,
-            'PDF Reader',
-            CupertinoIcons.doc,
-            Colors.red,
-            PdfReaderSettingsPage(store: app.store),
-          ),
-          _link(
-            context,
             'DIVINA Reader',
             CupertinoIcons.photo,
             Colors.green,
             DivinaSettingsPage(repository: repository),
+          ),
+          _link(
+            context,
+            'PDF Reader',
+            CupertinoIcons.doc,
+            Colors.red,
+            PdfReaderSettingsPage(store: app.store),
           ),
           _link(
             context,
@@ -199,22 +204,6 @@ class _SettingsIndex extends StatelessWidget {
         _group([
           _link(
             context,
-            'Downloads',
-            CupertinoIcons.arrow_down_to_line,
-            Colors.green,
-            _section('Downloads', SettingsSection.storage),
-          ),
-          _link(
-            context,
-            'Cache',
-            CupertinoIcons.archivebox,
-            Colors.orange,
-            CacheSettingsPage(repository: repository),
-          ),
-        ]),
-        _group([
-          _link(
-            context,
             'Real-time Updates',
             CupertinoIcons.antenna_radiowaves_left_right,
             Colors.orange,
@@ -227,6 +216,8 @@ class _SettingsIndex extends StatelessWidget {
             Colors.indigo,
             const SystemFeaturesPage(),
           ),
+        ]),
+        _group([
           _link(
             context,
             'Network',
@@ -234,8 +225,13 @@ class _SettingsIndex extends StatelessWidget {
             Colors.blue,
             NetworkSettingsPage(store: app.store),
           ),
-        ]),
-        _group([
+          _link(
+            context,
+            'Cache',
+            CupertinoIcons.archivebox,
+            Colors.orange,
+            CacheSettingsPage(repository: repository),
+          ),
           _link(
             context,
             'Logs',
@@ -243,12 +239,23 @@ class _SettingsIndex extends StatelessWidget {
             Colors.grey,
             const ClientLogsPage(),
           ),
+        ]),
+        _group([
           _link(
             context,
             'About',
             CupertinoIcons.info_circle,
             Colors.grey,
             const AboutPage(),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Downloads',
+            CupertinoIcons.arrow_down_to_line,
+            Colors.green,
+            _section('Downloads', SettingsSection.storage),
           ),
         ]),
         _group([
@@ -286,8 +293,8 @@ class _SettingsSection extends StatelessWidget {
   final String title;
   final SettingsSection section;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(tr(context, title))),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: title,
     body: ListenableBuilder(
       listenable: repository,
       builder: (context, _) => ListView(
@@ -341,8 +348,10 @@ class _SettingsSection extends StatelessWidget {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute<void>(
-                        builder: (_) =>
-                            HistoryPage(repository: repository, initialTab: 1),
+                        builder: (_) => ReadingStatsPage(
+                          repository: repository,
+                          standalone: true,
+                        ),
                       ),
                     ),
                   ),
@@ -448,124 +457,7 @@ class _SettingsSection extends StatelessWidget {
             ),
           ],
           SettingsSection.appearance => [
-            AppIconPicker(app: app, onChanged: repository.changed),
-            Text(
-              tr(context, 'Appearance'),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(CupertinoIcons.moon),
-                    title: Text(tr(context, 'Theme')),
-                    trailing: TextButton.icon(
-                      onPressed: () async {
-                        final value = await chooseValue(
-                          context,
-                          title: 'Theme',
-                          selected: app.theme,
-                          choices: {
-                            ThemeMode.system: 'System',
-                            ThemeMode.light: 'Light',
-                            ThemeMode.dark: 'Dark',
-                          },
-                        );
-                        if (value != null) app.setTheme(value);
-                      },
-                      icon: const Icon(
-                        CupertinoIcons.chevron_up_chevron_down,
-                        size: 14,
-                      ),
-                      label: Text(
-                        tr(context, switch (app.theme) {
-                          ThemeMode.system => 'System',
-                          ThemeMode.light => 'Light',
-                          ThemeMode.dark => 'Dark',
-                        }),
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(CupertinoIcons.globe),
-                    title: Text(tr(context, 'Language')),
-                    trailing: TextButton.icon(
-                      onPressed: () async {
-                        final value = await chooseValue(
-                          context,
-                          title: 'Language',
-                          selected: app.language ?? 'system',
-                          choices: {
-                            'system': 'System',
-                            'en': 'English',
-                            'it': 'Italiano',
-                            'de': 'Deutsch',
-                            'fr': 'Français',
-                            'ja': '日本語',
-                            'ko': '한국어',
-                            'zh_CN': '简体中文',
-                            'zh_TW': '繁體中文',
-                            'ru': 'Русский',
-                            'es': 'Español',
-                          },
-                        );
-                        if (value != null) {
-                          app.setLanguage(value == 'system' ? null : value);
-                        }
-                      },
-                      icon: const Icon(
-                        CupertinoIcons.chevron_up_chevron_down,
-                        size: 14,
-                      ),
-                      label: Text(
-                        tr(
-                          context,
-                          ({
-                                'system': 'System',
-                                'en': 'English',
-                                'it': 'Italiano',
-                                'de': 'Deutsch',
-                                'fr': 'Français',
-                                'ja': '日本語',
-                                'ko': '한국어',
-                                'zh_CN': '简体中文',
-                                'zh_TW': '繁體中文',
-                                'ru': 'Русский',
-                                'es': 'Español',
-                              })[app.language ?? 'system'] ??
-                              'System',
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            PreferencePage(
-              title: 'Appearance',
-              embedded: true,
-              store: app.store,
-              onChanged: (_) => app.settingsChanged(),
-              specs: const [
-                PreferenceSpec(
-                  'useClassicPadNavigation',
-                  'settings.appearance.classicNavigation.title',
-                  true,
-                  section: 'Navigation',
-                  caption: 'settings.appearance.classicNavigation.caption',
-                ),
-                PreferenceSpec(
-                  'privacyProtection',
-                  'settings.appearance.privacyProtection.title',
-                  false,
-                  section: 'Privacy',
-                  caption: 'settings.privacy.port.caption',
-                ),
-              ],
-            ),
+            AppearanceSettings(app: app, repository: repository),
           ],
           SettingsSection.server => [
             Text('Komga', style: Theme.of(context).textTheme.titleLarge),
@@ -939,8 +831,8 @@ class ServerPage extends StatelessWidget {
   const ServerPage({super.key, required this.repository});
   final Repository repository;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(tr(context, 'Server Info'))),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: 'Server Info',
     body: AsyncPanel<dynamic>(
       load: () => repository.get('/actuator/info'),
       builder: (context, value) => ListView(

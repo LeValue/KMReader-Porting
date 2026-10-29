@@ -9,6 +9,8 @@ import '../../core/reading_stats.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'catalog_page.dart';
+import 'reading_stats_overview.dart';
+import '../settings/settings_style.dart';
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key, required this.repository, this.initialTab = 0});
@@ -51,7 +53,12 @@ class HistoryPage extends StatelessWidget {
 }
 
 class ReadingStatsPage extends StatefulWidget {
-  const ReadingStatsPage({super.key, required this.repository});
+  final bool standalone;
+  const ReadingStatsPage({
+    super.key,
+    required this.repository,
+    this.standalone = false,
+  });
   final Repository repository;
   @override
   State<ReadingStatsPage> createState() => _ReadingStatsPageState();
@@ -60,7 +67,8 @@ class ReadingStatsPage extends StatefulWidget {
 class _ReadingStatsPageState extends State<ReadingStatsPage> {
   late Future<Json> _future;
   String? _library;
-  int _days = 365;
+  String _range = 'last6Months';
+  String? _libraryName;
   @override
   void initState() {
     super.initState();
@@ -94,6 +102,8 @@ class _ReadingStatsPageState extends State<ReadingStatsPage> {
       );
       if (id == null || !mounted) return;
       _library = id.isEmpty ? null : id;
+      _libraryName =
+          libraries.where((l) => l['id'] == id).firstOrNull?['name'] as String?;
       await _refresh();
     } catch (e) {
       if (mounted) showError(context, e);
@@ -153,96 +163,28 @@ class _ReadingStatsPageState extends State<ReadingStatsPage> {
     );
   }
 
-  Widget _heatmap(Json data) {
-    final values = <String, num>{
-      for (final row in (data['readingTimeSeries'] as List? ?? []).map(object))
-        text(row['date'], text(row['name'])).split('T').first:
-            (row['value'] as num? ?? 0),
-    };
-    final now = DateUtils.dateOnly(DateTime.now());
-    final maximum = values.values.fold<num>(0, (a, b) => a > b ? a : b);
-    final dates = [
-      for (var i = _days - 1; i >= 0; i--)
-        DateTime(now.year, now.month, now.day - i),
-    ];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    tr(context, 'Pages Read'),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                DropdownButton<int>(
-                  value: _days,
-                  items: [
-                    for (final n in [30, 90, 365])
-                      DropdownMenuItem(
-                        value: n,
-                        child: Text('$n ${tr(context, 'Days')}'),
-                      ),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setState(() => _days = v);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 3,
-              runSpacing: 3,
-              children: [
-                for (final day in dates)
-                  Builder(
-                    builder: (context) {
-                      final key = DateFormat('yyyy-MM-dd').format(day);
-                      final count = values[key] ?? 0;
-                      return Tooltip(
-                        message:
-                            '${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(day)}: $count ${tr(context, 'pages')}',
-                        child: Semantics(
-                          label: '$key: $count',
-                          child: Container(
-                            width: 13,
-                            height: 13,
-                            decoration: BoxDecoration(
-                              color: count == 0
-                                  ? Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest
-                                  : Theme.of(context).colorScheme.primary
-                                        .withValues(
-                                          alpha:
-                                              .25 +
-                                              .75 *
-                                                  (maximum > 0
-                                                      ? count / maximum
-                                                      : 0),
-                                        ),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+  @override
+  Widget build(BuildContext context) {
+    final content = _content(context);
+    return widget.standalone
+        ? SettingsScaffold(
+            title: 'Reading Stats',
+            backgroundColor: Theme.of(context).brightness == Brightness.light
+                ? Colors.white
+                : Colors.black,
+            actions: [
+              IconButton(
+                tooltip: tr(context, 'Refresh'),
+                onPressed: _refresh,
+                icon: const Icon(CupertinoIcons.arrow_clockwise),
+              ),
+            ],
+            body: content,
+          )
+        : content;
   }
 
-  @override
-  Widget build(BuildContext context) => FutureBuilder<Json>(
+  Widget _content(BuildContext context) => FutureBuilder<Json>(
     future: _future,
     builder: (context, snapshot) {
       if (snapshot.hasError) {
@@ -251,99 +193,20 @@ class _ReadingStatsPageState extends State<ReadingStatsPage> {
       if (!snapshot.hasData) {
         return const Center(child: CircularProgressIndicator.adaptive());
       }
-      final data = snapshot.data!, summary = object(data['summary']);
-      final metrics = <String, dynamic>{
-        'Total Books': summary['totalBooks'],
-        'Started': summary['booksStartedReading'],
-        'Completed': summary['booksCompletedReading'],
-        'Pages Read': summary['totalPagesRead'],
-        'Average Pages per Book': summary['averagePagesPerBook'],
-        'Reading Days': summary['readingDays'],
-        if (summary['currentStreakDays'] != null)
-          'Current Streak': summary['currentStreakDays'],
-        if (summary['longestStreakDays'] != null)
-          'Longest Streak': summary['longestStreakDays'],
-      };
+      final data = snapshot.data!;
       return RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    tr(
-                      context,
-                      data['source'] == 'server'
-                          ? 'Server Statistics'
-                          : 'Reading Statistics',
-                    ),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                IconButton(
-                  tooltip: tr(context, 'Library'),
-                  onPressed: _scope,
-                  icon: const Icon(CupertinoIcons.slider_horizontal_3),
-                ),
-                IconButton(
-                  tooltip: tr(context, 'Refresh'),
-                  onPressed: _refresh,
-                  icon: const Icon(CupertinoIcons.arrow_clockwise),
-                ),
-              ],
-            ),
-            Text(
-              '${tr(context, data['complete'] == true ? 'Updated' : 'Cached Books Only')}: ${text(data['generatedAt']).split('.').first}${data['offline'] == true ? ' · ${tr(context, 'Offline Mode')}' : ''}',
-              style: Theme.of(context).textTheme.bodySmall,
+            ReadingStatsOverview(
+              data: data,
+              library: _libraryName ?? tr(context, 'All Libraries'),
+              onScope: _scope,
+              range: _range,
+              onRange: (value) => setState(() => _range = value),
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final metric in metrics.entries)
-                  SizedBox(
-                    width: 155,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              NumberFormat.decimalPattern(
-                                Localizations.localeOf(context).toLanguageTag(),
-                              ).format(metric.value ?? 0),
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            Text(tr(context, metric.key)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            _heatmap(data),
-            _rank('Read Status', [
-              for (final row in (data['statusDistribution'] as List? ?? []).map(
-                object,
-              ))
-                {
-                  ...row,
-                  'name': tr(
-                    context,
-                    {
-                          'read': 'Read',
-                          'inProgress': 'In Progress',
-                          'unread': 'Unread',
-                        }[row['name']] ??
-                        text(row['name']),
-                  ),
-                },
-            ]),
             _rank('Reading by Day', [
               for (var i = 0; i < 7; i++)
                 {

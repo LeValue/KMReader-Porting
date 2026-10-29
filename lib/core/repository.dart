@@ -434,7 +434,23 @@ class Repository extends ChangeNotifier {
     bool force = false,
     int size = 40,
     String? libraryId,
+    List<String>? libraryIds,
   }) async {
+    if (libraryIds != null && libraryIds.isNotEmpty) {
+      condition = {
+        'allOf': [
+          ?condition,
+          {
+            'anyOf': [
+              for (final id in libraryIds.toSet().toList()..sort())
+                {
+                  'libraryId': {'operator': 'is', 'value': id},
+                },
+            ],
+          },
+        ],
+      };
+    }
     if (offline &&
         ['books', 'series', 'collections', 'readlists'].contains(kind)) {
       try {
@@ -495,7 +511,10 @@ class Repository extends ChangeNotifier {
         if (path?.contains('/readlists/') == true &&
             path?.endsWith('/books') == true)
           'read_status': readStatus(condition),
-        'library_id': ?libraryId,
+        if (libraryIds != null && libraryIds.isNotEmpty)
+          'library_id': libraryIds.toSet().toList()..sort()
+        else
+          'library_id': ?libraryId,
         if (!(path?.contains('/readlists/') == true &&
             path?.endsWith('/books') == true))
           'sort': sortQuery(kind, sort),

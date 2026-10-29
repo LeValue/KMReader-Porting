@@ -12,6 +12,7 @@ export 'credentials.dart';
 
 import 'api.dart';
 import 'network_preferences.dart';
+import 'reader_defaults.dart';
 import 'credentials.dart';
 import 'background_downloads.dart';
 import 'device_lock.dart';
@@ -84,6 +85,7 @@ class AppController extends ChangeNotifier {
       directory: dir,
       vault: const SecureVault(),
     );
+    initializeReaderDefaults(controller.store);
     try {
       await controller.backgroundDownloads.initialize();
     } catch (error) {

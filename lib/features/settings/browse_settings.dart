@@ -1,3 +1,5 @@
+import 'settings_style.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/browse_preferences.dart';
@@ -34,8 +36,8 @@ class BrowseSettingsPage extends StatelessWidget {
       );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(tr(context, 'settings.browse.title'))),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: 'settings.browse.title',
     body: ListenableBuilder(
       listenable: preferences,
       builder: (context, _) => ListView(

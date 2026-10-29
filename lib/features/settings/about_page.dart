@@ -1,3 +1,5 @@
+import 'settings_style.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_version.dart';
@@ -7,8 +9,8 @@ import '../../ui/strings.dart';
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(tr(context, 'About'))),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: 'About',
     body: ListView(
       padding: const EdgeInsets.all(22),
       children: [

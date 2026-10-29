@@ -65,7 +65,7 @@ with sync_playwright() as playwright:
             assert page.evaluate('window.fixturePagedTurns') == 1
         second = page.evaluate('window.reader.position().start')
         assert second['cfi'] != first['cfi'], (first, second)
-        for font_size in [52, 60]:
+        for font_size in [52, 60, 76]:
             saved_turn = page.evaluate('window.reader.position().start.cfi')
             page.evaluate('(value)=>window.reader.preferences(value)', {**config['preferences'], 'fontSize': font_size})
             anchor_rect = frame.evaluate('(cfi)=>new parent.ePub.CFI(cfi).toRange(document).getBoundingClientRect().toJSON()', saved_turn)

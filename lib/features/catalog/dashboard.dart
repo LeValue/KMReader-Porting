@@ -85,33 +85,85 @@ class DashboardQuery {
   }
 }
 
-class Dashboard extends StatelessWidget {
+class Dashboard extends StatefulWidget {
   const Dashboard({super.key, required this.repository});
   final Repository repository;
-  Future<void> _scope(BuildContext context, String selected) async {
+  @override
+  State<Dashboard> createState() => _DashboardState();
+}
+
+class _DashboardState extends State<Dashboard> {
+  final _scroll = ScrollController();
+  Repository get repository => widget.repository;
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scope(BuildContext context, List<String> selected) async {
     try {
       final data = await repository.get('/api/v1/libraries', cacheFirst: true);
       if (!context.mounted) return;
-      final choices = {
-        '': tr(context, 'All Libraries'),
-        for (final v in data as List)
-          text(object(v)['id']): text(object(v)['name']),
+      final libraries = {
+        for (final value in data as List)
+          text(object(value)['id']): text(object(value)['name']),
       };
-      final value = await chooseValue(
-        context,
-        title: 'Libraries',
-        selected: selected,
-        choices: choices,
-        translateChoices: false,
+      final picked = selected.toSet();
+      final saved = await showDialog<List<String>>(
+        context: context,
+        builder: (dialog) => StatefulBuilder(
+          builder: (dialog, refresh) => AlertDialog(
+            title: Text(tr(dialog, 'Libraries')),
+            content: SizedBox(
+              width: 420,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CheckboxListTile(
+                      title: Text(tr(dialog, 'All Libraries')),
+                      value: picked.isEmpty,
+                      onChanged: (_) => refresh(picked.clear),
+                    ),
+                    for (final entry in libraries.entries)
+                      CheckboxListTile(
+                        title: Text(entry.value),
+                        value: picked.contains(entry.key),
+                        onChanged: (value) => refresh(() {
+                          if (value == true) {
+                            picked.add(entry.key);
+                          } else {
+                            picked.remove(entry.key);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialog),
+                child: Text(tr(dialog, 'Cancel')),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialog, picked.toList()..sort()),
+                child: Text(tr(dialog, 'Done')),
+              ),
+            ],
+          ),
+        ),
       );
-      if (value == null || !context.mounted || repository.closed) return;
+      if (saved == null || !mounted || repository.closed) return;
       repository.store.setSetting('dashboardLibrary:${repository.profile.id}', {
-        'id': value,
-        'name': choices[value],
+        'ids': saved,
+        'names': [for (final id in saved) libraries[id] ?? id],
       });
+      if (_scroll.hasClients) _scroll.jumpTo(0);
       repository.refreshContent();
-    } catch (e) {
-      if (context.mounted) showError(context, e);
+    } catch (error) {
+      if (context.mounted) showError(context, error);
     }
   }
 
@@ -124,7 +176,13 @@ class Dashboard extends StatelessWidget {
           'dashboardLibrary:${repository.profile.id}',
         ),
       );
-      final library = text(scope['id']);
+      final libraries = scope['ids'] is List
+          ? (scope['ids'] as List).whereType<String>().toList()
+          : [if (text(scope['id']).isNotEmpty) text(scope['id'])];
+      final names = scope['names'] is List
+          ? (scope['names'] as List).whereType<String>().toList()
+          : [if (text(scope['name']).isNotEmpty) text(scope['name'])];
+      final library = libraries.join(',');
       final hidden =
           repository.store.setting<List<dynamic>>(
             'dashboardHidden:${repository.profile.id}',
@@ -139,83 +197,100 @@ class Dashboard extends StatelessWidget {
         ...saved.whereType<String>().where(dashboardSections.contains),
         ...dashboardSections.where((s) => !saved.contains(s)),
       ];
-      return RefreshIndicator(
-        onRefresh: () async => repository.refreshContent(),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 28),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Semantics(
-                    button: true,
-                    child: InkWell(
-                      onTap: () => _scope(context, library),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                library.isEmpty
-                                    ? tr(context, 'All Libraries')
-                                    : text(scope['name']),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineLarge,
-                              ),
+      return ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context)
+            .copyWith(overscroll: false, scrollbars: false),
+        child: Scrollbar(
+          controller: _scroll,
+          child: RefreshIndicator(
+            onRefresh: () async => repository.refreshContent(),
+            child: ListView(
+              key: const PageStorageKey('dashboard-scroll'),
+              controller: _scroll,
+              primary: false,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: ClampingScrollPhysics(),
+              ),
+              padding: const EdgeInsets.only(bottom: 28),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        button: true,
+                        child: InkWell(
+                          onTap: () => _scope(context, libraries),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    libraries.isEmpty
+                                        ? tr(context, 'All Libraries')
+                                        : libraries.length == 1
+                                        ? (names.firstOrNull ?? libraries.first)
+                                        : '${libraries.length} ${tr(context, 'Libraries')}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineLarge,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  CupertinoIcons.chevron_down,
+                                  size: 18,
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(CupertinoIcons.chevron_down, size: 18),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        CupertinoIcons.tray_2,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          repository.profile.name,
-                          style: TextStyle(
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.tray_2,
+                            size: 14,
                             color: Theme.of(context).colorScheme.secondary,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              repository.profile.name,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.secondary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                for (final title in order)
+                  if (!hidden.contains(title) &&
+                      (title != 'dashboard.readListsInProgress' ||
+                          repository.readLists.enabled))
+                    if (title == 'dashboard.readListsInProgress')
+                      _ReadListSection(
+                        repository: repository,
+                        libraryIds: libraries,
+                      )
+                    else
+                      _DashboardSection(
+                        key: ValueKey('$title:$library'),
+                        repository: repository,
+                        title: title,
+                        libraryIds: libraries,
+                      ),
+              ],
             ),
-            for (final title in order)
-              if (!hidden.contains(title) &&
-                  (title != 'dashboard.readListsInProgress' ||
-                      repository.readLists.enabled))
-                if (title == 'dashboard.readListsInProgress')
-                  _ReadListSection(
-                    repository: repository,
-                    libraryId: library.isEmpty ? null : library,
-                  )
-                else
-                  _DashboardSection(
-                    key: ValueKey('$title:$library'),
-                    repository: repository,
-                    title: title,
-                    libraryId: library.isEmpty ? null : library,
-                  ),
-          ],
+          ),
         ),
       );
     },
@@ -227,13 +302,13 @@ class _DashboardSection extends StatelessWidget {
     super.key,
     required this.repository,
     required this.title,
-    this.libraryId,
+    this.libraryIds,
   });
+  final List<String>? libraryIds;
   final Repository repository;
   final String title;
-  final String? libraryId;
   DashboardQuery get query =>
-      DashboardQuery(title, libraryId: libraryId, now: repository.cacheClock());
+      DashboardQuery(title, now: repository.cacheClock());
   String get kind => query.kind;
   String? get path => query.path;
   String get sort => query.sort;
@@ -260,13 +335,19 @@ class _DashboardSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AsyncPanel<CatalogPage>(
+    pullToRefresh: false,
+    loading: SizedBox(
+      height:
+          (cardKind == 'horizontal' ? 122 : cardWidth(context) * 1.5 + 64) + 84,
+      child: const Center(child: CircularProgressIndicator.adaptive()),
+    ),
     revision: repository.contentRevision + repository.cacheRevision,
     load: () => repository.catalog(
       kind,
       sort: sort,
       path: path,
       condition: condition,
-      libraryId: libraryId,
+      libraryIds: libraryIds,
       size: 12,
     ),
     builder: (context, result) => DecoratedBox(
@@ -335,7 +416,7 @@ class _DashboardSection extends StatelessWidget {
                           kind: kind,
                           path: path,
                           condition: condition,
-                          libraryId: libraryId,
+                          libraryIds: libraryIds,
                           initialSort: sort,
                         ),
                       ),
@@ -462,16 +543,17 @@ class _ContinueCard extends StatelessWidget {
 }
 
 class _ReadListSection extends StatelessWidget {
-  const _ReadListSection({required this.repository, this.libraryId});
+  const _ReadListSection({required this.repository, this.libraryIds});
+  final List<String>? libraryIds;
   final Repository repository;
-  final String? libraryId;
   @override
   Widget build(BuildContext context) => AsyncPanel<List<ReadListContinuation>>(
+    pullToRefresh: false,
     revision:
         repository.contentRevision +
         repository.progressRevision +
         repository.cacheRevision,
-    load: () => repository.readLists.continuations(libraryId: libraryId),
+    load: () => repository.readLists.continuations(libraryIds: libraryIds),
     builder: (context, values) => values.isEmpty
         ? const SizedBox.shrink()
         : Column(

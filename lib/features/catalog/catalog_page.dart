@@ -77,6 +77,7 @@ class CatalogPageView extends StatefulWidget {
     this.searchEnabled = true,
     this.readListId,
     this.libraryId,
+    this.libraryIds,
     this.initialSort,
     this.onPicked,
     this.initialFilter,
@@ -90,6 +91,7 @@ class CatalogPageView extends StatefulWidget {
   final bool searchEnabled;
   final String? readListId;
   final String? libraryId, initialSort;
+  final List<String>? libraryIds;
   final ValueChanged<List<CatalogItem>>? onPicked;
   final CatalogFilter? initialFilter;
   final String? initialSearch;
@@ -243,6 +245,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
             sort: _sort,
             path: widget.path,
             libraryId: widget.libraryId,
+            libraryIds: widget.libraryIds,
             force: force,
           ),
         ),
@@ -469,6 +472,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
           page: page,
           size: 200,
           libraryId: widget.libraryId,
+          libraryIds: widget.libraryIds,
           search: _query,
           sort: _sort,
           condition: condition,

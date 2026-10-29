@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../core/models.dart';
+import '../../core/next_book.dart';
 import '../../core/api.dart';
 import '../../core/repository.dart';
 import '../../core/document_cache.dart';
@@ -26,6 +27,7 @@ import 'progress_gate.dart';
 import 'tap_zones.dart';
 import 'tap_zone_hints.dart';
 import 'page_parts.dart';
+import 'page_image_view.dart';
 import 'reader_viewport.dart';
 import 'wide_page.dart';
 import 'cover_page.dart';
@@ -94,35 +96,85 @@ class _ReaderPageState extends State<ReaderPage> {
     }
   }
 
+  Future<void> _showSolo(int page) async {
+    try {
+      final bytes = await _pageBytes(page);
+      if (!mounted) return;
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PageImageView(
+            bytes: bytes,
+            directory: widget.repository.directory,
+            title: widget.book.title,
+            page: page,
+            keepAwake:
+                widget.repository.store.setting<bool>(
+                  'keepScreenAwakeWhileReading',
+                ) ==
+                true,
+            fullscreen:
+                widget.repository.store.setting<bool>('autoFullscreenOnOpen') ==
+                true,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) showError(context, error);
+    }
+  }
+
   Future<void> _imageMenu() async {
+    final first = _split
+        ? _session.page
+        : _session.firstPage(_session.itemIndex);
+    final count = _split ? 1 : _session.visiblePages(_session.itemIndex);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (sheet) => ReaderSafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(tr(sheet, 'Recognize Text')),
-              leading: const Icon(Icons.text_fields),
-              onTap: () {
-                Navigator.pop(sheet);
-                _recognizeText();
-              },
-            ),
-            ListTile(
-              title: Text(tr(sheet, 'Rotate Page')),
-              leading: const Icon(Icons.rotate_right),
-              onTap: () {
-                Navigator.pop(sheet);
-                _configure(
-                  _session.preferences.copy(
-                    rotation: (_session.preferences.rotation + 1) % 4,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (
+                var page = first;
+                page < first + count && page <= widget.book.pages;
+                page++
+              )
+                ListTile(
+                  title: Text(
+                    tr(sheet, 'Show Page %d Solo').replaceAll('%d', '$page'),
                   ),
-                );
-              },
-            ),
-          ],
+                  subtitle: Text(tr(sheet, 'Save Image')),
+                  leading: const Icon(Icons.crop_portrait),
+                  onTap: () {
+                    Navigator.pop(sheet);
+                    _showSolo(page);
+                  },
+                ),
+              ListTile(
+                title: Text(tr(sheet, 'Recognize Text')),
+                leading: const Icon(Icons.text_fields),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  _recognizeText();
+                },
+              ),
+              ListTile(
+                title: Text(tr(sheet, 'Rotate Page')),
+                leading: const Icon(Icons.rotate_right),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  _configure(
+                    _session.preferences.copy(
+                      rotation: (_session.preferences.rotation + 1) % 4,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -817,23 +869,14 @@ class _ReaderPageState extends State<ReaderPage> {
         await widget.onNextBook!();
         return;
       }
-      final prefix = _readListId == null
-          ? '/api/v1/books/${Uri.encodeComponent(widget.book.id)}'
-          : '/api/v1/readlists/${Uri.encodeComponent(_readListId)}/books/${Uri.encodeComponent(widget.book.id)}';
-      final data = await widget.repository.get(
-        '$prefix/next',
-        query: {
-          if (widget.repository.store.setting<bool>('suggestNextUnreadBook') !=
-              false)
-            'skipRead': 'true',
-        },
-      );
-      if (!mounted || data == null) return;
+      final next = await NextBookResolver(widget.repository)
+          .after(widget.book, readListId: _readListId);
+      if (!mounted || next == null) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => ReaderPage(
             repository: widget.repository,
-            book: Book(object(data)),
+            book: next,
             incognito: widget.incognito,
             readListId: _readListId,
           ),

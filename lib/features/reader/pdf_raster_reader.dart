@@ -134,7 +134,9 @@ class _PdfRasterReaderState extends State<PdfRasterReader> {
               useSeriesDirection: defaults.useSeriesDirection,
               spread: defaults.presentation == PdfPresentation.dualContinuous,
               mode:
-                  defaults.presentation == PdfPresentation.singleContinuous ||
+                  defaults.vertical ||
+                      defaults.presentation ==
+                          PdfPresentation.singleContinuous ||
                       defaults.presentation == PdfPresentation.dualContinuous
                   ? ReadingMode.vertical
                   : ReadingMode.paged,

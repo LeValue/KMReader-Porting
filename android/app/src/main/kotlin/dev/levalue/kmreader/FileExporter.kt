@@ -1,5 +1,6 @@
 package dev.levalue.kmreader
 
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,14 +24,19 @@ class FileExporter(
 
     private val picker = activity.registerForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri ->
-        val reply = pending ?: return@registerForActivityResult
+    ) { uri -> completeExport(uri) }
+    private val imagePicker = activity.registerForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri -> completeExport(uri) }
+
+    private fun completeExport(uri: Uri?) {
+        val reply = pending ?: return
         val file = source
         if (uri == null || file == null) {
             pending = null
             source = null
             reply.success(false)
-            return@registerForActivityResult
+            return
         }
         executor.execute {
             var failure: Exception? = null
@@ -63,7 +69,7 @@ class FileExporter(
 
     init {
         channel.setMethodCallHandler { call, result ->
-            if (call.method != "exportLog") {
+            if (call.method != "exportLog" && call.method != "exportImage") {
                 result.notImplemented()
             } else if (closed || pending != null) {
                 result.error("export_busy", "Another export is already active.", null)
@@ -78,7 +84,10 @@ class FileExporter(
                     pending = result
                     val name = call.argument<String>("name") ?: "komga-server.log"
                     require(name.matches(Regex("[A-Za-z0-9._-]{1,80}")))
-                    picker.launch(name)
+                    if (call.method == "exportImage") {
+                        require(name.endsWith(".png"))
+                        imagePicker.launch(name)
+                    } else picker.launch(name)
                 } catch (error: Exception) {
                     pending = null
                     source = null
@@ -96,5 +105,6 @@ class FileExporter(
         source = null
         executor.shutdown()
         picker.unregister()
+        imagePicker.unregister()
     }
 }
