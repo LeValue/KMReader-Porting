@@ -21,11 +21,13 @@ class PdfReader extends StatefulWidget {
     required this.repository,
     required this.book,
     required this.incognito,
+    this.onNextBook,
   });
   final File file;
   final Repository repository;
   final Book book;
   final bool incognito;
+  final Future<void> Function()? onNextBook;
   @override
   State<PdfReader> createState() => _PdfReaderState();
 }
@@ -42,6 +44,7 @@ class _PdfReaderState extends State<PdfReader> {
   PdfReaderLayout? _layout;
   Size _viewport = Size.zero;
   bool _reconfiguring = false, _navigating = false;
+  bool _openingNext = false;
   int _passwordAttempts = 0;
   Timer? _snapTimer;
   String get _key => 'pdf:${widget.book.id}';
@@ -176,6 +179,22 @@ class _PdfReaderState extends State<PdfReader> {
       }
     } finally {
       _navigating = false;
+    }
+  }
+
+  Future<void> _forward() async {
+    if (!_ready || !_controller.isReady || _openingNext || _navigating) return;
+    if (_page < _controller.pageCount) {
+      await _goTo(_page + 1);
+    } else if (widget.onNextBook != null) {
+      setState(() => _openingNext = true);
+      try {
+        await widget.onNextBook!();
+      } catch (error) {
+        if (mounted) showError(context, error);
+      } finally {
+        if (mounted) setState(() => _openingNext = false);
+      }
     }
   }
 
@@ -465,7 +484,7 @@ class _PdfReaderState extends State<PdfReader> {
                         ? LogicalKeyboardKey.arrowRight
                         : LogicalKeyboardKey.arrowLeft;
                     if (key == next || key == LogicalKeyboardKey.pageDown) {
-                      _goTo(_page + 1);
+                      unawaited(_forward());
                       return KeyEventResult.handled;
                     }
                     if (key == previous || key == LogicalKeyboardKey.pageUp) {
@@ -614,11 +633,31 @@ class _PdfReaderState extends State<PdfReader> {
                     ),
                   ),
                   IconButton(
-                    tooltip: tr(context, 'Next Page'),
-                    onPressed: _page < _controller.pageCount
-                        ? () => _goTo(_page + 1)
+                    tooltip: tr(
+                      context,
+                      _page == _controller.pageCount &&
+                              widget.onNextBook != null
+                          ? 'Next Book'
+                          : 'Next Page',
+                    ),
+                    onPressed:
+                        !_openingNext &&
+                            (_page < _controller.pageCount ||
+                                widget.onNextBook != null)
+                        ? _forward
                         : null,
-                    icon: const Icon(CupertinoIcons.chevron_right),
+                    icon: _openingNext
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _page == _controller.pageCount &&
+                                    widget.onNextBook != null
+                                ? Icons.skip_next_outlined
+                                : CupertinoIcons.chevron_right,
+                          ),
                   ),
                 ],
               ),

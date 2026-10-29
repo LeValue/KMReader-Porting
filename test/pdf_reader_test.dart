@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/pdf_preferences.dart';
 import 'package:kmreader/features/reader/pdf_reader.dart';
+import 'package:kmreader/features/reader/document_readers.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -148,6 +150,8 @@ void main() {
           'media': {'mediaType': 'application/pdf', 'pagesCount': 5},
           'readProgress': {'page': 3},
         });
+        var nextCalls = 0;
+        final nextGate = Completer<void>();
         store.cache(profile.id, 'detail:series:s', {
           'metadata': {'readingDirection': 'RIGHT_TO_LEFT'},
         });
@@ -157,11 +161,15 @@ void main() {
         });
         await tester.pumpWidget(
           MaterialApp(
-            home: PdfReader(
-              file: File('test/fixtures/reader-modes.pdf'),
+            home: DocumentReader(
+              load: () async => File('test/fixtures/reader-modes.pdf'),
               repository: repo,
               book: book,
               incognito: incognito,
+              onNextBook: () {
+                nextCalls++;
+                return nextGate.future;
+              },
             ),
           ),
         );
@@ -207,6 +215,21 @@ void main() {
         expect(find.text('4 / 5'), findsOneWidget);
         expect(repo.pendingCount, incognito ? 0 : 1);
         if (!incognito) expect(store.progress(profile.id, book.id)?['page'], 4);
+        await tester.tap(find.byTooltip('Next Page'));
+        await tester.pumpAndSettle();
+        expect(find.text('5 / 5'), findsOneWidget);
+        await tester.tap(find.byTooltip('Next Book'));
+        await tester.pump();
+        expect(nextCalls, 1);
+        await tester.tap(find.byTooltip('Next Book'));
+        await tester.pump();
+        expect(nextCalls, 1);
+        nextGate.complete();
+        await tester.pumpAndSettle();
+        expect(repo.pendingCount, incognito ? 0 : 1);
+        if (!incognito) {
+          expect(store.progress(profile.id, book.id)?['completed'], true);
+        }
         expect(requests, 0);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
