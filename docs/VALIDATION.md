@@ -1,5 +1,20 @@
 # Development validation
 
+## Unpublished iPad settings/browse comparison
+
+The five user-supplied iPad screenshots are now tracked in the
+[reference comparison](IPAD_REFERENCE.md), including remaining differences.
+232 Dart checks pass locally with Chromium and ONNX enabled; static analysis is
+clean. Six new checks cover live card preferences without catalog requests,
+persistence and overlay precedence, decoded-cover geometry and badges, exclusion
+of started series from blur, active-tab-only Back handling, 320/1280-pixel layouts
+at 150% text size, and search/select-all scope consistency. Existing app flows
+exercise the grouped index and retain the sidebar while opening settings subpages.
+Synthetic captures use 1280 × 889 and 390 × 844 viewports. These changes are not
+included in the published 0.6.1 packages; exact native build results are recorded
+separately when available. Reader, offline, cache and statistics parity remains
+subject to the explicit gaps in the comparison.
+
 ## 0.6.1 preview — published with embedded source provenance
 
 Source: `e94e45ef58d74ead79bcdcf91a58cce03ae9b7f4`. All three verification jobs

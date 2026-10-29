@@ -68,7 +68,7 @@ class _AppShellState extends State<AppShell> {
       ],
     );
     return Scaffold(
-      appBar: wide
+      appBar: wide || _index == 4
           ? null
           : AppBar(
               title: Text(tr(context, _labels[_index])),
@@ -90,9 +90,11 @@ class _AppShellState extends State<AppShell> {
           children: [
             if (wide)
               SizedBox(
-                width: 238,
+                width: MediaQuery.sizeOf(context).width >= 1100 ? 304 : 260,
                 child: Material(
-                  color: Theme.of(context).colorScheme.surface,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                      : const Color(0xffe3e3e7),
                   child: Column(
                     children: [
                       Padding(
@@ -123,8 +125,9 @@ class _AppShellState extends State<AppShell> {
                           ),
                           child: ListTile(
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(24),
                             ),
+                            minTileHeight: 44,
                             selected: _index == i,
                             selectedTileColor: Theme.of(context)
                                 .colorScheme
@@ -178,7 +181,7 @@ class _AppShellState extends State<AppShell> {
             Expanded(
               child: Column(
                 children: [
-                  if (wide)
+                  if (wide && _index != 4)
                     SizedBox(
                       height: 64,
                       child: Padding(

@@ -111,7 +111,7 @@ void main() {
     app.store.close();
     directory.deleteSync(recursive: true);
   });
-  for (final size in [const Size(390, 844), const Size(1280, 800)]) {
+  for (final size in [const Size(390, 844), const Size(1280, 889)]) {
     testWidgets('catalog detail and reader work at ${size.width.toInt()}px', (
       tester,
     ) async {
@@ -308,6 +308,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Appearance'));
+      await tester.pumpAndSettle();
       final settingsScroll = find
           .descendant(
             of: find.byType(SettingsPage),
@@ -333,7 +335,17 @@ void main() {
       expect(app.language, 'it');
       expect(tester.takeException(), isNull);
       await screenshot(tester, key, 'settings-${size.width.toInt()}');
-      final dashboardSettings = find.byIcon(CupertinoIcons.rectangle_grid_1x2);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await screenshot(tester, key, 'settings-index-${size.width.toInt()}');
+      await tester.tap(find.widgetWithText(ListTile, 'Esplora'));
+      await tester.pumpAndSettle();
+      expect(find.text('Overlay testo schede'), findsOneWidget);
+      if (size.width >= 900) expect(find.text('My Library'), findsOneWidget);
+      await screenshot(tester, key, 'browse-settings-${size.width.toInt()}');
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      final dashboardSettings = find.widgetWithText(ListTile, 'Dashboard').last;
       await tester.scrollUntilVisible(
         dashboardSettings,
         -300,

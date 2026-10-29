@@ -11,6 +11,7 @@ import 'api.dart';
 import 'models.dart';
 import 'store.dart';
 import 'cache.dart';
+import 'browse_preferences.dart';
 import 'document_cache.dart';
 import 'page_formats.dart';
 import 'read_list_reading.dart';
@@ -32,6 +33,7 @@ class Repository extends ChangeNotifier {
   final ServerProfile profile;
   final KomgaApi api;
   final LocalStore store;
+  late final BrowsePreferences browse = BrowsePreferences(store);
   final Directory directory;
   final bool backgroundTransfer;
   VoidCallback? onDownloadQueueChanged;
@@ -1541,6 +1543,7 @@ class Repository extends ChangeNotifier {
     imageChanges.dispose();
     taskQueueStatus.dispose();
     catalogChanges.dispose();
+    browse.dispose();
     api.close();
     super.dispose();
   }

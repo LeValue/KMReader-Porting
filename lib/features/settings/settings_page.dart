@@ -10,6 +10,7 @@ import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'pdf_reader_settings.dart';
+import 'browse_settings.dart';
 import '../auth/login_page.dart';
 import '../offline/downloads_page.dart';
 import '../catalog/dashboard.dart';
@@ -21,519 +22,411 @@ import 'translation_settings.dart';
 import 'server_management_page.dart';
 import '../catalog/catalog_page.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.app, required this.repository});
   final AppController app;
   final Repository repository;
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: repository,
-    builder: (context, _) => ListView(
-      padding: const EdgeInsets.all(20),
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  final _navigator = GlobalKey<NavigatorState>();
+  @override
+  Widget build(BuildContext context) => NavigatorPopHandler<Object?>(
+    enabled: TickerMode.valuesOf(context).enabled,
+    onPopWithResult: (result) => _navigator.currentState!.pop(result),
+    child: Navigator(
+      key: _navigator,
+      onGenerateRoute: (_) => MaterialPageRoute<void>(
+        builder: (_) =>
+            _SettingsIndex(app: widget.app, repository: widget.repository),
+      ),
+    ),
+  );
+}
+
+class _SettingsIndex extends StatelessWidget {
+  const _SettingsIndex({required this.app, required this.repository});
+  final AppController app;
+  final Repository repository;
+
+  Widget _link(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    Widget page,
+  ) => ListTile(
+    leading: Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Icon(icon, color: Colors.white, size: 22),
+    ),
+    title: Text(tr(context, title)),
+    trailing: Icon(
+      CupertinoIcons.chevron_right,
+      size: 16,
+      color: Theme.of(context).hintColor,
+    ),
+    onTap: () =>
+        Navigator.of(context)
+            .push(MaterialPageRoute<void>(builder: (_) => page)),
+  );
+
+  Widget _group(List<Widget> rows) => Padding(
+    padding: const EdgeInsets.only(bottom: 36),
+    child: Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const Divider(height: 1, indent: 64, endIndent: 22),
+            rows[i],
+          ],
+        ],
+      ),
+    ),
+  );
+
+  Widget _section(String title, SettingsSection section) => _SettingsSection(
+    app: app,
+    repository: repository,
+    title: title,
+    section: section,
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(tr(context, 'Settings'))),
+    body: ListView(
+      padding: const EdgeInsets.fromLTRB(22, 26, 22, 0),
       children: [
-        Text(
-          tr(context, 'Servers'),
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(CupertinoIcons.lock),
-                title: Text(tr(context, 'API Keys')),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => ApiKeysPage(repository: repository),
-                  ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.password),
-                title: Text(tr(context, 'account.details.changePassword')),
-                enabled: !repository.offline,
-                onTap: () async {
-                  final changed = await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          PasswordPage(app: app, repository: repository),
-                    ),
-                  );
-                  if (changed == true && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          tr(context, 'account.details.passwordUpdated'),
-                        ),
+        _group([
+          _link(
+            context,
+            'Appearance',
+            CupertinoIcons.paintbrush,
+            Colors.blue,
+            _section('Appearance', SettingsSection.appearance),
+          ),
+          _link(
+            context,
+            'settings.browse.title',
+            CupertinoIcons.square_grid_2x2,
+            Colors.purple,
+            BrowseSettingsPage(preferences: repository.browse),
+          ),
+          _link(
+            context,
+            'title.dashboard',
+            CupertinoIcons.house,
+            Colors.orange,
+            _DashboardSettings(repository: repository),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Reading Stats',
+            CupertinoIcons.chart_bar,
+            Colors.deepPurple,
+            HistoryPage(repository: repository, initialTab: 1),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Manga Translation',
+            CupertinoIcons.globe,
+            Colors.blue,
+            TranslationSettingsPage(
+              providers: TranslationProviders(app.store, vault: app.vault),
+            ),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Reader General',
+            CupertinoIcons.book,
+            Colors.blue,
+            _section('Reader General', SettingsSection.reader),
+          ),
+          _link(
+            context,
+            'PDF Reader',
+            CupertinoIcons.doc,
+            Colors.red,
+            PdfReaderSettingsPage(store: app.store),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Downloads',
+            CupertinoIcons.arrow_down_to_line,
+            Colors.green,
+            _section('Downloads', SettingsSection.storage),
+          ),
+          _link(
+            context,
+            'Cache',
+            CupertinoIcons.archivebox,
+            Colors.orange,
+            _section('Cache', SettingsSection.cache),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Servers',
+            CupertinoIcons.person,
+            Colors.grey,
+            _section('Servers', SettingsSection.accounts),
+          ),
+          _link(
+            context,
+            'Server Info',
+            CupertinoIcons.tray_2,
+            Colors.blueGrey,
+            _section('Server Info', SettingsSection.server),
+          ),
+        ]),
+      ],
+    ),
+  );
+}
+
+enum SettingsSection { accounts, reader, storage, cache, appearance, server }
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.app,
+    required this.repository,
+    required this.title,
+    required this.section,
+  });
+  final AppController app;
+  final Repository repository;
+  final String title;
+  final SettingsSection section;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(tr(context, title))),
+    body: ListenableBuilder(
+      listenable: repository,
+      builder: (context, _) => ListView(
+        padding: const EdgeInsets.all(22),
+        children: switch (section) {
+          SettingsSection.accounts => [
+            Text(
+              tr(context, 'Servers'),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.lock),
+                    title: Text(tr(context, 'API Keys')),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => ApiKeysPage(repository: repository),
                       ),
-                    );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.clock),
-                title: Text(tr(context, 'History and Statistics')),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => HistoryPage(repository: repository),
+                    ),
                   ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.manage_history),
-                title: Text(tr(context, 'Authentication Activity')),
-                onTap: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        AuthenticationActivityPage(repository: repository),
-                  ),
-                ),
-              ),
-              for (final profile in app.servers)
-                ListTile(
-                  leading: Icon(
-                    CupertinoIcons.tray_2,
-                    color: profile.id == repository.profile.id
-                        ? Theme.of(context).colorScheme.secondary
-                        : null,
-                  ),
-                  title: Text(profile.name),
-                  subtitle: Text('${profile.url}\n${profile.email}'),
-                  isThreeLine: true,
-                  onTap: () async {
-                    try {
-                      await app.activate(profile);
-                    } catch (e) {
-                      if (context.mounted) showError(context, e);
-                    }
-                  },
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (action) async {
-                      if (action == 'login' && context.mounted) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                LoginPage(app: app, profile: profile),
+                  ListTile(
+                    leading: const Icon(Icons.password),
+                    title: Text(tr(context, 'account.details.changePassword')),
+                    enabled: !repository.offline,
+                    onTap: () async {
+                      final changed = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PasswordPage(app: app, repository: repository),
+                        ),
+                      );
+                      if (changed == true && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              tr(context, 'account.details.passwordUpdated'),
+                            ),
                           ),
                         );
                       }
-                      if (action == 'remove' &&
-                          await confirm(
-                            context,
-                            'Remove Server',
-                            'Remove this server and its downloaded files from this device?',
-                          )) {
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.clock),
+                    title: Text(tr(context, 'History and Statistics')),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            HistoryPage(repository: repository, initialTab: 1),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.manage_history),
+                    title: Text(tr(context, 'Authentication Activity')),
+                    onTap: () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            AuthenticationActivityPage(repository: repository),
+                      ),
+                    ),
+                  ),
+                  for (final profile in app.servers)
+                    ListTile(
+                      leading: Icon(
+                        CupertinoIcons.tray_2,
+                        color: profile.id == repository.profile.id
+                            ? Theme.of(context).colorScheme.secondary
+                            : null,
+                      ),
+                      title: Text(profile.name),
+                      subtitle: Text('${profile.url}\n${profile.email}'),
+                      isThreeLine: true,
+                      onTap: () async {
                         try {
-                          await app.remove(profile);
+                          await app.activate(profile);
                         } catch (e) {
                           if (context.mounted) showError(context, e);
                         }
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: 'login',
-                        child: Text(tr(context, 'Sign In')),
+                      },
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (action) async {
+                          if (action == 'login' && context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    LoginPage(app: app, profile: profile),
+                              ),
+                            );
+                          }
+                          if (action == 'remove' &&
+                              await confirm(
+                                context,
+                                'Remove Server',
+                                'Remove this server and its downloaded files from this device?',
+                              )) {
+                            try {
+                              await app.remove(profile);
+                            } catch (e) {
+                              if (context.mounted) showError(context, e);
+                            }
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'login',
+                            child: Text(tr(context, 'Sign In')),
+                          ),
+                          PopupMenuItem(
+                            value: 'remove',
+                            child: Text(tr(context, 'Remove Server')),
+                          ),
+                        ],
                       ),
-                      PopupMenuItem(
-                        value: 'remove',
-                        child: Text(tr(context, 'Remove Server')),
+                    ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.add_circled),
+                    title: Text(tr(context, 'Add Server')),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => LoginPage(app: app),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.add_circled),
-                title: Text(tr(context, 'Add Server')),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(builder: (_) => LoginPage(app: app)),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
-        ListenableBuilder(
-          listenable: app.deviceLock,
-          builder: (context, _) => SwitchListTile(
-            secondary: const Icon(Icons.fingerprint),
-            title: Text(tr(context, 'App Lock')),
-            subtitle: Text(
-              tr(context, 'Use biometrics, device PIN or Windows Hello'),
             ),
-            value: app.deviceLock.enabled,
-            onChanged: app.deviceLock.busy
-                ? null
-                : (value) async {
-                    await app.deviceLock.configure(
-                      value,
-                      tr(context, 'Confirm app lock settings'),
-                    );
-                    if (context.mounted && app.deviceLock.error != null) {
-                      showError(context, app.deviceLock.error!);
-                    }
-                  },
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          tr(context, 'Reading and Storage'),
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.translate),
-                title: Text(tr(context, 'Translation Providers')),
-                onTap: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TranslationSettingsPage(
-                      providers: TranslationProviders(
-                        app.store,
-                        vault: app.vault,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.screen_lock_portrait),
-                title: Text(tr(context, 'Keep Screen Awake While Reading')),
-                value:
-                    app.store.setting<bool>('keepScreenAwakeWhileReading') ==
-                    true,
-                onChanged: (value) {
-                  app.store.setSetting('keepScreenAwakeWhileReading', value);
-                  repository.changed();
-                },
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.playlist_play),
-                title: Text(tr(context, 'Read List Continuation')),
+            ListenableBuilder(
+              listenable: app.deviceLock,
+              builder: (context, _) => SwitchListTile(
+                secondary: const Icon(Icons.fingerprint),
+                title: Text(tr(context, 'App Lock')),
                 subtitle: Text(
-                  tr(context, 'Continue ordered read lists across devices'),
+                  tr(context, 'Use biometrics, device PIN or Windows Hello'),
                 ),
-                value: repository.readLists.enabled,
-                onChanged: repository.readLists.setEnabled,
-              ),
-              ListTile(
-                leading: const Icon(Icons.picture_as_pdf),
-                title: Text(tr(context, 'PDF Reader')),
-                onTap: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PdfReaderSettingsPage(store: app.store),
-                  ),
-                ),
-              ),
-              SwitchListTile(
-                secondary: const Icon(CupertinoIcons.wifi_slash),
-                title: Text(tr(context, 'Offline Mode')),
-                value: repository.offline,
-                onChanged: repository.setOffline,
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.downloading),
-                title: Text(tr(context, 'Background Downloads')),
-                subtitle: Text(
-                  tr(context, 'Continue downloads when the app is closed'),
-                ),
-                value: app.backgroundDownloads.policy.background,
-                onChanged: (value) {
-                  final policy = app.backgroundDownloads.policy;
-                  app.backgroundDownloads.setPolicy(
-                    DownloadPolicy(
-                      background: value,
-                      unmetered: policy.unmetered,
-                      charging: policy.charging,
-                    ),
-                  );
-                  repository.changed();
-                },
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.wifi),
-                title: Text(tr(context, 'Unmetered Downloads Only')),
-                value: app.backgroundDownloads.policy.unmetered,
-                onChanged: (value) {
-                  final policy = app.backgroundDownloads.policy;
-                  app.backgroundDownloads.setPolicy(
-                    DownloadPolicy(
-                      background: policy.background,
-                      unmetered: value,
-                      charging: policy.charging,
-                    ),
-                  );
-                  repository.changed();
-                },
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.battery_charging_full),
-                title: Text(tr(context, 'Download While Charging')),
-                value: app.backgroundDownloads.policy.charging,
-                onChanged: (value) {
-                  final policy = app.backgroundDownloads.policy;
-                  app.backgroundDownloads.setPolicy(
-                    DownloadPolicy(
-                      background: policy.background,
-                      unmetered: policy.unmetered,
-                      charging: value,
-                    ),
-                  );
-                  repository.changed();
-                },
-              ),
-              ListTile(
-                leading: repository.metadataIndexing
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.manage_search),
-                title: Text(tr(context, 'Prepare Offline Catalog')),
-                subtitle: Text(
-                  repository.metadataIndexError ??
-                      (repository.metadataIndexing
-                          ? '${repository.metadataIndexed} ${tr(context, 'items')}'
-                          : ('${repository.store.offlineCatalog.count(repository.profile.id, 'books')} ${tr(context, 'Books')} • ${repository.store.offlineCatalog.count(repository.profile.id, 'series')} ${tr(context, 'Series')}')),
-                ),
-                trailing: repository.metadataIndexing
-                    ? IconButton(
-                        tooltip: tr(context, 'Cancel'),
-                        icon: const Icon(Icons.close),
-                        onPressed: repository.cancelMetadataIndex,
-                      )
-                    : null,
-                onTap: repository.offline || repository.metadataIndexing
+                value: app.deviceLock.enabled,
+                onChanged: app.deviceLock.busy
                     ? null
-                    : repository.prepareOfflineCatalog,
+                    : (value) async {
+                        await app.deviceLock.configure(
+                          value,
+                          tr(context, 'Confirm app lock settings'),
+                        );
+                        if (context.mounted && app.deviceLock.error != null) {
+                          showError(context, app.deviceLock.error!);
+                        }
+                      },
               ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.arrow_down_to_line),
-                title: Text(tr(context, 'Downloads')),
-                trailing: const Icon(CupertinoIcons.chevron_right, size: 16),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => DownloadsPage(repository: repository),
-                  ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.arrow_2_circlepath),
-                title: Text(tr(context, 'Sync Progress')),
-                subtitle: Text(
-                  '${repository.pendingCount} ${tr(context, 'pending')}',
-                ),
-                onTap: repository.sync,
-              ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.trash),
-                title: Text(tr(context, 'Clear Image Cache')),
-                subtitle: Text(
-                  tr(
-                    context,
-                    'Downloaded books and reading progress are kept.',
-                  ),
-                ),
-                onTap: () async {
-                  if (!await confirm(
-                    context,
-                    'Clear Image Cache',
-                    'Downloaded books and reading progress are kept.',
-                  )) {
-                    return;
-                  }
-                  try {
-                    await repository.clearImageCache();
-                  } catch (e) {
-                    if (context.mounted) showError(context, e);
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.storage),
-                title: Text(tr(context, 'Document Cache Limit')),
-                subtitle: Text(
-                  '${app.store.setting<int>('documentCacheMb') ?? 1024} MB',
-                ),
-                trailing: PopupMenuButton<int>(
-                  tooltip: tr(context, 'Document Cache Limit'),
-                  onSelected: (value) {
-                    app.store.setSetting('documentCacheMb', value);
-                    repository.documents.scheduleTrim();
-                    repository.changed();
-                  },
-                  itemBuilder: (_) => [
-                    for (final value in [128, 256, 512, 1024, 2048, 4096, 8192])
-                      CheckedPopupMenuItem(
-                        value: value,
-                        checked:
-                            (app.store.setting<int>('documentCacheMb') ??
-                                1024) ==
-                            value,
-                        child: Text('$value MB'),
-                      ),
-                  ],
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.cleaning_services),
-                title: Text(tr(context, 'Clear Temporary Documents')),
-                subtitle: Text(
-                  tr(context, 'Downloaded books and open documents are kept.'),
-                ),
-                onTap: () async {
-                  if (!await confirm(
-                    context,
-                    'Clear Temporary Documents',
-                    'Downloaded books and open documents are kept.',
-                  )) {
-                    return;
-                  }
-                  try {
-                    await repository.documents.trim(clear: true);
-                  } catch (error) {
-                    if (context.mounted) showError(context, error);
-                  }
-                },
-              ),
-              if (app.backgroundDownloads.failure != null)
-                ListTile(
-                  leading: const Icon(Icons.sync_problem),
-                  title: Text(tr(context, 'Background Downloads Unavailable')),
-                  subtitle: Text(app.backgroundDownloads.failure!),
-                ),
-              if (repository.syncFailure != null)
-                ListTile(
-                  title: Text(repository.syncFailure!),
-                  subtitle: Text(
-                    tr(context, 'Your local changes are retained.'),
-                  ),
-                  trailing: repository.conflicts.isEmpty
-                      ? null
-                      : PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            if (value == 'server') {
-                              repository.acceptServerProgress();
-                            }
-                            if (value == 'device' &&
-                                await confirm(
-                                  context,
-                                  'Use Device Progress',
-                                  'Replace newer server progress with the progress on this device?',
-                                )) {
-                              await repository.sync(force: true);
-                            }
+            ),
+          ],
+          SettingsSection.appearance => [
+            Text(
+              tr(context, 'Appearance'),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.moon),
+                    title: Text(tr(context, 'Theme')),
+                    trailing: TextButton.icon(
+                      onPressed: () async {
+                        final value = await chooseValue(
+                          context,
+                          title: 'Theme',
+                          selected: app.theme,
+                          choices: {
+                            ThemeMode.system: 'System',
+                            ThemeMode.light: 'Light',
+                            ThemeMode.dark: 'Dark',
                           },
-                          itemBuilder: (_) => [
-                            PopupMenuItem(
-                              value: 'server',
-                              child: Text(tr(context, 'Use Server Progress')),
-                            ),
-                            PopupMenuItem(
-                              value: 'device',
-                              child: Text(tr(context, 'Use Device Progress')),
-                            ),
-                          ],
-                        ),
-                ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.rectangle_grid_1x2),
-                title: Text(tr(context, 'Dashboard Sections')),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => _DashboardSettings(repository: repository),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          tr(context, 'Appearance'),
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(CupertinoIcons.moon),
-                title: Text(tr(context, 'Theme')),
-                trailing: TextButton.icon(
-                  onPressed: () async {
-                    final value = await chooseValue(
-                      context,
-                      title: 'Theme',
-                      selected: app.theme,
-                      choices: {
-                        ThemeMode.system: 'System',
-                        ThemeMode.light: 'Light',
-                        ThemeMode.dark: 'Dark',
+                        );
+                        if (value != null) app.setTheme(value);
                       },
-                    );
-                    if (value != null) app.setTheme(value);
-                  },
-                  icon: const Icon(
-                    CupertinoIcons.chevron_up_chevron_down,
-                    size: 14,
+                      icon: const Icon(
+                        CupertinoIcons.chevron_up_chevron_down,
+                        size: 14,
+                      ),
+                      label: Text(
+                        tr(context, switch (app.theme) {
+                          ThemeMode.system => 'System',
+                          ThemeMode.light => 'Light',
+                          ThemeMode.dark => 'Dark',
+                        }),
+                      ),
+                    ),
                   ),
-                  label: Text(
-                    tr(context, switch (app.theme) {
-                      ThemeMode.system => 'System',
-                      ThemeMode.light => 'Light',
-                      ThemeMode.dark => 'Dark',
-                    }),
-                  ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.globe),
-                title: Text(tr(context, 'Language')),
-                trailing: TextButton.icon(
-                  onPressed: () async {
-                    final value = await chooseValue(
-                      context,
-                      title: 'Language',
-                      selected: app.language ?? 'system',
-                      choices: {
-                        'system': 'System',
-                        'en': 'English',
-                        'it': 'Italiano',
-                        'de': 'Deutsch',
-                        'fr': 'Français',
-                        'ja': '日本語',
-                        'ko': '한국어',
-                        'zh_CN': '简体中文',
-                        'zh_TW': '繁體中文',
-                        'ru': 'Русский',
-                        'es': 'Español',
-                      },
-                    );
-                    if (value != null) {
-                      app.setLanguage(value == 'system' ? null : value);
-                    }
-                  },
-                  icon: const Icon(
-                    CupertinoIcons.chevron_up_chevron_down,
-                    size: 14,
-                  ),
-                  label: Text(
-                    tr(
-                      context,
-                      ({
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.globe),
+                    title: Text(tr(context, 'Language')),
+                    trailing: TextButton.icon(
+                      onPressed: () async {
+                        final value = await chooseValue(
+                          context,
+                          title: 'Language',
+                          selected: app.language ?? 'system',
+                          choices: {
                             'system': 'System',
                             'en': 'English',
                             'it': 'Italiano',
@@ -545,99 +438,419 @@ class SettingsPage extends StatelessWidget {
                             'zh_TW': '繁體中文',
                             'ru': 'Русский',
                             'es': 'Español',
-                          })[app.language ?? 'system'] ??
-                          'System',
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text('Komga', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(CupertinoIcons.info_circle),
-                title: Text(tr(context, 'Server Info')),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => ServerPage(repository: repository),
-                  ),
-                ),
-              ),
-              if (repository.profile.admin) ...[
-                ListTile(
-                  leading: const Icon(Icons.admin_panel_settings_outlined),
-                  title: Text(tr(context, 'Server Management')),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          ServerManagementPage(repository: repository),
-                    ),
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.copy_all),
-                  title: Text(tr(context, 'Duplicate Files')),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => Scaffold(
-                        appBar: AppBar(
-                          title: Text(tr(context, 'Duplicate Files')),
+                          },
+                        );
+                        if (value != null) {
+                          app.setLanguage(value == 'system' ? null : value);
+                        }
+                      },
+                      icon: const Icon(
+                        CupertinoIcons.chevron_up_chevron_down,
+                        size: 14,
+                      ),
+                      label: Text(
+                        tr(
+                          context,
+                          ({
+                                'system': 'System',
+                                'en': 'English',
+                                'it': 'Italiano',
+                                'de': 'Deutsch',
+                                'fr': 'Français',
+                                'ja': '日本語',
+                                'ko': '한국어',
+                                'zh_CN': '简体中文',
+                                'zh_TW': '繁體中文',
+                                'ru': 'Русский',
+                                'es': 'Español',
+                              })[app.language ?? 'system'] ??
+                              'System',
                         ),
-                        body: CatalogPageView(
-                          repository: repository,
-                          kind: 'books',
-                          path: '/api/v1/books/duplicates',
-                          title: 'Duplicate Files',
-                          searchEnabled: false,
-                          initialSort: 'fileSize,desc',
-                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
-                ),
-              ],
-              if (repository.profile.admin)
-                ListTile(
-                  leading: const Icon(CupertinoIcons.wrench),
-                  title: Text(tr(context, 'Library Management')),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => LibraryManagement(repository: repository),
+                ],
+              ),
+            ),
+          ],
+          SettingsSection.server => [
+            Text('Komga', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.info_circle),
+                    title: Text(tr(context, 'Server Info')),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => ServerPage(repository: repository),
+                      ),
                     ),
                   ),
-                ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.doc_text),
-                title: Text(tr(context, 'Licenses')),
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: 'KMReader',
-                  applicationVersion: '$appVersion ($appBuildNumber)',
-                  applicationLegalese: 'Based on KMReader by everpcpc (MIT).\nPorting for Android and Windows.',
-                ),
+                  if (repository.profile.admin) ...[
+                    ListTile(
+                      leading: const Icon(Icons.admin_panel_settings_outlined),
+                      title: Text(tr(context, 'Server Management')),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              ServerManagementPage(repository: repository),
+                        ),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.copy_all),
+                      title: Text(tr(context, 'Duplicate Files')),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => Scaffold(
+                            appBar: AppBar(
+                              title: Text(tr(context, 'Duplicate Files')),
+                            ),
+                            body: CatalogPageView(
+                              repository: repository,
+                              kind: 'books',
+                              path: '/api/v1/books/duplicates',
+                              title: 'Duplicate Files',
+                              searchEnabled: false,
+                              initialSort: 'fileSize,desc',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (repository.profile.admin)
+                    ListTile(
+                      leading: const Icon(CupertinoIcons.wrench),
+                      title: Text(tr(context, 'Library Management')),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              LibraryManagement(repository: repository),
+                        ),
+                      ),
+                    ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.doc_text),
+                    title: Text(tr(context, 'Licenses')),
+                    onTap: () => showLicensePage(
+                      context: context,
+                      applicationName: 'KMReader',
+                      applicationVersion: '$appVersion ($appBuildNumber)',
+                      applicationLegalese: 'Based on KMReader by everpcpc (MIT).\nPorting for Android and Windows.',
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.square_arrow_right),
+                    title: Text(tr(context, 'Disconnect')),
+                    onTap: app.disconnect,
+                  ),
+                ],
               ),
-              ListTile(
-                leading: const Icon(CupertinoIcons.square_arrow_right),
-                title: Text(tr(context, 'Disconnect')),
-                onTap: app.disconnect,
+            ),
+          ],
+          SettingsSection.reader => [
+            Card(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    secondary: const Icon(Icons.screen_lock_portrait),
+                    title: Text(tr(context, 'Keep Screen Awake While Reading')),
+                    value:
+                        app.store.setting<bool>(
+                          'keepScreenAwakeWhileReading',
+                        ) ==
+                        true,
+                    onChanged: (value) {
+                      app.store.setSetting(
+                        'keepScreenAwakeWhileReading',
+                        value,
+                      );
+                      repository.changed();
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.playlist_play),
+                    title: Text(tr(context, 'Read List Continuation')),
+                    subtitle: Text(
+                      tr(context, 'Continue ordered read lists across devices'),
+                    ),
+                    value: repository.readLists.enabled,
+                    onChanged: repository.readLists.setEnabled,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.picture_as_pdf),
+                    title: Text(tr(context, 'PDF Reader')),
+                    onTap: () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PdfReaderSettingsPage(store: app.store),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
+            ),
+          ],
+          SettingsSection.storage => [
+            Card(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    secondary: const Icon(CupertinoIcons.wifi_slash),
+                    title: Text(tr(context, 'Offline Mode')),
+                    value: repository.offline,
+                    onChanged: repository.setOffline,
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.downloading),
+                    title: Text(tr(context, 'Background Downloads')),
+                    subtitle: Text(
+                      tr(context, 'Continue downloads when the app is closed'),
+                    ),
+                    value: app.backgroundDownloads.policy.background,
+                    onChanged: (value) {
+                      final policy = app.backgroundDownloads.policy;
+                      app.backgroundDownloads.setPolicy(
+                        DownloadPolicy(
+                          background: value,
+                          unmetered: policy.unmetered,
+                          charging: policy.charging,
+                        ),
+                      );
+                      repository.changed();
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.wifi),
+                    title: Text(tr(context, 'Unmetered Downloads Only')),
+                    value: app.backgroundDownloads.policy.unmetered,
+                    onChanged: (value) {
+                      final policy = app.backgroundDownloads.policy;
+                      app.backgroundDownloads.setPolicy(
+                        DownloadPolicy(
+                          background: policy.background,
+                          unmetered: value,
+                          charging: policy.charging,
+                        ),
+                      );
+                      repository.changed();
+                    },
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.battery_charging_full),
+                    title: Text(tr(context, 'Download While Charging')),
+                    value: app.backgroundDownloads.policy.charging,
+                    onChanged: (value) {
+                      final policy = app.backgroundDownloads.policy;
+                      app.backgroundDownloads.setPolicy(
+                        DownloadPolicy(
+                          background: policy.background,
+                          unmetered: policy.unmetered,
+                          charging: value,
+                        ),
+                      );
+                      repository.changed();
+                    },
+                  ),
+                  ListTile(
+                    leading: repository.metadataIndexing
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.manage_search),
+                    title: Text(tr(context, 'Prepare Offline Catalog')),
+                    subtitle: Text(
+                      repository.metadataIndexError ??
+                          (repository.metadataIndexing
+                              ? '${repository.metadataIndexed} ${tr(context, 'items')}'
+                              : ('${repository.store.offlineCatalog.count(repository.profile.id, 'books')} ${tr(context, 'Books')} • ${repository.store.offlineCatalog.count(repository.profile.id, 'series')} ${tr(context, 'Series')}')),
+                    ),
+                    trailing: repository.metadataIndexing
+                        ? IconButton(
+                            tooltip: tr(context, 'Cancel'),
+                            icon: const Icon(Icons.close),
+                            onPressed: repository.cancelMetadataIndex,
+                          )
+                        : null,
+                    onTap: repository.offline || repository.metadataIndexing
+                        ? null
+                        : repository.prepareOfflineCatalog,
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.arrow_down_to_line),
+                    title: Text(tr(context, 'Downloads')),
+                    trailing: const Icon(
+                      CupertinoIcons.chevron_right,
+                      size: 16,
+                    ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => DownloadsPage(repository: repository),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.arrow_2_circlepath),
+                    title: Text(tr(context, 'Sync Progress')),
+                    subtitle: Text(
+                      '${repository.pendingCount} ${tr(context, 'pending')}',
+                    ),
+                    onTap: repository.sync,
+                  ),
+                  if (app.backgroundDownloads.failure != null)
+                    ListTile(
+                      leading: const Icon(Icons.sync_problem),
+                      title: Text(
+                        tr(context, 'Background Downloads Unavailable'),
+                      ),
+                      subtitle: Text(app.backgroundDownloads.failure!),
+                    ),
+                  if (repository.syncFailure != null)
+                    ListTile(
+                      title: Text(repository.syncFailure!),
+                      subtitle: Text(
+                        tr(context, 'Your local changes are retained.'),
+                      ),
+                      trailing: repository.conflicts.isEmpty
+                          ? null
+                          : PopupMenuButton<String>(
+                              onSelected: (value) async {
+                                if (value == 'server') {
+                                  repository.acceptServerProgress();
+                                }
+                                if (value == 'device' &&
+                                    await confirm(
+                                      context,
+                                      'Use Device Progress',
+                                      'Replace newer server progress with the progress on this device?',
+                                    )) {
+                                  await repository.sync(force: true);
+                                }
+                              },
+                              itemBuilder: (_) => [
+                                PopupMenuItem(
+                                  value: 'server',
+                                  child: Text(
+                                    tr(context, 'Use Server Progress'),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'device',
+                                  child: Text(
+                                    tr(context, 'Use Device Progress'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          SettingsSection.cache => [
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.trash),
+                    title: Text(tr(context, 'Clear Image Cache')),
+                    subtitle: Text(
+                      tr(
+                        context,
+                        'Downloaded books and reading progress are kept.',
+                      ),
+                    ),
+                    onTap: () async {
+                      if (!await confirm(
+                        context,
+                        'Clear Image Cache',
+                        'Downloaded books and reading progress are kept.',
+                      )) {
+                        return;
+                      }
+                      try {
+                        await repository.clearImageCache();
+                      } catch (e) {
+                        if (context.mounted) showError(context, e);
+                      }
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.storage),
+                    title: Text(tr(context, 'Document Cache Limit')),
+                    subtitle: Text(
+                      '${app.store.setting<int>('documentCacheMb') ?? 1024} MB',
+                    ),
+                    trailing: PopupMenuButton<int>(
+                      tooltip: tr(context, 'Document Cache Limit'),
+                      onSelected: (value) {
+                        app.store.setSetting('documentCacheMb', value);
+                        repository.documents.scheduleTrim();
+                        repository.changed();
+                      },
+                      itemBuilder: (_) => [
+                        for (final value in [
+                          128,
+                          256,
+                          512,
+                          1024,
+                          2048,
+                          4096,
+                          8192,
+                        ])
+                          CheckedPopupMenuItem(
+                            value: value,
+                            checked:
+                                (app.store.setting<int>('documentCacheMb') ??
+                                    1024) ==
+                                value,
+                            child: Text('$value MB'),
+                          ),
+                      ],
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.cleaning_services),
+                    title: Text(tr(context, 'Clear Temporary Documents')),
+                    subtitle: Text(
+                      tr(
+                        context,
+                        'Downloaded books and open documents are kept.',
+                      ),
+                    ),
+                    onTap: () async {
+                      if (!await confirm(
+                        context,
+                        'Clear Temporary Documents',
+                        'Downloaded books and open documents are kept.',
+                      )) {
+                        return;
+                      }
+                      try {
+                        await repository.documents.trim(clear: true);
+                      } catch (error) {
+                        if (context.mounted) showError(context, error);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        },
+      ),
     ),
   );
 }

@@ -1202,5 +1202,17 @@
     "zh-Hant": "頁",
     "ru": "Страницы",
     "es": "Páginas"
+  },
+  "Downloads": {
+    "en": "Downloads",
+    "it": "Scaricamenti",
+    "de": "Downloads",
+    "fr": "Téléchargements",
+    "ja": "ダウンロード",
+    "ko": "다운로드",
+    "zh-Hans": "下载",
+    "zh-Hant": "下載",
+    "ru": "Загрузки",
+    "es": "Descargas"
   }
 }

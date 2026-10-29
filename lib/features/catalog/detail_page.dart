@@ -259,15 +259,16 @@ class _BookDetail extends StatelessWidget {
                   alignment: wide ? WrapAlignment.start : WrapAlignment.center,
                   children: [
                     FilledButton.icon(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => ReaderPage(
-                            repository: repository,
-                            book: book,
-                            readListId: readListId,
+                      onPressed: () =>
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ReaderPage(
+                                repository: repository,
+                                book: book,
+                                readListId: readListId,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                       icon: const Icon(CupertinoIcons.book, size: 18),
                       label: Text(
                         tr(
@@ -342,7 +343,7 @@ class _BookDetail extends StatelessWidget {
                           repository.setProgress(book, 0, reset: true);
                         }
                         if (value == 'peek') {
-                          Navigator.of(context).push(
+                          Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute<void>(
                               builder: (_) => ReaderPage(
                                 repository: repository,

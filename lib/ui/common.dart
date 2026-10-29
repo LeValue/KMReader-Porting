@@ -186,10 +186,12 @@ class Cover extends StatefulWidget {
     required this.repository,
     required this.path,
     this.fit = BoxFit.cover,
+    this.frameBuilder,
   });
   final Repository repository;
   final String path;
   final BoxFit fit;
+  final ImageFrameBuilder? frameBuilder;
   @override
   State<Cover> createState() => _CoverState();
 }
@@ -247,6 +249,28 @@ class _CoverState extends State<Cover> {
               snapshot.data!,
               cacheWidth: width,
               fit: widget.fit,
+              excludeFromSemantics: widget.frameBuilder != null,
+              frameBuilder: widget.frameBuilder == null
+                  ? null
+                  : (context, child, frame, synchronous) {
+                      // Use the decoded native frame without a second codec or stream.
+                      final image = switch (child) {
+                        RawImage(image: final source?) => AspectRatio(
+                          aspectRatio: source.width / source.height,
+                          child: child,
+                        ),
+                        _ => child,
+                      };
+                      return Semantics(
+                        image: true,
+                        child: widget.frameBuilder!(
+                          context,
+                          image,
+                          frame,
+                          synchronous,
+                        ),
+                      );
+                    },
               gaplessPlayback: true,
               errorBuilder: (context, error, stack) =>
                   const Icon(CupertinoIcons.book),
