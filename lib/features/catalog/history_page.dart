@@ -11,11 +11,13 @@ import '../../ui/strings.dart';
 import 'catalog_page.dart';
 
 class HistoryPage extends StatelessWidget {
-  const HistoryPage({super.key, required this.repository});
+  const HistoryPage({super.key, required this.repository, this.initialTab = 0});
   final Repository repository;
+  final int initialTab;
   @override
   Widget build(BuildContext context) => DefaultTabController(
     length: repository.profile.admin ? 3 : 2,
+    initialIndex: initialTab,
     child: Scaffold(
       appBar: AppBar(
         title: Text(tr(context, 'History')),

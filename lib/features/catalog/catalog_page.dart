@@ -4,6 +4,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
+import '../../core/browse_preferences.dart';
+import '../../ui/catalog_card.dart';
 import '../../core/catalog_tools.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
@@ -112,6 +114,29 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   final _selection = <String, CatalogItem>{};
   CatalogFilter _advanced = CatalogFilter();
   int _contentRevision = 0, _progressRevision = 0, _cacheRevision = 0;
+  late bool _ignoresSearchFilters;
+  void _browseChanged() {
+    final ignores = widget.repository.browse[BrowseOption.ignoreSearchFilters];
+    if (_ignoresSearchFilters != ignores && _query.isNotEmpty) {
+      _ignoresSearchFilters = ignores;
+      _load(reset: true, clear: true);
+    } else {
+      _ignoresSearchFilters = ignores;
+      setState(() {});
+    }
+  }
+
+  Json? get _effectiveCondition => combineConditions([
+    widget.condition,
+    if (!(_ignoresSearchFilters && _query.isNotEmpty)) ...[
+      _advanced.condition(widget.kind),
+      if (_readStatus.isNotEmpty)
+        {
+          'readStatus': {'operator': 'is', 'value': _readStatus},
+        },
+    ],
+  ]);
+
   void _repositoryChanged() {
     if (!mounted) return;
     if (_contentRevision != widget.repository.contentRevision ||
@@ -128,6 +153,9 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   @override
   void initState() {
     super.initState();
+    _ignoresSearchFilters =
+        widget.repository.browse[BrowseOption.ignoreSearchFilters];
+    widget.repository.browse.addListener(_browseChanged);
     _contentRevision = widget.repository.contentRevision;
     _progressRevision = widget.repository.progressRevision;
     widget.repository.catalogChanges.addListener(_repositoryChanged);
@@ -157,6 +185,10 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   void didUpdateWidget(CatalogPageView old) {
     super.didUpdateWidget(old);
     if (old.repository != widget.repository) {
+      old.repository.browse.removeListener(_browseChanged);
+      widget.repository.browse.addListener(_browseChanged);
+      _ignoresSearchFilters =
+          widget.repository.browse[BrowseOption.ignoreSearchFilters];
       old.repository.catalogChanges.removeListener(_repositoryChanged);
       widget.repository.catalogChanges.addListener(_repositoryChanged);
     }
@@ -171,6 +203,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   @override
   void dispose() {
     widget.repository.catalogChanges.removeListener(_repositoryChanged);
+    widget.repository.browse.removeListener(_browseChanged);
     _generation++;
     _scroll.dispose();
     _search.dispose();
@@ -198,20 +231,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
       _error = null;
     });
     try {
-      Json? condition = combineConditions([
-        widget.condition,
-        _advanced.condition(widget.kind),
-      ]);
-      if (_readStatus.isNotEmpty) {
-        final filter = {
-          'readStatus': {'operator': 'is', 'value': _readStatus},
-        };
-        condition = condition == null
-            ? filter
-            : {
-                'allOf': [condition, filter],
-              };
-      }
+      final condition = _effectiveCondition;
       final results = await Future.wait(
         List.generate(
           count,
@@ -435,14 +455,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
       _cancelSelection = false;
     });
     try {
-      final condition = combineConditions([
-        widget.condition,
-        _advanced.condition(widget.kind),
-        if (_readStatus.isNotEmpty)
-          {
-            'readStatus': {'operator': 'is', 'value': _readStatus},
-          },
-      ]);
+      final condition = _effectiveCondition;
       for (var page = 0; ; page++) {
         if (!mounted ||
             repository.closed ||
@@ -455,6 +468,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
           path: widget.path,
           page: page,
           size: 200,
+          libraryId: widget.libraryId,
           search: _query,
           sort: _sort,
           condition: condition,
@@ -847,7 +861,14 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                                     crossAxisCount: count,
                                     crossAxisSpacing: 16,
                                     mainAxisSpacing: 20,
-                                    childAspectRatio: .53,
+                                    childAspectRatio:
+                                        widget.repository.browse.hidesText ||
+                                            widget
+                                                .repository
+                                                .browse
+                                                .overlaysText
+                                        ? .68
+                                        : .53,
                                   ),
                               itemCount: _items.length,
                               itemBuilder: (context, index) => Stack(
@@ -915,106 +936,49 @@ class BookCard extends StatelessWidget {
   });
   final Repository repository;
   final CatalogItem item;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
+  final VoidCallback? onTap, onLongPress;
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: item.title,
-    child: InkWell(
-      onTap: onTap ?? () => openItem(context, repository, item),
-      onLongPress: onLongPress,
-      borderRadius: BorderRadius.circular(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .16),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox.expand(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Cover(repository: repository, path: item.thumbnail),
-                      if (item.kind == 'books' &&
-                          repository.overlay(item.book).completed)
-                        const Positioned(
-                          right: 6,
-                          top: 6,
-                          child: CircleAvatar(
-                            radius: 10,
-                            backgroundColor: Colors.white,
-                            child: Icon(
-                              CupertinoIcons.check_mark,
-                              size: 12,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                      if (item.kind == 'series' &&
-                          integer(item.json['booksUnreadCount']) > 0)
-                        Positioned(
-                          right: 6,
-                          top: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${item.json['booksUnreadCount']}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: repository.browse,
+    builder: (context, _) {
+      final book = item.kind == 'books' ? repository.overlay(item.book) : null;
+      return Semantics(
+        button: true,
+        label: item.title,
+        child: InkWell(
+          onTap: onTap ?? () => openItem(context, repository, item),
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(8),
+          child: CatalogCard(
+            preferences: repository.browse,
+            coverBuilder: (frame) => Cover(
+              repository: repository,
+              path: item.thumbnail,
+              frameBuilder: (context, image, _, _) => frame(image),
+              fit:
+                  repository.browse[BrowseOption.preserveAspectRatio] &&
+                      !repository.browse.overlaysText
+                  ? BoxFit.contain
+                  : BoxFit.cover,
             ),
+            title: item.title,
+            subtitle: book == null ? null : item.subtitle,
+            detail: book == null
+                ? '${item.subtitle} ${tr(context, item.kind == 'collections' ? 'Series' : 'Books')}'
+                : '${book.pages} ${tr(context, 'Pages')}',
+            unread: book == null
+                ? item.kind == 'series' &&
+                      integer(item.json['booksReadCount']) == 0 &&
+                      integer(item.json['booksInProgressCount']) == 0
+                : !book.completed && book.page == 0,
+            unreadCount: item.kind == 'series'
+                ? integer(item.json['booksUnreadCount'])
+                : 0,
+            completed: book?.completed ?? false,
+            progress: book?.fraction ?? 0,
           ),
-          const SizedBox(height: 8),
-          Text(
-            item.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            item.subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor),
-          ),
-          if (item.kind == 'books' &&
-              repository.overlay(item.book).page > 0) ...[
-            const SizedBox(height: 5),
-            LinearProgressIndicator(
-              value: repository.overlay(item.book).fraction,
-              minHeight: 2,
-            ),
-          ],
-        ],
-      ),
-    ),
+        ),
+      );
+    },
   );
 }
