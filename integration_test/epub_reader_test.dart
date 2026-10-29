@@ -59,143 +59,160 @@ void main() {
       false,
     );
   });
-  testWidgets(
-    'native WebView paginates, persists CFI and reflows without moving saved progress',
-    (tester) async {
-      await Strings.initialize();
-      final directory = await Directory.systemTemp.createTemp(
-        'kmreader-native-epub-',
-      );
-      final store = LocalStore(sqlite3.openInMemory());
-      const profile = ServerProfile(
-        id: 'native-epub',
-        name: 'Native fixture',
-        url: 'https://example.invalid',
-        email: '',
-        authentication: Authentication.apiKey,
-      );
-      final repository = Repository(
-        profile: profile,
-        api: KomgaApi(
-          Uri.parse(profile.url),
-          authentication: profile.authentication,
-          credential: '',
-        ),
-        store: store,
-        directory: directory,
-      )..setOffline(true);
-      final book = Book({
-        'id': 'native-book',
-        'name': 'EPUB native verification',
-        'media': {'mediaProfile': 'EPUB', 'pagesCount': 100},
-      });
-      final file = fixture(directory);
-      Future<void> waitFor(bool Function() ready) async {
-        for (var i = 0; i < 180; i++) {
-          await tester.pump(const Duration(milliseconds: 250));
-          if (ready()) return;
-          await Future<void>.delayed(const Duration(milliseconds: 100));
+  for (final layout in ['reflowable', 'fixed', 'vertical']) {
+    testWidgets(
+      'native $layout WebView paginates and preserves saved CFI through settings',
+      (tester) async {
+        await Strings.initialize();
+        final directory = await Directory.systemTemp.createTemp(
+          'kmreader-native-epub-',
+        );
+        final store = LocalStore(sqlite3.openInMemory());
+        const profile = ServerProfile(
+          id: 'native-epub',
+          name: 'Native fixture',
+          url: 'https://example.invalid',
+          email: '',
+          authentication: Authentication.apiKey,
+        );
+        final repository = Repository(
+          profile: profile,
+          api: KomgaApi(
+            Uri.parse(profile.url),
+            authentication: profile.authentication,
+            credential: '',
+          ),
+          store: store,
+          directory: directory,
+        )..setOffline(true);
+        final book = Book({
+          'id': 'native-book',
+          'name': 'EPUB native verification',
+          'media': {'mediaProfile': 'EPUB', 'pagesCount': 100},
+        });
+        final file = switch (layout) {
+          'fixed' => fixedLayoutFixture(directory),
+          'vertical' => verticalEpubFixture(directory),
+          _ => fixture(directory),
+        };
+        Future<void> waitFor(bool Function() ready) async {
+          for (var i = 0; i < 180; i++) {
+            await tester.pump(const Duration(milliseconds: 250));
+            if (ready()) return;
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
+          final labels = find
+              .byType(Text)
+              .evaluate()
+              .map((e) => (e.widget as Text).data)
+              .whereType<String>()
+              .join(' | ');
+          fail('Native EPUB did not reach its expected state. UI: $labels');
         }
-        final labels = find
-            .byType(Text)
-            .evaluate()
-            .map((e) => (e.widget as Text).data)
-            .whereType<String>()
-            .join(' | ');
-        fail('Native EPUB did not reach its expected state. UI: $labels');
-      }
 
-      try {
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: appTheme(Brightness.light),
-            home: ReaderDisplay(
-              child: BrowserEpubReader(
-                file: file,
-                repository: repository,
-                book: book,
+        try {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: appTheme(Brightness.light),
+              home: ReaderDisplay(
+                child: BrowserEpubReader(
+                  file: file,
+                  repository: repository,
+                  book: book,
+                ),
               ),
             ),
-          ),
-        );
-        await waitFor(
-          () =>
-              find.byType(CircularProgressIndicator).evaluate().isEmpty &&
-              find.byTooltip('Next Page').evaluate().isNotEmpty,
-        );
-        expect(find.textContaining('Install Microsoft Edge'), findsNothing);
-        await tester.tap(find.byTooltip('Next Page'));
-        await waitFor(
-          () =>
-              text(object(store.cached(profile.id, 'epub:${book.id}'))['cfi'])
-                  .startsWith('epubcfi('),
-        );
-        final saved = object(store.cached(profile.id, 'epub:${book.id}'));
-        expect(repository.pendingCount, 1);
-        await tester.tap(find.byType(PopupMenuButton<String>).first);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Text Settings').last);
-        await tester.pumpAndSettle();
-        final slider = find.byType(Slider).first;
-        await tester.drag(slider, const Offset(80, 0));
-        await tester.pumpAndSettle();
-        await Future<void>.delayed(const Duration(seconds: 1));
-        await tester.pump();
-        expect(
-          object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
-          saved['cfi'],
-        );
-        expect(
-          object(store.cached(profile.id, 'epub:${book.id}'))['fontSize'],
-          isNot(19),
-        );
-        for (final flow in ['Vertical', 'Paged']) {
-          await tester.tap(find.widgetWithText(ChoiceChip, flow));
+          );
+          await waitFor(
+            () =>
+                find.byType(CircularProgressIndicator).evaluate().isEmpty &&
+                find.byTooltip('Next Page').evaluate().isNotEmpty,
+          );
+          expect(find.textContaining('Install Microsoft Edge'), findsNothing);
+          await tester.tap(find.byTooltip('Next Page'));
+          await waitFor(
+            () =>
+                text(object(store.cached(profile.id, 'epub:${book.id}'))['cfi'])
+                    .startsWith('epubcfi('),
+          );
+          final saved = object(store.cached(profile.id, 'epub:${book.id}'));
+          expect(repository.pendingCount, 1);
+          await tester.tap(find.byType(PopupMenuButton<String>).first);
           await tester.pumpAndSettle();
+          await tester.tap(find.text('Text Settings').last);
+          await tester.pumpAndSettle();
+          if (layout == 'fixed') {
+            expect(
+              find.text('This book uses a fixed page layout.'),
+              findsOneWidget,
+            );
+            expect(find.byType(Slider), findsNothing);
+          } else {
+            final slider = find.byType(Slider).first;
+            await tester.drag(slider, const Offset(80, 0));
+            await tester.pumpAndSettle();
+            await Future<void>.delayed(const Duration(seconds: 1));
+            await tester.pump();
+            expect(
+              object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
+              saved['cfi'],
+            );
+            expect(
+              object(store.cached(profile.id, 'epub:${book.id}'))['fontSize'],
+              isNot(19),
+            );
+          }
+          for (final flow
+              in layout == 'reflowable' ? ['Vertical', 'Paged'] : <String>[]) {
+            await tester.tap(find.widgetWithText(ChoiceChip, flow));
+            await tester.pumpAndSettle();
+            await Future<void>.delayed(const Duration(seconds: 1));
+            await tester.pump();
+            expect(
+              object(store.cached(profile.id, 'epub:${book.id}'))['flow'],
+              flow == 'Vertical' ? 'scrolled' : 'paged',
+            );
+            expect(
+              object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
+              saved['cfi'],
+            );
+          }
+          await tester.tapAt(const Offset(8, 8));
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.byTooltip(layout == 'fixed' ? 'Previous Page' : 'Next Page'),
+          );
+          await waitFor(
+            () =>
+                object(store.cached(profile.id, 'epub:${book.id}'))['cfi'] !=
+                saved['cfi'],
+          );
+          if (Platform.isAndroid) {
+            debugPrint('Native EPUB PixelCopy capture started');
+            final bytes = await ReaderDisplay.channel
+                .invokeMethod<Uint8List>('captureScreenshot')
+                .timeout(const Duration(seconds: 10));
+            expect(bytes, isNotEmpty);
+            binding.reportData ??= <String, dynamic>{};
+            binding.reportData!['screenshots'] ??= <dynamic>[];
+            (binding.reportData!['screenshots'] as List).add({
+              'screenshotName': 'epub-native-$layout',
+              'bytes': bytes!,
+            });
+            debugPrint('Native EPUB PixelCopy capture completed');
+          }
+          await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
           await Future<void>.delayed(const Duration(seconds: 1));
           await tester.pump();
-          expect(
-            object(store.cached(profile.id, 'epub:${book.id}'))['flow'],
-            flow == 'Vertical' ? 'scrolled' : 'paged',
-          );
-          expect(
-            object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
-            saved['cfi'],
-          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          repository.dispose();
+          store.close();
+          await directory.delete(recursive: true);
         }
-        await tester.tapAt(const Offset(8, 8));
-        await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('Next Page'));
-        await waitFor(
-          () =>
-              object(store.cached(profile.id, 'epub:${book.id}'))['cfi'] !=
-              saved['cfi'],
-        );
-        if (Platform.isAndroid) {
-          debugPrint('Native EPUB PixelCopy capture started');
-          final bytes = await ReaderDisplay.channel
-              .invokeMethod<Uint8List>('captureScreenshot')
-              .timeout(const Duration(seconds: 10));
-          expect(bytes, isNotEmpty);
-          binding.reportData ??= <String, dynamic>{};
-          binding.reportData!['screenshots'] ??= <dynamic>[];
-          (binding.reportData!['screenshots'] as List).add({
-            'screenshotName': 'epub-native-paged',
-            'bytes': bytes!,
-          });
-          debugPrint('Native EPUB PixelCopy capture completed');
-        }
-        await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
-        await Future<void>.delayed(const Duration(seconds: 1));
-        await tester.pump();
-        expect(tester.takeException(), isNull);
-      } finally {
-        repository.dispose();
-        store.close();
-        await directory.delete(recursive: true);
-      }
-    },
-  );
+      },
+    );
+  }
   testWidgets(
     'native on-device OCR recognizes a rendered image without retaining private text',
     (tester) async {

@@ -147,6 +147,72 @@ void main() {
     repository.dispose();
     store.close();
   });
+  for (final flow in ['paged', 'scrolled']) {
+    test(
+      'vertical CJK EPUB $flow flow preserves search and its visible CFI anchor',
+      () async {
+        final file = verticalEpubFixture(directory);
+        final doc = EpubDocument.open(file.path);
+        final host = await EpubHost.open(doc, filePath: file.path);
+        try {
+          final result = await Process.run('python3', [
+            'tool/epub_layout_smoke.py',
+            host.reader.toString(),
+            jsonEncode({
+              'url': host.publication.toString(),
+              'preferences': EpubPreferences.fromJson({'flow': flow}).toJson(),
+              'nonce': 'vertical',
+              'direction': 'rtl',
+              'language': 'ja',
+              'kind': 'vertical',
+              'href': 'one.xhtml',
+            }),
+          ]);
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        } finally {
+          await host.close();
+          doc.close();
+        }
+      },
+      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+    );
+  }
+  for (final flow in ['paged', 'scrolled']) {
+    test(
+      'fixed-layout EPUB $flow flow preserves authored typography and navigation',
+      () async {
+        final file = fixedLayoutFixture(directory);
+        final doc = EpubDocument.open(file.path);
+        final host = await EpubHost.open(doc, filePath: file.path);
+        try {
+          final result = await Process.run('python3', [
+            'tool/epub_layout_smoke.py',
+            host.reader.toString(),
+            jsonEncode({
+              'url': host.publication.toString(),
+              'preferences': EpubPreferences.fromJson({'flow': flow}).toJson(),
+              'nonce': 'fixed-layout',
+              'direction': 'ltr',
+              'href': 'one.xhtml',
+            }),
+          ]);
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        } finally {
+          await host.close();
+          doc.close();
+        }
+      },
+      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+    );
+  }
   test('shipped browser engine paginates, reflows, searches and restores footnotes', () async {
     final doc = EpubDocument.open(fixture(directory).path);
     final host = await EpubHost.open(
