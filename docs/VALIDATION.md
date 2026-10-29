@@ -332,3 +332,13 @@ downloaded back through GitHub, and independently checked against its SHA256,
 retained certificate, non-debuggable manifest, AOT/native libraries for all
 three ABIs, APK signature and 16 KiB ZIP alignment. The downloaded file matches
 the local artifact listed above byte for byte.
+
+## Continuous EPUB development
+
+The continuous-chapter increment passes static analysis, 190 automated checks
+(Chromium/ONNX enabled) and an Android debug build locally. After the final
+input-listener cleanup the focused Chromium/session/host checks pass again.
+The browser test verifies both chapter boundaries, exact-section CFI resume on
+a cold start, stable progress through repeated flow/font changes, and teardown
+without browser errors. Native flow-switch checks have been added for the next CI
+run; physical scrolling smoothness is not established by this browser fixture.

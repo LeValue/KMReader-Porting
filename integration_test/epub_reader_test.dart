@@ -145,8 +145,28 @@ void main() {
           object(store.cached(profile.id, 'epub:${book.id}'))['fontSize'],
           isNot(19),
         );
+        for (final flow in ['Vertical', 'Paged']) {
+          await tester.tap(find.widgetWithText(ChoiceChip, flow));
+          await tester.pumpAndSettle();
+          await Future<void>.delayed(const Duration(seconds: 1));
+          await tester.pump();
+          expect(
+            object(store.cached(profile.id, 'epub:${book.id}'))['flow'],
+            flow == 'Vertical' ? 'scrolled' : 'paged',
+          );
+          expect(
+            object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
+            saved['cfi'],
+          );
+        }
         await tester.tapAt(const Offset(8, 8));
         await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Next Page'));
+        await waitFor(
+          () =>
+              object(store.cached(profile.id, 'epub:${book.id}'))['cfi'] !=
+              saved['cfi'],
+        );
         if (Platform.isAndroid) {
           debugPrint('Native EPUB PixelCopy capture started');
           final bytes = await ReaderDisplay.channel
