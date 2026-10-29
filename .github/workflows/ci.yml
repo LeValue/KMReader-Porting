@@ -33,10 +33,15 @@ on:
         description: SHA256 of the signed x86_64 APK
         type: string
         default: ''
+      verified_run:
+        description: Optional completed successful CI run for this exact source; avoids duplicate builds
+        type: string
+        default: ''
 permissions:
   contents: read
 jobs:
   android:
+    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +68,7 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib test integration_test test_driver
       - run: python3 tool/preview_metadata.py
+      - run: python3 -m unittest discover -s tool/tests
       - run: flutter analyze
       - run: flutter test
       - name: Verify portable image models with the real ONNX runtime
@@ -86,6 +92,7 @@ jobs:
           name: android-release-unsigned
           path: build/app/outputs/flutter-apk/app-release.apk
   windows:
+    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -113,6 +120,7 @@ jobs:
           name: windows
           path: build/windows/x64/runner/Release/
   android_reader_display:
+    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -202,7 +210,7 @@ jobs:
             artifacts/native-epub/*.png
             ${{ runner.temp }}/reader-logcat.txt
   publish_android_preview:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
     needs: [android, windows, android_reader_display]
     runs-on: ubuntu-latest
     permissions:
@@ -220,8 +228,12 @@ jobs:
       ARMV7_SHA256: ${{ inputs.preview_armv7_sha256 }}
       X64_BLOB: ${{ inputs.preview_x64_blob }}
       X64_SHA256: ${{ inputs.preview_x64_sha256 }}
+      VERIFIED_RUN: ${{ inputs.verified_run }}
+      CURRENT_BUILD_RESULTS: ${{ toJSON(needs) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Verify complete CI for this exact source before publishing
+        run: python3 tool/verify_preview_ci.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -294,6 +306,8 @@ jobs:
         with:
           name: windows
           path: windows-bundle
+          run-id: ${{ env.ARTIFACT_RUN }}
+          github-token: ${{ github.token }}
       - name: Package the Windows portable build
         shell: bash
         run: |
