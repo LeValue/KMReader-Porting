@@ -301,6 +301,81 @@ void main() {
       },
     );
   }
+  testWidgets('native EPUB text settings accept global typography extremes', (
+    tester,
+  ) async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kmreader-native-typography-',
+    );
+    final store = LocalStore(sqlite3.openInMemory());
+    const profile = ServerProfile(
+      id: 'native-typography',
+      name: 'Fixture',
+      url: 'https://example.invalid',
+      email: '',
+      authentication: Authentication.apiKey,
+    );
+    final repository = Repository(
+      profile: profile,
+      api: KomgaApi(
+        Uri.parse(profile.url),
+        authentication: profile.authentication,
+        credential: '',
+      ),
+      store: store,
+      directory: directory,
+    )..setOffline(true);
+    store.setSetting('epubDefault', {
+      'advancedLayout': true,
+      'fontSize': 76.0,
+      'lineHeight': .5,
+      'letterSpacing': 1.0,
+    });
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: appTheme(Brightness.light),
+          home: ReaderDisplay(
+            child: BrowserEpubReader(
+              repository: repository,
+              book: Book({
+                'id': 'extremes',
+                'media': {'mediaProfile': 'EPUB'},
+              }),
+              file: fixture(directory),
+              incognito: true,
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 180; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+        if (find.byTooltip('Next Page').evaluate().isNotEmpty &&
+            find.byType(CircularProgressIndicator).evaluate().isEmpty)
+          break;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      expect(find.byTooltip('Next Page'), findsOneWidget);
+      await tester.tap(find.byType(PopupMenuButton<String>).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Text Settings').last);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.widgetList<Slider>(find.byType(Slider)).map((s) => s.value),
+        containsAll([76.0, .5, 1.0]),
+      );
+      expect(repository.pendingCount, 0);
+    } finally {
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      await Future<void>.delayed(const Duration(seconds: 1));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await repository.stopDownloadWork();
+      store.close();
+      await directory.delete(recursive: true);
+    }
+  });
   testWidgets(
     'native on-device OCR recognizes a rendered image without retaining private text',
     (tester) async {

@@ -735,9 +735,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         'Line Height',
                         'lineHeight',
                         p.lineHeight,
-                        1,
+                        .5,
                         3,
-                        20,
+                        25,
                       ),
                       slider('Page Margins', 'margin', p.margin, 0, 100, 20),
                       slider(
@@ -754,8 +754,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         'letterSpacing',
                         p.letterSpacing,
                         -.05,
-                        .3,
-                        35,
+                        1,
+                        105,
                       ),
                       slider(
                         'Word Spacing',
