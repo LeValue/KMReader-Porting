@@ -24,9 +24,33 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
   final _visited = <int, Widget>{};
   @override
+  void initState() {
+    super.initState();
+    widget.repository.eventNotices.addListener(_notice);
+  }
+
+  void _notice() {
+    final message = widget.repository.eventNotices.value;
+    if (mounted && message != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(tr(context, message))));
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.repository.eventNotices.removeListener(_notice);
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(AppShell old) {
     super.didUpdateWidget(old);
-    if (old.repository != widget.repository) _visited.clear();
+    if (old.repository != widget.repository) {
+      old.repository.eventNotices.removeListener(_notice);
+      widget.repository.eventNotices.addListener(_notice);
+      _visited.clear();
+    }
   }
 
   static const _labels = [
@@ -45,7 +69,9 @@ class _AppShellState extends State<AppShell> {
   ];
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final wide =
+        MediaQuery.sizeOf(context).width >= 900 &&
+        widget.app.store.setting<bool>('useClassicPadNavigation') != false;
     final repository = widget.repository;
     _visited.putIfAbsent(
       _index,

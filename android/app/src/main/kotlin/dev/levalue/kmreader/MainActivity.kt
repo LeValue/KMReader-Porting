@@ -1,6 +1,8 @@
 package dev.levalue.kmreader
 
 import android.content.pm.ApplicationInfo
+import android.content.ComponentName
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +23,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var ocr: ReaderOcr? = null
     private var exporter: FileExporter? = null
     private var privacyChannel: MethodChannel? = null
+    private var readerStatusBarVisible = false
     private var readerActive = false
     private var ownsKeepAwake = false
     private var previousKeepAwake = false
@@ -41,7 +44,22 @@ class MainActivity : FlutterFragmentActivity() {
         exporter = FileExporter(this, flutterEngine.dartExecutor.binaryMessenger)
         privacyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.levalue.kmreader/privacy")
         privacyChannel!!.setMethodCallHandler { call, result ->
-            if (call.method == "setProtected" && call.arguments is Boolean) {
+            if (call.method == "getAppIcons") {
+                val variants = mapOf("Default" to "default", "Classic" to "classic", "Legacy" to "legacy")
+                result.success(variants.filter { (name, _) ->
+                    val state = packageManager.getComponentEnabledSetting(ComponentName(this, "dev.levalue.kmreader.Launcher$name"))
+                    state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && name == "Default")
+                }.values.toList())
+            } else if (call.method == "setAppIcon" && call.arguments is String) {
+                val selected = mapOf("default" to "Default", "classic" to "Classic", "legacy" to "Legacy")[call.arguments as String]
+                if (selected == null) { result.error("icon", "Unknown app icon", null); return@setMethodCallHandler }
+                // Enable the new launcher first, retaining a launchable component.
+                packageManager.setComponentEnabledSetting(ComponentName(this, "dev.levalue.kmreader.Launcher$selected"), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+                for (name in listOf("Default", "Classic", "Legacy")) {
+                    if (name != selected) packageManager.setComponentEnabledSetting(ComponentName(this, "dev.levalue.kmreader.Launcher$name"), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+                }
+                result.success(null)
+            } else if (call.method == "setProtected" && call.arguments is Boolean) {
                 if (call.arguments as Boolean) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                 result.success(null)
@@ -50,7 +68,10 @@ class MainActivity : FlutterFragmentActivity() {
         readerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "dev.levalue.kmreader/reader_display")
         readerChannel!!.setMethodCallHandler { call, result ->
-            if (call.method == "getKeepAwake") {
+            if (call.method == "getReaderStatusBarVisible") {
+                result.success(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) window.decorView.rootWindowInsets?.isVisible(WindowInsets.Type.statusBars()) ?: false
+                    else (window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN) == 0)
+            } else if (call.method == "getKeepAwake") {
                 result.success((window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0)
             } else if (call.method == "setKeepAwake" && call.arguments is Boolean) {
                 val enabled = call.arguments as Boolean
@@ -79,6 +100,10 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                     } finally { bitmap.recycle() }
                 }, Handler(Looper.getMainLooper()))
+            } else if (call.method == "setReaderStatusBarVisible" && call.arguments is Boolean) {
+                readerStatusBarVisible = call.arguments as Boolean
+                if (readerActive) setReaderMode(true)
+                result.success(null)
             } else if (call.method == "setReaderMode" && call.arguments is Boolean) {
                 setReaderMode(call.arguments as Boolean)
                 result.success(readerInsets())
@@ -193,6 +218,13 @@ class MainActivity : FlutterFragmentActivity() {
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 else previousVisibility
         }
+        if (enabled && readerStatusBarVisible) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.show(WindowInsets.Type.statusBars())
+            } else {
+                window.decorView.systemUiVisibility = window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN.inv()
+            }
+        }
         if (enabled) {
             reportReaderInsets()
             window.decorView.post { if (readerActive) reportReaderInsets() }
@@ -212,6 +244,7 @@ class MainActivity : FlutterFragmentActivity() {
         readerChannel?.setMethodCallHandler(null)
         readerChannel = null
         super.onDestroy()
+
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

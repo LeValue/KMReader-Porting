@@ -185,6 +185,18 @@ class ReaderPreferences {
     this.useSeriesDirection = true,
     this.borderCrop = 'disabled',
     this.doubleTapZoom = 2,
+    this.soloCover = false,
+    this.pageLayout = 'single',
+    this.showPageNumber = true,
+    this.showPageShadow = false,
+    this.controlsGradient = true,
+    this.showProgress = false,
+    this.showTapHints = false,
+    this.doubleTapEnabled = true,
+    this.webtoonWidth = 100,
+    this.tapScroll = 80,
+    this.liveText = false,
+    this.imageContextMenu = true,
     this.extendIntoCutout = false,
   });
   final ReadingMode mode;
@@ -199,6 +211,18 @@ class ReaderPreferences {
   final bool useSeriesDirection;
   final String borderCrop;
   final double doubleTapZoom;
+  final bool soloCover;
+  final String pageLayout;
+  final bool showPageNumber;
+  final bool showPageShadow;
+  final bool controlsGradient;
+  final bool showProgress;
+  final bool showTapHints;
+  final bool doubleTapEnabled;
+  final double webtoonWidth;
+  final double tapScroll;
+  final bool liveText;
+  final bool imageContextMenu;
   final bool extendIntoCutout;
   factory ReaderPreferences.fromJson(Json j) => ReaderPreferences(
     mode: ReadingMode.values.firstWhere(
@@ -216,7 +240,7 @@ class ReaderPreferences {
     tapInversion: text(j['tapInversion'], 'auto'),
     preload: text(j['preload'], 'balanced'),
     animate: j['animate'] != false,
-    transition: ['cover', 'slide'].contains(j['transition'])
+    transition: ['cover', 'slide', 'curl'].contains(j['transition'])
         ? j['transition'] as String
         : j.containsKey('animate')
         ? 'slide'
@@ -231,6 +255,26 @@ class ReaderPreferences {
                 ? (j['doubleTapZoom'] as num).toDouble()
                 : 2.0)
             .clamp(1, 8),
+    soloCover: j['soloCover'] == true,
+    pageLayout: text(j['pageLayout'], 'single'),
+    showPageNumber: j['showPageNumber'] != false,
+    showPageShadow: j['showPageShadow'] == true,
+    controlsGradient: j['controlsGradient'] != false,
+    showProgress: j['showProgress'] == true,
+    showTapHints: j['showTapHints'] == true,
+    doubleTapEnabled: j['doubleTapEnabled'] != false,
+    webtoonWidth:
+        (j['webtoonWidth'] is num && (j['webtoonWidth'] as num).isFinite
+                ? (j['webtoonWidth'] as num).toDouble()
+                : 100.0)
+            .clamp(50, 100),
+    tapScroll:
+        (j['tapScroll'] is num && (j['tapScroll'] as num).isFinite
+                ? (j['tapScroll'] as num).toDouble()
+                : 80.0)
+            .clamp(25, 100),
+    liveText: j['liveText'] == true,
+    imageContextMenu: j['imageContextMenu'] != false,
     extendIntoCutout: j['extendIntoCutout'] == true,
   );
   Json toJson() => {
@@ -249,6 +293,18 @@ class ReaderPreferences {
     'useSeriesDirection': useSeriesDirection,
     'borderCrop': borderCrop,
     'doubleTapZoom': doubleTapZoom,
+    'soloCover': soloCover,
+    'pageLayout': pageLayout,
+    'showPageNumber': showPageNumber,
+    'showPageShadow': showPageShadow,
+    'controlsGradient': controlsGradient,
+    'showProgress': showProgress,
+    'showTapHints': showTapHints,
+    'doubleTapEnabled': doubleTapEnabled,
+    'webtoonWidth': webtoonWidth,
+    'tapScroll': tapScroll,
+    'liveText': liveText,
+    'imageContextMenu': imageContextMenu,
     'extendIntoCutout': extendIntoCutout,
   };
   ReaderPreferences copy({
@@ -267,6 +323,18 @@ class ReaderPreferences {
     bool? useSeriesDirection,
     String? borderCrop,
     double? doubleTapZoom,
+    bool? soloCover,
+    String? pageLayout,
+    bool? showPageNumber,
+    bool? showPageShadow,
+    bool? controlsGradient,
+    bool? showProgress,
+    bool? showTapHints,
+    bool? doubleTapEnabled,
+    double? webtoonWidth,
+    double? tapScroll,
+    bool? liveText,
+    bool? imageContextMenu,
     bool? extendIntoCutout,
   }) => ReaderPreferences(
     mode: mode ?? this.mode,
@@ -284,6 +352,24 @@ class ReaderPreferences {
     useSeriesDirection: useSeriesDirection ?? this.useSeriesDirection,
     borderCrop: borderCrop ?? this.borderCrop,
     doubleTapZoom: doubleTapZoom ?? this.doubleTapZoom,
+    soloCover: soloCover ?? this.soloCover,
+    pageLayout:
+        pageLayout ??
+        (spread == null
+            ? this.pageLayout
+            : spread
+            ? 'dual-forced'
+            : 'single'),
+    showPageNumber: showPageNumber ?? this.showPageNumber,
+    showPageShadow: showPageShadow ?? this.showPageShadow,
+    controlsGradient: controlsGradient ?? this.controlsGradient,
+    showProgress: showProgress ?? this.showProgress,
+    showTapHints: showTapHints ?? this.showTapHints,
+    doubleTapEnabled: doubleTapEnabled ?? this.doubleTapEnabled,
+    webtoonWidth: webtoonWidth ?? this.webtoonWidth,
+    tapScroll: tapScroll ?? this.tapScroll,
+    liveText: liveText ?? this.liveText,
+    imageContextMenu: imageContextMenu ?? this.imageContextMenu,
     extendIntoCutout: extendIntoCutout ?? this.extendIntoCutout,
   );
 }

@@ -1,0 +1,2843 @@
+{
+  "upstream": "https://github.com/kmworks/kmreader",
+  "source": "e2b35f8796cc830fc6e7464e161b2172d8f916e9",
+  "options": [
+    {
+      "key": "DashboardConfiguration.cardKindOverrides",
+      "type": "[DashboardSection: DashboardCardKind]",
+      "origins": [
+        {
+          "file": "KMReader/Features/Dashboard/Models/DashboardSection.swift",
+          "line": 292
+        }
+      ]
+    },
+    {
+      "key": "DashboardConfiguration.libraryIds",
+      "type": "[String]",
+      "origins": [
+        {
+          "file": "KMReader/Features/Dashboard/Models/DashboardSection.swift",
+          "line": 291
+        }
+      ]
+    },
+    {
+      "key": "DashboardConfiguration.sections",
+      "type": "[DashboardSection]",
+      "origins": [
+        {
+          "file": "KMReader/Features/Dashboard/Models/DashboardSection.swift",
+          "line": 290
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.controlsFooterCenter",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.controlsHeaderCenter",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.readerFooterCenter",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.readerFooterLeading",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.readerFooterTrailing",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.readerHeaderCenter",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.readerHeaderLeading",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.readerHeaderTrailing",
+      "type": "EpubOverlayTextItem",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "key": "EpubOverlayPreferences.showsReaderProgressBar",
+      "type": "Bool",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift",
+          "line": 17
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.advancedLayout",
+      "type": "Bool",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 44
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.colorScheme",
+      "type": "AppColorScheme",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 41
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.columnCount",
+      "type": "EpubColumnCount",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 51
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.fontFamily",
+      "type": "FontFamilyChoice",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 42
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.fontSize",
+      "type": "Double",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 45
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.fontWeight",
+      "type": "Double?",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 43
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.letterSpacing",
+      "type": "Double",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 49
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.lineHeight",
+      "type": "Double",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 50
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.pageMargins",
+      "type": "Double",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 53
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.paragraphIndent",
+      "type": "Double",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 48
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.paragraphSpacing",
+      "type": "Double",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 47
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.textAlignment",
+      "type": "EpubTextAlignment",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 52
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.theme",
+      "type": "ThemeChoice",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "key": "EpubThemePreferences.wordSpacing",
+      "type": "Double",
+      "origins": [
+        {
+          "file": "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift",
+          "line": 46
+        }
+      ]
+    },
+    {
+      "key": "MangaProviderConfig.apiKey",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaProviderConfig.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "MangaProviderConfig.baseURL",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaProviderConfig.swift",
+          "line": 8
+        }
+      ]
+    },
+    {
+      "key": "MangaProviderConfig.displayName",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaProviderConfig.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "MangaProviderConfig.model",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaProviderConfig.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "MangaTranslationPreferences.includeMetadata",
+      "type": "Bool",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaTranslationPreferences.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "MangaTranslationPreferences.selectedProviderID",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaTranslationPreferences.swift",
+          "line": 6
+        }
+      ]
+    },
+    {
+      "key": "MangaTranslationPreferences.showTranslation",
+      "type": "Bool",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaTranslationPreferences.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "MangaTranslationPreferences.sourceLanguage",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaTranslationPreferences.swift",
+          "line": 7
+        }
+      ]
+    },
+    {
+      "key": "MangaTranslationPreferences.targetLanguage",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaTranslationPreferences.swift",
+          "line": 8
+        }
+      ]
+    },
+    {
+      "key": "MangaTranslationPreferences.textDirection",
+      "type": "MangaTranslationTextDirection",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Models/MangaTranslationPreferences.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "ModelLibraryConfiguration.catalog",
+      "type": "ModelCatalog?",
+      "origins": [
+        {
+          "file": "KMReader/Core/Models/ModelLibraryConfiguration.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "ModelLibraryConfiguration.catalogURL",
+      "type": "String",
+      "origins": [
+        {
+          "file": "KMReader/Core/Models/ModelLibraryConfiguration.swift",
+          "line": 8
+        }
+      ]
+    },
+    {
+      "key": "ModelLibraryConfiguration.downloadedArchives",
+      "type": "[ModelArchive]",
+      "origins": [
+        {
+          "file": "KMReader/Core/Models/ModelLibraryConfiguration.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "ModelLibraryConfiguration.selectedStorageKeys",
+      "type": "[String: String]",
+      "origins": [
+        {
+          "file": "KMReader/Core/Models/ModelLibraryConfiguration.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "animateEpubTapTurns",
+      "type": "Bool",
+      "default_expression": "AppConfig.animateEpubTapTurns",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "key": "animateTapTurns",
+      "type": "Bool",
+      "default_expression": "AppConfig.animateTapTurns",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 22
+        }
+      ]
+    },
+    {
+      "key": "apiRetryCount",
+      "type": "Int",
+      "default_expression": "0",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "appColorScheme",
+      "type": "AppColorScheme",
+      "default_expression": ".system",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsAppearanceView.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "authTimeout",
+      "type": "Double",
+      "default_expression": "5",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "autoFullscreenOnOpen",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "key": "cardTextOverlayMode",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 18
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "coverCacheExpirationDays",
+      "type": "Int",
+      "default_expression": "7",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "coverOnlyCards",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 17
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "currentAccount",
+      "type": "Current",
+      "default_expression": ".init()",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsServerCardView.swift",
+          "line": 13
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsAccountView.swift",
+          "line": 14
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "dashboard",
+      "type": "DashboardConfiguration",
+      "default_expression": "DashboardConfiguration()",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+          "line": 26
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+          "line": 125
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+          "line": 275
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsReadListContinuationToggle.swift",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "key": "defaultReadingDirection",
+      "type": "ReadingDirection",
+      "default_expression": ".ltr",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "key": "divinaPageBorderCropMode",
+      "type": "ReaderPageBorderCropMode",
+      "default_expression": "AppConfig.divinaPageBorderCropMode",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 30
+        }
+      ]
+    },
+    {
+      "key": "divinaPreloadProfile",
+      "type": "ReaderPreloadProfile",
+      "default_expression": ".balanced",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 41
+        }
+      ]
+    },
+    {
+      "key": "doubleTapZoomMode",
+      "type": "DoubleTapZoomMode",
+      "default_expression": ".enabled",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "key": "doubleTapZoomScale",
+      "type": "Double",
+      "default_expression": "3.0",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 24
+        }
+      ]
+    },
+    {
+      "key": "downloadTimeout",
+      "type": "Double",
+      "default_expression": "60",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "enableBrowseHandoff",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "enableDivinaImageContextMenu",
+      "type": "Bool",
+      "default_expression": "AppConfig.enableDivinaImageContextMenu",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 33
+        }
+      ]
+    },
+    {
+      "key": "enableLiveText",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 32
+        }
+      ]
+    },
+    {
+      "key": "enableReaderHandoff",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "enableReaderLiveActivity",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "key": "enableSSE",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSSEView.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "enableSSEAutoRefresh",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSSEView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "enableSSENotify",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSSEView.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "enableSpotlightBookIndexing",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "key": "enableSpotlightIndexing",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "enableSpotlightSeriesIndexing",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "key": "epubFlowStyle",
+      "type": "EpubFlowStyle",
+      "default_expression": ".paged",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "key": "epubOverlayPreferences",
+      "type": "EpubOverlayPreferences",
+      "default_expression": "AppConfig",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 21
+        }
+      ]
+    },
+    {
+      "key": "epubPageTransitionStyle",
+      "type": "PageTransitionStyle",
+      "default_expression": ".scroll",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "key": "epubRenderingEngine",
+      "type": "EpubRenderingEngine",
+      "default_expression": ".webView",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "key": "epubShowsStatusBarWhileReading",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 20
+        }
+      ]
+    },
+    {
+      "key": "epubTapScrollPercentage",
+      "type": "Double",
+      "default_expression": "AppConfig.epubTapScrollPercentage",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 17
+        }
+      ]
+    },
+    {
+      "key": "epubTapZoneInversionMode",
+      "type": "TapZoneInversionMode",
+      "default_expression": "AppConfig",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 24
+        }
+      ]
+    },
+    {
+      "key": "epubTapZoneMode",
+      "type": "TapZoneMode",
+      "default_expression": "AppConfig.epubTapZoneMode",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+          "line": 23
+        }
+      ]
+    },
+    {
+      "key": "forceDefaultReadingDirection",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "key": "imageUpscaleAutoTriggerScale",
+      "type": "Double",
+      "default_expression": "AppConfig.imageUpscaleAutoTriggerScale",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 28
+        }
+      ]
+    },
+    {
+      "key": "imageUpscalingMode",
+      "type": "ReaderImageUpscalingMode",
+      "default_expression": "AppConfig.imageUpscalingMode",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 26
+        }
+      ]
+    },
+    {
+      "key": "isLoggedInV2",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsSSEView.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "isolateCoverPage",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "key": "keepScreenAwakeWhileReading",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 22
+        }
+      ]
+    },
+    {
+      "key": "mangaTranslation",
+      "type": "inferred",
+      "default_expression": "MangaTranslationPreferences()",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+          "line": 4
+        },
+        {
+          "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+          "line": 4
+        }
+      ]
+    },
+    {
+      "key": "maxCoverCacheSize",
+      "type": "Int",
+      "default_expression": "512",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "maxPageCacheSize",
+      "type": "Int",
+      "default_expression": "8",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "modelLibrary",
+      "type": "inferred",
+      "default_expression": "ModelLibraryConfiguration()",
+      "origins": [
+        {
+          "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+          "line": 6
+        }
+      ]
+    },
+    {
+      "key": "offlineAutoDeleteRead",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "offlineFirstReading",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "pageLayout",
+      "type": "PageLayout",
+      "default_expression": ".auto",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "key": "pageTransitionStyle",
+      "type": "PageTransitionStyle",
+      "default_expression": ".cover",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 23
+        }
+      ]
+    },
+    {
+      "key": "pdfDefaultReadingDirection",
+      "type": "ReadingDirection",
+      "default_expression": ".ltr",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 7
+        }
+      ]
+    },
+    {
+      "key": "pdfForceDefaultReadingDirection",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "pdfIsolateCoverPage",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "key": "pdfOfflineRenderQuality",
+      "type": "PdfOfflineRenderQuality",
+      "default_expression": "AppConfig.pdfOfflineRenderQuality",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 21
+        }
+      ]
+    },
+    {
+      "key": "pdfPagePresentation",
+      "type": "PdfPagePresentation",
+      "default_expression": "AppConfig.pdfPagePresentation",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "pdfReaderBackground",
+      "type": "ReaderBackground",
+      "default_expression": ".system",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 6
+        }
+      ]
+    },
+    {
+      "key": "privacyProtection",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsAppearanceView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "progressRecordingThreshold",
+      "type": "Int",
+      "default_expression": "AppConfig.progressRecordingThreshold",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "key": "readListContinuationEnabled",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsReadListContinuationToggle.swift",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "key": "readerBackground",
+      "type": "ReaderBackground",
+      "default_expression": ".system",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "requestTimeout",
+      "type": "Double",
+      "default_expression": "15",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "searchIgnoreFilters",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "key": "showBookCardSeriesTitle",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 19
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "showDashboardCardKindMenu",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsDashboardCardKindMenuToggle.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "showDashboardSectionGradientBackground",
+      "type": "Bool",
+      "default_expression": "AppConfig.showDashboardSectionGradientBackground",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsDashboardSectionBackgroundToggle.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "showDivinaControlsGradientBackground",
+      "type": "Bool",
+      "default_expression": "AppConfig.showDivinaControlsGradientBackground",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 35
+        }
+      ]
+    },
+    {
+      "key": "showDivinaProgressBarWhileReading",
+      "type": "Bool",
+      "default_expression": "AppConfig.showDivinaProgressBarWhileReading",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 38
+        }
+      ]
+    },
+    {
+      "key": "showKeyboardHelpOverlay",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 17
+        }
+      ]
+    },
+    {
+      "key": "showPageNumber",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 20
+        }
+      ]
+    },
+    {
+      "key": "showPageShadow",
+      "type": "Bool",
+      "default_expression": "AppConfig.showPageShadow",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 21
+        }
+      ]
+    },
+    {
+      "key": "showPdfControlsGradientBackground",
+      "type": "Bool",
+      "default_expression": "AppConfig.showPdfControlsGradientBackground",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "key": "showPdfProgressBarWhileReading",
+      "type": "Bool",
+      "default_expression": "AppConfig.showPdfProgressBarWhileReading",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "key": "showTapZoneHints",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "key": "spaceKeyAction",
+      "type": "SpaceKeyAction",
+      "default_expression": ".toggleControls",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "key": "splitWidePageMode",
+      "type": "SplitWidePageMode",
+      "default_expression": ".none",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "key": "suggestNextUnreadBook",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "key": "tapZoneInversionMode",
+      "type": "TapZoneInversionMode",
+      "default_expression": ".auto",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "key": "tapZoneMode",
+      "type": "TapZoneMode",
+      "default_expression": ".defaultLayout",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "key": "taskQueueStatus",
+      "type": "TaskQueueSSEDto",
+      "default_expression": "TaskQueueSSEDto()",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsView.swift",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "key": "thumbnailBlurUnreadCovers",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 24
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 17
+        }
+      ]
+    },
+    {
+      "key": "thumbnailPreserveAspectRatio",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 20
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "key": "thumbnailShowProgressBar",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 23
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "key": "thumbnailShowShadow",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 21
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "key": "thumbnailShowUnreadIndicator",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift",
+          "line": 22
+        },
+        {
+          "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "key": "useClassicPadNavigation",
+      "type": "Bool",
+      "default_expression": "false",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/SettingsAppearanceView.swift",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "key": "useNativePdfReader",
+      "type": "Bool",
+      "default_expression": "true",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "key": "webtoonPageWidthPercentage",
+      "type": "Double",
+      "default_expression": "100.0",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "key": "webtoonTapScrollPercentage",
+      "type": "Double",
+      "default_expression": "80.0",
+      "origins": [
+        {
+          "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+          "line": 17
+        }
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 58
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 108
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 148
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 171
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Edit\"), action: beginCatalogEdit)",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 193
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(String(localized: \"Catalog URL\"), text: $catalogURLDraft)",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 210
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 221
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Save\"), action: saveCatalogURL)",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 228
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Delete\"), role: .destructive) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 233
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Cancel\"), role: .cancel) {}",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift",
+      "line": 238
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(String(localized: \"Display Name\"), text: $displayName)",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 70
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Base URL\"), selection: $endpointPreset) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 71
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(String(localized: \"Custom Base URL\"), text: $baseURL)",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 82
+    },
+    {
+      "kind": "SecureField",
+      "expression": "SecureField(String(localized: \"API Key\"), text: $apiKey)",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 90
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 99
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(String(localized: \"Model\"), text: $model)",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 117
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 122
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift",
+      "line": 137
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 26
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 38
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 60
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"OK\"), role: .cancel) {}",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 106
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Delete\"), role: .destructive) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 113
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Cancel\"), role: .cancel) {}",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 118
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 126
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 133
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift",
+      "line": 139
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Text Direction\"), selection: $preferences.textDirection) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+      "line": 47
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Target Language\"), selection: $preferences.targetLanguage) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+      "line": 59
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Default Source Language\"), selection: $preferences.sourceLanguage) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+      "line": 71
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+      "line": 82
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $preferences.includeMetadata) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+      "line": 107
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive, action: clearTranslations) {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+      "line": 117
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift",
+      "line": 141
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubOverlayPreferencesEditor.swift",
+      "line": 38
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(title, selection: selection) {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubOverlayPreferencesEditor.swift",
+      "line": 60
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(\"Preset Name\", text: $newName)",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 59
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Cancel\", role: .cancel) {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 60
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Rename\") {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 64
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 85
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 99
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 106
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 115
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 122
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift",
+      "line": 131
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(value: binding, in: range, step: step)",
+      "file": "KMReader/Features/Settings/Components/LabeledSliderRow.swift",
+      "line": 34
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsServers) {",
+      "file": "KMReader/Features/Settings/Components/SettingsServerCardView.swift",
+      "line": 16
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Preferred Direction\", selection: readDirectionSelection) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 134
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: forceDefaultReadingDirectionSelection) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 146
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Page Layout\", selection: $pageLayout) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 156
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Split Wide Pages\", selection: $splitWidePageMode) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 170
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $soloCoverPage) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 185
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Reader Background\", selection: $readerBackground) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 198
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showPageNumber) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 209
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showPageShadow) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 218
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showControlsGradientBackground) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 227
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showProgressBarWhileReading) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 236
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 254
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Page Transition Style\", selection: pageTransitionStyleSelection) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 270
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $animateTapTurns) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 285
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Tap Zone Mirroring\", selection: $tapZoneInversionMode) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 310
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showTapZoneHints) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 321
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 338
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: doubleTapZoomEnabled) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 354
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 365
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Image Preloading\", selection: $divinaPreloadProfile) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 380
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Border Cropping\", selection: $divinaPageBorderCropMode) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 395
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Waifu2x Mode\", selection: imageUpscalingModeSelection) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 407
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 427
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: liveTextEnabled) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 442
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableDivinaImageContextMenu) {",
+      "file": "KMReader/Features/Settings/DivinaPreferencesView.swift",
+      "line": 455
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Rendering Engine\"), selection: $renderingEngine) {",
+      "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+      "line": 52
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"epub.reading_flow\"), selection: $flowStyle) {",
+      "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+      "line": 61
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $animateEpubTapTurns) {",
+      "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+      "line": 66
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Page Transition Style\"), selection: $epubPageTransitionStyle) {",
+      "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+      "line": 79
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(value: $tapScrollPercentage, in: 25...100, step: 5)",
+      "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+      "line": 100
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Tap Zone Mirroring\", selection: $epubTapZoneInversionMode) {",
+      "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+      "line": 126
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $epubShowsStatusBarWhileReading) {",
+      "file": "KMReader/Features/Settings/EpubReaderSettingsView.swift",
+      "line": 140
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 143
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 165
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 176
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 184
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Typeface\"), selection: $draft.fontFamily) {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 197
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(\"\", isOn: fontWeightEnabled)",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 208
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 223
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 230
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(String(localized: \"Page Layout\"), selection: $draft.columnCount) {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 247
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(String(localized: \"Advanced Layout\"), isOn: $draft.advancedLayout)",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 265
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 297
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 378
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 384
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 393
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 399
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(\"Preset Name\", text: $newPresetName)",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 444
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Cancel\", role: .cancel) {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 445
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Save\") {",
+      "file": "KMReader/Features/Settings/EpubThemePreferencesView.swift",
+      "line": 448
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: license.sourceURL) {",
+      "file": "KMReader/Features/Settings/OpenSourceLicenseDetailView.swift",
+      "line": 21
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink {",
+      "file": "KMReader/Features/Settings/OpenSourceLicensesView.swift",
+      "line": 19
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $useNativePdfReader) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 27
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Preferred Direction\", selection: $defaultReadingDirection) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 43
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $forceDefaultReadingDirection) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 56
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Page Presentation\", selection: $pagePresentation) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 66
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $soloCoverPage) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 80
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Reader Background\", selection: $readerBackground) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 92
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showControlsGradientBackground) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 101
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showProgressBarWhileReading) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 110
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Render Quality\", selection: $pdfOfflineRenderQuality) {",
+      "file": "KMReader/Features/Settings/PdfPreferencesView.swift",
+      "line": 124
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $offlineFirstReading) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 48
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: autoDeleteReadBinding) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 59
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Record Progress After\", selection: $progressRecordingThreshold) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 71
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $suggestNextUnreadBook) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 86
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showKeyboardHelpOverlay) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 101
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(selection: $spaceKeyAction) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 110
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $autoFullscreenOnOpen) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 127
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $keepScreenAwakeWhileReading) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 138
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableReaderLiveActivity) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 151
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Cancel\"), role: .cancel) {}",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 168
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Confirm\"), role: .destructive) {",
+      "file": "KMReader/Features/Settings/ReaderPreferencesView.swift",
+      "line": 169
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 13
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: guideURL) {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 40
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: privacyURL) {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 53
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: termsURL) {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 68
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: reviewURL) {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 81
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: discordURL) {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 94
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: sourceURL) {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 107
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink {",
+      "file": "KMReader/Features/Settings/SettingsAboutView.swift",
+      "line": 122
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsAccountView.swift",
+      "line": 56
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsApiKey) {",
+      "file": "KMReader/Features/Settings/SettingsAccountView.swift",
+      "line": 73
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsAuthenticationActivity) {",
+      "file": "KMReader/Features/Settings/SettingsAccountView.swift",
+      "line": 80
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsAppearanceView.swift",
+      "line": 41
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(",
+      "file": "KMReader/Features/Settings/SettingsAppearanceView.swift",
+      "line": 83
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $useClassicPadNavigation) {",
+      "file": "KMReader/Features/Settings/SettingsAppearanceView.swift",
+      "line": 96
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $privacyProtection) {",
+      "file": "KMReader/Features/Settings/SettingsAppearanceView.swift",
+      "line": 109
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $searchIgnoreFilters) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 23
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $cardTextOverlayMode) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 60
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $coverOnlyCards) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 70
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showBookCardSeriesTitle) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 80
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $thumbnailPreserveAspectRatio) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 90
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $thumbnailShowShadow) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 103
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $thumbnailShowUnreadIndicator) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 112
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $thumbnailBlurUnreadCovers) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 121
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $thumbnailShowProgressBar) {",
+      "file": "KMReader/Features/Settings/SettingsBrowseView.swift",
+      "line": 130
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 118
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(\"GB\", text: cacheSizeTextFieldBinding)",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 129
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 175
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 181
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 200
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(\"MB\", text: coverCacheSizeTextFieldBinding)",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 211
+    },
+    {
+      "kind": "Slider",
+      "expression": "Slider(",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 240
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(\"Days\", text: coverCacheExpirationDaysTextFieldBinding)",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 249
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 293
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 299
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Clear\", role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 313
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Cancel\", role: .cancel) {}",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 322
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Clear\", role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 329
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Cancel\", role: .cancel) {}",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 338
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Clear\", role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 348
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Cancel\", role: .cancel) {}",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 357
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Clear\", role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 367
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(\"Cancel\", role: .cancel) {}",
+      "file": "KMReader/Features/Settings/SettingsCacheView.swift",
+      "line": 376
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showDashboardCardKindMenu) {",
+      "file": "KMReader/Features/Settings/SettingsDashboardCardKindMenuToggle.swift",
+      "line": 14
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $showDashboardSectionGradientBackground) {",
+      "file": "KMReader/Features/Settings/SettingsDashboardSectionBackgroundToggle.swift",
+      "line": 14
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(\"\", isOn: controller.sectionToggleBinding(for: section))",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 57
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 85
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 104
+    },
+    {
+      "kind": "EditButton",
+      "expression": "EditButton()",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 119
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(\"\", isOn: controller.sectionToggleBinding(for: section))",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 156
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 212
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 233
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 305
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 315
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 374
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 393
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 409
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsDashboardView.swift",
+      "line": 454
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsLogsView.swift",
+      "line": 95
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(String(localized: \"settings.logs.search\"), text: $searchText)",
+      "file": "KMReader/Features/Settings/SettingsLogsView.swift",
+      "line": 118
+    },
+    {
+      "kind": "Picker",
+      "expression": "Picker(\"Level\", selection: selectedLevelBinding) {",
+      "file": "KMReader/Features/Settings/SettingsLogsView.swift",
+      "line": 127
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsLogsView.swift",
+      "line": 156
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsLogsView.swift",
+      "line": 188
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(action: action) {",
+      "file": "KMReader/Features/Settings/SettingsLogsView.swift",
+      "line": 338
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+      "line": 127
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+      "line": 136
+    },
+    {
+      "kind": "Stepper",
+      "expression": "Stepper(value: $apiRetryCount, in: 0...5) {",
+      "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+      "line": 145
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(String(localized: \"Timeout Seconds\"), text: text)",
+      "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+      "line": 178
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(\"\", value: value, format: .number)",
+      "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+      "line": 206
+    },
+    {
+      "kind": "TextField",
+      "expression": "TextField(String(localized: \"Timeout Seconds\"), value: value, format: .number)",
+      "file": "KMReader/Features/Settings/SettingsNetworkView.swift",
+      "line": 212
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $readListContinuationEnabled) {",
+      "file": "KMReader/Features/Settings/SettingsReadListContinuationToggle.swift",
+      "line": 18
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableSSE) {",
+      "file": "KMReader/Features/Settings/SettingsSSEView.swift",
+      "line": 17
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableSSEAutoRefresh) {",
+      "file": "KMReader/Features/Settings/SettingsSSEView.swift",
+      "line": 50
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableSSENotify) {",
+      "file": "KMReader/Features/Settings/SettingsSSEView.swift",
+      "line": 76
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableBrowseHandoff) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 47
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableReaderHandoff) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 56
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableSpotlightIndexing) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 67
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableSpotlightBookIndexing) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 89
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: $enableSpotlightSeriesIndexing) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 92
+    },
+    {
+      "kind": "Toggle",
+      "expression": "Toggle(isOn: indexAllLibrariesBinding) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 106
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 129
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Select All Libraries\")) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 160
+    },
+    {
+      "kind": "Button",
+      "expression": "Button(String(localized: \"Clear Selection\"), role: .destructive) {",
+      "file": "KMReader/Features/Settings/SettingsSystemFeaturesView.swift",
+      "line": 164
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsLibraries) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 34
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsAccount) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 42
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsAppearance) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 53
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsBrowse) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 56
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsDashboard) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 59
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsReadingStats) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 65
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsMangaTranslation) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 72
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsReading) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 79
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsDivinaReader) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 82
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsPdfReader) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 86
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsEpubTheme) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 91
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsEpubSettings) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 94
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsServerInfo) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 102
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsHistory) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 111
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsMedia) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 118
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsSSE) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 129
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsSystemFeatures) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 133
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsNetwork) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 141
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsCache) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 145
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsLogs) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 149
+    },
+    {
+      "kind": "NavigationLink",
+      "expression": "NavigationLink(value: NavDestination.settingsAbout) {",
+      "file": "KMReader/Features/Settings/SettingsView.swift",
+      "line": 155
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SubscriptionView.swift",
+      "line": 100
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SubscriptionView.swift",
+      "line": 137
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SubscriptionView.swift",
+      "line": 166
+    },
+    {
+      "kind": "Button",
+      "expression": "Button {",
+      "file": "KMReader/Features/Settings/SubscriptionView.swift",
+      "line": 200
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: termsURL) {",
+      "file": "KMReader/Features/Settings/SubscriptionView.swift",
+      "line": 227
+    },
+    {
+      "kind": "Link",
+      "expression": "Link(destination: privacyURL) {",
+      "file": "KMReader/Features/Settings/SubscriptionView.swift",
+      "line": 239
+    }
+  ],
+  "files_sha256": {
+    "KMReader/Core/Models/ModelLibraryConfiguration.swift": "6a95247aa1700a01d16359efcfb8da6b905a37843e52f9ed4427de976b8748bd",
+    "KMReader/Features/Dashboard/Models/DashboardSection.swift": "eb9f2b9fa6ecc4460c66cb8d38badf41f1787a59e43578778377be0b3b03d046",
+    "KMReader/Features/MangaTranslation/Models/MangaProviderConfig.swift": "b5d328516d8db40128033c172e0b75735559f1b8d5ec16aac8196150b009cca5",
+    "KMReader/Features/MangaTranslation/Models/MangaTranslationPreferences.swift": "479a86f1967faa5b88957771b84cadcc92b4863c4b4ade9f2e641801782a351a",
+    "KMReader/Features/MangaTranslation/Views/MangaModelManagementView.swift": "2605c8a6153db53618221a0a6fb2a6d927d551d0398da6c9b3b1526340117bb6",
+    "KMReader/Features/MangaTranslation/Views/MangaProviderEditorView.swift": "ed9818368debeabc842bfde094ec5c5231c8e0f09ec074172fc79dee13ea2602",
+    "KMReader/Features/MangaTranslation/Views/MangaProviderManagementView.swift": "6f847040fa533024ebb7d5ca3151b2101939716a2dd6bd4a49248fb91ec4090c",
+    "KMReader/Features/MangaTranslation/Views/MangaTranslationSettingsView.swift": "dc2ae5c3e186cec5f03f45e8e25cd47957d7b36b15ee573b7585de43fd44909e",
+    "KMReader/Features/Reader/Models/Epub/EpubOverlayPreferences.swift": "c477c0fd049067dbf45260c0ecf467dccd724aed0372d5a0b50f0c188e4e45f7",
+    "KMReader/Features/Reader/Models/Epub/EpubThemePreferences.swift": "a0fcb06b4f9181d334a284e046695838f217cb1595af18cf8f84972308556016",
+    "KMReader/Features/Reader/Views/Sheets/Epub/EpubOverlayPreferencesEditor.swift": "83e67e4d399316acd84ef9f126f014beaa019d09478d7aaac2ff8c3c46a2101d",
+    "KMReader/Features/Reader/Views/Sheets/Epub/EpubThemePresetsView.swift": "188d753f8c9f775ddd8c8fe1c7e917b8d13aff3a2c615fa3d936c0a97e40b2b4",
+    "KMReader/Features/Settings/AppIconOption.swift": "47102be70aced660eb7f970e4349413750b71c547b6aa25ef11e36a77cc5f0f7",
+    "KMReader/Features/Settings/Components/AppIconPreview.swift": "afcb8c88d3390378751edd252c50136cbb00c2b2c1815255e7756d20f33a0684",
+    "KMReader/Features/Settings/Components/LabeledSliderRow.swift": "995039450e96aacbe2ecb56c2db95c2361efec3aa58f2851463686d381524f60",
+    "KMReader/Features/Settings/Components/SettingsBadgeRow.swift": "aa3f8090aa728b0f0570109dbef7374054d27c2c305689d0f8b8eec8f9723245",
+    "KMReader/Features/Settings/Components/SettingsBrowseCardPreview.swift": "5a7bfebf6d7085d0d36ec96af7a96381defe349ed9f2d452859c136356e4d1be",
+    "KMReader/Features/Settings/Components/SettingsSection.swift": "89f1e6ad6eed9f35400522a5f67cfc4f4ebd1fbb8d329769fedcd1d8e8e7397d",
+    "KMReader/Features/Settings/Components/SettingsSectionRow.swift": "99d142b866babeb16302c2e5b0a9ae57ae1cc2869ec0675f113c0cf8f8969d0b",
+    "KMReader/Features/Settings/Components/SettingsServerCardView.swift": "205984fc2d82c0a6cdf4531b4715c1e1d7da58ae82e08c2c22f00ab53f02d593",
+    "KMReader/Features/Settings/Components/TapZoneModePicker.swift": "2195469a0bb91d22f5deb103d501188014b521557fe0fc9e916041dd62bc55fe",
+    "KMReader/Features/Settings/Components/TapZonePreview.swift": "0f99022e13f0d9a77c1baade347e3139745a080a85baea2e27d23f39fae353f4",
+    "KMReader/Features/Settings/DivinaPreferencesView.swift": "91d6723a45f6cb182354af1d6577e7cd2710d8c876123ead631bd88ee39285d4",
+    "KMReader/Features/Settings/EpubReaderSettingsView.swift": "42c954add4def931434e0d8463964a0bac6624d9b67aa0924c9b43f0cf6593d0",
+    "KMReader/Features/Settings/EpubThemePreferencesView.swift": "97311ffa65bb766d9a7b07a33b8765abb67df53a8388b420de4c22c915a707a6",
+    "KMReader/Features/Settings/OpenSourceLicense.swift": "66eaa1502dc77f54109dd9f771b82361b9f40be66736f8ae960d0ebae4594593",
+    "KMReader/Features/Settings/OpenSourceLicenseDetailView.swift": "91f3a05c8bf182040724f0ee5d38a08acffc0bbab91f398d32bfb315ee4ece85",
+    "KMReader/Features/Settings/OpenSourceLicenseStore.swift": "0c839342e6500b03f4fb7ed0b6abc0c15b8ae5e4cdbb3811a43806cbe0d91957",
+    "KMReader/Features/Settings/OpenSourceLicensesView.swift": "234d5596e21df31a3cace10cc02594e2ebf397df0552aa3d011697d8487c7197",
+    "KMReader/Features/Settings/PdfPreferencesView.swift": "9e08ced0086c862f80fa21dea21ff9dc9bfaedc4ab456a6ac8ec158c46e4f205",
+    "KMReader/Features/Settings/ReaderPreferencesView.swift": "911eec8347d3f2d6939a4fcf535907aa629687e94fdee6baef7740efa93e716d",
+    "KMReader/Features/Settings/SettingsAboutView.swift": "87d1eb7336e9dc1299ab2d16287cfd01cff2e928a9dd2534ea6ae77acb8c65e9",
+    "KMReader/Features/Settings/SettingsAccountView.swift": "713d5ec276555bacb8cf3f1bb43f012ca9d270f5cf0f02ae4a7d271628a9caeb",
+    "KMReader/Features/Settings/SettingsAppearanceView.swift": "d9fb711d735d0b62c699ad1dfec71be4397c563ef3e679cb5cbf2519ea1e33b8",
+    "KMReader/Features/Settings/SettingsBrowseView.swift": "a830ec8f7c72410d7a95582a81c4dfb6759a1b68f8b97275215f2a78a36a5b79",
+    "KMReader/Features/Settings/SettingsCacheView.swift": "9b645f9fc391bc4e9067a9fbbf7bfc7114208a426e2f35b985ce0c511d30ca89",
+    "KMReader/Features/Settings/SettingsDashboardCardKindMenuToggle.swift": "4dd0ef86226cde1871b4093a854fd5c34971aa2ecdf8d9f26d3b37330d6681a4",
+    "KMReader/Features/Settings/SettingsDashboardSectionBackgroundToggle.swift": "febfe73531682962d7fe94853abfced4340021a5fa325c93d4ff9dd3178a9cf2",
+    "KMReader/Features/Settings/SettingsDashboardView.swift": "7d44204a8ed9e904278f424345c64d556eea0a2462e66454a253e3db20928f51",
+    "KMReader/Features/Settings/SettingsLogsView.swift": "6dc6d5d24e63b7598b505553d38af19f1426f781ead02d6547a26fd8c778cae8",
+    "KMReader/Features/Settings/SettingsNetworkView.swift": "ba4debe152293f69e54edd47e79e20b975a871b9d2792e8690c57014a05d45ce",
+    "KMReader/Features/Settings/SettingsReadListContinuationToggle.swift": "4e5a3c2f35d1f0a03d475436eb6cdd6d020295e90f92cb1b7c5317052bffaecc",
+    "KMReader/Features/Settings/SettingsSSEView.swift": "c0dc021ee8749e225c6c02b66be879e25818c9461908ff044c5eeca7ad08e26a",
+    "KMReader/Features/Settings/SettingsSystemFeaturesView.swift": "a1a67db41f53da01d0a5ab721c7d35e4d8863948782ae5a0bbc814f203c16f66",
+    "KMReader/Features/Settings/SettingsView.swift": "74102fabd8f4333cb9a33b05209e50c772f03323146e086d88c8dc8e66779bc4",
+    "KMReader/Features/Settings/SettingsView_macOS.swift": "fb337f2d2de74b467c92ec42ac38b9846da0608f172e8072683745eaa2faa00c",
+    "KMReader/Features/Settings/SubscriptionView.swift": "986b9e3e086276088793b578feecead66eae3ed7567078a458fa8b142e95676f"
+  }
+}

@@ -9,6 +9,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'pdf_raster_pages.dart';
+import 'pdf_preferences.dart';
 import 'reader_page.dart';
 
 class PdfRasterReader extends StatefulWidget {
@@ -118,7 +119,29 @@ class _PdfRasterReaderState extends State<PdfRasterReader> {
         );
       }
       final source = snapshot.data!;
+      final defaults = PdfPreferences.fromJson(
+        object(widget.repository.store.setting<dynamic>('pdfDefault')),
+      );
       return ReaderPage(
+        initialPreferences:
+            ReaderPreferences.fromJson(
+              object(widget.repository.store.setting<dynamic>('readerDefault')),
+            ).copy(
+              background: defaults.background,
+              direction: defaults.rtl
+                  ? ReadingDirection.rtl
+                  : ReadingDirection.ltr,
+              useSeriesDirection: defaults.useSeriesDirection,
+              spread: defaults.presentation == PdfPresentation.dualContinuous,
+              mode:
+                  defaults.presentation == PdfPresentation.singleContinuous ||
+                      defaults.presentation == PdfPresentation.dualContinuous
+                  ? ReadingMode.vertical
+                  : ReadingMode.paged,
+              soloCover: defaults.coverSolo,
+              controlsGradient: defaults.controlsGradient,
+              showProgress: defaults.showProgress,
+            ),
         repository: widget.repository,
         book: Book({
           ...widget.book.json,

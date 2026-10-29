@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
@@ -10,6 +11,7 @@ import 'package:sqlite3/sqlite3.dart';
 export 'credentials.dart';
 
 import 'api.dart';
+import 'network_preferences.dart';
 import 'credentials.dart';
 import 'background_downloads.dart';
 import 'device_lock.dart';
@@ -33,9 +35,25 @@ class AppController extends ChangeNotifier {
   final Directory directory;
   final CredentialVault vault;
   final KomgaApi Function(Uri, Authentication, String)? apiFactory;
-  KomgaApi _api(Uri base, Authentication authentication, String credential) =>
-      apiFactory?.call(base, authentication, credential) ??
-      KomgaApi(base, authentication: authentication, credential: credential);
+  KomgaApi _api(Uri base, Authentication authentication, String credential) {
+    final api =
+        apiFactory?.call(base, authentication, credential) ??
+        KomgaApi(base, authentication: authentication, credential: credential);
+    api.readNetworkPreferences = () => NetworkPreferences.fromStore(store);
+    return api;
+  }
+
+  void settingsChanged() => notifyListeners();
+  Future<void> setAppIcon(String name) async {
+    if (!const ['default', 'classic', 'legacy'].contains(name)) {
+      throw ArgumentError.value(name);
+    }
+    await const MethodChannel('dev.levalue.kmreader/privacy')
+        .invokeMethod<void>('setAppIcon', name);
+    store.setSetting('appIcon', name);
+    notifyListeners();
+  }
+
   Repository? repository;
   String? startupError;
   int _selection = 0;
@@ -80,6 +98,17 @@ class AppController extends ChangeNotifier {
         controller.startupError = e.toString();
       }
     }
+    final savedIcon = controller.store.setting<dynamic>('appIcon');
+    if (Platform.isWindows &&
+        const ['default', 'classic', 'legacy'].contains(savedIcon)) {
+      try {
+        await controller.setAppIcon(savedIcon as String);
+      } on PlatformException {
+        /* Keep the system icon if unavailable. */
+      } on MissingPluginException {
+        /* Older native hosts use the default icon. */
+      }
+    }
     return controller;
   }
 
@@ -96,7 +125,7 @@ class AppController extends ChangeNotifier {
     var credential = authentication == Authentication.apiKey
         ? password.trim()
         : base64Encode(utf8.encode('$username:$password'));
-    final api = _api(base, authentication, credential);
+    final api = _api(base, authentication, credential)..authenticating = true;
     String? createdKeyId;
     try {
       await api.request('/api/v1/client-settings/global/list');

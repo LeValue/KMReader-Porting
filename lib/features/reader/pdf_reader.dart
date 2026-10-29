@@ -12,6 +12,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'pdf_preferences.dart';
+import 'progress_gate.dart';
 import 'reader_display.dart';
 
 class PdfReader extends StatefulWidget {
@@ -41,10 +42,11 @@ class _PdfReaderState extends State<PdfReader> {
   int _page = 1;
   int _focusedPage = 1;
   late PdfPreferences _preferences;
+  late ReaderProgressGate _progressGate;
   PdfReaderLayout? _layout;
   Size _viewport = Size.zero;
   bool _reconfiguring = false, _navigating = false;
-  bool _openingNext = false;
+  bool _openingNext = false, _controls = true;
   int _passwordAttempts = 0;
   Timer? _snapTimer;
   String get _key => 'pdf:${widget.book.id}';
@@ -174,7 +176,7 @@ class _PdfReaderState extends State<PdfReader> {
       }
       if (!mounted) return;
       setState(() => _page = page);
-      if (record && !widget.incognito) {
+      if (record && !widget.incognito && _progressGate.allows(page)) {
         widget.repository.setProgress(widget.book, page);
       }
     } finally {
@@ -341,6 +343,8 @@ class _PdfReaderState extends State<PdfReader> {
   @override
   void initState() {
     super.initState();
+    _controls =
+        widget.repository.store.setting<bool>('autoFullscreenOnOpen') != true;
     _page = widget.book.completed
         ? 1
         : widget.book.page.clamp(1, widget.book.pages.clamp(1, 1000000));
@@ -349,7 +353,14 @@ class _PdfReaderState extends State<PdfReader> {
       widget.repository.profile.id,
       _key,
     );
-    _preferences = PdfPreferences.fromJson(object(cached));
+    _preferences = PdfPreferences.fromJson({
+      ...object(widget.repository.store.setting<dynamic>('pdfDefault')),
+      ...object(cached),
+    });
+    _progressGate = ReaderProgressGate(
+      widget.book,
+      widget.repository.store.setting<int>('progressRecordingThreshold') ?? 0,
+    );
     final series = object(
       widget.repository.store.cached(
         widget.repository.profile.id,
@@ -406,27 +417,32 @@ class _PdfReaderState extends State<PdfReader> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.book.title),
-      actions: [
-        if (widget.incognito) const Icon(CupertinoIcons.eye_slash),
-        IconButton(
-          tooltip: tr(context, 'PDF Settings'),
-          onPressed: _settings,
-          icon: const Icon(CupertinoIcons.slider_horizontal_3),
-        ),
-        IconButton(
-          tooltip: tr(context, 'Search'),
-          onPressed: () => setState(() => _search = !_search),
-          icon: const Icon(CupertinoIcons.search),
-        ),
-        IconButton(
-          tooltip: tr(context, 'Table of Contents'),
-          onPressed: _outline,
-          icon: const Icon(CupertinoIcons.list_bullet),
-        ),
-      ],
-    ),
+    appBar: _controls
+        ? AppBar(
+            backgroundColor: _preferences.controlsGradient
+                ? null
+                : Colors.transparent,
+            title: Text(widget.book.title),
+            actions: [
+              if (widget.incognito) const Icon(CupertinoIcons.eye_slash),
+              IconButton(
+                tooltip: tr(context, 'PDF Settings'),
+                onPressed: _settings,
+                icon: const Icon(CupertinoIcons.slider_horizontal_3),
+              ),
+              IconButton(
+                tooltip: tr(context, 'Search'),
+                onPressed: () => setState(() => _search = !_search),
+                icon: const Icon(CupertinoIcons.search),
+              ),
+              IconButton(
+                tooltip: tr(context, 'Table of Contents'),
+                onPressed: _outline,
+                icon: const Icon(CupertinoIcons.list_bullet),
+              ),
+            ],
+          )
+        : null,
     body: SafeArea(
       top: false,
       bottom: false,
@@ -477,6 +493,17 @@ class _PdfReaderState extends State<PdfReader> {
                       return KeyEventResult.ignored;
                     }
                     final key = event.logicalKey;
+                    if (key == LogicalKeyboardKey.space) {
+                      if (widget.repository.store.setting<String>(
+                            'spaceKeyAction',
+                          ) ==
+                          'nextPage') {
+                        unawaited(_forward());
+                      } else {
+                        setState(() => _controls = !_controls);
+                      }
+                      return KeyEventResult.handled;
+                    }
                     final next = _preferences.rtl
                         ? LogicalKeyboardKey.arrowLeft
                         : LogicalKeyboardKey.arrowRight;
@@ -526,9 +553,19 @@ class _PdfReaderState extends State<PdfReader> {
                             (visible, pages, controller) => _layout
                                 ?.nearestPage(visible, preferred: _focusedPage),
                         enableKeyboardNavigation: false,
+                        onGeneralTap: (_, _, details) {
+                          if (details.type == PdfViewerGeneralTapType.tap &&
+                              details.tapOn == PdfViewerPart.background) {
+                            setState(() => _controls = !_controls);
+                            return true;
+                          }
+                          return false;
+                        },
                         backgroundColor: switch (_preferences.background) {
                           'black' => Colors.black,
                           'sepia' => const Color(0xffe8dcc3),
+                          'gray' => Colors.grey,
+                          'system' => Theme.of(context).colorScheme.surface,
                           _ => const Color(0xffeeeeee),
                         },
                         pageImageColorFilter: switch (_preferences.background) {
@@ -591,7 +628,7 @@ class _PdfReaderState extends State<PdfReader> {
                           }
                           setState(() => _page = page);
                           _focusedPage = page;
-                          if (!widget.incognito) {
+                          if (!widget.incognito && _progressGate.allows(page)) {
                             widget.repository.setProgress(widget.book, page);
                           }
                         },
@@ -602,6 +639,13 @@ class _PdfReaderState extends State<PdfReader> {
               },
             ),
           ),
+          if (_ready && _preferences.showProgress)
+            LinearProgressIndicator(
+              value: _controller.pageCount > 0
+                  ? _page / _controller.pageCount
+                  : 0,
+              minHeight: 3,
+            ),
           if (_ready)
             ReaderSafeArea(
               top: false,

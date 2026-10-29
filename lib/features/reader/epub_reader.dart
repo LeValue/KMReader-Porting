@@ -17,6 +17,7 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../../ui/theme.dart';
 import 'epub_document.dart';
+import 'epub_overlay.dart';
 import 'epub_session.dart';
 import 'reader_display.dart';
 import 'tap_zones.dart';
@@ -139,6 +140,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Future<void> _load() async {
     if (_initialized || _session == null || _browser == null) return;
     _initialized = true;
+    _session!.darkEnvironment = Theme.of(context).brightness == Brightness.dark;
     await _call('open', _session!.configuration(_nonce));
   }
 
@@ -152,7 +154,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     _turning = true;
     try {
       Uint8List? snapshot;
-      if (session.preferences.transition != 'none') {
+      if (session.preferences.animate &&
+          session.preferences.transition != 'none') {
         try {
           snapshot = await _browser
               ?.takeScreenshot(
@@ -168,7 +171,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       }
       await _call('turn', {
         'delta': delta,
-        'style': session.preferences.transition,
+        'style': session.preferences.animate
+            ? session.preferences.transition
+            : 'none',
         if (snapshot != null)
           'snapshot': 'data:image/jpeg;base64,${base64Encode(snapshot)}',
       });
@@ -846,183 +851,211 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         );
       }
       final session = snapshot.data!;
-      final background = session.preferences.theme == 'black'
-          ? const Color(0xff1c1c1e)
-          : session.preferences.theme == 'white'
-          ? Colors.white
-          : const Color(0xffefe5d0);
-      final brightness = session.preferences.theme == 'black'
-          ? Brightness.dark
-          : Brightness.light;
+      session.darkEnvironment = Theme.of(context).brightness == Brightness.dark;
+      final background = Color(
+        int.parse(session.themeColors.$1.substring(1), radix: 16) | 0xff000000,
+      );
+      final brightness = session.dark ? Brightness.dark : Brightness.light;
       if (_readerTheme == null || _readerBrightness != brightness) {
         _readerBrightness = brightness;
         _readerTheme = appTheme(brightness);
       }
-      return Theme(
-        data: _readerTheme!,
-        child: Scaffold(
-          backgroundColor: background,
-          appBar: _controls
-              ? AppBar(
-                  backgroundColor: background,
-                  title: Text(widget.book.title),
-                  actions: [
-                    if (widget.incognito) const Icon(CupertinoIcons.eye_slash),
-                    if (session.auxiliary)
-                      IconButton(
-                        tooltip: tr(context, 'Back to Reading'),
-                        onPressed: () => _call('closeAuxiliary'),
-                        icon: const Icon(CupertinoIcons.arrow_uturn_left),
-                      ),
-                    IconButton(
-                      tooltip: tr(context, 'Full Screen'),
-                      onPressed: () => setState(() => _controls = false),
-                      icon: const Icon(
-                        CupertinoIcons.arrow_up_left_arrow_down_right,
-                      ),
+      return ReaderStatusBar(
+        visible:
+            widget.repository.store.setting<bool>(
+              'epubShowsStatusBarWhileReading',
+            ) ==
+            true,
+        child: Theme(
+          data: _readerTheme!,
+          child: Scaffold(
+            backgroundColor: background,
+            appBar: _controls
+                ? AppBar(
+                    backgroundColor: background,
+                    title: Text(
+                      epubOverlayText(context, session, 'controlsHeaderCenter'),
                     ),
-                    PopupMenuButton<String>(
-                      onSelected: (v) => switch (v) {
-                        'contents' => _contents(),
-                        'search' => _search(),
-                        'bookmarks' => _bookmarks(),
-                        'translate' => _translateSelection(),
-                        _ => _settings(),
-                      },
-                      itemBuilder: (_) => [
-                        for (final entry in {
-                          'contents': 'Table of Contents',
-                          'search': 'Search',
-                          'bookmarks': 'Bookmarks',
-                          if (_selection?.trim().isNotEmpty == true)
-                            'translate': 'Translate Selected Text',
-                          'settings': 'Text Settings',
-                        }.entries)
-                          PopupMenuItem(
-                            value: entry.key,
-                            child: Text(tr(context, entry.value)),
-                          ),
-                      ],
-                    ),
-                  ],
-                )
-              : null,
-          body: ReaderSafeArea(
-            top: !_controls,
-            bottom: !_controls,
-            child: Column(
-              children: [
-                if (_error != null)
-                  MaterialBanner(
-                    content: Text(_error!),
                     actions: [
-                      TextButton(
-                        onPressed: () => setState(() => _error = null),
-                        child: Text(tr(context, 'Close')),
+                      if (widget.incognito)
+                        const Icon(CupertinoIcons.eye_slash),
+                      if (session.auxiliary)
+                        IconButton(
+                          tooltip: tr(context, 'Back to Reading'),
+                          onPressed: () => _call('closeAuxiliary'),
+                          icon: const Icon(CupertinoIcons.arrow_uturn_left),
+                        ),
+                      IconButton(
+                        tooltip: tr(context, 'Full Screen'),
+                        onPressed: () => setState(() => _controls = false),
+                        icon: const Icon(
+                          CupertinoIcons.arrow_up_left_arrow_down_right,
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        onSelected: (v) => switch (v) {
+                          'contents' => _contents(),
+                          'search' => _search(),
+                          'bookmarks' => _bookmarks(),
+                          'translate' => _translateSelection(),
+                          _ => _settings(),
+                        },
+                        itemBuilder: (_) => [
+                          for (final entry in {
+                            'contents': 'Table of Contents',
+                            'search': 'Search',
+                            'bookmarks': 'Bookmarks',
+                            if (_selection?.trim().isNotEmpty == true)
+                              'translate': 'Translate Selected Text',
+                            'settings': 'Text Settings',
+                          }.entries)
+                            PopupMenuItem(
+                              value: entry.key,
+                              child: Text(tr(context, entry.value)),
+                            ),
+                        ],
                       ),
                     ],
-                  ),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      InAppWebView(
-                        webViewEnvironment: _environment,
-                        initialUrlRequest: URLRequest(
-                          url: WebUri(session.host.reader.toString()),
-                        ),
-                        initialSettings: InAppWebViewSettings(
-                          javaScriptEnabled: true,
-                          allowFileAccess: false,
-                          allowContentAccess: false,
-                          useShouldOverrideUrlLoading: true,
-                          transparentBackground: false,
-                          supportZoom: false,
-                          isInspectable: false,
-                        ),
-                        onWebViewCreated: (controller) {
-                          _browser = controller;
-                          controller.addJavaScriptHandler(
-                            handlerName: 'readerEvent',
-                            callback: (args) {
-                              if (args.isNotEmpty) _event(args.first);
-                              return null;
-                            },
-                          );
-                        },
-                        onLoadStop: (_, _) => _load(),
-                        shouldOverrideUrlLoading: (controller, action) async {
-                          final uri = action.request.url;
-                          if (uri == null) {
-                            return NavigationActionPolicy.CANCEL;
-                          }
-                          if (!action.isForMainFrame &&
-                              uri.scheme == 'about' &&
-                              ['blank', 'srcdoc'].contains(uri.path)) {
-                            return NavigationActionPolicy.ALLOW;
-                          }
-                          if (!action.isForMainFrame &&
-                              uri.scheme == 'blob' &&
-                              uri.path.startsWith(session.host.base.origin)) {
-                            return NavigationActionPolicy.ALLOW;
-                          }
-                          return uri.scheme == session.host.base.scheme &&
-                                  uri.authority ==
-                                      session.host.base.authority &&
-                                  uri.path.startsWith(session.host.base.path)
-                              ? NavigationActionPolicy.ALLOW
-                              : NavigationActionPolicy.CANCEL;
-                        },
-                        onReceivedError: (_, request, error) {
-                          if (request.isForMainFrame == true && mounted) {
-                            setState(() => _error = error.description);
-                          }
-                        },
-                      ),
-                      if (!session.ready)
-                        ColoredBox(
-                          color: background,
-                          child: const Center(
-                            child: CircularProgressIndicator.adaptive(),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                if (_controls)
-                  ReaderSafeArea(
-                    top: false,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          tooltip: tr(context, 'Previous Page'),
-                          onPressed: () => _turn(-1),
-                          icon: const Icon(CupertinoIcons.chevron_left),
-                        ),
-                        Expanded(
-                          child: Text(
-                            '${session.document.chapters[session.chapter].title} · ${session.page}/${session.pages}',
-                            key: const ValueKey('epub-position'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        if (session.atEnd && widget.onNextBook != null)
-                          IconButton(
-                            tooltip: tr(context, 'Next Book'),
-                            icon: const Icon(Icons.skip_next),
-                            onPressed: widget.onNextBook,
-                          ),
-                        IconButton(
-                          tooltip: tr(context, 'Next Page'),
-                          onPressed: () => _turn(1),
-                          icon: const Icon(CupertinoIcons.chevron_right),
+                  )
+                : null,
+            body: ReaderSafeArea(
+              top: !_controls,
+              bottom: !_controls,
+              child: Column(
+                children: [
+                  if (!_controls)
+                    EpubReadingOverlay(session: session, header: true),
+                  if (_error != null)
+                    MaterialBanner(
+                      content: Text(_error!),
+                      actions: [
+                        TextButton(
+                          onPressed: () => setState(() => _error = null),
+                          child: Text(tr(context, 'Close')),
                         ),
                       ],
                     ),
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        InAppWebView(
+                          webViewEnvironment: _environment,
+                          initialUrlRequest: URLRequest(
+                            url: WebUri(session.host.reader.toString()),
+                          ),
+                          initialSettings: InAppWebViewSettings(
+                            javaScriptEnabled: true,
+                            allowFileAccess: false,
+                            allowContentAccess: false,
+                            useShouldOverrideUrlLoading: true,
+                            transparentBackground: false,
+                            supportZoom: false,
+                            isInspectable: false,
+                          ),
+                          onWebViewCreated: (controller) {
+                            _browser = controller;
+                            controller.addJavaScriptHandler(
+                              handlerName: 'readerEvent',
+                              callback: (args) {
+                                if (args.isNotEmpty) _event(args.first);
+                                return null;
+                              },
+                            );
+                          },
+                          onLoadStop: (_, _) => _load(),
+                          shouldOverrideUrlLoading: (controller, action) async {
+                            final uri = action.request.url;
+                            if (uri == null) {
+                              return NavigationActionPolicy.CANCEL;
+                            }
+                            if (!action.isForMainFrame &&
+                                uri.scheme == 'about' &&
+                                ['blank', 'srcdoc'].contains(uri.path)) {
+                              return NavigationActionPolicy.ALLOW;
+                            }
+                            if (!action.isForMainFrame &&
+                                uri.scheme == 'blob' &&
+                                uri.path.startsWith(session.host.base.origin)) {
+                              return NavigationActionPolicy.ALLOW;
+                            }
+                            return uri.scheme == session.host.base.scheme &&
+                                    uri.authority ==
+                                        session.host.base.authority &&
+                                    uri.path.startsWith(session.host.base.path)
+                                ? NavigationActionPolicy.ALLOW
+                                : NavigationActionPolicy.CANCEL;
+                          },
+                          onReceivedError: (_, request, error) {
+                            if (request.isForMainFrame == true && mounted) {
+                              setState(() => _error = error.description);
+                            }
+                          },
+                        ),
+                        if (!session.ready)
+                          ColoredBox(
+                            color: background,
+                            child: const Center(
+                              child: CircularProgressIndicator.adaptive(),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-              ],
+                  if (!_controls)
+                    EpubReadingOverlay(session: session, header: false),
+                  if (!_controls &&
+                      object(
+                            widget.repository.store.setting<dynamic>(
+                              'epubOverlay',
+                            ),
+                          )['showsReaderProgressBar'] ==
+                          true)
+                    LinearProgressIndicator(
+                      value:
+                          (session.chapter + session.progression) /
+                          session.document.chapters.length,
+                      minHeight: 3,
+                    ),
+                  if (_controls)
+                    ReaderSafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: tr(context, 'Previous Page'),
+                            onPressed: () => _turn(-1),
+                            icon: const Icon(CupertinoIcons.chevron_left),
+                          ),
+                          Expanded(
+                            child: Text(
+                              epubOverlayText(
+                                context,
+                                session,
+                                'controlsFooterCenter',
+                              ),
+                              key: const ValueKey('epub-position'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          if (session.atEnd && widget.onNextBook != null)
+                            IconButton(
+                              tooltip: tr(context, 'Next Book'),
+                              icon: const Icon(Icons.skip_next),
+                              onPressed: widget.onNextBook,
+                            ),
+                          IconButton(
+                            tooltip: tr(context, 'Next Page'),
+                            onPressed: () => _turn(1),
+                            icon: const Icon(CupertinoIcons.chevron_right),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

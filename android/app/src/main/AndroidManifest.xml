@@ -25,11 +25,17 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
+
         </activity>
+        <activity android:name=".LauncherDefault" android:exported="true" android:enabled="true" android:noHistory="true" android:theme="@style/LaunchTheme" android:icon="@mipmap/ic_launcher" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity>
+        <activity-alias android:name=".LauncherClassic" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false" android:icon="@drawable/app_icon_classic" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".LauncherLegacy" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false" android:icon="@drawable/app_icon_legacy" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

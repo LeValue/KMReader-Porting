@@ -23,9 +23,17 @@ class ReadingSession extends ChangeNotifier {
           preferences.splitWide == 'none'
       ? 2
       : 1;
-  int get itemIndex => (page - 1) ~/ step;
-  int get itemCount => (count / step).ceil();
-  bool get atEnd => page + step > count;
+  int get _coverOffset => step == 2 && preferences.soloCover ? 1 : 0;
+  int firstPage(int index) => _coverOffset == 1 && index == 0
+      ? 1
+      : _coverOffset + (index - _coverOffset) * step + 1;
+  int indexForPage(int value) => _coverOffset == 1 && value == 1
+      ? 0
+      : _coverOffset + (value - _coverOffset - 1) ~/ step;
+  int visiblePages(int index) => _coverOffset == 1 && index == 0 ? 1 : step;
+  int get itemIndex => indexForPage(page);
+  int get itemCount => _coverOffset + ((count - _coverOffset) / step).ceil();
+  bool get atEnd => itemIndex + 1 >= itemCount;
   void go(int value) {
     if (count < 1) return;
     final next = value.clamp(1, count);
@@ -34,11 +42,14 @@ class ReadingSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  void next() => go(page + step);
-  void previous() => go(page - step);
+  void next() => go(firstPage((itemIndex + 1).clamp(0, itemCount - 1)));
+  void previous() => go(firstPage((itemIndex - 1).clamp(0, itemCount - 1)));
   void rendered(int value) {
-    if ((value - 1) ~/ step != itemIndex || incognito || count == 0) return;
-    final visible = (value + step - 1).clamp(1, count);
+    if (indexForPage(value) != itemIndex || incognito || count == 0) return;
+    final visible = (firstPage(itemIndex) + visiblePages(itemIndex) - 1).clamp(
+      1,
+      count,
+    );
     if (_committed != visible) {
       _committed = visible;
       onCommit(visible);

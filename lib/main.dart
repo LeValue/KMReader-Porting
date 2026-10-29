@@ -89,6 +89,8 @@ class KMReaderApp extends StatelessWidget {
         ],
         builder: (context, child) => DeviceLockGate(
           lock: app.deviceLock,
+          privacyProtection:
+              app.store.setting<bool>('privacyProtection') == true,
           child: child ?? const SizedBox.shrink(),
         ),
         home: app.repository == null

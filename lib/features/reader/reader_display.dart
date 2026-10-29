@@ -8,8 +8,14 @@ import 'package:flutter/widgets.dart';
 /// Keeps reader display ownership across pushReplacement transitions, restoring
 /// the application window only after the last comic reader has closed.
 class ReaderDisplay extends StatefulWidget {
-  const ReaderDisplay({super.key, required this.child, this.keepAwake = false});
-  final bool keepAwake;
+  const ReaderDisplay({
+    super.key,
+    required this.child,
+    this.keepAwake = false,
+    this.fullscreen = false,
+    this.showKeyboardHelp = false,
+  });
+  final bool keepAwake, fullscreen, showKeyboardHelp;
   final Widget child;
   static const channel = MethodChannel('dev.levalue.kmreader/reader_display');
   // Physical pixels from Android. Flutter's padding can become zero when
@@ -24,15 +30,66 @@ class _ReaderDisplayState extends State<ReaderDisplay>
     with WidgetsBindingObserver {
   static int _readers = 0, _awakeReaders = 0;
   static bool _awake = false;
+  static final _fullscreenOwners = <Object, bool>{};
+  static bool _fullscreen = false;
+  final _owner = Object();
   late final bool _native;
+  bool _keyboardHints = false;
+  Timer? _keyboardHintTimer;
+  Widget get _content => Stack(
+    alignment: Alignment.topLeft,
+    fit: StackFit.expand,
+    children: [
+      widget.child,
+      if (_keyboardHints)
+        Positioned(
+          top: 100,
+          left: 24,
+          right: 24,
+          child: const IgnorePointer(
+            child: Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color(0xdd202020),
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    '← → · PgUp/PgDn · Space · Esc',
+                    style: TextStyle(color: Color(0xffffffff), fontSize: 16),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
   bool _awakeOwned = false;
   ValueListenable<TickerModeData>? _tickerMode;
   void _updateAwakeOwnership() {
+    if (defaultTargetPlatform == TargetPlatform.windows && !kIsWeb) {
+      _fullscreenOwners[_owner] =
+          widget.fullscreen && (_tickerMode?.value.enabled ?? true);
+      _publishFullscreen();
+    }
     final wanted = widget.keepAwake && (_tickerMode?.value.enabled ?? true);
     if (wanted == _awakeOwned) return;
     _awakeOwned = wanted;
     _awakeReaders += wanted ? 1 : -1;
     _setAwake(_awakeReaders > 0 && _foreground);
+  }
+
+  static void _publishFullscreen() {
+    final wanted = _fullscreenOwners.values.any((value) => value);
+    if (wanted == _fullscreen) return;
+    _fullscreen = wanted;
+    unawaited(
+      ReaderDisplay.channel
+          .invokeMethod<void>('setFullscreen', wanted)
+          .catchError((Object _) {}),
+    );
   }
 
   @override
@@ -101,6 +158,14 @@ class _ReaderDisplayState extends State<ReaderDisplay>
   @override
   void initState() {
     super.initState();
+    _keyboardHints =
+        widget.showKeyboardHelp &&
+        defaultTargetPlatform == TargetPlatform.windows;
+    if (_keyboardHints) {
+      _keyboardHintTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _keyboardHints = false);
+      });
+    }
     _android = defaultTargetPlatform == TargetPlatform.android && !kIsWeb;
     _native =
         !kIsWeb &&
@@ -122,7 +187,9 @@ class _ReaderDisplayState extends State<ReaderDisplay>
   @override
   void didUpdateWidget(ReaderDisplay old) {
     super.didUpdateWidget(old);
-    if (_native && widget.keepAwake != old.keepAwake) {
+    if (_native &&
+        (widget.keepAwake != old.keepAwake ||
+            widget.fullscreen != old.fullscreen)) {
       _updateAwakeOwnership();
     }
   }
@@ -145,7 +212,10 @@ class _ReaderDisplayState extends State<ReaderDisplay>
 
   @override
   void dispose() {
+    _keyboardHintTimer?.cancel();
     _tickerMode?.removeListener(_updateAwakeOwnership);
+    _fullscreenOwners.remove(_owner);
+    _publishFullscreen();
     if (_native && _awakeOwned && --_awakeReaders == 0) _setAwake(false);
     if (_native && !_android) WidgetsBinding.instance.removeObserver(this);
     if (_android) {
@@ -169,11 +239,11 @@ class _ReaderDisplayState extends State<ReaderDisplay>
     valueListenable: ReaderDisplay._safeInsets,
     builder: (context, physical, _) {
       final media = MediaQuery.maybeOf(context);
-      if (media == null) return widget.child;
+      if (media == null) return _content;
       final padding = _readerPadding(media, physical);
       return MediaQuery(
         data: media.copyWith(padding: padding, viewPadding: padding),
-        child: widget.child,
+        child: _content,
       );
     },
   );
@@ -238,4 +308,60 @@ class ReaderSafeArea extends StatelessWidget {
       );
     },
   );
+}
+
+/// The last mounted publication owns status-bar visibility across replacement.
+class ReaderStatusBar extends StatefulWidget {
+  const ReaderStatusBar({
+    super.key,
+    required this.visible,
+    required this.child,
+  });
+  final bool visible;
+  final Widget child;
+  @override
+  State<ReaderStatusBar> createState() => _ReaderStatusBarState();
+}
+
+class _ReaderStatusBarState extends State<ReaderStatusBar> {
+  static final _owners = <Object, bool>{};
+  final _owner = Object();
+  void _update() {
+    _owners[_owner] = widget.visible;
+    _publish();
+  }
+
+  static void _publish() {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    unawaited(
+      ReaderDisplay.channel
+          .invokeMethod<void>(
+            'setReaderStatusBarVisible',
+            _owners.isNotEmpty && _owners.values.last,
+          )
+          .catchError((Object _) {}),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _update();
+  }
+
+  @override
+  void didUpdateWidget(ReaderStatusBar old) {
+    super.didUpdateWidget(old);
+    if (old.visible != widget.visible) _update();
+  }
+
+  @override
+  void dispose() {
+    _owners.remove(_owner);
+    _publish();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

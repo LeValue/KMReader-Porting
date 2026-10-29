@@ -27,6 +27,11 @@ class FlutterWindow : public Win32Window {
  private:
   bool background_;
   bool keep_awake_ = false;
+  bool fullscreen_ = false;
+  HICON alternate_icon_ = nullptr;
+  std::string app_icon_name_ = "default";
+  LONG_PTR window_style_ = 0;
+  WINDOWPLACEMENT window_placement_{};
   EXECUTION_STATE previous_execution_ = ES_CONTINUOUS;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> reader_display_channel_;
   std::unique_ptr<BackgroundDownloads> background_downloads_;

@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
+import '../reader/reader_ocr.dart';
+import 'recognition_models_page.dart';
 
 import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../reader/reader_display.dart';
+import 'preference_controls.dart';
 
 const translationLanguages = {
   'en': 'English',
@@ -16,6 +22,36 @@ const translationLanguages = {
   'zh': '中文',
   'ru': 'Русский',
   'pt': 'Português',
+  'ar': 'العربية',
+  'th': 'ไทย',
+  'vi': 'Tiếng Việt',
+  'hi': 'हिन्दी',
+  'tr': 'Türkçe',
+  'pl': 'Polski',
+  'nl': 'Nederlands',
+  'sv': 'Svenska',
+  'da': 'Dansk',
+  'fi': 'Suomi',
+  'no': 'Norsk',
+  'cs': 'Čeština',
+  'hu': 'Magyar',
+  'ro': 'Română',
+  'el': 'Ελληνικά',
+  'he': 'עברית',
+  'id': 'Bahasa Indonesia',
+  'ms': 'Bahasa Melayu',
+  'uk': 'Українська',
+  'bg': 'Български',
+  'hr': 'Hrvatski',
+  'sk': 'Slovenčina',
+  'sl': 'Slovenščina',
+  'et': 'Eesti',
+  'lv': 'Latviešu',
+  'lt': 'Lietuvių',
+  'mt': 'Malti',
+  'ga': 'Gaeilge',
+  'cy': 'Cymraeg',
+  'is': 'Íslenska',
 };
 
 class TranslationSettingsPage extends StatefulWidget {
@@ -23,9 +59,11 @@ class TranslationSettingsPage extends StatefulWidget {
     super.key,
     required this.providers,
     this.immersive = false,
+    this.ocr,
   });
   final TranslationProviders providers;
   final bool immersive;
+  final ReaderOcr? ocr;
   @override
   State<TranslationSettingsPage> createState() =>
       _TranslationSettingsPageState();
@@ -52,7 +90,7 @@ class _TranslationSettingsPageState extends State<TranslationSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final providers = widget.providers, values = providers.values;
-    final target = providers.store.setting<String>('translationTarget') ?? 'it';
+    final target = providers.store.setting<String>('translationTarget') ?? '';
     return Scaffold(
       appBar: AppBar(
         title: Text(tr(context, 'Translation Providers')),
@@ -74,15 +112,92 @@ class _TranslationSettingsPageState extends State<TranslationSettingsPage> {
                 'Text is sent to the provider you select when you request a translation.',
               ),
             ),
+            PreferencePage(
+              title: 'Manga Translation',
+              embedded: true,
+              store: providers.store,
+              specs: const [
+                PreferenceSpec(
+                  'translationSource',
+                  'Default Source Language',
+                  'auto',
+                  choices: {'auto': 'Automatic', ...translationLanguages},
+                ),
+                PreferenceSpec(
+                  'translationTextDirection',
+                  'Text Direction',
+                  'auto',
+                  choices: {
+                    'auto': 'Automatic',
+                    'horizontal': 'Horizontal',
+                    'vertical': 'Vertical',
+                  },
+                ),
+                PreferenceSpec(
+                  'translationIncludeMetadata',
+                  'Include Comic Metadata',
+                  false,
+                  caption: 'Add series, chapter, authors, and genres to the prompt to improve names and tone.',
+                ),
+                PreferenceSpec('translationShow', 'Show Translation', true),
+                PreferenceSpec(
+                  'ocrGroupBubbles',
+                  'Group Text by Comic Bubbles',
+                  false,
+                ),
+              ],
+            ),
+            if (widget.ocr != null) ...[
+              ListTile(
+                title: Text(tr(context, 'Models')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RecognitionModelsPage(
+                      store: providers.store,
+                      ocr: widget.ocr!,
+                    ),
+                  ),
+                ),
+              ),
+              ListTile(
+                title: Text(tr(context, 'Clear Translation Cache')),
+                onTap: () async {
+                  if (!await confirm(
+                    context,
+                    'Clear Translation Cache',
+                    'Clear Translation Cache',
+                  )) {
+                    return;
+                  }
+                  final directory = Directory(
+                    '${widget.ocr!.directory.path}/translations',
+                  );
+                  try {
+                    if (await directory.exists()) {
+                      await directory.delete(recursive: true);
+                    }
+                  } catch (error) {
+                    if (context.mounted) showError(context, error);
+                  }
+                },
+              ),
+            ],
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              initialValue: translationLanguages.containsKey(target)
+              initialValue:
+                  target.isEmpty || translationLanguages.containsKey(target)
                   ? target
                   : 'en',
               decoration: InputDecoration(
                 labelText: tr(context, 'Target Language'),
               ),
               items: [
+                DropdownMenuItem(
+                  value: '',
+                  child: Text(tr(context, 'System Language')),
+                ),
                 for (final entry in translationLanguages.entries)
                   DropdownMenuItem(value: entry.key, child: Text(entry.value)),
               ],

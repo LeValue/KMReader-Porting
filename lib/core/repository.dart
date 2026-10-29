@@ -11,9 +11,12 @@ import 'api.dart';
 import 'models.dart';
 import 'store.dart';
 import 'cache.dart';
+import 'media_cache.dart';
 import 'browse_preferences.dart';
 import 'document_cache.dart';
 import 'page_formats.dart';
+import 'network_preferences.dart';
+import 'client_log.dart';
 import 'read_list_reading.dart';
 import 'server_event.dart';
 import 'komf.dart';
@@ -29,11 +32,14 @@ class Repository extends ChangeNotifier {
     required this.directory,
     this.cacheClock = DateTime.now,
     this.backgroundTransfer = false,
-  });
+  }) {
+    api.readNetworkPreferences = () => NetworkPreferences.fromStore(store);
+  }
   final ServerProfile profile;
   final KomgaApi api;
   final LocalStore store;
   late final BrowsePreferences browse = BrowsePreferences(store);
+  late final MediaCache mediaCache = MediaCache(directory, store, profile.id);
   final Directory directory;
   final bool backgroundTransfer;
   VoidCallback? onDownloadQueueChanged;
@@ -79,6 +85,7 @@ class Repository extends ChangeNotifier {
   StreamSubscription<ServerEvent>? _events;
   String? _lastEventId;
   final imageChanges = ValueNotifier<Set<String>>({});
+  final eventNotices = ValueNotifier<String?>(null);
   late final taskQueueStatus = ValueNotifier<Json>(
     object(store.cached(profile.id, 'taskQueueStatus')),
   );
@@ -205,17 +212,20 @@ class Repository extends ChangeNotifier {
       _cacheTrim = null;
       _lastTrim = DateTime.now();
       try {
-        await trimMediaCache(imageDirectory, 512 * 1024 * 1024);
+        await mediaCache.trim();
       } on FileSystemException {
         /* Caching must not interrupt reading. */
       }
     });
   }
 
-  Future<void> clearImageCache() async {
+  Future<void> clearImageCache({
+    MediaCacheKind? kind,
+    bool allAccounts = false,
+  }) async {
     _bytes.clear();
-    await trimMediaCache(imageDirectory, 0);
-    await trimMediaCache(Directory('${imageDirectory.path}/upscaled'), 0);
+    _byteVersions.clear();
+    await mediaCache.trim(kind: kind, clear: true, allAccounts: allAccounts);
     changed();
   }
 
@@ -254,8 +264,7 @@ class Repository extends ChangeNotifier {
   }
 
   String fileKey(String key) => sha256.convert(utf8.encode(key)).toString();
-  File cachedFile(String key) =>
-      File(p.join(directory.path, profile.id, 'cache', fileKey(key)));
+  File cachedFile(String key) => mediaCache.file(key);
   Directory bookDirectory(String id) =>
       Directory(p.join(directory.path, profile.id, 'books', fileKey(id)));
   File pageFile(String id, int page) =>
@@ -631,7 +640,9 @@ class Repository extends ChangeNotifier {
     String path,
     int version,
     Uint8List bytes,
+    int epoch,
   ) async {
+    await mediaCache.migrate();
     final resource = 'media:${fileKey(path)}';
     final owner = '$_transferOwner-${++_imageOperation}';
     var leased = false;
@@ -651,7 +662,11 @@ class Repository extends ChangeNotifier {
           timer.cancel();
         }
       });
-      if (_disposed || store.imageVersion(profile.id, path) != version) return;
+      if (_disposed ||
+          store.imageVersion(profile.id, path) != version ||
+          mediaCache.epoch(profile.id, MediaCache.kind(path)) != epoch) {
+        return;
+      }
       final file = cachedFile(path);
       await file.parent.create(recursive: true);
       final partial = File(
@@ -660,6 +675,10 @@ class Repository extends ChangeNotifier {
       try {
         await partial.writeAsBytes(bytes);
         await partial.rename(file.path);
+        if (mediaCache.epoch(profile.id, MediaCache.kind(path)) != epoch) {
+          await file.delete();
+          return;
+        }
         if (!_disposed) store.markImageStored(profile.id, path, version);
       } on FileSystemException {
         /* An optional cache write must not interrupt a displayed image. */
@@ -705,10 +724,19 @@ class Repository extends ChangeNotifier {
         offline ||
         _imageRevalidations.containsKey(path) ||
         DateTime.now().millisecondsSinceEpoch - integer(state['validated']) <
-            const Duration(minutes: 30).inMilliseconds) {
+            (MediaCache.kind(path) == MediaCacheKind.covers
+                    ? Duration(
+                        days:
+                            (store.setting<int>('coverCacheExpirationDays') ??
+                                    7)
+                                .clamp(1, 90),
+                      )
+                    : const Duration(minutes: 30))
+                .inMilliseconds) {
       return;
     }
     final version = integer(state['generation']);
+    final epoch = mediaCache.epoch(profile.id, MediaCache.kind(path));
     final future = _imageRequests
         .run('validate:$version:$path', () async {
           if (_disposed ||
@@ -737,8 +765,12 @@ class Repository extends ChangeNotifier {
           final bytes = result.bytes!;
           store.advanceImageVersion(profile.id, path);
           final next = store.imageVersion(profile.id, path);
-          await _imageFileOperation(path, next, bytes);
-          if (_disposed || store.imageVersion(profile.id, path) != next) return;
+          await _imageFileOperation(path, next, bytes, epoch);
+          if (_disposed ||
+              store.imageVersion(profile.id, path) != next ||
+              mediaCache.epoch(profile.id, MediaCache.kind(path)) != epoch) {
+            return;
+          }
           store.imageValidated(
             profile.id,
             path,
@@ -771,6 +803,7 @@ class Repository extends ChangeNotifier {
       _bytes.remove(path);
       _byteVersions.remove(path);
     }
+    final epoch = mediaCache.epoch(profile.id, MediaCache.kind(path));
     final state = store.imageState(profile.id, path);
     final version = integer(state['generation']);
     final cached = _bytes[path];
@@ -780,7 +813,8 @@ class Repository extends ChangeNotifier {
       _revalidateImage(path, state);
       return SynchronousFuture(cached);
     }
-    return _imageRequests.run('$version:$path', () async {
+    return _imageRequests.run('$epoch:$version:$path', () async {
+      await mediaCache.migrate();
       final file = cachedFile(path);
       final storedVersion = store.storedImageVersion(profile.id, path);
       if (!refresh &&
@@ -791,7 +825,9 @@ class Repository extends ChangeNotifier {
           unawaited(
             file.setLastModified(DateTime.now()).catchError((Object _) => file),
           );
-          if (!_disposed && store.imageVersion(profile.id, path) == version) {
+          if (!_disposed &&
+              store.imageVersion(profile.id, path) == version &&
+              mediaCache.epoch(profile.id, MediaCache.kind(path)) == epoch) {
             _bytes.put(path, bytes);
             _byteVersions[path] = storedVersion;
             _revalidateImage(path, state);
@@ -810,8 +846,10 @@ class Repository extends ChangeNotifier {
         throw const ApiFailure('Unexpected empty image response.');
       }
       if (!_disposed) {
-        await _imageFileOperation(path, version, bytes);
-        if (!_disposed && store.imageVersion(profile.id, path) == version) {
+        await _imageFileOperation(path, version, bytes, epoch);
+        if (!_disposed &&
+            store.imageVersion(profile.id, path) == version &&
+            mediaCache.epoch(profile.id, MediaCache.kind(path)) == epoch) {
           store.imageValidated(
             profile.id,
             path,
@@ -1138,12 +1176,38 @@ class Repository extends ChangeNotifier {
     changed();
   }
 
+  Future<void> applyEventPreferences() async {
+    _eventReconnect?.cancel();
+    _refreshTimer?.cancel();
+    _imageEventTimer?.cancel();
+    _pendingImageEvents.clear();
+    final previous = _events;
+    _events = null;
+    await previous?.cancel();
+    if (!_disposed) {
+      listen();
+      changed();
+    }
+  }
+
   void listen() {
-    if (_disposed || offline || _events != null) return;
+    if (_disposed ||
+        offline ||
+        _events != null ||
+        store.setting<bool>('enableSSE') == false) {
+      return;
+    }
+    var connectedNotice = false;
     _events = api
         .serverEvents(lastEventId: _lastEventId)
         .listen(
           (event) {
+            if (!connectedNotice) {
+              connectedNotice = true;
+              if (store.setting<bool>('enableSSENotify') == true) {
+                eventNotices.value = 'Connected';
+              }
+            }
             _lastEventId = event.id ?? _lastEventId;
             final type = event.type;
             final data = event.object;
@@ -1152,6 +1216,11 @@ class Repository extends ChangeNotifier {
               final encoded = jsonEncode(data);
               if (encoded == _lastTaskQueue) return;
               _lastTaskQueue = encoded;
+              if (integer(taskQueueStatus.value['count']) > 0 &&
+                  integer(data['count']) == 0 &&
+                  store.setting<bool>('enableSSENotify') == true) {
+                eventNotices.value = 'Tasks completed';
+              }
               taskQueueStatus.value = data;
               _taskQueueTimer ??= Timer(const Duration(milliseconds: 300), () {
                 _taskQueueTimer = null;
@@ -1165,6 +1234,7 @@ class Repository extends ChangeNotifier {
               });
               return;
             }
+            if (store.setting<bool>('enableSSEAutoRefresh') == false) return;
             if (type.startsWith('Thumbnail')) {
               if (data == null || data['selected'] == false) return;
               final (kind, id) = type.startsWith('ThumbnailBook')
@@ -1192,13 +1262,27 @@ class Repository extends ChangeNotifier {
           },
           onError: (Object error) {
             _events = null;
-            if (_disposed || offline) return;
+            if (_disposed ||
+                offline ||
+                store.setting<bool>('enableSSE') == false) {
+              return;
+            }
+            if (store.setting<bool>('enableSSENotify') == true) {
+              eventNotices.value = 'Connection lost';
+            }
             _eventReconnect?.cancel();
             _eventReconnect = Timer(const Duration(seconds: 10), listen);
           },
           onDone: () {
             _events = null;
-            if (_disposed || offline) return;
+            if (_disposed ||
+                offline ||
+                store.setting<bool>('enableSSE') == false) {
+              return;
+            }
+            if (store.setting<bool>('enableSSENotify') == true) {
+              eventNotices.value = 'Connection lost';
+            }
             _eventReconnect?.cancel();
             _eventReconnect = Timer(const Duration(seconds: 10), listen);
           },
@@ -1236,8 +1320,61 @@ class Repository extends ChangeNotifier {
     changed();
   }
 
+  final _reading = <String, int>{};
+  final _readerCleanups = <Future<void>>{};
+  Future<void> get readerCleanupSettled => Future.wait(_readerCleanups);
+  void readerOpened(String id) =>
+      _reading.update(id, (count) => count + 1, ifAbsent: () => 1);
+  void readerClosed(Book book, {required bool incognito}) {
+    final remaining = (_reading[book.id] ?? 1) - 1;
+    if (remaining > 0) {
+      _reading[book.id] = remaining;
+      return;
+    }
+    _reading.remove(book.id);
+    if (incognito ||
+        _disposed ||
+        store.setting<bool>('offlineAutoDeleteRead') != true) {
+      return;
+    }
+    late Future<void> work;
+    // Run after descendants have saved their locator and released native views.
+    work = Future<void>(() async {
+      for (var attempt = 0; attempt < 20; attempt++) {
+        if (_disposed ||
+            _reading.containsKey(book.id) ||
+            store.accountRemoved(profile.id) ||
+            !overlay(book).completed ||
+            store.download(profile.id, book.id)?['status'] != 'ready') {
+          return;
+        }
+        try {
+          await removeDownload(book.id);
+          return;
+        } on FileSystemException catch (error) {
+          if (!Platform.isWindows ||
+              ![5, 32, 33].contains(error.osError?.errorCode)) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        } catch (_) {
+          break;
+        }
+      }
+      if (!_disposed) {
+        ClientLog.instance.add(
+          'warning',
+          'downloads',
+          'Automatic cleanup retained a busy or unavailable download',
+        );
+      }
+    }).whenComplete(() => _readerCleanups.remove(work));
+    _readerCleanups.add(work);
+  }
+
   Future<void> stopDownloadWork() async {
     final active = <Future<void>>[
+      ..._readerCleanups,
       ..._activeTransfers.values.map(
         (future) => future.then<void>((_) {}, onError: (Object _) {}),
       ),
@@ -1541,6 +1678,7 @@ class Repository extends ChangeNotifier {
     _queryDates.clear();
     _queryGenerations.clear();
     imageChanges.dispose();
+    eventNotices.dispose();
     taskQueueStatus.dispose();
     catalogChanges.dispose();
     browse.dispose();

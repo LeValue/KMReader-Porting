@@ -147,6 +147,7 @@ class _ReaderViewportState extends State<ReaderViewport>
   }
 
   Future<void> _toggleZoom() async {
+    if (widget.doubleTapZoom <= 1) return;
     _animation.stop();
     final scale = _scale > 1.001 ? 1.0 : widget.doubleTapZoom.clamp(1.0, 8.0);
     final end = _matrix(scale, _doubleTap * (1 - scale));
@@ -232,8 +233,10 @@ class _ReaderViewportState extends State<ReaderViewport>
           : (details) {
               if (!_multiple) widget.onTap!(details.localPosition);
             },
-      onDoubleTapDown: (details) => _doubleTap = details.localPosition,
-      onDoubleTap: _toggleZoom,
+      onDoubleTapDown: widget.doubleTapZoom <= 1
+          ? null
+          : (details) => _doubleTap = details.localPosition,
+      onDoubleTap: widget.doubleTapZoom <= 1 ? null : _toggleZoom,
       child: ClipRect(
         child: AnimatedBuilder(
           animation: widget.controller,

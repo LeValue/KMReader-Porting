@@ -1,5 +1,7 @@
 # Functional and visual parity
 
+Settings now have a [source-by-source audit](SETTINGS_AUDIT.md), including implemented controls, native adaptations and explicit remaining gaps. Extracted controls are not a claim of complete parity.
+
 Reference: kmworks/kmreader `e2b35f8796cc830fc6e7464e161b2172d8f916e9`.
 This matrix distinguishes implemented behavior from full upstream parity.
 Published downloads are 0.6.1, including the EPUB layout corrections below.

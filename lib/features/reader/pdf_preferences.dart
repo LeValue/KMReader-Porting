@@ -25,9 +25,11 @@ class PdfPreferences {
     this.coverSolo = true,
     this.background = 'white',
     this.useSeriesDirection = true,
+    this.controlsGradient = true,
+    this.showProgress = false,
   });
   final PdfPresentation presentation;
-  final bool rtl, coverSolo, useSeriesDirection;
+  final bool rtl, coverSolo, useSeriesDirection, controlsGradient, showProgress;
   final String background;
   factory PdfPreferences.fromJson(Json json) => PdfPreferences(
     presentation: PdfPresentation.values.firstWhere(
@@ -36,10 +38,19 @@ class PdfPreferences {
     ),
     rtl: json['rtl'] == true,
     coverSolo: json['coverSolo'] != false,
-    background: const ['white', 'sepia', 'black'].contains(json['background'])
+    background:
+        const [
+          'white',
+          'sepia',
+          'black',
+          'gray',
+          'system',
+        ].contains(json['background'])
         ? json['background'] as String
         : 'white',
     useSeriesDirection: json['useSeriesDirection'] != false,
+    controlsGradient: json['controlsGradient'] != false,
+    showProgress: json['showProgress'] == true,
   );
   Json toJson() => {
     'presentation': presentation.value,
@@ -47,6 +58,8 @@ class PdfPreferences {
     'coverSolo': coverSolo,
     'background': background,
     'useSeriesDirection': useSeriesDirection,
+    'controlsGradient': controlsGradient,
+    'showProgress': showProgress,
   };
   PdfPreferences copy({
     PdfPresentation? presentation,
@@ -54,12 +67,16 @@ class PdfPreferences {
     bool? coverSolo,
     String? background,
     bool? useSeriesDirection,
+    bool? controlsGradient,
+    bool? showProgress,
   }) => PdfPreferences(
     presentation: presentation ?? this.presentation,
     rtl: rtl ?? this.rtl,
     coverSolo: coverSolo ?? this.coverSolo,
     background: background ?? this.background,
     useSeriesDirection: useSeriesDirection ?? this.useSeriesDirection,
+    controlsGradient: controlsGradient ?? this.controlsGradient,
+    showProgress: showProgress ?? this.showProgress,
   );
   PdfPreferences forSeries(Json metadata) {
     if (!useSeriesDirection) return this;

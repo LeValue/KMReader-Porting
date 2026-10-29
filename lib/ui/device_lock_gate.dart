@@ -8,8 +8,14 @@ import '../core/device_lock.dart';
 import 'strings.dart';
 
 class DeviceLockGate extends StatefulWidget {
-  const DeviceLockGate({super.key, required this.lock, required this.child});
+  const DeviceLockGate({
+    super.key,
+    required this.lock,
+    required this.child,
+    this.privacyProtection = false,
+  });
   final DeviceLock lock;
+  final bool privacyProtection;
   final Widget child;
   @override
   State<DeviceLockGate> createState() => _DeviceLockGateState();
@@ -21,11 +27,12 @@ class _DeviceLockGateState extends State<DeviceLockGate>
   bool? _protected;
   bool _autoAttempted = false;
   void _protect() {
-    if (_protected == widget.lock.enabled) return;
-    _protected = widget.lock.enabled;
+    final wanted = widget.lock.enabled || widget.privacyProtection;
+    if (_protected == wanted) return;
+    _protected = wanted;
     unawaited(
       _privacy
-          .invokeMethod<void>('setProtected', widget.lock.enabled)
+          .invokeMethod<void>('setProtected', wanted)
           .catchError((Object _) {}),
     );
   }
@@ -42,6 +49,7 @@ class _DeviceLockGateState extends State<DeviceLockGate>
   @override
   void didUpdateWidget(DeviceLockGate old) {
     super.didUpdateWidget(old);
+    if (old.privacyProtection != widget.privacyProtection) _protect();
     if (old.lock != widget.lock) {
       old.lock.removeListener(_protect);
       widget.lock.addListener(_protect);

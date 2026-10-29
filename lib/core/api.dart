@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart' show compute;
 
 import 'models.dart';
 import 'app_version.dart';
+import 'network_preferences.dart';
+import 'client_log.dart';
 import 'server_event.dart';
 
 class ApiFailure implements Exception {
@@ -38,6 +40,16 @@ class KomgaApi {
   final String _credential;
   final http.Client _client;
   bool _closed = false;
+  bool authenticating = false;
+  NetworkPreferences Function()? readNetworkPreferences;
+  NetworkPreferences get network =>
+      readNetworkPreferences?.call() ??
+      const NetworkPreferences(
+        request: 25,
+        download: 60,
+        authentication: 25,
+        retries: 1,
+      );
   final _transfers = <String, ({String path, Future<void> future})>{};
 
   Uri uri(String path, [Map<String, dynamic>? query]) {
@@ -80,6 +92,7 @@ class KomgaApi {
     Map<String, String>? extra,
     Future<void>? abortTrigger,
     Set<int> acceptedStatuses = const {},
+    Duration? responseTimeout,
   }) async {
     if (_closed) throw const ApiFailure('The server connection was closed.');
     final request = http.AbortableRequest(
@@ -95,7 +108,23 @@ class KomgaApi {
     try {
       final response = await _client
           .send(request)
-          .timeout(const Duration(seconds: 25));
+          .timeout(
+            responseTimeout ??
+                Duration(
+                  seconds: authenticating
+                      ? network.authentication
+                      : network.request,
+                ),
+          );
+      ClientLog.instance.add(
+        response.statusCode >= 400 ? 'error' : 'debug',
+        authenticating
+            ? 'authentication'
+            : path.contains('/pages/') || path.contains('/thumbnail')
+            ? 'media'
+            : 'api',
+        '$method HTTP ${response.statusCode}',
+      );
       if ((response.statusCode < 200 || response.statusCode >= 300) &&
           !acceptedStatuses.contains(response.statusCode)) {
         await response.stream.drain<void>();
@@ -110,6 +139,7 @@ class KomgaApi {
             _ => 'The server returned HTTP $status. Please try again.',
           },
           status: status,
+          retryable: status == 429 || status >= 500,
           path: path,
         );
       }
@@ -117,6 +147,7 @@ class KomgaApi {
     } on http.RequestAbortedException {
       throw const ApiFailure('Download cancelled.');
     } on TimeoutException {
+      ClientLog.instance.add('warning', 'network', 'Request timed out');
       throw ApiFailure(
         'The server took too long to respond.',
         offline: true,
@@ -159,7 +190,9 @@ class KomgaApi {
           extra: extra,
         );
         final bytes = await response.stream.toBytes().timeout(
-          const Duration(seconds: 30),
+          Duration(
+            seconds: authenticating ? network.authentication : network.request,
+          ),
         );
         if (bytes.isEmpty) return null;
         try {
@@ -173,13 +206,16 @@ class KomgaApi {
           );
         }
       } on ApiFailure catch (error) {
-        if (attempt == 0 && retryable && error.retryable && !_closed) {
+        if (attempt < network.retries &&
+            retryable &&
+            (error.retryable || error.offline) &&
+            !_closed) {
           await Future<void>.delayed(const Duration(milliseconds: 150));
           continue;
         }
         rethrow;
       } on http.ClientException {
-        if (attempt == 0 && retryable && !_closed) {
+        if (attempt < network.retries && retryable && !_closed) {
           await Future<void>.delayed(const Duration(milliseconds: 150));
           continue;
         }
@@ -189,7 +225,7 @@ class KomgaApi {
           path: path,
         );
       } on SocketException {
-        if (attempt == 0 && retryable && !_closed) {
+        if (attempt < network.retries && retryable && !_closed) {
           await Future<void>.delayed(const Duration(milliseconds: 150));
           continue;
         }
@@ -223,6 +259,7 @@ class KomgaApi {
         final response = await send(
           path,
           acceptedStatuses: const {304},
+          responseTimeout: Duration(seconds: network.download),
           extra: {
             'Accept': '*/*',
             if (etag != null && etag.isNotEmpty)
@@ -241,7 +278,7 @@ class KomgaApi {
           );
         }
         final bytes = await response.stream.toBytes().timeout(
-          const Duration(seconds: 45),
+          Duration(seconds: network.download),
         );
         return (
           bytes: bytes,
@@ -371,6 +408,7 @@ class KomgaApi {
       response = await send(
         path,
         abortTrigger: abortTrigger,
+        responseTimeout: Duration(seconds: network.download),
         extra: {
           'Accept': '*/*',
           if (offset > 0) 'Range': 'bytes=$offset-',
@@ -434,7 +472,7 @@ class KomgaApi {
     var closed = false;
     try {
       await for (final chunk in response.stream.timeout(
-        const Duration(seconds: 45),
+        Duration(seconds: network.download),
       )) {
         if (cancelled?.call() == true || _closed) {
           throw const ApiFailure('Download cancelled.');
@@ -476,19 +514,74 @@ class KomgaApi {
   }
 
   Stream<String> events() => serverEvents().map((event) => event.type);
-  Stream<ServerEvent> serverEvents({String? lastEventId}) async* {
-    if (_closed) return;
-    final response = await send(
-      '/sse/v1/events',
-      extra: {
-        'Accept': 'text/event-stream',
-        if (lastEventId != null &&
-            lastEventId.isNotEmpty &&
-            !lastEventId.contains(RegExp(r'[\r\n\x00]')))
-          'Last-Event-ID': lastEventId,
+  Stream<ServerEvent> serverEvents({String? lastEventId}) {
+    final abort = Completer<void>();
+    StreamSubscription<ServerEvent>? body;
+    late StreamController<ServerEvent> controller;
+    var cancelled = false, paused = false;
+    Future<void> start() async {
+      try {
+        if (_closed) {
+          await controller.close();
+          return;
+        }
+        final response = await send(
+          '/sse/v1/events',
+          abortTrigger: abort.future,
+          extra: {
+            'Accept': 'text/event-stream',
+            if (lastEventId != null &&
+                lastEventId.isNotEmpty &&
+                !lastEventId.contains(RegExp(r'[\r\n\x00]')))
+              'Last-Event-ID': lastEventId,
+          },
+        );
+        if (cancelled) {
+          await response.stream.listen((_) {}).cancel();
+          return;
+        }
+        body = decodeServerEvents(response.stream).listen(
+          (event) {
+            if (!cancelled) controller.add(event);
+          },
+          onError: (Object error, StackTrace stack) {
+            if (!cancelled && !controller.isClosed) {
+              controller.addError(error, stack);
+              unawaited(controller.close());
+            }
+          },
+          onDone: () {
+            if (!cancelled && !controller.isClosed) {
+              unawaited(controller.close());
+            }
+          },
+        );
+        if (paused) body!.pause();
+      } catch (error, stack) {
+        if (!cancelled && !controller.isClosed) {
+          controller.addError(error, stack);
+          await controller.close();
+        }
+      }
+    }
+
+    controller = StreamController<ServerEvent>(
+      onListen: () => unawaited(start()),
+      onPause: () {
+        paused = true;
+        body?.pause();
+      },
+      onResume: () {
+        paused = false;
+        body?.resume();
+      },
+      onCancel: () async {
+        cancelled = true;
+        if (!abort.isCompleted) abort.complete();
+        await body?.cancel();
       },
     );
-    yield* decodeServerEvents(response.stream);
+    return controller.stream;
   }
 
   Future<Json> user() async => object(await request('/api/v2/users/me'));

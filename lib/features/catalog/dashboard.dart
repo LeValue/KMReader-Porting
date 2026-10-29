@@ -269,109 +269,132 @@ class _DashboardSection extends StatelessWidget {
       libraryId: libraryId,
       size: 12,
     ),
-    builder: (context, result) => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 12, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  tr(context, title),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              PopupMenuButton<String>(
-                tooltip: tr(context, 'Card Style'),
-                initialValue: cardKind,
-                onSelected: (value) {
-                  repository.store.setSetting(
-                    'dashboardCard:${repository.profile.id}:$title',
-                    value,
-                  );
-                  repository.catalogChanges.value++;
-                },
-                itemBuilder: (_) => [
-                  for (final entry in dashboardCardKinds.entries)
-                    CheckedPopupMenuItem(
-                      value: entry.key,
-                      checked: cardKind == entry.key,
-                      child: Text(tr(context, entry.value)),
-                    ),
+    builder: (context, result) => DecoratedBox(
+      decoration: BoxDecoration(
+        gradient:
+            repository.store.setting<bool>(
+                  'showDashboardSectionGradientBackground',
+                ) ==
+                true
+            ? LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).colorScheme.surfaceContainerHighest
+                      .withValues(alpha: .4),
+                  Colors.transparent,
                 ],
-                icon: const Icon(CupertinoIcons.ellipsis, size: 18),
-              ),
-              TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => Scaffold(
-                      appBar: AppBar(title: Text(tr(context, title))),
-                      body: CatalogPageView(
-                        repository: repository,
-                        kind: kind,
-                        path: path,
-                        condition: condition,
-                        libraryId: libraryId,
-                        initialSort: sort,
+              )
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    tr(context, title),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                if (repository.store.setting<bool>(
+                      'showDashboardCardKindMenu',
+                    ) !=
+                    false)
+                  PopupMenuButton<String>(
+                    tooltip: tr(context, 'Card Style'),
+                    initialValue: cardKind,
+                    onSelected: (value) {
+                      repository.store.setSetting(
+                        'dashboardCard:${repository.profile.id}:$title',
+                        value,
+                      );
+                      repository.catalogChanges.value++;
+                    },
+                    itemBuilder: (_) => [
+                      for (final entry in dashboardCardKinds.entries)
+                        CheckedPopupMenuItem(
+                          value: entry.key,
+                          checked: cardKind == entry.key,
+                          child: Text(tr(context, entry.value)),
+                        ),
+                    ],
+                    icon: const Icon(CupertinoIcons.ellipsis, size: 18),
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: Text(tr(context, title))),
+                        body: CatalogPageView(
+                          repository: repository,
+                          kind: kind,
+                          path: path,
+                          condition: condition,
+                          libraryId: libraryId,
+                          initialSort: sort,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(tr(context, 'See All')),
-                    const Icon(CupertinoIcons.chevron_right, size: 12),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (result.items.isEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-            child: Text(
-              tr(
-                context,
-                title == 'dashboard.keepReading'
-                    ? 'Start reading to see your books here.'
-                    : 'No Results',
-              ),
-              style: TextStyle(color: Theme.of(context).hintColor),
-            ),
-          )
-        else
-          SizedBox(
-            height: cardKind == 'horizontal'
-                ? 122
-                : cardWidth(context) * 1.5 + 64,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: result.items.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 16),
-              itemBuilder: (context, index) {
-                final item = result.items[index];
-                if (cardKind == 'horizontal') {
-                  return _ContinueCard(repository: repository, item: item);
-                }
-                return SizedBox(
-                  width: cardWidth(context),
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: RepaintBoundary(
-                      child: BookCard(repository: repository, item: item),
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(tr(context, 'See All')),
+                      const Icon(CupertinoIcons.chevron_right, size: 12),
+                    ],
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
-        const SizedBox(height: 12),
-      ],
+          if (result.items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: Text(
+                tr(
+                  context,
+                  title == 'dashboard.keepReading'
+                      ? 'Start reading to see your books here.'
+                      : 'No Results',
+                ),
+                style: TextStyle(color: Theme.of(context).hintColor),
+              ),
+            )
+          else
+            SizedBox(
+              height: cardKind == 'horizontal'
+                  ? 122
+                  : cardWidth(context) * 1.5 + 64,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: result.items.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 16),
+                itemBuilder: (context, index) {
+                  final item = result.items[index];
+                  if (cardKind == 'horizontal') {
+                    return _ContinueCard(repository: repository, item: item);
+                  }
+                  return SizedBox(
+                    width: cardWidth(context),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: RepaintBoundary(
+                        child: BookCard(repository: repository, item: item),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 12),
+        ],
+      ),
     ),
   );
 }
