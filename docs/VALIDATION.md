@@ -365,3 +365,16 @@ All three jobs for Komf source `969927feed1bbcac1a2b0f7c7626664879a3590f` passed
 [workflow 40795789235](https://github.com/LeValue/KMReader-Porting/actions/runs/40795789235).
 The continuous EPUB source `797c269694ea9edd213ed8b1ed4cdcbd420e10c4` has passed both
 Android jobs; its Windows release job is still running at this checkpoint.
+
+## PDF continuation development
+
+All 202 automated checks (including actual PDFium, Chromium and ONNX), static
+analysis and Android debug compilation pass after forwarding PDF continuation
+through DocumentReader. The actual viewer tests cover normal/incognito progress,
+completion and duplicate next-book taps. The existing native display/OCR/EPUB
+suites will run on the new source in CI.
+
+All three jobs for continuous EPUB source `797c269694ea9edd213ed8b1ed4cdcbd420e10c4`
+passed in [workflow 40797242432](https://github.com/LeValue/KMReader-Porting/actions/runs/40797242432),
+including native flow changes and navigation afterwards on Android WebView and
+Windows WebView2, both release builds and Windows startup.

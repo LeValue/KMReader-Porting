@@ -67,6 +67,7 @@ class _DocumentReaderState extends State<DocumentReader> {
               repository: widget.repository,
               book: widget.book,
               incognito: widget.incognito,
+              onNextBook: widget.onNextBook,
             )
           : widget.browserEpub && (Platform.isAndroid || Platform.isWindows)
           ? BrowserEpubReader(
