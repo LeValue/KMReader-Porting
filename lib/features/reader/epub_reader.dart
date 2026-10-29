@@ -46,6 +46,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   InAppWebViewController? _browser;
   WebViewEnvironment? _environment;
   bool _initialized = false, _controls = true;
+  bool _fixedLayout = false;
   final _closed = Completer<void>();
   String? _error, _selection;
   bool _turning = false;
@@ -193,6 +194,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return true;
     }());
     switch (event['type']) {
+      case 'ready':
+        setState(() => _fixedLayout = event['layout'] == 'pre-paginated');
+        break;
       case 'turn':
         unawaited(_turn(integer(event['delta'], 1)));
         return;
@@ -590,65 +594,73 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           ),
                       ],
                     ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final font in ['publisher', 'serif', 'sans-serif'])
-                          ChoiceChip(
-                            label: Text(
-                              tr(
-                                context,
-                                {
-                                  'publisher': 'Publisher Font',
-                                  'serif': 'Serif',
-                                  'sans-serif': 'Sans Serif',
-                                }[font]!,
+                    if (_fixedLayout)
+                      Text(tr(context, 'This book uses a fixed page layout.'))
+                    else ...[
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final font in [
+                            'publisher',
+                            'serif',
+                            'sans-serif',
+                          ])
+                            ChoiceChip(
+                              label: Text(
+                                tr(
+                                  context,
+                                  {
+                                    'publisher': 'Publisher Font',
+                                    'serif': 'Serif',
+                                    'sans-serif': 'Sans Serif',
+                                  }[font]!,
+                                ),
                               ),
+                              selected: p.font == font,
+                              onSelected: (_) => apply('font', font),
                             ),
-                            selected: p.font == font,
-                            onSelected: (_) => apply('font', font),
-                          ),
-                      ],
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final font in session.fonts.fonts)
-                          InputChip(
-                            label: Text(text(font['name'])),
-                            selected: p.font == 'custom:${font['id']}',
-                            onSelected: (_) =>
-                                apply('font', 'custom:${font['id']}'),
-                            onDeleted: () async {
-                              await session.fonts.remove(text(font['id']));
-                              if (!context.mounted) return;
-                              if (p.font == 'custom:${font['id']}') {
-                                await apply('font', 'publisher');
-                              } else {
-                                update(() {});
+                        ],
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final font in session.fonts.fonts)
+                            InputChip(
+                              label: Text(text(font['name'])),
+                              selected: p.font == 'custom:${font['id']}',
+                              onSelected: (_) =>
+                                  apply('font', 'custom:${font['id']}'),
+                              onDeleted: () async {
+                                await session.fonts.remove(text(font['id']));
+                                if (!context.mounted) return;
+                                if (p.font == 'custom:${font['id']}') {
+                                  await apply('font', 'publisher');
+                                } else {
+                                  update(() {});
+                                }
+                              },
+                            ),
+                          ActionChip(
+                            avatar: const Icon(Icons.add),
+                            label: Text(tr(context, 'Import Font')),
+                            onPressed: () async {
+                              try {
+                                final font = await session.fonts.importFont();
+                                if (font != null && context.mounted) {
+                                  await apply('font', 'custom:${font['id']}');
+                                }
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(error.toString())),
+                                  );
+                                }
                               }
                             },
                           ),
-                        ActionChip(
-                          avatar: const Icon(Icons.add),
-                          label: Text(tr(context, 'Import Font')),
-                          onPressed: () async {
-                            try {
-                              final font = await session.fonts.importFont();
-                              if (font != null && context.mounted) {
-                                await apply('font', 'custom:${font['id']}');
-                              }
-                            } catch (error) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(error.toString())),
-                                );
-                              }
-                            }
-                          },
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                     Wrap(
                       spacing: 8,
                       children: [
@@ -660,7 +672,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           ),
                       ],
                     ),
-                    slider('Text Size', 'fontSize', p.fontSize, 8, 60, 52),
+                    if (!_fixedLayout)
+                      slider('Text Size', 'fontSize', p.fontSize, 8, 60, 52),
                     Text(tr(context, 'Page Turn Animation')),
                     Wrap(
                       spacing: 8,
@@ -708,33 +721,42 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           ),
                       ],
                     ),
-                    slider('Line Height', 'lineHeight', p.lineHeight, 1, 3, 20),
-                    slider('Page Margins', 'margin', p.margin, 0, 100, 20),
-                    slider(
-                      'Paragraph Spacing',
-                      'paragraphSpacing',
-                      p.paragraphSpacing,
-                      0,
-                      3,
-                      30,
-                    ),
-                    slider('Paragraph Indent', 'indent', p.indent, 0, 4, 20),
-                    slider(
-                      'Letter Spacing',
-                      'letterSpacing',
-                      p.letterSpacing,
-                      -.05,
-                      .3,
-                      35,
-                    ),
-                    slider(
-                      'Word Spacing',
-                      'wordSpacing',
-                      p.wordSpacing,
-                      0,
-                      1,
-                      20,
-                    ),
+                    if (!_fixedLayout) ...[
+                      slider(
+                        'Line Height',
+                        'lineHeight',
+                        p.lineHeight,
+                        1,
+                        3,
+                        20,
+                      ),
+                      slider('Page Margins', 'margin', p.margin, 0, 100, 20),
+                      slider(
+                        'Paragraph Spacing',
+                        'paragraphSpacing',
+                        p.paragraphSpacing,
+                        0,
+                        3,
+                        30,
+                      ),
+                      slider('Paragraph Indent', 'indent', p.indent, 0, 4, 20),
+                      slider(
+                        'Letter Spacing',
+                        'letterSpacing',
+                        p.letterSpacing,
+                        -.05,
+                        .3,
+                        35,
+                      ),
+                      slider(
+                        'Word Spacing',
+                        'wordSpacing',
+                        p.wordSpacing,
+                        0,
+                        1,
+                        20,
+                      ),
+                    ],
                     Wrap(
                       spacing: 8,
                       children: [
@@ -743,6 +765,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                             label: Text(
                               count == 0
                                   ? tr(context, 'Automatic')
+                                  : _fixedLayout
+                                  ? '${tr(context, 'Pages')}: $count'
                                   : '$count ${tr(context, 'Columns')}',
                             ),
                             selected: p.columns == count,
@@ -750,23 +774,25 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           ),
                       ],
                     ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final alignment in [
-                          'publisher',
-                          'left',
-                          'right',
-                          'justify',
-                          'center',
-                        ])
-                          ChoiceChip(
-                            label: Text(tr(context, alignment)),
-                            selected: p.alignment == alignment,
-                            onSelected: (_) => apply('alignment', alignment),
-                          ),
-                      ],
-                    ),
+                    if (!_fixedLayout) ...[
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final alignment in [
+                            'publisher',
+                            'left',
+                            'right',
+                            'justify',
+                            'center',
+                          ])
+                            ChoiceChip(
+                              label: Text(tr(context, alignment)),
+                              selected: p.alignment == alignment,
+                              onSelected: (_) => apply('alignment', alignment),
+                            ),
+                        ],
+                      ),
+                    ],
                     TextButton(
                       onPressed: () {
                         widget.repository.store.setSetting(

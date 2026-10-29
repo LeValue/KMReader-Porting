@@ -1178,5 +1178,29 @@
     "zh-Hant": "變更將在開啟 PDF 書籍時生效。",
     "ru": "Изменения применяются при открытии книги PDF.",
     "es": "Los cambios se aplican al abrir un libro PDF."
+  },
+  "This book uses a fixed page layout.": {
+    "en": "This book uses a fixed page layout.",
+    "it": "Questo libro usa un’impaginazione fissa.",
+    "de": "Dieses Buch verwendet ein festes Seitenlayout.",
+    "fr": "Ce livre utilise une mise en page fixe.",
+    "ja": "この本は固定レイアウトです。",
+    "ko": "이 책은 고정 레이아웃을 사용합니다.",
+    "zh-Hans": "此书使用固定版式。",
+    "zh-Hant": "此書使用固定版面。",
+    "ru": "В этой книге используется фиксированная вёрстка.",
+    "es": "Este libro utiliza una maquetación fija."
+  },
+  "Pages": {
+    "en": "Pages",
+    "it": "Pagine",
+    "de": "Seiten",
+    "fr": "Pages",
+    "ja": "ページ",
+    "ko": "페이지",
+    "zh-Hans": "页",
+    "zh-Hant": "頁",
+    "ru": "Страницы",
+    "es": "Páginas"
   }
 }

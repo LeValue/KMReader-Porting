@@ -1,5 +1,43 @@
 # Development validation
 
+## 0.6.0 preview — published and downloaded again
+
+Source: `98c42f7ea84d732e7079df795dc26b97caabd0fc`. All three verification jobs passed
+in [workflow 40841369727](https://github.com/LeValue/KMReader-Porting/actions/runs/40841369727).
+Publication [40844649548](https://github.com/LeValue/KMReader-Porting/actions/runs/40844649548)
+reused that exact successful source/run and passed integrity checks before
+publishing [0.6.0](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.6.0-preview.1).
+The dispatch's duplicate build jobs are skipped because the source-matched
+verification run already completed; its source/job gate has three Python tests.
+
+218 Dart tests (Chromium/ONNX enabled locally), static analysis and real isolated
+Komga acceptance pass. Native Android and Windows run real EPUB, OCR, original-model
+bubble detection/Waifu2x and PDFium raster checks. Windows release/startup passes.
+The first native Android attempt passed all nine reader checks but lost its emulator
+connection while returning the driver result. The job was rerun on a fresh runner
+without changing/skipping tests and then passed. A preceding source's genuine
+Android PDF initialization error was corrected with `pdfrxFlutterInitialize`.
+
+All five release assets were downloaded again. Their sizes/SHA256 match GitHub
+asset digests and the checksum manifest. All Android bytes match the locally
+verified signed APKs; every one of the 55 Windows files matches its successful
+CI artifact. The Windows bundle contains x64 PE binaries, a 64-bit ELF Dart AOT
+snapshot, PDFium, ONNX, both portable models and MSVC runtime. It is not
+Authenticode signed. Physical-device frame times and exact Apple-host visual
+parity remain unverified.
+
+All Android variants retain package `dev.levalue.kmreader.preview`, version
+0.6.0/code 7, the previous Preview certificate and 16 KiB alignment. Separate,
+complete ABI APKs avoid bundling engines for other architectures.
+
+| Download | Bytes | SHA256 |
+| --- | ---: | --- |
+| ARM64 APK | 76,092,697 | `58aca72e9c7ea441973089636e428c5a78edfc7189a244db920a8b2522fd1e12` |
+| ARMv7 APK | 62,278,763 | `b3df9d04f5c55e6e10b23b4fa976107dea1799b04c2c666273e6454a7735a212` |
+| x86_64 APK | 82,263,006 | `c86c8bc2ae79d77aab5e4f8dd2023a3ad1b69e475359bd82159687384be510bc` |
+| Windows ZIP | 33,602,400 | `651ea0462b55a7428549ab2e07930ac3e7e9dd071bc4d05c8c3952d4dd08a5dc` |
+
+
 ## Unpublished development — native checks complete
 
 Source: `81c3a1dcef7f322358b42af03314738da4f5d82a`. All three build/test jobs passed in
@@ -420,3 +458,14 @@ closure, encrypted password retry, offline resume and normal/incognito completio
 and next-book callbacks. Settings fit 320/1280-pixel layouts. A portable mixed-size
 PDF fixture also checks actual Android/Windows PDFium raster output in native CI;
 that new source has not yet completed native CI. No new release is published.
+
+## EPUB layout correction development after 0.6.0
+
+All 222 automated checks (Chromium/ONNX enabled), static analysis and Android
+debug compilation pass locally. Dedicated real-browser cases cover paged/scrolled
+fixed layouts and vertical CJK, authored text/color/position preservation,
+publisher spreads, scroll input, visible CFI/fragment destinations, visible
+anchors after font changes and completion bounds. Native suites now include
+separate reflowable/fixed/vertical publications with distinct Android PixelCopy
+screenshots. That later source is awaiting native CI; 0.6.0 downloads remain the
+verified published checkpoint above. Release 0.6.1/code 8 is being prepared.

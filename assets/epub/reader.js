@@ -6,7 +6,14 @@
   let restoring = true, disposed = false, userMove = false, relocationTimer, resizeTimer = null, layoutJobs = 0;
   const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const inputEvents = ['wheel', 'touchstart', 'touchmove'];
-  const noteUserMove = () => { if (!restoring && !disposed) { userMove = true; userMoveUntil = Date.now() + 2000; } };
+  const noteUserMove = () => {
+    if (!restoring && !disposed) {
+      userMove = true; userMoveUntil = Date.now() + 2000;
+      // A no-op programmatic scroll can leave Epub.js ignoring its next event.
+      // Real input owns that next scroll and must update the reading locator.
+      if (rendition?.manager) rendition.manager.ignore = false;
+    }
+  };
   const send = (type, value = {}) => {
     if (disposed || !config) return;
     const message = {type, ...value, nonce: config.nonce};
@@ -15,12 +22,38 @@
   };
   const timeout = (promise, ms = 6000) => Promise.race([promise, new Promise(resolve => setTimeout(resolve, ms))]);
   const colors = () => preferences.theme === 'black' ? ['#1c1c1e', '#e8e4dc'] : preferences.theme === 'white' ? ['#ffffff', '#262321'] : ['#efe5d0', '#262321'];
+  const isFixedLayout = () => Boolean(book && (book.package?.metadata.layout === 'pre-paginated' || book.displayOptions?.fixedLayout === 'true'));
+  const spreadPreference = value => value.columns === 1 ? 'none' : value.columns === 2 ? 'always'
+    : isFixedLayout() && book.package?.metadata.spread === 'none' ? 'none'
+    : isFixedLayout() && book.package?.metadata.spread === 'both' ? 'always' : 'auto';
+  function atReadingEnd() {
+    if (!location?.atEnd) return false;
+    if (preferences.flow !== 'scrolled' || !rendition?.manager?.container) return true;
+    const manager = rendition.manager, container = manager.container;
+    return manager.settings.axis === 'horizontal'
+      ? container.scrollWidth - container.clientWidth - Math.abs(container.scrollLeft) <= 2
+      : container.scrollHeight - container.clientHeight - container.scrollTop <= 2;
+  }
+  // Axis selection happens before rendition content hooks. Adapt the public
+  // Contents getter so body-declared CJK writing modes are visible in time.
+  const nativeWritingMode = ePub.Contents.prototype.writingMode;
+  ePub.Contents.prototype.writingMode = function(value) {
+    if (!value && !isFixedLayout() && this.document.body) {
+      const root = nativeWritingMode.call(this);
+      const body = this.window.getComputedStyle(this.document.body).writingMode;
+      if (body.startsWith('vertical') && !root.startsWith('vertical')) nativeWritingMode.call(this, body);
+    }
+    return nativeWritingMode.call(this, value);
+  };
   function style(document) {
     const [background, foreground] = colors();
     let head = document.head || document.querySelector('head');
     if (!head) { head = document.createElementNS('http://www.w3.org/1999/xhtml', 'head'); document.documentElement.prepend(head); }
     let sheet = document.getElementById('kmreader-preferences');
     if (!sheet) { sheet = document.createElementNS('http://www.w3.org/1999/xhtml', 'style'); sheet.id = 'kmreader-preferences'; head.appendChild(sheet); }
+    // Fixed pages position artwork and text in an authored coordinate system.
+    // Reflow typography or color overrides would change that composition.
+    if (isFixedLayout()) { sheet.textContent = ''; return; }
     const custom = preferences.fontUrl && new URL(preferences.fontUrl).origin === window.location.origin;
     const family = custom ? 'font-family:kmreader-custom !important;' : ['serif','sans-serif'].includes(preferences.font) ? `font-family:${preferences.font} !important;` : '';
     const face = custom ? `@font-face{font-family:kmreader-custom;src:url("${preferences.fontUrl}");font-display:block;}` : '';
@@ -76,15 +109,21 @@
     send('position', {cfi: start.cfi, href: start.href, page: displayed.page, pages: displayed.total,
       progression: progression(start, displayed),
       totalProgression: Number.isFinite(start.percentage) ? start.percentage : null,
-      atStart: !!location.atStart, atEnd: !!location.atEnd, changed});
+      atStart: !!location.atStart, atEnd: atReadingEnd(), changed});
   }
   function hook(contents) {
     const section = book.spine.get(contents.sectionIndex);
     const doc = contents.document;
     const active = () => doc.defaultView && doc.defaultView.frameElement && doc.defaultView.frameElement.isConnected;
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
-    if (!doc.documentElement.dir && config.direction === 'rtl') doc.documentElement.dir = 'rtl';
+    if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
+    if (preferences.flow === 'scrolled' && rendition.manager?.stage) {
+      // The first CJK view can change the manager axis after its stage chose
+      // overflow-x/y. Reapply that policy so the new axis accepts input.
+      const manager = rendition.manager;
+      manager.stage.overflow(manager.overflow || 'scroll');
+    }
     doc.addEventListener('click', event => {
       const link = event.target.closest && event.target.closest('a[href]');
       if (link) {
@@ -169,8 +208,8 @@
         createRendition();
         await rendition.display(cfi || undefined);
       }
-      rendition.spread(value.columns === 1 ? 'none' : value.columns === 2 ? 'always' : 'auto', 800);
-      rendition.settings.gap = value.margin * 2;
+      rendition.spread(spreadPreference(value), 800);
+      rendition.settings.gap = isFixedLayout() ? 0 : value.margin * 2;
       for (const contents of rendition.getContents()) style(contents.document);
       if (auxiliary) style(auxiliary.contentDocument);
       await rendition.resize(window.innerWidth, window.innerHeight);
@@ -179,7 +218,7 @@
   async function next() {
     if (!rendition || auxiliary) return;
     await waitForLayout();
-    if (location && location.atEnd) { send('end'); return; }
+    if (atReadingEnd()) { send('end'); return; }
     restoring = true;
     try { await rendition.next(); await stable(rendition.getContents()); }
     finally { restoring = false; userMove = false; position(true); }
@@ -200,12 +239,40 @@
   async function displayStable(target) {
     await rendition.display(target);
     await stable(rendition.getContents());
+    // Epub.js continuous moveTo only applies target.top. Vertical writing
+    // scrolls horizontally, so CFI/fragment navigation needs the other axis.
+    const manager = rendition.manager;
+    if (preferences.flow !== 'scrolled' || manager?.settings.axis !== 'horizontal' || typeof target !== 'string') return;
+    let range;
+    if (target.startsWith('epubcfi(')) {
+      const cfi = new ePub.CFI(target);
+      const contents = rendition.getContents().find(content => content.sectionIndex === cfi.spinePos);
+      if (contents) range = contents.range(target);
+    }
+    else if (target.includes('#')) {
+      let id;
+      try { id = decodeURIComponent(target.slice(target.indexOf('#') + 1)); } catch (_) { return; }
+      const section = book.spine.get(target);
+      const contents = rendition.getContents().find(content => (!section || content.sectionIndex === section.index) && content.document.getElementById(id));
+      const element = contents?.document.getElementById(id);
+      if (element) { range = contents.document.createRange(); range.selectNodeContents(element); }
+    }
+    if (!range) return;
+    const frame = range.startContainer.ownerDocument.defaultView.frameElement;
+    const bounds = frame.getBoundingClientRect(), rect = range.getBoundingClientRect();
+    const viewport = manager.container.getBoundingClientRect();
+    const delta = config.direction === 'rtl'
+      ? bounds.left + rect.right - viewport.right
+      : bounds.left + rect.left - viewport.left;
+    if (Math.abs(delta) > 1) manager.scrollTo(manager.container.scrollLeft + delta, manager.container.scrollTop, true);
+    rendition.reportLocation();
+    await tick();
   }
   async function turn(value) {
     if (!rendition || auxiliary) return;
     await waitForLayout();
     const move = value.delta > 0 ? next : previous;
-    if (!value.snapshot || value.style === 'none' || (value.delta > 0 && location.atEnd)) return move();
+    if (!value.snapshot || value.style === 'none' || (value.delta > 0 && atReadingEnd())) return move();
     if (!/^data:image\/(jpeg|png);base64,/.test(value.snapshot)) return move();
     // Keep the native WebView visible: a Flutter raster overlay can suspend
     // its animation-frame callbacks before pagination has settled.
@@ -265,7 +332,7 @@
     await stable(rendition.getContents());
     if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
     await tick(); restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
-    position(false); send('ready');
+    position(false); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable'});
     window.addEventListener('resize', onResize);
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
   }
@@ -281,8 +348,8 @@
       manager: preferences.flow === 'scrolled' ? 'continuous' : 'default',
       flow: preferences.flow === 'scrolled' ? 'scrolled' : 'paginated',
       offset: Math.max(800, Math.min(1600, window.innerHeight * 2)),
-      spread: preferences.columns === 1 ? 'none' : preferences.columns === 2 ? 'always' : 'auto',
-      minSpreadWidth: 800, gap: preferences.margin * 2, direction: config.direction,
+      spread: spreadPreference(preferences),
+      minSpreadWidth: 800, gap: isFixedLayout() ? 0 : preferences.margin * 2, direction: config.direction,
       allowScriptedContent: false, allowPopups: false});
     renditionSpineHooks = book.spine.hooks.content.list().filter(callback => !before.has(callback));
     rendition.hooks.content.register(hook);
