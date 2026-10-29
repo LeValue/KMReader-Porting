@@ -1166,5 +1166,17 @@
     "zh-Hant": "對話框偵測失敗。仍可使用系統 OCR 區域。",
     "ru": "Не удалось распознать облачка. Области системного OCR по-прежнему доступны.",
     "es": "No se pudieron detectar los bocadillos. Las regiones OCR del sistema siguen disponibles."
+  },
+  "Changes apply when opening a PDF book.": {
+    "en": "Changes apply when opening a PDF book.",
+    "it": "Le modifiche si applicano quando apri un libro PDF.",
+    "de": "Änderungen gelten beim Öffnen eines PDF-Buchs.",
+    "fr": "Les modifications s’appliquent à l’ouverture d’un livre PDF.",
+    "ja": "変更はPDFの本を開くときに適用されます。",
+    "ko": "변경 사항은 PDF 책을 열 때 적용됩니다.",
+    "zh-Hans": "更改将在打开 PDF 图书时生效。",
+    "zh-Hant": "變更將在開啟 PDF 書籍時生效。",
+    "ru": "Изменения применяются при открытии книги PDF.",
+    "es": "Los cambios se aplican al abrir un libro PDF."
   }
 }

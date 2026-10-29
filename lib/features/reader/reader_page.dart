@@ -26,6 +26,7 @@ import 'reader_display.dart';
 import 'page_crop.dart';
 import 'reader_text_page.dart';
 import 'page_upscaler.dart';
+import 'raster_pages.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -34,11 +35,15 @@ class ReaderPage extends StatefulWidget {
     required this.book,
     this.incognito = false,
     this.readListId,
+    this.rasterPages,
+    this.onNextBook,
   });
   final Repository repository;
   final Book book;
   final bool incognito;
   final String? readListId;
+  final RasterPages? rasterPages;
+  final Future<void> Function()? onNextBook;
   @override
   State<ReaderPage> createState() => _ReaderPageState();
 }
@@ -134,10 +139,17 @@ class _ReaderPageState extends State<ReaderPage> {
   bool _initialPartPending = false;
   Json _seriesMetadata = {};
   bool _loadingSeries = false;
+  bool get _raster =>
+      widget.book.format == 'comic' || widget.rasterPages != null;
+  Future<Uint8List> _pageBytes(int page, {bool speculative = false}) =>
+      widget.rasterPages?.page(page) ??
+      (speculative
+          ? widget.repository.prefetchPage(widget.book.id, page)
+          : widget.repository.page(widget.book.id, page));
   Future<void> _loadSeriesDirection() async {
     if (_loadingSeries ||
         _seriesMetadata.isNotEmpty ||
-        widget.book.format != 'comic' ||
+        !_raster ||
         widget.book.seriesId.isEmpty ||
         !_session.preferences.useSeriesDirection) {
       return;
@@ -178,17 +190,17 @@ class _ReaderPageState extends State<ReaderPage> {
   int get _viewCount => _split ? _parts.length : _session.itemCount;
   bool get _atEnd => _split ? _partIndex == _parts.length - 1 : _session.atEnd;
   Future<void> _loadDimensions() async {
-    if (_loadingDimensions ||
-        _dimensionsLoaded ||
-        widget.book.format != 'comic') {
+    if (_loadingDimensions || _dimensionsLoaded || !_raster) {
       return;
     }
     _loadingDimensions = true;
     try {
-      final data = await widget.repository.get(
-        '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages',
-        cacheFirst: true,
-      );
+      final data =
+          widget.rasterPages?.dimensions ??
+          await widget.repository.get(
+            '/api/v1/books/${Uri.encodeComponent(widget.book.id)}/pages',
+            cacheFirst: true,
+          );
       if (!mounted) return;
       _dimensions = (data as List).map(object).toList();
       _aspects = {
@@ -336,7 +348,7 @@ class _ReaderPageState extends State<ReaderPage> {
   void _preload() {
     _preloadTimer?.cancel();
     final generation = ++_preloadGeneration;
-    if (widget.book.format != 'comic' || _scrolling || _interacting) return;
+    if (!_raster || _scrolling || _interacting) return;
     final anchor = _session.page;
     final window = preloadWindow(_session.preferences.preload);
     _preloadTimer = Timer(const Duration(milliseconds: 80), () async {
@@ -353,10 +365,7 @@ class _ReaderPageState extends State<ReaderPage> {
         if (!mounted || generation != _preloadGeneration) return;
         if (page < 1 || page > widget.book.pages) continue;
         try {
-          final bytes = await widget.repository.prefetchPage(
-            widget.book.id,
-            page,
-          );
+          final bytes = await _pageBytes(page, speculative: true);
           if (!mounted || generation != _preloadGeneration) return;
           var factor = _splitPages.contains(page) ? 2.0 : 1.0;
           final settings = _session.preferences;
@@ -573,7 +582,7 @@ class _ReaderPageState extends State<ReaderPage> {
     if (_ocrOpening) return;
     setState(() => _ocrOpening = true);
     try {
-      final bytes = await widget.repository.page(widget.book.id, _session.page);
+      final bytes = await _pageBytes(_session.page);
       if (!mounted) return;
       await Navigator.push<void>(
         context,
@@ -598,7 +607,13 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   Future<void> _nextBook() async {
+    if (_openingNext) return;
+    setState(() => _openingNext = true);
     try {
+      if (widget.onNextBook != null) {
+        await widget.onNextBook!();
+        return;
+      }
       final prefix = _readListId == null
           ? '/api/v1/books/${Uri.encodeComponent(widget.book.id)}'
           : '/api/v1/readlists/${Uri.encodeComponent(_readListId)}/books/${Uri.encodeComponent(widget.book.id)}';
@@ -616,8 +631,12 @@ class _ReaderPageState extends State<ReaderPage> {
       );
     } catch (e) {
       if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _openingNext = false);
     }
   }
+
+  bool _openingNext = false;
 
   void _settings() => showModalBottomSheet<void>(
     context: context,
@@ -998,7 +1017,7 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.book.format != 'comic') {
+    if (!_raster) {
       return ReaderDisplay(
         keepAwake:
             widget.repository.store.setting<bool>(
@@ -1121,6 +1140,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                   return _motion(
                                     index,
                                     _PageImage(
+                                      rasterPages: widget.rasterPages,
                                       repository: widget.repository,
                                       book: widget.book,
                                       page: part.page,
@@ -1148,6 +1168,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                   )
                                     Expanded(
                                       child: _PageImage(
+                                        rasterPages: widget.rasterPages,
                                         repository: widget.repository,
                                         book: widget.book,
                                         page: i,
@@ -1210,6 +1231,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                     : 12,
                               ),
                               child: _PageImage(
+                                rasterPages: widget.rasterPages,
                                 repository: widget.repository,
                                 book: widget.book,
                                 page: index + 1,
@@ -1337,7 +1359,7 @@ class _ReaderPageState extends State<ReaderPage> {
                               ),
                               if (_atEnd)
                                 TextButton(
-                                  onPressed: _nextBook,
+                                  onPressed: _openingNext ? null : _nextBook,
                                   child: Text(
                                     tr(context, 'Next Book'),
                                     style: const TextStyle(color: Colors.white),
@@ -1395,7 +1417,9 @@ class _PageImage extends StatefulWidget {
     this.startPageScroll,
     this.onWideTap,
     this.onControls,
+    this.rasterPages,
   });
+  final RasterPages? rasterPages;
   final double pageAspect, initialPan;
   final ValueChanged<double>? onPanSettled;
   final bool active;
@@ -1419,7 +1443,9 @@ class _PageImageState extends State<_PageImage>
     with AutomaticKeepAliveClientMixin {
   late Future<(Uint8List, PageCrop?)> _future;
   Future<(Uint8List, PageCrop?)> _load({bool refresh = false}) async {
-    final bytes = refresh
+    final bytes = widget.rasterPages != null
+        ? await widget.rasterPages!.page(widget.page, refresh: refresh)
+        : refresh
         ? await widget.repository.refreshPage(widget.book.id, widget.page)
         : await widget.repository.page(widget.book.id, widget.page);
     return (bytes, await pageCrop(bytes, widget.preferences.borderCrop));

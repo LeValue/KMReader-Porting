@@ -410,3 +410,13 @@ The actual ONNX worker and source-network probe comparison pass; widget tests
 cover opt-in, pending work, incognito and native OCR fallback at 320/1280 pixels
 with enlarged text. Native Android/Windows model execution is added to CI and
 is pending for this source. No new installable preview has been published.
+
+## Local PDF comic/DIVINA reader development
+
+Static analysis, all 218 automated tests (Chromium/ONNX enabled) and Android
+debug compilation pass locally. Actual PDFium tests verify chosen output size,
+correct color/orientation of mixed-size pages, request coalescing/cache refresh,
+closure, encrypted password retry, offline resume and normal/incognito completion
+and next-book callbacks. Settings fit 320/1280-pixel layouts. A portable mixed-size
+PDF fixture also checks actual Android/Windows PDFium raster output in native CI;
+that new source has not yet completed native CI. No new release is published.
