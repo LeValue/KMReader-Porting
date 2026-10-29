@@ -1,34 +1,73 @@
 # Development validation
 
-## Settings extraction and runtime controls (unpublished)
+## 0.7.0 preview — settings audit and verified native controls
 
-[Settings audit](SETTINGS_AUDIT.md) records 128 persisted keys/structured fields,
-227 control declarations and the exact upstream source. Local static analysis is
-clean; 251 Flutter checks pass with Chromium and ONNX enabled, alongside eight
-Python checks and the separate real Komga acceptance test. A debug Android APK
-compiles. New launcher/window-icon, fullscreen and status-bar integration tests
-are added. The first native Android run exposed percentage scrolling being applied
-to paged vertical CJK; that branch is now restricted to continuous flow, with
-a browser regression check for the WebView manager flag. Source-matched native
-results for the correction have not yet been recorded here.
-The audit explicitly tracks Apple-only exclusions, partial Core ML model-library
-management, reader/default/engine adaptations and multi-library dashboard scope.
-These changes are not yet included in a published release.
+Source: `4041b8ca631f4113c6d9f81c8c6fccbc851b4ef8`. All three jobs passed in
+[verification 40915646037](https://github.com/LeValue/KMReader-Porting/actions/runs/40915646037).
+[Publication 40918815130](https://github.com/LeValue/KMReader-Porting/actions/runs/40918815130)
+reused that exact successful source/run and published
+[0.7.0](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.7.0-preview.1).
 
-## Unpublished iPad settings/browse comparison
+The [settings audit](SETTINGS_AUDIT.md) records 128 persisted keys/structured
+fields, 227 control declarations and hashes of 47 files at the pinned upstream
+source. It distinguishes implemented controls, native adaptations, internal
+state, Apple-only exclusions and partial Core ML model-library management.
+Those counts do not describe 128 independent switches or complete parity.
+
+251 Flutter checks pass locally with Chromium and ONNX enabled; static analysis
+is clean and eight Python checks pass. The isolated real Komga acceptance also
+passes. Thirteen reader/native integration checks pass on **both Android and
+Windows**, including actual launcher/window-icon changes, window/status-bar
+restoration, all three EPUB layouts, OCR, both portable models, PDFium and native
+background transfers. Android additionally passes both API 35 notch/rotation
+checks; Windows release compilation and isolated startup pass.
+
+The first native Android run found that percentage scrolling was also handling
+paged vertical CJK. The correction limits percentage scrolling to continuous
+flow; paged advancement stays with the engine. A Chromium regression simulates
+the WebView manager flag, asserts engine delegation and checks CFI advancement.
+The original native assertions were retained and pass on the source above.
+
+After publication, all five assets were downloaded again. Sizes and SHA256 match
+GitHub asset digests and `SHA256SUMS.txt`; Android bytes match the staged signed
+APKs, including source/version/build provenance. Every one of the
+**63 Windows files** matches the successful CI artifact.
+The Windows bundle contains x64 PE binaries, ELF64 Dart AOT, PDFium, ONNX, both
+models, the three icon variants and MSVC runtime; it is not Authenticode signed.
+
+Android retains package `dev.levalue.kmreader.preview`, the previous Preview
+certificate and increasing build number 9. Each APK is complete for its ABI.
+ZIP alignment is verified at 16 KiB; all nine ELF libraries in each 64-bit APK
+also have LOAD alignment of at least 16 KiB. This does not assert 16 KiB native
+compatibility for the older ARMv7 libraries. Physical-device frame times, exact
+Apple typography/appearance and the explicitly listed parity gaps remain open.
+
+| Download | Bytes | SHA256 |
+| --- | ---: | --- |
+| ARM64 APK | 77,355,518 | `67542e2b139709e20a3cff5756d3a203a6637e49f4a69586c43f41f16afaed85` |
+| ARMv7 APK | 63,656,272 | `925dc940ad66faf95476a03b1b5b8e2ba61c568d71a4df5e7d9c5f2255f36eae` |
+| x86_64 APK | 83,591,363 | `e00214cb00bd00ebe3b9ce5150b6686cf31e615cb7a7c87670f9686cf7f94aa6` |
+| Windows ZIP | 34,296,829 | `bd6d40a568b84aef5e7c058f989e847ae08044e1db264f7acd3cc047e4c0f3c6` |
+
+Native Android capture from the synthetic vertical-text fixture after changing
+the font and advancing; this is not a claim of Apple pixel parity:
+
+![Native vertical EPUB on Android](screenshots/epub-vertical-android-0.7.0.png)
+
+## iPad settings/browse comparison (included in 0.7.0)
 
 The five user-supplied iPad screenshots are now tracked in the
 [reference comparison](IPAD_REFERENCE.md), including remaining differences.
-232 Dart checks pass locally with Chromium and ONNX enabled; static analysis is
-clean. Six new checks cover live card preferences without catalog requests,
+The initial comparison passed 232 Dart checks with Chromium and ONNX enabled
+and clean static analysis. Six new checks cover live card preferences without catalog requests,
 persistence and overlay precedence, decoded-cover geometry and badges, exclusion
 of started series from blur, active-tab-only Back handling, 320/1280-pixel layouts
 at 150% text size, and search/select-all scope consistency. Existing app flows
 exercise the grouped index and retain the sidebar while opening settings subpages.
-Synthetic captures use 1280 × 889 and 390 × 844 viewports. These changes are not
-included in the published 0.6.1 packages; exact native build results are recorded
-separately when available. Reader, offline, cache and statistics parity remains
-subject to the explicit gaps in the comparison.
+Synthetic captures use 1280 × 889 and 390 × 844 viewports. These changes are
+included in 0.7.0; the source-matched native results are recorded above. Reader,
+offline, cache and statistics parity remains subject to the explicit gaps in the
+comparison.
 
 ## 0.6.1 preview — published with embedded source provenance
 

@@ -11,9 +11,11 @@ python3 tool/extract_upstream_settings.py /path/to/kmreader --output docs/upstre
 python3 -m unittest discover -s tool/tests
 ```
 
+Delivered in [0.7.0 preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.7.0-preview.1), source `4041b8ca631f4113c6d9f81c8c6fccbc851b4ef8`. Exact native and downloaded-package verification is recorded in [validation](VALIDATION.md).
+
 ## Current coverage
 
-**9 adapted**, **105 implemented**, **3 internal**, **5 partial**, **6 platform-unavailable**. Implemented means the control has a corresponding runtime effect; it does not assert pixel parity, matching defaults or verified native behavior. See [validation](VALIDATION.md).
+**10 adapted**, **104 implemented**, **3 internal**, **5 partial**, **6 platform-unavailable**. Implemented means the control has a corresponding runtime effect; it does not assert pixel parity, matching defaults or verified native behavior. See [validation](VALIDATION.md).
 
 The remaining original model-library functionality is **partial**: catalog URL editing, catalog downloads, independent model-role selection, archive download/deletion and Core ML recognizers are not ported. The application shows the actual bundled ONNX bubble detector and native OCR languages, with an explicit compatibility explanation. It does not offer dummy selectors for those archives.
 
@@ -35,7 +37,9 @@ Handoff, Spotlight and Live Activities have no implementation on these operating
 
 ## Persistence and default differences
 
-Existing installations retain their preferences. Global reader defaults merge with saved per-book values, whose explicit values take precedence. This differs from upstream global AppStorage behavior. Legacy fallbacks remain for several controls: comic single-page/black background/cover not isolated/tap hints off/zoom 2; progress threshold 0; EPUB sepia/advanced layout enabled/19 CSS px. Upstream uses auto/system/isolated cover/hints on/zoom 3, threshold 3 and system/publisher typography. The available controls expose the original choices; upgrading does not silently replace existing reader behavior. Readium font-scale and spacing units are adapted to CSS px/em in the browser engine.
+Existing installations retain their preferences. Global reader defaults merge with saved per-book values, whose saved snapshots take precedence. This differs from upstream global AppStorage behavior. Legacy fallbacks remain for several controls: comic single-page/black background/cover not isolated/tap hints off/zoom 2; progress threshold 0; EPUB sepia/advanced layout enabled/19 CSS px. Upstream uses auto/system/isolated cover/hints on/zoom 3, threshold 3 and system/publisher typography. The available controls expose the original choices; upgrading does not silently replace existing reader behavior. Readium font-scale and spacing units are adapted to CSS px/em in the browser engine.
+
+The next-unread preference requests `skipRead` from the server. Older-server local fallback and settings-controlled series continuation are not yet fully equivalent to upstream.
 
 ## Persisted-key mapping
 
@@ -156,7 +160,7 @@ Existing installations retain their preferences. Global reader defaults merge wi
 | `showTapZoneHints` | implemented | `readerDefault.showTapHints` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `spaceKeyAction` | implemented | `spaceKeyAction` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `splitWidePageMode` | implemented | `readerDefault.splitWide` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
-| `suggestNextUnreadBook` | implemented | `same key` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
+| `suggestNextUnreadBook` | adapted | `same key` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `tapZoneInversionMode` | implemented | `readerDefault.tapInversion` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `tapZoneMode` | implemented | `readerDefault.tapMode` | [reader_page.dart](../lib/features/reader/reader_page.dart) |
 | `taskQueueStatus` | internal | `live task queue` | [repository.dart](../lib/core/repository.dart) |
