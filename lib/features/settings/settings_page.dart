@@ -11,6 +11,14 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'pdf_reader_settings.dart';
 import 'browse_settings.dart';
+import 'reader_settings.dart';
+import 'cache_settings.dart';
+import 'service_settings.dart';
+import 'app_icon_picker.dart';
+import 'client_logs_page.dart';
+import 'about_page.dart';
+import 'system_features_page.dart';
+import 'preference_controls.dart';
 import '../auth/login_page.dart';
 import '../offline/downloads_page.dart';
 import '../catalog/dashboard.dart';
@@ -146,6 +154,7 @@ class _SettingsIndex extends StatelessWidget {
             CupertinoIcons.globe,
             Colors.blue,
             TranslationSettingsPage(
+              ocr: repository.ocr,
               providers: TranslationProviders(app.store, vault: app.vault),
             ),
           ),
@@ -156,7 +165,7 @@ class _SettingsIndex extends StatelessWidget {
             'Reader General',
             CupertinoIcons.book,
             Colors.blue,
-            _section('Reader General', SettingsSection.reader),
+            ReaderGeneralSettingsPage(repository: repository),
           ),
           _link(
             context,
@@ -164,6 +173,27 @@ class _SettingsIndex extends StatelessWidget {
             CupertinoIcons.doc,
             Colors.red,
             PdfReaderSettingsPage(store: app.store),
+          ),
+          _link(
+            context,
+            'DIVINA Reader',
+            CupertinoIcons.photo,
+            Colors.green,
+            DivinaSettingsPage(repository: repository),
+          ),
+          _link(
+            context,
+            'EPUB Theme',
+            CupertinoIcons.textformat,
+            Colors.deepPurple,
+            EpubThemeSettingsPage(repository: repository),
+          ),
+          _link(
+            context,
+            'EPUB Settings',
+            CupertinoIcons.doc_text,
+            Colors.teal,
+            EpubSettingsPage(store: app.store),
           ),
         ]),
         _group([
@@ -179,7 +209,46 @@ class _SettingsIndex extends StatelessWidget {
             'Cache',
             CupertinoIcons.archivebox,
             Colors.orange,
-            _section('Cache', SettingsSection.cache),
+            CacheSettingsPage(repository: repository),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Real-time Updates',
+            CupertinoIcons.antenna_radiowaves_left_right,
+            Colors.orange,
+            RealtimeSettingsPage(repository: repository),
+          ),
+          _link(
+            context,
+            'System Features',
+            CupertinoIcons.desktopcomputer,
+            Colors.indigo,
+            const SystemFeaturesPage(),
+          ),
+          _link(
+            context,
+            'Network',
+            CupertinoIcons.globe,
+            Colors.blue,
+            NetworkSettingsPage(store: app.store),
+          ),
+        ]),
+        _group([
+          _link(
+            context,
+            'Logs',
+            CupertinoIcons.doc_text_search,
+            Colors.grey,
+            const ClientLogsPage(),
+          ),
+          _link(
+            context,
+            'About',
+            CupertinoIcons.info_circle,
+            Colors.grey,
+            const AboutPage(),
           ),
         ]),
         _group([
@@ -203,7 +272,7 @@ class _SettingsIndex extends StatelessWidget {
   );
 }
 
-enum SettingsSection { accounts, reader, storage, cache, appearance, server }
+enum SettingsSection { accounts, storage, appearance, server }
 
 class _SettingsSection extends StatelessWidget {
   const _SettingsSection({
@@ -379,6 +448,7 @@ class _SettingsSection extends StatelessWidget {
             ),
           ],
           SettingsSection.appearance => [
+            AppIconPicker(app: app, onChanged: repository.changed),
             Text(
               tr(context, 'Appearance'),
               style: Theme.of(context).textTheme.titleLarge,
@@ -474,6 +544,28 @@ class _SettingsSection extends StatelessWidget {
                 ],
               ),
             ),
+            PreferencePage(
+              title: 'Appearance',
+              embedded: true,
+              store: app.store,
+              onChanged: (_) => app.settingsChanged(),
+              specs: const [
+                PreferenceSpec(
+                  'useClassicPadNavigation',
+                  'settings.appearance.classicNavigation.title',
+                  true,
+                  section: 'Navigation',
+                  caption: 'settings.appearance.classicNavigation.caption',
+                ),
+                PreferenceSpec(
+                  'privacyProtection',
+                  'settings.appearance.privacyProtection.title',
+                  false,
+                  section: 'Privacy',
+                  caption: 'settings.privacy.port.caption',
+                ),
+              ],
+            ),
           ],
           SettingsSection.server => [
             Text('Komga', style: Theme.of(context).textTheme.titleLarge),
@@ -552,49 +644,6 @@ class _SettingsSection extends StatelessWidget {
                     leading: const Icon(CupertinoIcons.square_arrow_right),
                     title: Text(tr(context, 'Disconnect')),
                     onTap: app.disconnect,
-                  ),
-                ],
-              ),
-            ),
-          ],
-          SettingsSection.reader => [
-            Card(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    secondary: const Icon(Icons.screen_lock_portrait),
-                    title: Text(tr(context, 'Keep Screen Awake While Reading')),
-                    value:
-                        app.store.setting<bool>(
-                          'keepScreenAwakeWhileReading',
-                        ) ==
-                        true,
-                    onChanged: (value) {
-                      app.store.setSetting(
-                        'keepScreenAwakeWhileReading',
-                        value,
-                      );
-                      repository.changed();
-                    },
-                  ),
-                  SwitchListTile(
-                    secondary: const Icon(Icons.playlist_play),
-                    title: Text(tr(context, 'Read List Continuation')),
-                    subtitle: Text(
-                      tr(context, 'Continue ordered read lists across devices'),
-                    ),
-                    value: repository.readLists.enabled,
-                    onChanged: repository.readLists.setEnabled,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.picture_as_pdf),
-                    title: Text(tr(context, 'PDF Reader')),
-                    onTap: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PdfReaderSettingsPage(store: app.store),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -759,96 +808,6 @@ class _SettingsSection extends StatelessWidget {
               ),
             ),
           ],
-          SettingsSection.cache => [
-            Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(CupertinoIcons.trash),
-                    title: Text(tr(context, 'Clear Image Cache')),
-                    subtitle: Text(
-                      tr(
-                        context,
-                        'Downloaded books and reading progress are kept.',
-                      ),
-                    ),
-                    onTap: () async {
-                      if (!await confirm(
-                        context,
-                        'Clear Image Cache',
-                        'Downloaded books and reading progress are kept.',
-                      )) {
-                        return;
-                      }
-                      try {
-                        await repository.clearImageCache();
-                      } catch (e) {
-                        if (context.mounted) showError(context, e);
-                      }
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.storage),
-                    title: Text(tr(context, 'Document Cache Limit')),
-                    subtitle: Text(
-                      '${app.store.setting<int>('documentCacheMb') ?? 1024} MB',
-                    ),
-                    trailing: PopupMenuButton<int>(
-                      tooltip: tr(context, 'Document Cache Limit'),
-                      onSelected: (value) {
-                        app.store.setSetting('documentCacheMb', value);
-                        repository.documents.scheduleTrim();
-                        repository.changed();
-                      },
-                      itemBuilder: (_) => [
-                        for (final value in [
-                          128,
-                          256,
-                          512,
-                          1024,
-                          2048,
-                          4096,
-                          8192,
-                        ])
-                          CheckedPopupMenuItem(
-                            value: value,
-                            checked:
-                                (app.store.setting<int>('documentCacheMb') ??
-                                    1024) ==
-                                value,
-                            child: Text('$value MB'),
-                          ),
-                      ],
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.cleaning_services),
-                    title: Text(tr(context, 'Clear Temporary Documents')),
-                    subtitle: Text(
-                      tr(
-                        context,
-                        'Downloaded books and open documents are kept.',
-                      ),
-                    ),
-                    onTap: () async {
-                      if (!await confirm(
-                        context,
-                        'Clear Temporary Documents',
-                        'Downloaded books and open documents are kept.',
-                      )) {
-                        return;
-                      }
-                      try {
-                        await repository.documents.trim(clear: true);
-                      } catch (error) {
-                        if (context.mounted) showError(context, error);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
         },
       ),
     ),
@@ -877,54 +836,99 @@ class _DashboardSettingsState extends State<_DashboardSettings> {
       ...dashboardSections.where((s) => !saved.contains(s)),
     ];
     return Scaffold(
-      appBar: AppBar(title: Text(tr(context, 'Dashboard Sections'))),
-      body: ReorderableListView(
-        buildDefaultDragHandles: false,
-        onReorderItem: (old, target) {
-          final updated = [...order];
-          updated.insert(target, updated.removeAt(old));
-          setState(
-            () => widget.repository.store.setSetting(
-              'dashboardOrder:${widget.repository.profile.id}',
-              updated,
-            ),
-          );
-          widget.repository.catalogChanges.value++;
-        },
+      appBar: AppBar(
+        title: Text(tr(context, 'Dashboard Sections')),
+        actions: [
+          IconButton(
+            tooltip: tr(context, 'dashboard.reset'),
+            icon: const Icon(Icons.restore),
+            onPressed: () {
+              setState(() {
+                widget.repository.store.setSetting(key, <String>[]);
+                widget.repository.store.setSetting(
+                  'dashboardOrder:${widget.repository.profile.id}',
+                  dashboardSections,
+                );
+              });
+              widget.repository.catalogChanges.value++;
+            },
+          ),
+        ],
+      ),
+      body: Column(
         children: [
-          for (final section in order)
-            Row(
-              key: ValueKey(section),
+          PreferencePage(
+            title: 'Dashboard',
+            embedded: true,
+            store: widget.repository.store,
+            onChanged: (_) {
+              widget.repository.changed();
+              setState(() {});
+            },
+            specs: const [
+              PreferenceSpec(
+                'showDashboardCardKindMenu',
+                'settings.dashboard.cardKindMenu.title',
+                true,
+              ),
+              PreferenceSpec(
+                'showDashboardSectionGradientBackground',
+                'settings.dashboard.sectionBackground.title',
+                false,
+              ),
+            ],
+          ),
+          Expanded(
+            child: ReorderableListView(
+              buildDefaultDragHandles: false,
+              onReorderItem: (old, target) {
+                final updated = [...order];
+                updated.insert(target, updated.removeAt(old));
+                setState(
+                  () => widget.repository.store.setSetting(
+                    'dashboardOrder:${widget.repository.profile.id}',
+                    updated,
+                  ),
+                );
+                widget.repository.catalogChanges.value++;
+              },
               children: [
-                Expanded(
-                  child: SwitchListTile(
-                    title: Text(tr(context, section)),
-                    value: !hidden.contains(section),
-                    onChanged: (value) {
-                      setState(() {
-                        if (value) {
-                          hidden.remove(section);
-                        } else {
-                          hidden.add(section);
-                        }
-                        widget.repository.store.setSetting(key, hidden);
-                      });
-                      widget.repository.catalogChanges.value++;
-                    },
+                for (final section in order)
+                  Row(
+                    key: ValueKey(section),
+                    children: [
+                      Expanded(
+                        child: SwitchListTile(
+                          title: Text(tr(context, section)),
+                          value: !hidden.contains(section),
+                          onChanged: (value) {
+                            setState(() {
+                              if (value) {
+                                hidden.remove(section);
+                              } else {
+                                hidden.add(section);
+                              }
+                              widget.repository.store.setSetting(key, hidden);
+                            });
+                            widget.repository.catalogChanges.value++;
+                          },
+                        ),
+                      ),
+                      ReorderableDragStartListener(
+                        index: order.indexOf(section),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Tooltip(
+                            message: tr(context, 'Reorder'),
+                            child: const Icon(CupertinoIcons.line_horizontal_3),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                ReorderableDragStartListener(
-                  index: order.indexOf(section),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Tooltip(
-                      message: tr(context, 'Reorder'),
-                      child: const Icon(CupertinoIcons.line_horizontal_3),
-                    ),
-                  ),
-                ),
               ],
             ),
+          ),
         ],
       ),
     );

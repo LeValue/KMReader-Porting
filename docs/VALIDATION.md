@@ -1,5 +1,17 @@
 # Development validation
 
+## Settings extraction and runtime controls (unpublished)
+
+[Settings audit](SETTINGS_AUDIT.md) records 128 persisted keys/structured fields,
+227 control declarations and the exact upstream source. Local static analysis is
+clean; 249 Flutter checks pass with Chromium and ONNX enabled, alongside eight
+Python checks and the separate real Komga acceptance test. A debug Android APK
+compiles. New launcher/window-icon, fullscreen and status-bar integration tests
+are added, but native results for this source have not yet been recorded here.
+The audit explicitly tracks Apple-only exclusions, partial Core ML model-library
+management, reader/default/engine adaptations and multi-library dashboard scope.
+These changes are not yet included in a published release.
+
 ## Unpublished iPad settings/browse comparison
 
 The five user-supplied iPad screenshots are now tracked in the

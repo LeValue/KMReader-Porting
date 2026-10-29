@@ -76,7 +76,9 @@ class FileExporter(
                     require(file.isFile && roots.any { file.path.startsWith(it.path + File.separator) })
                     source = file
                     pending = result
-                    picker.launch("komga-server.log")
+                    val name = call.argument<String>("name") ?: "komga-server.log"
+                    require(name.matches(Regex("[A-Za-z0-9._-]{1,80}")))
+                    picker.launch(name)
                 } catch (error: Exception) {
                     pending = null
                     source = null

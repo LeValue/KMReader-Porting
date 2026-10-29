@@ -23,7 +23,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: TranslationSettingsPage(providers: providers)),
       );
-      await tester.tap(find.text('Add Provider'));
+      await tester.tap(find.byTooltip('Add'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextFormField).at(2),

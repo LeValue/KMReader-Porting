@@ -23,6 +23,30 @@ with sync_playwright() as playwright:
     first = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
     assert first['pages'] > 1, first
     assert first['changed'] is False
+    # Inspect the publication iframe, not just the preferences JSON.
+    def publication_style():
+        return page.evaluate("""() => {
+            const doc = document.querySelector('.epub-container iframe').contentDocument;
+            const body = doc.defaultView.getComputedStyle(doc.body);
+            return {weight:body.fontWeight, size:body.fontSize, background:body.backgroundColor,
+                color:body.color, letterSpacing:body.letterSpacing,
+                rules:doc.querySelector('#kmreader-preferences').textContent};
+        }""")
+    themed = {**config['preferences'], 'fontWeight': 700, 'fontSize': 26,
+              'advancedLayout': True, 'letterSpacing': .1,
+              'backgroundColor': '#132435', 'textColor': '#abcdef'}
+    page.evaluate('(value)=>window.reader.preferences(value)', themed)
+    css = publication_style()
+    assert css['weight'] == '700' and css['size'] == '26px', css
+    assert css['background'] == 'rgb(19, 36, 53)' and css['color'] == 'rgb(171, 205, 239)', css
+    assert abs(float(css['letterSpacing'].removesuffix('px')) - 2.6) < .01, css
+    page.evaluate('(value)=>window.reader.preferences(value)', {**themed, 'advancedLayout': False, 'fontWeight': 0})
+    css = publication_style()
+    assert 'font-size:' not in css['rules'] and 'letter-spacing:' not in css['rules'] and 'font-weight:' not in css['rules'], css
+    assert css['size'] != '26px', css
+    page.evaluate('(value)=>window.reader.preferences(value)', config['preferences'])
+    assert not page.evaluate("readerMessages.some(m=>m.type==='position' && m.changed)")
+    first = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
     page.set_viewport_size({'width': 421, 'height': 699})
     page.evaluate('window.reader.next()')
     second = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")

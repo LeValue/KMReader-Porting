@@ -21,7 +21,7 @@
     else window.dispatchEvent(new CustomEvent('readerEvent', {detail: message}));
   };
   const timeout = (promise, ms = 6000) => Promise.race([promise, new Promise(resolve => setTimeout(resolve, ms))]);
-  const colors = () => preferences.theme === 'black' ? ['#1c1c1e', '#e8e4dc'] : preferences.theme === 'white' ? ['#ffffff', '#262321'] : ['#efe5d0', '#262321'];
+  const colors = () => /^#[a-f0-9]{6}$/i.test(preferences.backgroundColor || '') && /^#[a-f0-9]{6}$/i.test(preferences.textColor || '') ? [preferences.backgroundColor, preferences.textColor] : preferences.theme === 'black' ? ['#1c1c1e', '#e8e4dc'] : preferences.theme === 'white' ? ['#ffffff', '#262321'] : ['#efe5d0', '#262321'];
   const isFixedLayout = () => Boolean(book && (book.package?.metadata.layout === 'pre-paginated' || book.displayOptions?.fixedLayout === 'true'));
   const verticalWriting = () => Boolean(rendition?.manager?.writingMode?.startsWith('vertical'));
   const spreadPreference = value => verticalWriting() ? 'none' : value.columns === 1 ? 'none' : value.columns === 2 ? 'always'
@@ -58,11 +58,10 @@
     const custom = preferences.fontUrl && new URL(preferences.fontUrl).origin === window.location.origin;
     const family = custom ? 'font-family:kmreader-custom !important;' : ['serif','sans-serif'].includes(preferences.font) ? `font-family:${preferences.font} !important;` : '';
     const face = custom ? `@font-face{font-family:kmreader-custom;src:url("${preferences.fontUrl}");font-display:block;}` : '';
-    const align = ['left', 'right', 'justify', 'center'].includes(preferences.alignment) ? `text-align:${preferences.alignment} !important;` : '';
+    const align = preferences.advancedLayout !== false && ['left', 'right', 'justify', 'center'].includes(preferences.alignment) ? `text-align:${preferences.alignment} !important;` : '';
     sheet.textContent = `${face}html,body{background:${background} !important;color:${foreground} !important;}
-      body{font-size:${preferences.fontSize}px !important;line-height:${preferences.lineHeight} !important;${family}${align}}
-      p{margin-block-end:${preferences.paragraphSpacing}em !important;text-indent:${preferences.indent}em !important;}
-      body{letter-spacing:${preferences.letterSpacing}em !important;word-spacing:${preferences.wordSpacing}em !important;}
+      body{${preferences.advancedLayout === false ? '' : `font-size:${preferences.fontSize}px !important;line-height:${preferences.lineHeight} !important;`}${family}${align}${preferences.fontWeight > 0 ? `font-weight:${preferences.fontWeight} !important;` : ''}}
+      ${preferences.advancedLayout === false ? '' : `p{margin-block-end:${preferences.paragraphSpacing}em !important;text-indent:${preferences.indent}em !important;} body{letter-spacing:${preferences.letterSpacing}em !important;word-spacing:${preferences.wordSpacing}em !important;}`}
       img,svg,video{max-width:100% !important;object-fit:contain;}a{color:${preferences.theme === 'black' ? '#9fc6ff' : '#235a9c'};}`;
   }
   async function stable(contents) {
@@ -167,7 +166,8 @@
     doc.addEventListener('keydown', event => {
       if (event.ctrlKey || event.metaKey || event.altKey || !doc.getSelection().isCollapsed) return;
       const rtl = config.direction === 'rtl';
-      if ([rtl ? 'ArrowLeft' : 'ArrowRight', 'PageDown', ' '].includes(event.key)) {
+      if (event.key === ' ' && preferences.spaceKeyAction === 'toggleControls') { event.preventDefault(); send('controls'); }
+      else if ([rtl ? 'ArrowLeft' : 'ArrowRight', 'PageDown', ' '].includes(event.key)) {
         event.preventDefault(); send('turn', {delta: 1});
       } else if ([rtl ? 'ArrowRight' : 'ArrowLeft', 'PageUp'].includes(event.key)) {
         event.preventDefault(); send('turn', {delta: -1});
@@ -247,8 +247,12 @@
   }
   async function advance(delta) {
     const manager = rendition.manager;
-    if (!manager.isPaginated && manager.settings.axis === 'horizontal') {
-      manager.scrollBy(delta * manager.container.clientWidth, 0, true);
+    if (!isFixedLayout() && !manager.isPaginated && manager.settings.axis === 'horizontal') {
+      manager.scrollBy(delta * manager.container.clientWidth * (Number(preferences.tapScroll) || 100) / 100, 0, true);
+      await manager.q.enqueue(() => manager.check());
+      rendition.reportLocation();
+    } else if (!isFixedLayout() && !manager.isPaginated && manager.container) {
+      manager.scrollBy(0, delta * manager.container.clientHeight * (Number(preferences.tapScroll) || 80) / 100, true);
       await manager.q.enqueue(() => manager.check());
       rendition.reportLocation();
     } else if (delta > 0) await rendition.next();

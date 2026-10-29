@@ -1,6 +1,7 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <filesystem>
 #include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
@@ -31,6 +32,26 @@ bool FlutterWindow::OnCreate() {
   privacy_channel_=std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
     flutter_controller_->engine()->messenger(),"dev.levalue.kmreader/privacy",&flutter::StandardMethodCodec::GetInstance());
   privacy_channel_->SetMethodCallHandler([this](const auto& call,auto result) {
+    if(call.method_name()=="getAppIcon") {
+      const bool valid=alternate_icon_ && reinterpret_cast<HICON>(SendMessage(GetHandle(),WM_GETICON,ICON_BIG,0))==alternate_icon_;
+      result->Success(flutter::EncodableValue(flutter::EncodableMap{{flutter::EncodableValue("name"),flutter::EncodableValue(app_icon_name_)},{flutter::EncodableValue("valid"),flutter::EncodableValue(valid)}}));return;
+    }
+    if(call.method_name()=="setAppIcon") {
+      const auto* name=call.arguments()?std::get_if<std::string>(call.arguments()):nullptr;
+      if(!name || (*name!="default" && *name!="classic" && *name!="legacy")) {result->Error("icon","Unknown app icon");return;}
+      wchar_t executable[32768];
+      const DWORD length=GetModuleFileNameW(nullptr,executable,32768);
+      if(length==0 || length>=32768) {result->Error("icon","Cannot locate app icon");return;}
+      const auto file=std::filesystem::path(executable).parent_path()/"data"/"flutter_assets"/"assets"/"app_icons"/(*name+".ico");
+      const HICON icon=static_cast<HICON>(LoadImageW(nullptr,file.c_str(),IMAGE_ICON,0,0,LR_LOADFROMFILE | LR_DEFAULTSIZE));
+      if(!icon) {result->Error("icon","Cannot load app icon");return;}
+      SendMessage(GetHandle(),WM_SETICON,ICON_BIG,reinterpret_cast<LPARAM>(icon));
+      SendMessage(GetHandle(),WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(icon));
+      if(alternate_icon_) DestroyIcon(alternate_icon_);
+      alternate_icon_=icon;
+      app_icon_name_=*name;
+      result->Success();return;
+    }
     const auto* enabled=call.arguments()?std::get_if<bool>(call.arguments()):nullptr;
     if(call.method_name()!="setProtected" || !enabled) {result->NotImplemented();return;}
     if(!SetWindowDisplayAffinity(GetHandle(),*enabled?WDA_EXCLUDEFROMCAPTURE:WDA_NONE) && *enabled) {
@@ -43,6 +64,30 @@ bool FlutterWindow::OnCreate() {
   reader_display_channel_->SetMethodCallHandler([this](const auto& call,auto result) {
     if(call.method_name()=="getKeepAwake") {result->Success(flutter::EncodableValue(keep_awake_));return;}
     const auto* enabled=call.arguments()?std::get_if<bool>(call.arguments()):nullptr;
+    if(call.method_name()=="getFullscreen") {result->Success(flutter::EncodableValue(fullscreen_ && (GetWindowLongPtr(GetHandle(),GWL_STYLE) & WS_OVERLAPPEDWINDOW)==0));return;}
+    if(call.method_name()=="setFullscreen" && enabled) {
+      const HWND window=GetHandle();
+      if(*enabled!=fullscreen_) {
+        if(*enabled) {
+          window_style_=GetWindowLongPtr(window,GWL_STYLE);
+          window_placement_.length=sizeof(window_placement_);
+          GetWindowPlacement(window,&window_placement_);
+          MONITORINFO monitor{sizeof(MONITORINFO)};
+          if(GetMonitorInfo(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&monitor)) {
+            SetWindowLongPtr(window,GWL_STYLE,window_style_ & ~WS_OVERLAPPEDWINDOW);
+            SetWindowPos(window,HWND_TOP,monitor.rcMonitor.left,monitor.rcMonitor.top,
+              monitor.rcMonitor.right-monitor.rcMonitor.left,monitor.rcMonitor.bottom-monitor.rcMonitor.top,SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+            fullscreen_=true;
+          }
+        } else {
+          SetWindowLongPtr(window,GWL_STYLE,window_style_);
+          SetWindowPlacement(window,&window_placement_);
+          SetWindowPos(window,nullptr,0,0,0,0,SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+          fullscreen_=false;
+        }
+      }
+      result->Success();return;
+    }
     if(call.method_name()!="setKeepAwake" || !enabled) {result->NotImplemented();return;}
     if(*enabled && !keep_awake_) {
       previous_execution_=SetThreadExecutionState(ES_CONTINUOUS|ES_DISPLAY_REQUIRED|ES_SYSTEM_REQUIRED);
@@ -68,6 +113,11 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if(alternate_icon_) {
+    SendMessage(GetHandle(),WM_SETICON,ICON_BIG,0);
+    SendMessage(GetHandle(),WM_SETICON,ICON_SMALL,0);
+    DestroyIcon(alternate_icon_);alternate_icon_=nullptr;
+  }
   if(reader_display_channel_) {reader_display_channel_->SetMethodCallHandler(nullptr);reader_display_channel_.reset();}
   if(keep_awake_) {SetThreadExecutionState(previous_execution_|ES_CONTINUOUS);keep_awake_=false;}
   background_downloads_.reset();

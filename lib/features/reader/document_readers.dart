@@ -78,7 +78,12 @@ class _DocumentReaderState extends State<DocumentReader> {
                     incognito: widget.incognito,
                     onNextBook: widget.onNextBook,
                   )
-          : widget.browserEpub && (Platform.isAndroid || Platform.isWindows)
+          : widget.browserEpub &&
+                widget.repository.store.setting<String>(
+                      'epubRenderingEngine',
+                    ) !=
+                    'native' &&
+                (Platform.isAndroid || Platform.isWindows)
           ? BrowserEpubReader(
               onNextBook: widget.onNextBook,
               file: snapshot.data!,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show sqrt;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,6 +21,8 @@ class ReaderTextPage extends StatefulWidget {
     this.initialText,
     required this.providers,
     required this.title,
+    this.sourceLanguage,
+    this.contextMetadata,
     this.incognito = false,
   }) : assert(initialText != null || bytes != null && ocr != null);
   final Uint8List? bytes;
@@ -28,6 +31,7 @@ class ReaderTextPage extends StatefulWidget {
   final String? initialText;
   final TranslationProviders providers;
   final String title;
+  final String? sourceLanguage, contextMetadata;
   final bool incognito;
   @override
   State<ReaderTextPage> createState() => _ReaderTextPageState();
@@ -71,7 +75,25 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
       }
       setState(() {
         _languages = languages;
-        _language = languages.contains('latin') ? 'latin' : languages.first;
+        final source =
+            widget.sourceLanguage ??
+            widget.providers.store.setting<String>('translationSource') ??
+            'auto';
+        final script =
+            {'ja': 'ja', 'zh': 'zh', 'ko': 'ko', 'hi': 'hi'}[source
+                .split(RegExp('[-_]'))
+                .first] ??
+            'latin';
+        _language = languages.contains(script)
+            ? script
+            : languages
+                      .where(
+                        (value) => value.toLowerCase().startsWith(
+                          source.toLowerCase(),
+                        ),
+                      )
+                      .firstOrNull ??
+                  languages.first;
       });
       await _recognize();
     } catch (error) {
@@ -130,12 +152,14 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
 
   Future<void> _settings() async {
     if (_translating) return;
+    final previousGrouping = _groupBubbles;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => ReaderDisplay(
           child: TranslationSettingsPage(
             providers: widget.providers,
+            ocr: widget.ocr,
             immersive: true,
           ),
         ),
@@ -144,8 +168,13 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
     if (mounted) {
       setState(() {
         _translations = null;
+        _groupBubbles =
+            widget.providers.store.setting<bool>('ocrGroupBubbles') == true;
         _translated = false;
       });
+      if (previousGrouping != _groupBubbles && !_busy) {
+        await _recognize();
+      }
     }
   }
 
@@ -165,9 +194,22 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
       final segments = doc.blocks.isEmpty
           ? [doc.text]
           : doc.blocks.map((b) => b.text).toList();
-      final target =
-          widget.providers.store.setting<String>('translationTarget') ?? 'it';
-      final source = _language == 'latin' ? 'auto' : _language ?? 'auto';
+      if (!mounted) return;
+      final selectedTarget = widget.providers.store.setting<String>(
+        'translationTarget',
+      );
+      final target = selectedTarget == null || selectedTarget.isEmpty
+          ? Localizations.localeOf(context).languageCode
+          : selectedTarget;
+      final source =
+          widget.sourceLanguage ??
+          widget.providers.store.setting<String>('translationSource') ??
+          (_language == 'latin' ? 'auto' : _language ?? 'auto');
+      final metadata =
+          widget.providers.store.setting<bool>('translationIncludeMetadata') ==
+              true
+          ? widget.contextMetadata ?? widget.title
+          : null;
       final translated = widget.ocr == null
           ? await _client.translate(
               provider,
@@ -175,7 +217,7 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
               segments,
               source: source,
               target: target,
-              context: widget.title,
+              context: metadata,
             )
           : await TranslationCache(widget.ocr!.directory, _client).translate(
               provider,
@@ -183,13 +225,14 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
               segments,
               source: source,
               target: target,
-              context: widget.title,
+              context: metadata,
               cache: !widget.incognito,
             );
       if (mounted && generation == _generation) {
         setState(() {
           _translations = translated;
-          _translated = true;
+          _translated =
+              widget.providers.store.setting<bool>('translationShow') != false;
         });
       }
     } catch (error) {
@@ -399,7 +442,14 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(2),
-                              child: _RegionText(_translations![index]),
+                              child: _RegionText(
+                                _translations![index],
+                                direction:
+                                    widget.providers.store.setting<String>(
+                                      'translationTextDirection',
+                                    ) ??
+                                    'auto',
+                              ),
                             ),
                           )
                         : DecoratedBox(
@@ -422,11 +472,44 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
 }
 
 class _RegionText extends StatelessWidget {
-  const _RegionText(this.text);
-  final String text;
+  const _RegionText(this.text, {this.direction = 'auto'});
+  final String text, direction;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, size) {
+      final vertical =
+          direction == 'vertical' ||
+          direction == 'auto' &&
+              RegExp(r'[぀-ヿ㐀-鿿]').hasMatch(text) &&
+              size.maxHeight > size.maxWidth;
+      if (vertical) {
+        final glyphs = text.characters.take(4000).toList();
+        final font = (sqrt(
+          size.maxWidth * size.maxHeight / (glyphs.length.clamp(1, 4000) * 1.4),
+        )).clamp(.1, 24.0);
+        final rows = (size.maxHeight / (font * 1.2)).floor().clamp(1, 4000);
+        return ClipRect(
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              textDirection: TextDirection.rtl,
+              children: [
+                for (var offset = 0; offset < glyphs.length; offset += rows)
+                  Text(
+                    glyphs.skip(offset).take(rows).join('\n'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: font,
+                      height: 1.2,
+                      fontFeatures: const [FontFeature('vert')],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      }
       var low = 5.0, high = 24.0;
       for (var i = 0; i < 8; i++) {
         final middle = (low + high) / 2;

@@ -59,6 +59,88 @@ void main() {
       false,
     );
   });
+  testWidgets(
+    'native app icon options update the actual launcher or window icon',
+    (tester) async {
+      const icons = MethodChannel('dev.levalue.kmreader/privacy');
+      try {
+        for (final name in ['classic', 'legacy', 'default']) {
+          await icons.invokeMethod<void>('setAppIcon', name);
+          if (Platform.isAndroid) {
+            expect(await icons.invokeListMethod<String>('getAppIcons'), [name]);
+          } else if (Platform.isWindows) {
+            final state = await icons.invokeMapMethod<String, dynamic>(
+              'getAppIcon',
+            );
+            expect(state?['name'], name);
+            expect(state?['valid'], true);
+          }
+        }
+      } finally {
+        await icons.invokeMethod<void>('setAppIcon', 'default');
+      }
+    },
+  );
+  testWidgets(
+    'native fullscreen and status-bar options restore their window state',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Text('Window preference verification')),
+        ),
+      );
+      if (Platform.isWindows) {
+        try {
+          await ReaderDisplay.channel.invokeMethod<void>('setFullscreen', true);
+          expect(
+            await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+            true,
+          );
+        } finally {
+          await ReaderDisplay.channel.invokeMethod<void>(
+            'setFullscreen',
+            false,
+          );
+        }
+        expect(
+          await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+          false,
+        );
+      } else if (Platform.isAndroid) {
+        try {
+          await ReaderDisplay.channel.invokeMethod<Object?>(
+            'setReaderMode',
+            true,
+          );
+          for (final wanted in [true, false]) {
+            await ReaderDisplay.channel.invokeMethod<void>(
+              'setReaderStatusBarVisible',
+              wanted,
+            );
+            bool? visible;
+            for (var i = 0; i < 20; i++) {
+              visible = await ReaderDisplay.channel.invokeMethod<bool>(
+                'getReaderStatusBarVisible',
+              );
+              if (visible == wanted) break;
+              await tester.pump(const Duration(milliseconds: 100));
+            }
+            expect(visible, wanted);
+          }
+        } finally {
+          await ReaderDisplay.channel.invokeMethod<void>(
+            'setReaderStatusBarVisible',
+            false,
+          );
+          await ReaderDisplay.channel.invokeMethod<Object?>(
+            'setReaderMode',
+            false,
+          );
+        }
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
   for (final layout in ['reflowable', 'fixed', 'vertical']) {
     testWidgets(
       'native $layout WebView paginates and preserves saved CFI through settings',

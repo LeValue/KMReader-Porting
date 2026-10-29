@@ -336,7 +336,9 @@ void main() {
         MaterialApp(home: PdfReaderSettingsPage(store: store)),
       );
       expect(find.text('Balanced (3072 px)'), findsNothing);
-      await tester.tap(find.byType(SwitchListTile));
+      await tester.tap(
+        find.widgetWithText(SwitchListTile, 'Use Native PDF Reader'),
+      );
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Ultra (5120 px)'));
       await tester.tap(find.text('Ultra (5120 px)'));

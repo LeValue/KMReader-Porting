@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../../core/models.dart';
 import '../../core/repository.dart';
 import 'epub_document.dart';
+import 'progress_gate.dart';
 import 'custom_fonts.dart';
 import 'epub_host.dart';
 
@@ -27,6 +28,11 @@ class EpubPreferences {
     this.transition = 'slide',
     this.tapMode = 'default',
     this.tapInversion = 'auto',
+    this.animate = true,
+    this.tapScroll = 80,
+    this.fontWeight = 0,
+    this.colorScheme = 'system',
+    this.advancedLayout = true,
   });
   final String flow, font, theme, alignment, transition, tapMode, tapInversion;
   final double fontSize,
@@ -36,7 +42,10 @@ class EpubPreferences {
       indent,
       letterSpacing,
       wordSpacing;
-  final int columns;
+  final int columns, fontWeight;
+  final bool animate, advancedLayout;
+  final double tapScroll;
+  final String colorScheme;
   factory EpubPreferences.fromJson(Json data) {
     double number(String key, double fallback, double min, double max) {
       final value = data[key];
@@ -52,7 +61,19 @@ class EpubPreferences {
       font: RegExp(r'^custom:[a-f0-9]{64}$').hasMatch(text(data['font']))
           ? text(data['font'])
           : choice('font', ['publisher', 'serif', 'sans-serif'], 'publisher'),
-      theme: choice('theme', ['white', 'sepia', 'black'], 'sepia'),
+      theme: choice('theme', [
+        'white',
+        'sepia',
+        'black',
+        'system',
+        'quiet',
+        'green',
+      ], 'sepia'),
+      colorScheme: choice('colorScheme', ['system', 'light', 'dark'], 'system'),
+      animate: data['animate'] != false,
+      advancedLayout: data['advancedLayout'] != false,
+      fontWeight: integer(data['fontWeight']).clamp(0, 900),
+      tapScroll: number('tapScroll', 80, 25, 100),
       fontSize: number('fontSize', 19, 8, 60),
       lineHeight: number('lineHeight', 1.65, 1, 3),
       margin: number('margin', 24, 0, 100),
@@ -93,6 +114,11 @@ class EpubPreferences {
   }
   Json toJson() => {
     'flow': flow,
+    'animate': animate,
+    'advancedLayout': advancedLayout,
+    'fontWeight': fontWeight,
+    'colorScheme': colorScheme,
+    'tapScroll': tapScroll,
     'font': font,
     'theme': theme,
     'fontSize': fontSize,
@@ -124,11 +150,32 @@ class EpubSession extends ChangeNotifier {
   final EpubHost host;
   EpubDocument get document => host.document;
   EpubPreferences preferences;
+  bool darkEnvironment = false;
+  int _distance = 0;
+  late final ReaderProgressGate _progressGate = ReaderProgressGate(
+    book,
+    repository.store.setting<int>('progressRecordingThreshold') ?? 0,
+  );
   final _fontUrls = <String, String>{};
+  bool get dark =>
+      preferences.theme == 'black' ||
+      preferences.theme != 'white' &&
+          (preferences.colorScheme == 'dark' ||
+              preferences.colorScheme == 'system' && darkEnvironment);
+  (String, String) get themeColors => switch (preferences.theme) {
+    'quiet' => dark ? ('#1E1E1E', '#BDBDBD') : ('#FAFAFA', '#111111'),
+    'green' => dark ? ('#1B261B', '#D1E0D1') : ('#C7EDCC', '#1A3A1F'),
+    'sepia' => dark ? ('#382E25', '#E3D5C1') : ('#F4ECD8', '#5C4A37'),
+    _ => dark ? ('#000000', '#E0E0E0') : ('#FFFFFF', '#000000'),
+  };
   CustomFontStore get fonts =>
       CustomFontStore(repository.store, repository.directory);
   Json get browserPreferences => {
     ...preferences.toJson(),
+    'spaceKeyAction':
+        repository.store.setting<String>('spaceKeyAction') ?? 'toggleControls',
+    'backgroundColor': themeColors.$1,
+    'textColor': themeColors.$2,
     if (_fontUrls[preferences.font] case final String url) 'fontUrl': url,
   };
   Future<void> prepareFont() async {
@@ -302,6 +349,13 @@ class EpubSession extends ChangeNotifier {
         final index = chapterFor(text(event['href']));
         final value = event['progression'];
         if (index < 0 || value is! num || !value.isFinite) return;
+        if (event['changed'] == true) {
+          _distance += index == chapter
+              ? integer(event['page'], 1) - page
+              : index > chapter
+              ? 1
+              : -1;
+        }
         chapter = index;
         href = document.chapters[index].path;
         cfi = text(event['cfi']);
@@ -341,6 +395,13 @@ class EpubSession extends ChangeNotifier {
     _saveTimer?.cancel();
     final pending = _pending;
     if (pending == null || incognito || _closed || repository.closed) return;
+    if (!_progressGate.allows(
+      page,
+      distance: _distance.abs(),
+      completed: atEnd,
+    )) {
+      return;
+    }
     final old = object(repository.store.cached(repository.profile.id, key));
     repository.store.cache(repository.profile.id, key, {
       ...old,

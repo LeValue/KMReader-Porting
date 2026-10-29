@@ -1,0 +1,774 @@
+{
+  "upstream_source": "e2b35f8796cc830fc6e7464e161b2172d8f916e9",
+  "meaning": "Coverage audit, not a claim of complete feature parity. Implemented means a corresponding runtime control exists; native CI results are recorded in VALIDATION.md.",
+  "options": {
+    "DashboardConfiguration.cardKindOverrides": {
+      "status": "implemented",
+      "storage": "dashboardCard:<account>:<section>",
+      "implementation": "lib/features/catalog/dashboard.dart",
+      "note": ""
+    },
+    "DashboardConfiguration.libraryIds": {
+      "status": "adapted",
+      "storage": "dashboardLibrary:<account>",
+      "implementation": "lib/features/catalog/dashboard.dart",
+      "note": "Current dashboard scopes to one library or all libraries; upstream stores a selection of multiple libraries."
+    },
+    "DashboardConfiguration.sections": {
+      "status": "implemented",
+      "storage": "dashboardHidden:<account> / dashboardOrder:<account>",
+      "implementation": "lib/features/settings/settings_page.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.controlsFooterCenter": {
+      "status": "implemented",
+      "storage": "epubOverlay.controlsFooterCenter",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.controlsHeaderCenter": {
+      "status": "implemented",
+      "storage": "epubOverlay.controlsHeaderCenter",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.readerFooterCenter": {
+      "status": "implemented",
+      "storage": "epubOverlay.readerFooterCenter",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.readerFooterLeading": {
+      "status": "implemented",
+      "storage": "epubOverlay.readerFooterLeading",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.readerFooterTrailing": {
+      "status": "implemented",
+      "storage": "epubOverlay.readerFooterTrailing",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.readerHeaderCenter": {
+      "status": "implemented",
+      "storage": "epubOverlay.readerHeaderCenter",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.readerHeaderLeading": {
+      "status": "implemented",
+      "storage": "epubOverlay.readerHeaderLeading",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.readerHeaderTrailing": {
+      "status": "implemented",
+      "storage": "epubOverlay.readerHeaderTrailing",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubOverlayPreferences.showsReaderProgressBar": {
+      "status": "implemented",
+      "storage": "epubOverlay.showsReaderProgressBar",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "EpubThemePreferences.advancedLayout": {
+      "status": "implemented",
+      "storage": "epubDefault.advancedLayout",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography. Legacy port defaults (advanced enabled, sepia) retained instead of original disabled/system."
+    },
+    "EpubThemePreferences.colorScheme": {
+      "status": "implemented",
+      "storage": "epubDefault.colorScheme",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.columnCount": {
+      "status": "implemented",
+      "storage": "epubDefault.columns",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.fontFamily": {
+      "status": "implemented",
+      "storage": "epubDefault.font",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.fontSize": {
+      "status": "adapted",
+      "storage": "epubDefault.fontSize",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography. Port uses 8–60 CSS px instead of original Readium font scale; legacy default 19 px."
+    },
+    "EpubThemePreferences.fontWeight": {
+      "status": "implemented",
+      "storage": "epubDefault.fontWeight",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.letterSpacing": {
+      "status": "implemented",
+      "storage": "epubDefault.letterSpacing",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.lineHeight": {
+      "status": "implemented",
+      "storage": "epubDefault.lineHeight",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.pageMargins": {
+      "status": "implemented",
+      "storage": "epubDefault.margin",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.paragraphIndent": {
+      "status": "implemented",
+      "storage": "epubDefault.indent",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.paragraphSpacing": {
+      "status": "implemented",
+      "storage": "epubDefault.paragraphSpacing",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.textAlignment": {
+      "status": "implemented",
+      "storage": "epubDefault.alignment",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "EpubThemePreferences.theme": {
+      "status": "implemented",
+      "storage": "epubDefault.theme",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography. Legacy port defaults (advanced enabled, sepia) retained instead of original disabled/system."
+    },
+    "EpubThemePreferences.wordSpacing": {
+      "status": "implemented",
+      "storage": "epubDefault.wordSpacing",
+      "implementation": "lib/features/reader/epub_session.dart",
+      "note": "Applied to the browser engine; fixed-layout publications retain authored typography."
+    },
+    "MangaProviderConfig.apiKey": {
+      "status": "implemented",
+      "storage": "credential vault translation:<id>",
+      "implementation": "lib/core/translation.dart",
+      "note": "API keys stay outside settings database; provider add/edit/select/delete and model discovery are available."
+    },
+    "MangaProviderConfig.baseURL": {
+      "status": "implemented",
+      "storage": "translationProviders[].base",
+      "implementation": "lib/core/translation.dart",
+      "note": "API keys stay outside settings database; provider add/edit/select/delete and model discovery are available."
+    },
+    "MangaProviderConfig.displayName": {
+      "status": "implemented",
+      "storage": "translationProviders[].name",
+      "implementation": "lib/core/translation.dart",
+      "note": "API keys stay outside settings database; provider add/edit/select/delete and model discovery are available."
+    },
+    "MangaProviderConfig.model": {
+      "status": "implemented",
+      "storage": "translationProviders[].model",
+      "implementation": "lib/core/translation.dart",
+      "note": "API keys stay outside settings database; provider add/edit/select/delete and model discovery are available."
+    },
+    "MangaTranslationPreferences.includeMetadata": {
+      "status": "implemented",
+      "storage": "translationIncludeMetadata",
+      "implementation": "lib/features/reader/reader_text_page.dart",
+      "note": "Metadata is opt-in. Source auto and target system retain previous port defaults. Vertical glyph layout is a portable approximation."
+    },
+    "MangaTranslationPreferences.selectedProviderID": {
+      "status": "implemented",
+      "storage": "translationProvider",
+      "implementation": "lib/features/reader/reader_text_page.dart",
+      "note": ""
+    },
+    "MangaTranslationPreferences.showTranslation": {
+      "status": "implemented",
+      "storage": "translationShow",
+      "implementation": "lib/features/reader/reader_text_page.dart",
+      "note": ""
+    },
+    "MangaTranslationPreferences.sourceLanguage": {
+      "status": "implemented",
+      "storage": "translationSource",
+      "implementation": "lib/features/reader/reader_text_page.dart",
+      "note": "Metadata is opt-in. Source auto and target system retain previous port defaults. Vertical glyph layout is a portable approximation."
+    },
+    "MangaTranslationPreferences.targetLanguage": {
+      "status": "implemented",
+      "storage": "translationTarget",
+      "implementation": "lib/features/reader/reader_text_page.dart",
+      "note": ""
+    },
+    "MangaTranslationPreferences.textDirection": {
+      "status": "implemented",
+      "storage": "translationTextDirection",
+      "implementation": "lib/features/reader/reader_text_page.dart",
+      "note": "Metadata is opt-in. Source auto and target system retain previous port defaults. Vertical glyph layout is a portable approximation."
+    },
+    "ModelLibraryConfiguration.catalog": {
+      "status": "partial",
+      "storage": "bundled bubble detector + native OCR languages",
+      "implementation": "lib/features/settings/recognition_models_page.dart",
+      "note": "Original downloadable Core ML catalog, custom URL, independent role selection and archive lifecycle are not implemented. Bundled ONNX detection and installed native OCR languages work; this is not equivalent to original model management."
+    },
+    "ModelLibraryConfiguration.catalogURL": {
+      "status": "partial",
+      "storage": "bundled bubble detector + native OCR languages",
+      "implementation": "lib/features/settings/recognition_models_page.dart",
+      "note": "Original downloadable Core ML catalog, custom URL, independent role selection and archive lifecycle are not implemented. Bundled ONNX detection and installed native OCR languages work; this is not equivalent to original model management."
+    },
+    "ModelLibraryConfiguration.downloadedArchives": {
+      "status": "partial",
+      "storage": "bundled bubble detector + native OCR languages",
+      "implementation": "lib/features/settings/recognition_models_page.dart",
+      "note": "Original downloadable Core ML catalog, custom URL, independent role selection and archive lifecycle are not implemented. Bundled ONNX detection and installed native OCR languages work; this is not equivalent to original model management."
+    },
+    "ModelLibraryConfiguration.selectedStorageKeys": {
+      "status": "partial",
+      "storage": "bundled bubble detector + native OCR languages",
+      "implementation": "lib/features/settings/recognition_models_page.dart",
+      "note": "Original downloadable Core ML catalog, custom URL, independent role selection and archive lifecycle are not implemented. Bundled ONNX detection and installed native OCR languages work; this is not equivalent to original model management."
+    },
+    "animateEpubTapTurns": {
+      "status": "implemented",
+      "storage": "epubDefault.animate",
+      "implementation": "lib/features/reader/epub_reader.dart",
+      "note": ""
+    },
+    "animateTapTurns": {
+      "status": "implemented",
+      "storage": "readerDefault.animate",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "apiRetryCount": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/network_preferences.dart",
+      "note": ""
+    },
+    "appColorScheme": {
+      "status": "implemented",
+      "storage": "theme",
+      "implementation": "lib/core/app_controller.dart",
+      "note": ""
+    },
+    "authTimeout": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/network_preferences.dart",
+      "note": ""
+    },
+    "autoFullscreenOnOpen": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/reader/reader_display.dart",
+      "note": ""
+    },
+    "cardTextOverlayMode": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "coverCacheExpirationDays": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/media_cache.dart",
+      "note": ""
+    },
+    "coverOnlyCards": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "currentAccount": {
+      "status": "internal",
+      "storage": "active server / credential vault",
+      "implementation": "lib/core/app_controller.dart",
+      "note": "Account/authentication state, not independent switches."
+    },
+    "dashboard": {
+      "status": "implemented",
+      "storage": "dashboardHidden:<account> / dashboardOrder:<account>",
+      "implementation": "lib/features/settings/settings_page.dart",
+      "note": ""
+    },
+    "defaultReadingDirection": {
+      "status": "implemented",
+      "storage": "readerDefault.direction",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "divinaPageBorderCropMode": {
+      "status": "implemented",
+      "storage": "readerDefault.borderCrop",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "divinaPreloadProfile": {
+      "status": "implemented",
+      "storage": "readerDefault.preload",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "doubleTapZoomMode": {
+      "status": "implemented",
+      "storage": "readerDefault.doubleTapEnabled",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "doubleTapZoomScale": {
+      "status": "implemented",
+      "storage": "readerDefault.doubleTapZoom",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+    },
+    "downloadTimeout": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/network_preferences.dart",
+      "note": ""
+    },
+    "enableBrowseHandoff": {
+      "status": "platform-unavailable",
+      "storage": "unavailable",
+      "implementation": "lib/features/settings/system_features_page.dart",
+      "note": "Apple service APIs have no Android/Windows implementation. No nonfunctional toggles are shown."
+    },
+    "enableDivinaImageContextMenu": {
+      "status": "implemented",
+      "storage": "readerDefault.imageContextMenu",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "enableLiveText": {
+      "status": "adapted",
+      "storage": "readerDefault.liveText",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Long-press opens selectable OCR text using ML Kit/Windows OCR; no Apple inline Live Text interaction."
+    },
+    "enableReaderHandoff": {
+      "status": "platform-unavailable",
+      "storage": "unavailable",
+      "implementation": "lib/features/settings/system_features_page.dart",
+      "note": "Apple service APIs have no Android/Windows implementation. No nonfunctional toggles are shown."
+    },
+    "enableReaderLiveActivity": {
+      "status": "platform-unavailable",
+      "storage": "unavailable",
+      "implementation": "lib/features/settings/system_features_page.dart",
+      "note": "Apple service APIs have no Android/Windows implementation. No nonfunctional toggles are shown."
+    },
+    "enableSSE": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/repository.dart",
+      "note": "Notifications are in-app notices, as in the original ErrorManager; not OS push notifications."
+    },
+    "enableSSEAutoRefresh": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/repository.dart",
+      "note": "Notifications are in-app notices, as in the original ErrorManager; not OS push notifications."
+    },
+    "enableSSENotify": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/repository.dart",
+      "note": "Notifications are in-app notices, as in the original ErrorManager; not OS push notifications."
+    },
+    "enableSpotlightBookIndexing": {
+      "status": "platform-unavailable",
+      "storage": "unavailable",
+      "implementation": "lib/features/settings/system_features_page.dart",
+      "note": "Apple service APIs have no Android/Windows implementation. No nonfunctional toggles are shown."
+    },
+    "enableSpotlightIndexing": {
+      "status": "platform-unavailable",
+      "storage": "unavailable",
+      "implementation": "lib/features/settings/system_features_page.dart",
+      "note": "Apple service APIs have no Android/Windows implementation. No nonfunctional toggles are shown."
+    },
+    "enableSpotlightSeriesIndexing": {
+      "status": "platform-unavailable",
+      "storage": "unavailable",
+      "implementation": "lib/features/settings/system_features_page.dart",
+      "note": "Apple service APIs have no Android/Windows implementation. No nonfunctional toggles are shown."
+    },
+    "epubFlowStyle": {
+      "status": "implemented",
+      "storage": "epubDefault.flow",
+      "implementation": "lib/features/reader/epub_reader.dart",
+      "note": ""
+    },
+    "epubOverlayPreferences": {
+      "status": "implemented",
+      "storage": "epubOverlay",
+      "implementation": "lib/features/reader/epub_overlay.dart",
+      "note": ""
+    },
+    "epubPageTransitionStyle": {
+      "status": "implemented",
+      "storage": "epubDefault.transition",
+      "implementation": "lib/features/reader/epub_reader.dart",
+      "note": ""
+    },
+    "epubRenderingEngine": {
+      "status": "adapted",
+      "storage": "epubRenderingEngine",
+      "implementation": "lib/features/reader/document_readers.dart",
+      "note": "WebView uses EPUB.js; native option uses Flutter HTML fallback. Neither is the Apple Readium implementation; native fallback has reduced typography/navigation capabilities."
+    },
+    "epubShowsStatusBarWhileReading": {
+      "status": "adapted",
+      "storage": "epubShowsStatusBarWhileReading",
+      "implementation": "lib/features/reader/reader_display.dart",
+      "note": "Android status-bar visibility with safe-area preservation; desktop window has no mobile status bar."
+    },
+    "epubTapScrollPercentage": {
+      "status": "implemented",
+      "storage": "epubDefault.tapScroll",
+      "implementation": "lib/features/reader/epub_reader.dart",
+      "note": ""
+    },
+    "epubTapZoneInversionMode": {
+      "status": "implemented",
+      "storage": "epubDefault.tapInversion",
+      "implementation": "lib/features/reader/epub_reader.dart",
+      "note": ""
+    },
+    "epubTapZoneMode": {
+      "status": "implemented",
+      "storage": "epubDefault.tapMode",
+      "implementation": "lib/features/reader/epub_reader.dart",
+      "note": ""
+    },
+    "forceDefaultReadingDirection": {
+      "status": "implemented",
+      "storage": "readerDefault.useSeriesDirection (inverse)",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "imageUpscaleAutoTriggerScale": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/reader/page_upscaler.dart",
+      "note": "Original Waifu2x model converted to bundled ONNX; trigger consumed by ReaderPage."
+    },
+    "imageUpscalingMode": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/reader/page_upscaler.dart",
+      "note": "Original Waifu2x model converted to bundled ONNX; trigger consumed by ReaderPage."
+    },
+    "isLoggedInV2": {
+      "status": "internal",
+      "storage": "active server / credential vault",
+      "implementation": "lib/core/app_controller.dart",
+      "note": "Account/authentication state, not independent switches."
+    },
+    "isolateCoverPage": {
+      "status": "implemented",
+      "storage": "readerDefault.soloCover",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+    },
+    "keepScreenAwakeWhileReading": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/reader/reader_display.dart",
+      "note": ""
+    },
+    "mangaTranslation": {
+      "status": "implemented",
+      "storage": "translation* keys",
+      "implementation": "lib/features/settings/translation_settings.dart",
+      "note": ""
+    },
+    "maxCoverCacheSize": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/media_cache.dart",
+      "note": ""
+    },
+    "maxPageCacheSize": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/media_cache.dart",
+      "note": ""
+    },
+    "modelLibrary": {
+      "status": "partial",
+      "storage": "bundled bubble detector + native OCR languages",
+      "implementation": "lib/features/settings/recognition_models_page.dart",
+      "note": "Original downloadable Core ML catalog, custom URL, independent role selection and archive lifecycle are not implemented. Bundled ONNX detection and installed native OCR languages work; this is not equivalent to original model management."
+    },
+    "offlineAutoDeleteRead": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": ""
+    },
+    "offlineFirstReading": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": ""
+    },
+    "pageLayout": {
+      "status": "implemented",
+      "storage": "readerDefault.pageLayout",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+    },
+    "pageTransitionStyle": {
+      "status": "adapted",
+      "storage": "readerDefault.transition",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Cover/slide/curl for tap, button and wheel turns; direct swipe uses PageView slide, not Apple UIPageViewController curl."
+    },
+    "pdfDefaultReadingDirection": {
+      "status": "implemented",
+      "storage": "pdfDefault.rtl",
+      "implementation": "lib/features/reader/pdf_reader.dart",
+      "note": "Native PDFium. Raster fallback uses equivalent shared image-reader preferences; legacy background white."
+    },
+    "pdfForceDefaultReadingDirection": {
+      "status": "implemented",
+      "storage": "pdfDefault.useSeriesDirection (inverse)",
+      "implementation": "lib/features/reader/pdf_reader.dart",
+      "note": "Native PDFium. Raster fallback uses equivalent shared image-reader preferences; legacy background white."
+    },
+    "pdfIsolateCoverPage": {
+      "status": "implemented",
+      "storage": "pdfDefault.coverSolo",
+      "implementation": "lib/features/reader/pdf_reader.dart",
+      "note": "Native PDFium. Raster fallback uses equivalent shared image-reader preferences; legacy background white."
+    },
+    "pdfOfflineRenderQuality": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/settings/pdf_reader_settings.dart",
+      "note": "Original four PDF quality choices; rendering quality used in raster fallback."
+    },
+    "pdfPagePresentation": {
+      "status": "implemented",
+      "storage": "pdfDefault.presentation",
+      "implementation": "lib/features/reader/pdf_reader.dart",
+      "note": "Native PDFium. Raster fallback uses equivalent shared image-reader preferences; legacy background white."
+    },
+    "pdfReaderBackground": {
+      "status": "implemented",
+      "storage": "pdfDefault.background",
+      "implementation": "lib/features/reader/pdf_reader.dart",
+      "note": "Native PDFium. Raster fallback uses equivalent shared image-reader preferences; legacy background white."
+    },
+    "privacyProtection": {
+      "status": "adapted",
+      "storage": "privacyProtection",
+      "implementation": "lib/ui/device_lock_gate.dart",
+      "note": "Android FLAG_SECURE and Windows display affinity hide previews and protect screen capture; stronger than Apple switcher blur."
+    },
+    "progressRecordingThreshold": {
+      "status": "implemented",
+      "storage": "progressRecordingThreshold",
+      "implementation": "lib/features/reader/progress_gate.dart",
+      "note": "Existing port fallback remains immediately (0); original AppConfig uses 3 pages. All original threshold choices are available."
+    },
+    "readListContinuationEnabled": {
+      "status": "implemented",
+      "storage": "readListContinuationEnabled",
+      "implementation": "lib/core/read_list_reading.dart",
+      "note": ""
+    },
+    "readerBackground": {
+      "status": "implemented",
+      "storage": "readerDefault.background",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+    },
+    "requestTimeout": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/network_preferences.dart",
+      "note": ""
+    },
+    "searchIgnoreFilters": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "showBookCardSeriesTitle": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "showDashboardCardKindMenu": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/catalog/dashboard.dart",
+      "note": ""
+    },
+    "showDashboardSectionGradientBackground": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/catalog/dashboard.dart",
+      "note": ""
+    },
+    "showDivinaControlsGradientBackground": {
+      "status": "implemented",
+      "storage": "readerDefault.controlsGradient",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "showDivinaProgressBarWhileReading": {
+      "status": "implemented",
+      "storage": "readerDefault.showProgress",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "showKeyboardHelpOverlay": {
+      "status": "adapted",
+      "storage": "showKeyboardHelpOverlay",
+      "implementation": "lib/features/reader/reader_display.dart",
+      "note": "Timed keyboard help on Windows; no iPad hardware-keyboard UI."
+    },
+    "showPageNumber": {
+      "status": "implemented",
+      "storage": "readerDefault.showPageNumber",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "showPageShadow": {
+      "status": "implemented",
+      "storage": "readerDefault.showPageShadow",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "showPdfControlsGradientBackground": {
+      "status": "implemented",
+      "storage": "pdfDefault.controlsGradient",
+      "implementation": "lib/features/reader/pdf_reader.dart",
+      "note": "Native PDFium. Raster fallback uses equivalent shared image-reader preferences; legacy background white."
+    },
+    "showPdfProgressBarWhileReading": {
+      "status": "implemented",
+      "storage": "pdfDefault.showProgress",
+      "implementation": "lib/features/reader/pdf_reader.dart",
+      "note": "Native PDFium. Raster fallback uses equivalent shared image-reader preferences; legacy background white."
+    },
+    "showTapZoneHints": {
+      "status": "implemented",
+      "storage": "readerDefault.showTapHints",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence. Legacy defaults are retained (cover false, layout single, hints false, zoom 2, background black) instead of original true/auto/true/3/system."
+    },
+    "spaceKeyAction": {
+      "status": "implemented",
+      "storage": "spaceKeyAction",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Also consumed by PDF and browser EPUB readers."
+    },
+    "splitWidePageMode": {
+      "status": "implemented",
+      "storage": "readerDefault.splitWide",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "suggestNextUnreadBook": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": ""
+    },
+    "tapZoneInversionMode": {
+      "status": "implemented",
+      "storage": "readerDefault.tapInversion",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "tapZoneMode": {
+      "status": "implemented",
+      "storage": "readerDefault.tapMode",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "taskQueueStatus": {
+      "status": "internal",
+      "storage": "live task queue",
+      "implementation": "lib/core/repository.dart",
+      "note": "Transient event state, not an editable setting."
+    },
+    "thumbnailBlurUnreadCovers": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "thumbnailPreserveAspectRatio": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "thumbnailShowProgressBar": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "thumbnailShowShadow": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "thumbnailShowUnreadIndicator": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/core/browse_preferences.dart",
+      "note": ""
+    },
+    "useClassicPadNavigation": {
+      "status": "adapted",
+      "storage": "useClassicPadNavigation",
+      "implementation": "lib/ui/shell.dart",
+      "note": "Sidebar on large Android/Windows windows; bottom navigation when disabled. Existing port default is sidebar enabled."
+    },
+    "useNativePdfReader": {
+      "status": "implemented",
+      "storage": "same key",
+      "implementation": "lib/features/settings/pdf_reader_settings.dart",
+      "note": "Original four PDF quality choices; rendering quality used in raster fallback."
+    },
+    "webtoonPageWidthPercentage": {
+      "status": "implemented",
+      "storage": "readerDefault.webtoonWidth",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    },
+    "webtoonTapScrollPercentage": {
+      "status": "implemented",
+      "storage": "readerDefault.tapScroll",
+      "implementation": "lib/features/reader/reader_page.dart",
+      "note": "Global defaults merge with saved per-book preferences; explicit saved book values take precedence."
+    }
+  }
+}
