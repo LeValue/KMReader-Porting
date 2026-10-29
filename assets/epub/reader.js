@@ -1,8 +1,12 @@
 'use strict';
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
+  let renditionSpineHooks = [], preferenceQueue = Promise.resolve();
+  let userMoveUntil = 0;
   let restoring = true, disposed = false, userMove = false, relocationTimer, resizeTimer = null, layoutJobs = 0;
   const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const inputEvents = ['wheel', 'touchstart', 'touchmove'];
+  const noteUserMove = () => { if (!restoring && !disposed) { userMove = true; userMoveUntil = Date.now() + 2000; } };
   const send = (type, value = {}) => {
     if (disposed || !config) return;
     const message = {type, ...value, nonce: config.nonce};
@@ -64,7 +68,11 @@
   function position(changed = false) {
     if (!location || restoring || auxiliary) return;
     const start = location.start, displayed = start.displayed || {page: 1, total: 1};
-    if (changed) anchor = start.cfi;
+    changed = changed && start.cfi !== anchor;
+    if (changed) {
+      anchor = start.cfi;
+      if (preferences.flow === 'scrolled') userMoveUntil = Date.now() + 2000;
+    }
     send('position', {cfi: start.cfi, href: start.href, page: displayed.page, pages: displayed.total,
       progression: progression(start, displayed),
       totalProgression: Number.isFinite(start.percentage) ? start.percentage : null,
@@ -73,6 +81,7 @@
   function hook(contents) {
     const section = book.spine.get(contents.sectionIndex);
     const doc = contents.document;
+    const active = () => doc.defaultView && doc.defaultView.frameElement && doc.defaultView.frameElement.isConnected;
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl') doc.documentElement.dir = 'rtl';
     style(doc);
@@ -98,8 +107,9 @@
     let touch;
     doc.addEventListener('touchstart', event => {
       touch = event.touches.length === 1 ? {x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now()} : null;
-      if (!restoring) userMove = true;
+      noteUserMove();
     }, {passive: true});
+    doc.addEventListener('touchmove', noteUserMove, {passive: true});
     doc.addEventListener('touchend', event => {
       if (!touch || preferences.flow === 'scrolled' || !doc.getSelection().isCollapsed) return;
       const end = event.changedTouches[0];
@@ -109,11 +119,11 @@
       }
       touch = null;
     }, {passive: false});
-    doc.addEventListener('wheel', () => { if (!restoring) userMove = true; }, {passive: true});
+    doc.addEventListener('wheel', noteUserMove, {passive: true});
     for (const image of doc.images) image.addEventListener('load', () => {
-      if (!restoring && location) preserve(() => Promise.resolve());
+      if (active() && !restoring && location) preserve(() => Promise.resolve());
     });
-    if (doc.fonts) doc.fonts.addEventListener('loadingdone', () => { if (!restoring && location) preserve(() => Promise.resolve()); });
+    if (doc.fonts) doc.fonts.addEventListener('loadingdone', () => { if (active() && !restoring && location) preserve(() => Promise.resolve()); });
     doc.addEventListener('selectionchange', () => {
       const selection = doc.getSelection();
       if (!selection.isCollapsed && selection.toString().trim()) send('selection', {text: selection.toString().slice(0, 16000)});
@@ -130,21 +140,35 @@
   async function preserve(change) {
     if (!rendition) return;
     const cfi = anchor || (location && location.start.cfi);
-    layoutJobs++; restoring = true; userMove = false; clearTimeout(relocationTimer);
+    layoutJobs++; restoring = true; userMove = false; userMoveUntil = 0; clearTimeout(relocationTimer);
     try {
       await change();
       await stable(rendition.getContents());
-      if (cfi) await rendition.display(cfi);
+      if (cfi) await displayStable(cfi);
       await tick();
     } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); }
   }
   function setPreferences(value) {
+    // Flow changes replace the manager. Keep rapid preference updates ordered
+    // so an older reflow cannot destroy a newer rendition or restore its CFI.
+    const pending = preferenceQueue.then(() => applyPreferences(value));
+    preferenceQueue = pending.catch(() => {});
+    return pending;
+  }
+  async function applyPreferences(value) {
+    await waitForLayout();
+    const flowChanged = preferences.flow !== value.flow;
     preferences = value;
     const [background] = colors();
     document.body.style.background = background;
     document.getElementById('viewer').style.background = background;
     return preserve(async () => {
-      rendition.flow(value.flow === 'scrolled' ? 'scrolled-doc' : 'paginated');
+      if (flowChanged) {
+        const cfi = anchor || (location && location.start.cfi);
+        destroyRendition();
+        createRendition();
+        await rendition.display(cfi || undefined);
+      }
       rendition.spread(value.columns === 1 ? 'none' : value.columns === 2 ? 'always' : 'auto', 800);
       rendition.settings.gap = value.margin * 2;
       for (const contents of rendition.getContents()) style(contents.document);
@@ -170,8 +194,12 @@
   async function display(target, changed = true) {
     if (auxiliary) closeAuxiliary();
     restoring = true;
-    try { await rendition.display(target); await stable(rendition.getContents()); }
+    try { await displayStable(target); }
     finally { restoring = false; userMove = false; position(changed); }
+  }
+  async function displayStable(target) {
+    await rendition.display(target);
+    await stable(rendition.getContents());
   }
   async function turn(value) {
     if (!rendition || auxiliary) return;
@@ -204,7 +232,8 @@
     } finally {image.remove();}
   }
   async function legacyProgress(progression) {
-    const contents = rendition.getContents()[0];
+    const all = rendition.getContents();
+    const contents = all.find(content => location && content.sectionIndex === location.start.index) || all[0];
     if (!contents || progression <= 0) return;
     const walker = contents.document.createTreeWalker(contents.document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; let total = 0, node;
@@ -224,34 +253,69 @@
     document.getElementById('viewer').style.background = colors()[0];
     book = ePub(value.url, {openAs: 'opf', replacements: 'none'});
     await book.ready;
-    rendition = book.renderTo('viewer', {width: window.innerWidth, height: window.innerHeight, resizeOnOrientationChange: false,
-      flow: preferences.flow === 'scrolled' ? 'scrolled-doc' : 'paginated',
-      spread: preferences.columns === 1 ? 'none' : preferences.columns === 2 ? 'always' : 'auto',
-      minSpreadWidth: 800, gap: preferences.margin * 2, direction: value.direction,
-      allowScriptedContent: false, allowPopups: false});
-    rendition.hooks.content.register(hook);
-    rendition.on('relocated', value => {
-      location = value;
-      clearTimeout(relocationTimer);
-      relocationTimer = setTimeout(() => { const changed = userMove; userMove = false; position(changed); }, 120);
-    });
-    rendition.on('displayError', error => { if (!restoring) send('error', {message: String(error)}); });
+    if (disposed) return;
+    createRendition();
     let restoredCfi = Boolean(value.cfi);
-    try { await rendition.display(value.cfi || value.href || undefined); }
+    try { await displayStable(value.cfi || value.href || undefined); }
     catch (error) {
       if (!value.cfi) throw error;
       restoredCfi = false;
-      await rendition.display(value.href || undefined);
+      await displayStable(value.href || undefined);
     }
     await stable(rendition.getContents());
     if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
     await tick(); restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
     position(false); send('ready');
-    window.addEventListener('resize', () => {
-      restoring = true;
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => { resizeTimer = null; preserve(() => rendition.resize(window.innerWidth, window.innerHeight)); }, 150);
+    window.addEventListener('resize', onResize);
+    for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
+  }
+  function onResize() {
+    if (disposed || !rendition) return;
+    restoring = true;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { resizeTimer = null; preserve(() => rendition.resize(window.innerWidth, window.innerHeight)); }, 150);
+  }
+  function createRendition() {
+    const before = new Set(book.spine.hooks.content.list());
+    const current = rendition = book.renderTo('viewer', {width: window.innerWidth, height: window.innerHeight, resizeOnOrientationChange: false,
+      manager: preferences.flow === 'scrolled' ? 'continuous' : 'default',
+      flow: preferences.flow === 'scrolled' ? 'scrolled' : 'paginated',
+      offset: Math.max(800, Math.min(1600, window.innerHeight * 2)),
+      spread: preferences.columns === 1 ? 'none' : preferences.columns === 2 ? 'always' : 'auto',
+      minSpreadWidth: 800, gap: preferences.margin * 2, direction: config.direction,
+      allowScriptedContent: false, allowPopups: false});
+    renditionSpineHooks = book.spine.hooks.content.list().filter(callback => !before.has(callback));
+    rendition.hooks.content.register(hook);
+    rendition.on('relocated', value => {
+      if (rendition !== current || disposed) return;
+      location = value;
+      clearTimeout(relocationTimer);
+      relocationTimer = setTimeout(() => {
+        const changed = userMove || (preferences.flow === 'scrolled' && Date.now() < userMoveUntil);
+        userMove = false; position(changed);
+      }, 120);
     });
+    rendition.on('displayError', error => { if (rendition === current && !restoring) send('error', {message: String(error)}); });
+  }
+  function destroyRendition() {
+    const current = rendition;
+    rendition = null;
+    clearTimeout(relocationTimer);
+    // Epub.js 0.3.93 leaves its bound identifier hook on the book at destroy.
+    // Remove only hooks this rendition added; publication hooks stay intact.
+    for (const callback of renditionSpineHooks) book.spine.hooks.content.deregister(callback);
+    renditionSpineHooks = [];
+    if (current) {
+      const manager = current.manager;
+      if (manager) {
+        clearTimeout(manager.trimTimeout); clearTimeout(manager.scrollTimeout);
+        if (manager._scrolled && manager._scrolled.cancel) manager._scrolled.cancel();
+        if (manager.q) manager.q.stop();
+      }
+      if (current.q) current.q.stop();
+      current.destroy();
+      if (book.rendition === current) book.rendition = undefined;
+    }
   }
   async function search(term) {
     const matches = [];
@@ -286,5 +350,10 @@
     send('auxiliary', {active: true});
   }
   window.reader = {open, next, previous, turn, display, preferences: setPreferences, search, openAuxiliary, closeAuxiliary,
-    position: () => location, destroy: () => { disposed = true; clearTimeout(relocationTimer); clearTimeout(resizeTimer); if (rendition) rendition.destroy(); if (book) book.destroy(); }};
+    position: () => location, destroy: () => {
+      disposed = true; clearTimeout(relocationTimer); clearTimeout(resizeTimer);
+      window.removeEventListener('resize', onResize);
+      for (const event of inputEvents) document.removeEventListener(event, noteUserMove);
+      destroyRendition(); if (book) book.destroy();
+    }};
 })();
