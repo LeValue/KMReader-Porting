@@ -82,6 +82,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/build/
     - assets/epub/
     - assets/models/
     - assets/logo.png

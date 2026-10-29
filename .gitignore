@@ -57,3 +57,6 @@ app.*.map.json
 
 # Gradle outputs from local path plugins.
 /android/build/
+
+# Generated, source-bound build provenance (not application source).
+/assets/build/source.json

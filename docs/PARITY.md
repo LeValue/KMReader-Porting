@@ -61,7 +61,7 @@ OCR, ONNX inference, and OS display-awake request/release. Android also checks
 simulated notch geometry/rotation and captures the composed EPUB via PixelCopy.
 These are controlled native fixtures, not physical-device performance measurements.
 
-The development suite passes 222 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
+The development suite passes 226 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
 progress conflicts between SQLite connections, multi-worker media generations,
 conditional HTTP 304 validation, immutable document refresh, download pause/resume,
 account deletion with active writes, wide-page gesture ownership and pan restoration.
@@ -170,10 +170,17 @@ after an axis change and reveal CFI/fragment targets on the horizontal axis.
 Real input releases stale scroll suppression, while physical document bounds
 prevent premature completion in continuous reading.
 
-All 222 automated checks with Chromium/ONNX, static analysis and Android debug
+All 226 automated checks with Chromium/ONNX, static analysis and Android debug
 compilation pass locally. Browser acceptance exercises both flows for fixed and
 vertical books, search/fragment visibility, font reflow with visible CFI anchors,
 publisher typography and viewport changes. Native CI now exercises reflowable,
 fixed and vertical publications separately on Android/Windows; that new source
 is awaiting its own native verification and versioned preview. Mixed-writing
 publications and exact typography/performance still need further acceptance.
+
+The CJK regression matrix now includes phone/tablet/desktop widths and the
+maximum font size. Vertical locators align to the physical page height after
+reflow; browser caret ranges distinguish successive visible characters within
+one large paragraph. Horizontal continuous reading also advances through page
+controls. A generated source/version record is embedded in both build bundles;
+staging and publication reject stale artifacts even when their version matches.

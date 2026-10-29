@@ -13,12 +13,20 @@ from pathlib import Path
 import subprocess
 import tempfile
 
+from preview_metadata import apk_provenance, read_version, validate_provenance
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('apk', type=Path)
     parser.add_argument('--repo', default='LeValue/KMReader-Porting')
     args = parser.parse_args()
+    root = Path(__file__).resolve().parent.parent
+    if subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip():
+        raise SystemExit('Commit source changes before staging a verified preview')
+    source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    version, build = read_version(root)
+    validate_provenance(apk_provenance(args.apk), source, version, build)
     data = args.apk.read_bytes()
     digest = hashlib.sha256(data).hexdigest()
     packed = lzma.compress(data, preset=6)
@@ -36,7 +44,7 @@ def main():
         uploaded = json.loads(result.stdout)
         if uploaded['sha'] != git_hash:
             raise SystemExit('GitHub returned an unexpected blob hash')
-    print(json.dumps({'git_blob': git_hash, 'sha256': digest, 'bytes': len(data), 'compression': 'xz', 'compressed_bytes': len(packed)}))
+    print(json.dumps({'source': source, 'git_blob': git_hash, 'sha256': digest, 'bytes': len(data), 'compression': 'xz', 'compressed_bytes': len(packed)}))
 
 
 if __name__ == '__main__':

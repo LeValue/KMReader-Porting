@@ -47,6 +47,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   WebViewEnvironment? _environment;
   bool _initialized = false, _controls = true;
   bool _fixedLayout = false;
+  bool _verticalWriting = false;
   final _closed = Completer<void>();
   String? _error, _selection;
   bool _turning = false;
@@ -195,7 +196,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     }());
     switch (event['type']) {
       case 'ready':
-        setState(() => _fixedLayout = event['layout'] == 'pre-paginated');
+        setState(() {
+          _fixedLayout = event['layout'] == 'pre-paginated';
+          _verticalWriting = text(event['writingMode']).startsWith('vertical');
+        });
         break;
       case 'turn':
         unawaited(_turn(integer(event['delta'], 1)));
@@ -757,23 +761,24 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         20,
                       ),
                     ],
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final count in [0, 1, 2])
-                          ChoiceChip(
-                            label: Text(
-                              count == 0
-                                  ? tr(context, 'Automatic')
-                                  : _fixedLayout
-                                  ? '${tr(context, 'Pages')}: $count'
-                                  : '$count ${tr(context, 'Columns')}',
+                    if (!_verticalWriting)
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final count in [0, 1, 2])
+                            ChoiceChip(
+                              label: Text(
+                                count == 0
+                                    ? tr(context, 'Automatic')
+                                    : _fixedLayout
+                                    ? '${tr(context, 'Pages')}: $count'
+                                    : '$count ${tr(context, 'Columns')}',
+                              ),
+                              selected: p.columns == count,
+                              onSelected: (_) => apply('columns', count),
                             ),
-                            selected: p.columns == count,
-                            onSelected: (_) => apply('columns', count),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
                     if (!_fixedLayout) ...[
                       Wrap(
                         spacing: 8,

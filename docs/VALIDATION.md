@@ -469,3 +469,21 @@ anchors after font changes and completion bounds. Native suites now include
 separate reflowable/fixed/vertical publications with distinct Android PixelCopy
 screenshots. That later source is awaiting native CI; 0.6.0 downloads remain the
 verified published checkpoint above. Release 0.6.1/code 8 is being prepared.
+
+The 0.6.1 native checks exposed a genuine vertical-text reflow defect on Windows
+(and Android once its driver connection remained stable): large-font page turns
+could retain a paragraph-start locator. A desktop/browser reproducer now covers
+390/411/1044-pixel widths, 52/60-pixel text, visible saved anchors and subsequent
+CFI changes in both flows. Physical-height locator alignment and visible-character
+caret mapping pass all 226 local Dart checks (Chromium/ONNX enabled), plus static
+analysis. Native cleanup now unmounts the WebView even when an assertion fails,
+so temporary-file locks cannot hide the original failure.
+
+Android CI precompiles both test APKs, stops Gradle and uses the supported
+prebuilt-binary driver mode. This removes compiler/emulator overlap without
+changing assertions or the eight-minute drive bound. That revised execution
+reached the CJK assertion without a transport disconnect; no host OOM cause is
+claimed. Diagnostic filtering now uses grep on runners without ripgrep.
+Embedded build provenance and six Python release-gate checks reject missing,
+malformed or stale source/version records. Fresh native CI is required before
+publishing the updated 0.6.1 binaries.

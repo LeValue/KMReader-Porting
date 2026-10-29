@@ -147,39 +147,50 @@ void main() {
     repository.dispose();
     store.close();
   });
-  for (final flow in ['paged', 'scrolled']) {
-    test(
-      'vertical CJK EPUB $flow flow preserves search and its visible CFI anchor',
-      () async {
-        final file = verticalEpubFixture(directory);
-        final doc = EpubDocument.open(file.path);
-        final host = await EpubHost.open(doc, filePath: file.path);
-        try {
-          final result = await Process.run('python3', [
-            'tool/epub_layout_smoke.py',
-            host.reader.toString(),
-            jsonEncode({
-              'url': host.publication.toString(),
-              'preferences': EpubPreferences.fromJson({'flow': flow}).toJson(),
-              'nonce': 'vertical',
-              'direction': 'rtl',
-              'language': 'ja',
-              'kind': 'vertical',
-              'href': 'one.xhtml',
-            }),
-          ]);
-          expect(
-            result.exitCode,
-            0,
-            reason: '${result.stdout}\n${result.stderr}',
-          );
-        } finally {
-          await host.close();
-          doc.close();
-        }
-      },
-      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
-    );
+  for (final width in [390, 411, 1044]) {
+    for (final flow in ['paged', 'scrolled']) {
+      test(
+        'vertical CJK EPUB $flow flow preserves navigation at $width pixels',
+        () async {
+          final file = verticalEpubFixture(directory);
+          final doc = EpubDocument.open(file.path);
+          final host = await EpubHost.open(doc, filePath: file.path);
+          try {
+            final result = await Process.run('python3', [
+              'tool/epub_layout_smoke.py',
+              host.reader.toString(),
+              jsonEncode({
+                'url': host.publication.toString(),
+                'preferences': EpubPreferences.fromJson({'flow': flow})
+                    .toJson(),
+                'nonce': 'vertical',
+                'direction': 'rtl',
+                'language': 'ja',
+                'kind': 'vertical',
+                'viewport': {
+                  'width': width,
+                  'height': width == 1044
+                      ? 720
+                      : width == 411
+                      ? 700
+                      : 780,
+                },
+                'href': 'one.xhtml',
+              }),
+            ]);
+            expect(
+              result.exitCode,
+              0,
+              reason: '${result.stdout}\n${result.stderr}',
+            );
+          } finally {
+            await host.close();
+            doc.close();
+          }
+        },
+        skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+      );
+    }
   }
   for (final flow in ['paged', 'scrolled']) {
     test(

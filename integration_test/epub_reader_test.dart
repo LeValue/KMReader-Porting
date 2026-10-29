@@ -201,11 +201,11 @@ void main() {
             });
             debugPrint('Native EPUB PixelCopy capture completed');
           }
+        } finally {
           await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
           await Future<void>.delayed(const Duration(seconds: 1));
           await tester.pump();
           expect(tester.takeException(), isNull);
-        } finally {
           repository.dispose();
           store.close();
           await directory.delete(recursive: true);

@@ -23,7 +23,8 @@
   const timeout = (promise, ms = 6000) => Promise.race([promise, new Promise(resolve => setTimeout(resolve, ms))]);
   const colors = () => preferences.theme === 'black' ? ['#1c1c1e', '#e8e4dc'] : preferences.theme === 'white' ? ['#ffffff', '#262321'] : ['#efe5d0', '#262321'];
   const isFixedLayout = () => Boolean(book && (book.package?.metadata.layout === 'pre-paginated' || book.displayOptions?.fixedLayout === 'true'));
-  const spreadPreference = value => value.columns === 1 ? 'none' : value.columns === 2 ? 'always'
+  const verticalWriting = () => Boolean(rendition?.manager?.writingMode?.startsWith('vertical'));
+  const spreadPreference = value => verticalWriting() ? 'none' : value.columns === 1 ? 'none' : value.columns === 2 ? 'always'
     : isFixedLayout() && book.package?.metadata.spread === 'none' ? 'none'
     : isFixedLayout() && book.package?.metadata.spread === 'both' ? 'always' : 'auto';
   function atReadingEnd() {
@@ -98,8 +99,37 @@
     }
     return Math.max(0, (displayed.page - 1) / Math.max(1, displayed.total));
   }
+  function refineVerticalLocator() {
+    if (!verticalWriting() || isFixedLayout() || !location) return;
+    const contents = rendition.getContents().find(content => content.sectionIndex === location.start.index);
+    const doc = contents?.document, frame = doc?.defaultView?.frameElement;
+    if (!frame || !doc.caretRangeFromPoint) return;
+    const viewport = rendition.manager.container.getBoundingClientRect(), bounds = frame.getBoundingClientRect();
+    const style = doc.defaultView.getComputedStyle(doc.body);
+    const leftToRight = contents.writingMode().endsWith('-lr');
+    const edge = leftToRight ? viewport.left - bounds.left : viewport.right - bounds.left;
+    const padding = parseFloat(leftToRight ? style.paddingLeft : style.paddingRight) || 0;
+    const top = viewport.top - bounds.top, right = viewport.right - bounds.left, left = viewport.left - bounds.left;
+    // The stock mapper can return the same paragraph start for successive
+    // pages of large vertical text. Ask the browser for the visible character.
+    const fontSize = parseFloat(style.fontSize) || 16, lineHeight = parseFloat(style.lineHeight) || fontSize * 1.5;
+    for (const inset of [padding + lineHeight / 2, padding + fontSize / 2, padding + 1]) {
+      for (const dy of [fontSize / 2, fontSize, lineHeight / 2]) {
+        const x = edge + (leftToRight ? inset : -inset);
+        const y = top + (parseFloat(style.paddingTop) || 0) + dy;
+        const range = doc.caretRangeFromPoint(x, y);
+        if (!range || range.startContainer.nodeType !== Node.TEXT_NODE || !range.startContainer.textContent.trim()) continue;
+        const rect = range.getBoundingClientRect();
+        if ((rect.width || rect.height) && rect.right >= left && rect.left <= right && rect.top >= top - 1 && rect.top < top + viewport.height) {
+          location.start.cfi = contents.cfiFromRange(range);
+          return;
+        }
+      }
+    }
+  }
   function position(changed = false) {
     if (!location || restoring || auxiliary) return;
+    refineVerticalLocator();
     const start = location.start, displayed = start.displayed || {page: 1, total: 1};
     changed = changed && start.cfi !== anchor;
     if (changed) {
@@ -215,19 +245,29 @@
       await rendition.resize(window.innerWidth, window.innerHeight);
     });
   }
+  async function advance(delta) {
+    const manager = rendition.manager;
+    if (!manager.isPaginated && manager.settings.axis === 'horizontal') {
+      manager.scrollBy(delta * manager.container.clientWidth, 0, true);
+      await manager.q.enqueue(() => manager.check());
+      rendition.reportLocation();
+    } else if (delta > 0) await rendition.next();
+    else await rendition.prev();
+    await stable(rendition.getContents());
+  }
   async function next() {
     if (!rendition || auxiliary) return;
     await waitForLayout();
     if (atReadingEnd()) { send('end'); return; }
     restoring = true;
-    try { await rendition.next(); await stable(rendition.getContents()); }
+    try { await advance(1); }
     finally { restoring = false; userMove = false; position(true); }
   }
   async function previous() {
     if (!rendition || auxiliary) return;
     await waitForLayout();
     restoring = true;
-    try { await rendition.prev(); await stable(rendition.getContents()); }
+    try { await advance(-1); }
     finally { restoring = false; userMove = false; position(true); }
   }
   async function display(target, changed = true) {
@@ -239,10 +279,12 @@
   async function displayStable(target) {
     await rendition.display(target);
     await stable(rendition.getContents());
-    // Epub.js continuous moveTo only applies target.top. Vertical writing
-    // scrolls horizontally, so CFI/fragment navigation needs the other axis.
+    // Continuous moveTo only applies target.top. Vertical pagination also
+    // reuses a width-based delta after reflow. Align locators on the real axis.
     const manager = rendition.manager;
-    if (preferences.flow !== 'scrolled' || manager?.settings.axis !== 'horizontal' || typeof target !== 'string') return;
+    const horizontalFlow = !manager?.isPaginated && manager?.settings.axis === 'horizontal';
+    const verticalPages = manager?.isPaginated && manager?.settings.axis === 'vertical' && !isFixedLayout();
+    if ((!horizontalFlow && !verticalPages) || typeof target !== 'string') return;
     let range;
     if (target.startsWith('epubcfi(')) {
       const cfi = new ePub.CFI(target);
@@ -261,10 +303,16 @@
     const frame = range.startContainer.ownerDocument.defaultView.frameElement;
     const bounds = frame.getBoundingClientRect(), rect = range.getBoundingClientRect();
     const viewport = manager.container.getBoundingClientRect();
-    const delta = config.direction === 'rtl'
-      ? bounds.left + rect.right - viewport.right
-      : bounds.left + rect.left - viewport.left;
-    if (Math.abs(delta) > 1) manager.scrollTo(manager.container.scrollLeft + delta, manager.container.scrollTop, true);
+    if (verticalPages) {
+      const height = manager.layout.height;
+      const top = Math.max(0, Math.floor((manager.container.scrollTop + bounds.top + rect.top - viewport.top) / height) * height);
+      if (Math.abs(top - manager.container.scrollTop) > 1) manager.scrollTo(manager.container.scrollLeft, top, true);
+    } else {
+      const delta = config.direction === 'rtl'
+        ? bounds.left + rect.right - viewport.right
+        : bounds.left + rect.left - viewport.left;
+      if (Math.abs(delta) > 1) manager.scrollTo(manager.container.scrollLeft + delta, manager.container.scrollTop, true);
+    }
     rendition.reportLocation();
     await tick();
   }
@@ -332,7 +380,7 @@
     await stable(rendition.getContents());
     if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
     await tick(); restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
-    position(false); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable'});
+    position(false); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb'});
     window.addEventListener('resize', onResize);
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
   }
