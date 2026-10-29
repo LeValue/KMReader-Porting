@@ -1118,5 +1118,29 @@
     "zh-Hant": "請重新連線以管理伺服器。",
     "ru": "Подключитесь снова для управления сервером.",
     "es": "Vuelve a conectarte para administrar el servidor."
+  },
+  "User Agent": {
+    "en": "User Agent",
+    "it": "Dispositivo e software",
+    "de": "User-Agent",
+    "fr": "Agent utilisateur",
+    "ja": "ユーザーエージェント",
+    "ko": "사용자 에이전트",
+    "zh-Hans": "用户代理",
+    "zh-Hant": "使用者代理",
+    "ru": "Агент пользователя",
+    "es": "Agente de usuario"
+  },
+  "IP Address": {
+    "en": "IP Address",
+    "it": "Indirizzo IP",
+    "de": "IP-Adresse",
+    "fr": "Adresse IP",
+    "ja": "IP アドレス",
+    "ko": "IP 주소",
+    "zh-Hans": "IP 地址",
+    "zh-Hant": "IP 位址",
+    "ru": "IP-адрес",
+    "es": "Dirección IP"
   }
 }

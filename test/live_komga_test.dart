@@ -89,6 +89,15 @@ void main() {
         await management.taskMetrics();
         expect(await repository.komf.checkIntegration(), isNull);
         expect(
+          object(
+            await repository.get(
+              '/api/v2/users/me/authentication-activity',
+              query: {'page': 0, 'size': 20},
+            ),
+          )['content'],
+          isA<List>(),
+        );
+        expect(
           (await repository.catalog(
             'books',
             path: '/api/v1/books/duplicates',

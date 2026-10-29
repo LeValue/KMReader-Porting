@@ -80,6 +80,17 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ),
               ),
+              ListTile(
+                leading: const Icon(Icons.manage_history),
+                title: Text(tr(context, 'Authentication Activity')),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AuthenticationActivityPage(repository: repository),
+                  ),
+                ),
+              ),
               for (final profile in app.servers)
                 ListTile(
                   leading: Icon(
