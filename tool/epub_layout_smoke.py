@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 url, config = sys.argv[1], json.loads(sys.argv[2])
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True, args=['--no-sandbox'])
-    page = browser.new_page(viewport={'width': 390, 'height': 780})
+    page = browser.new_page(viewport=config.get('viewport', {'width': 390, 'height': 780}))
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script("window.readerMessages=[]; addEventListener('readerEvent', event=>readerMessages.push(event.detail));")
@@ -39,21 +39,42 @@ with sync_playwright() as playwright:
             page.evaluate('window.reader.next()')
         second = page.evaluate('window.reader.position().start')
         assert second['cfi'] != first['cfi'], (first, second)
+        for font_size in [52, 60]:
+            saved_turn = page.evaluate('window.reader.position().start.cfi')
+            page.evaluate('(value)=>window.reader.preferences(value)', {**config['preferences'], 'fontSize': font_size})
+            anchor_rect = frame.evaluate('(cfi)=>new parent.ePub.CFI(cfi).toRange(document).getBoundingClientRect().toJSON()', saved_turn)
+            frame_rect = frame.frame_element().bounding_box()
+            anchor_x, anchor_y = frame_rect['x'] + anchor_rect['x'], frame_rect['y'] + anchor_rect['y']
+            assert -1 <= anchor_x < page.viewport_size['width'] + 1 and -1 <= anchor_y < page.viewport_size['height'] + 1, {'font': font_size, 'anchor': anchor_rect, 'frame': frame_rect}
+            page.evaluate('readerMessages.length=0')
+            page.evaluate('window.reader.next()')
+            advanced = page.evaluate("readerMessages.filter(m=>m.type==='position' && m.changed).at(-1)")
+            if not advanced:
+                print('caret-diagnostics', frame.evaluate("""() => {
+                  const f = frameElement.getBoundingClientRect(), v = parent.document.querySelector('.epub-container').getBoundingClientRect();
+                  return [1, 21, 28, 44, 80].map(inset => {
+                    const x = v.right - f.left - inset, y = v.top - f.top + 25;
+                    const range = document.caretRangeFromPoint(x,y);
+                    return {x,y,node:range?.startContainer.parentElement?.id,offset:range?.startOffset,rect:range?.getBoundingClientRect().toJSON(),frame:f.toJSON(),viewport:v.toJSON()};
+                  });
+                }"""))
+                page.screenshot(path=f"/tmp/km-cjk-fail-{page.viewport_size['width']}-{config['preferences']['flow']}.png")
+            assert advanced and advanced['cfi'] != saved_turn, {'font': font_size, 'before': saved_turn, 'after': page.evaluate('window.reader.position().start'), 'messages': page.evaluate('readerMessages')}
         match = page.evaluate("window.reader.search('縦書き段落47')")[0]
         page.evaluate('(cfi)=>window.reader.display(cfi)', match['cfi'])
         box = frame.locator('#p47').bounding_box()
-        assert box and box['x'] < 390 and box['x'] + box['width'] > 0 and box['y'] < 780 and box['y'] + box['height'] > 0, box
+        assert box and box['x'] < page.viewport_size['width'] and box['x'] + box['width'] > 0 and box['y'] < page.viewport_size['height'] and box['y'] + box['height'] > 0, box
         saved = page.evaluate('window.reader.position().start.cfi')
         page.evaluate('readerMessages.length=0')
         page.evaluate('(value)=>window.reader.preferences(value)', {**config['preferences'], 'fontSize': 26})
         anchor = frame.evaluate('(cfi)=>new parent.ePub.CFI(cfi).toRange(document).getBoundingClientRect().toJSON()', saved)
         viewport = frame.frame_element().bounding_box()
         x, y = viewport['x'] + anchor['x'], viewport['y'] + anchor['y']
-        assert -1 <= x < 391 and -1 <= y < 781, (anchor, viewport)
+        assert -1 <= x < page.viewport_size['width'] + 1 and -1 <= y < page.viewport_size['height'] + 1, (anchor, viewport)
         assert not page.evaluate("readerMessages.some(m=>m.type==='position' && m.changed)")
         page.evaluate("window.reader.display('one.xhtml#p80')")
         box = frame.locator('#p80').bounding_box()
-        assert box and box['x'] < 390 and box['x'] + box['width'] > 0 and box['y'] < 780 and box['y'] + box['height'] > 0, box
+        assert box and box['x'] < page.viewport_size['width'] and box['x'] + box['width'] > 0 and box['y'] < page.viewport_size['height'] and box['y'] + box['height'] > 0, box
         page.evaluate('window.reader.destroy()')
         page.wait_for_timeout(200)
         assert not errors, errors

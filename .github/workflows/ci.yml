@@ -45,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: python3 tool/prepare_build_metadata.py
       - name: Reserve space for the optimized Android build
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/ghc /opt/ghc /opt/hostedtoolcache/CodeQL
@@ -96,6 +97,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - run: python tool/prepare_build_metadata.py
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'
@@ -125,6 +127,7 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - run: python3 tool/prepare_build_metadata.py
       - name: Reserve disk space for the emulator and Android build
         run: |
           # This job uses neither .NET, Haskell nor CodeQL. Only the disposable
@@ -215,7 +218,7 @@ jobs:
           free -m
           df -h /
           ps -eo pid,rss,comm --sort=-rss | head -12 || true
-          sudo dmesg --ctime | rg -i 'out of memory|oom-kill|killed process' | tail -20 || true
+          sudo dmesg --ctime | grep -Ei 'out of memory|oom-kill|killed process' | tail -20 || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -296,7 +299,7 @@ jobs:
             "$sdk_tools/apksigner" verify --verbose --print-certs "$apk" > apk-signature.txt
             "$sdk_tools/zipalign" -c -P 16 4 "$apk"
             "$sdk_tools/aapt2" dump badging "$apk" > apk-badging.txt
-            python3 tool/preview_metadata.py --apk-badging apk-badging.txt --abi "$abi"
+            python3 tool/preview_metadata.py --apk-badging apk-badging.txt --abi "$abi" --apk "$apk" --source "$GITHUB_SHA"
             python3 - <<'PYCODE'
           from pathlib import Path
           expected = Path('tool/preview-certificate.sha256').read_text().strip()
@@ -330,6 +333,10 @@ jobs:
           import hashlib, os, zipfile
           from pathlib import Path
           root = Path('windows-bundle')
+          import json
+          from tool.preview_metadata import validate_provenance
+          validate_provenance(json.loads((root / 'data/flutter_assets/assets/build/source.json').read_text()),
+                              os.environ['GITHUB_SHA'], os.environ['RELEASE_VERSION'], os.environ['RELEASE_BUILD'])
           required = ['kmreader.exe', 'flutter_windows.dll', 'data/app.so']
           if any(not (root / name).is_file() for name in required):
               raise SystemExit('Incomplete Windows application bundle')

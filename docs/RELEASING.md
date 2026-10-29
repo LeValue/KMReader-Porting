@@ -5,6 +5,8 @@ Increment the Android build number for every published update and add notes at
 `docs/releases/v<version>-preview.1.md`. `tool/preview_metadata.py` checks these
 values before CI builds or publication.
 
+Commit the source, then run `python3 tool/prepare_build_metadata.py` to generate
+the embedded source/version record. CI does this for both platforms too.
 Build Android with the retained, private signing configuration. The key is not
 uploaded to CI. Produce complete APKs for all three architectures:
 
@@ -23,7 +25,9 @@ the actual `aapt2 dump badging` output with `tool/preview_metadata.py --apk-badg
 
 Verify each APK's retained certificate, package ID, version, non-debuggable mode
 and 16 KiB ZIP alignment. Stage each complete APK with `tool/stage_preview.py`;
-retain its returned Git blob and SHA256. The tool rejects a payload over its
+retain its returned source commit, Git blob and SHA256. Staging requires a clean
+checkout and embedded provenance matching HEAD; the publisher checks that record
+again against the source-matched CI revision. The tool rejects a payload over its
 request budget. Do not commit APKs or split one APK into upload fragments.
 
 Create an empty draft for the versioned tag, targeting the exact source commit.
