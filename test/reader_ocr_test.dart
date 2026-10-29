@@ -1,9 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/reader_ocr.dart';
+import 'package:kmreader/core/api.dart';
+import 'package:kmreader/core/models.dart';
+import 'package:kmreader/core/repository.dart';
+import 'package:kmreader/core/store.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -66,6 +72,90 @@ void main() {
           .where((f) => f.path.endsWith('.json')),
       hasLength(2),
     );
+  });
+  test('repository shutdown drains OCR and prevents cache writes after account removal', () async {
+    final store = LocalStore(sqlite3.openInMemory());
+    const profile = ServerProfile(
+      id: 'account',
+      name: 'Fixture',
+      url: 'https://example.invalid',
+      email: '',
+      authentication: Authentication.apiKey,
+    );
+    final repository = Repository(
+      profile: profile,
+      api: KomgaApi(
+        Uri.parse(profile.url),
+        authentication: profile.authentication,
+        credential: '',
+      ),
+      store: store,
+      directory: directory,
+    );
+    final entered = Completer<void>(),
+        reply = Completer<Map<String, dynamic>>();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          entered.complete();
+          return reply.future;
+        });
+    try {
+      final work = repository.ocr.recognize(
+        Uint8List.fromList([1, 2, 3]),
+        'latin',
+      );
+      await entered.future;
+      var drained = false;
+      final closing = repository.stopDownloadWork().then((_) => drained = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(drained, false);
+      await expectLater(
+        repository.ocr.recognize(Uint8List.fromList([1]), 'latin'),
+        throwsFormatException,
+      );
+      reply.complete({
+        'width': 100,
+        'height': 200,
+        'text': 'Synthetic private text',
+        'blocks': [],
+      });
+      expect((await work).text, 'Synthetic private text');
+      await closing;
+      expect(drained, true);
+      expect(directory.listSync(recursive: true).whereType<File>(), isEmpty);
+      store.removeServer(profile.id);
+      final account = Directory('${directory.path}/${profile.id}');
+      await account.delete(recursive: true);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(await account.exists(), false);
+    } finally {
+      await repository.stopDownloadWork();
+      store.close();
+    }
+  });
+  test('concurrent OCR results use independent temporary files and leave one valid cache', () async {
+    var calls = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls++;
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          return {'width': 100, 'height': 200, 'text': 'Result', 'blocks': []};
+        });
+    final reader = ReaderOcr(directory), bytes = Uint8List.fromList([1, 2, 3]);
+    final results = await Future.wait([
+      reader.recognize(bytes, 'latin'),
+      reader.recognize(bytes, 'latin'),
+    ]);
+    await reader.settled;
+    expect(results.map((r) => r.text), ['Result', 'Result']);
+    expect(calls, 2);
+    final files = directory
+        .listSync(recursive: true)
+        .whereType<File>()
+        .toList();
+    expect(files, hasLength(1));
+    expect(jsonDecode(files.single.readAsStringSync())['text'], 'Result');
+    reader.close();
   });
   test('failed recognition leaves no image or cached private text', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

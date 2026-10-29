@@ -17,6 +17,7 @@ import 'read_list_reading.dart';
 import 'server_event.dart';
 import 'komf.dart';
 import '../features/reader/page_upscaler.dart';
+import '../features/reader/reader_ocr.dart';
 
 class Repository extends ChangeNotifier {
   Repository({
@@ -48,6 +49,10 @@ class Repository extends ChangeNotifier {
     api: api,
   );
   late final PageUpscaler pageUpscaler = PageUpscaler(imageDirectory);
+  ReaderOcr? _ocr;
+  ReaderOcr get ocr => _ocr ??= ReaderOcr(
+    Directory(p.join(directory.path, profile.id, 'recognition')),
+  );
   bool _offline = false;
   bool get offline => _offline;
   set offline(bool value) {
@@ -1236,6 +1241,7 @@ class Repository extends ChangeNotifier {
       ..._imageRevalidations.values,
       documents.settled,
       pageUpscaler.settled,
+      if (_ocr != null) _ocr!.settled,
       ..._pageConversions.values.map(
         (future) => future.then<void>((_) {}, onError: (Object _) {}),
       ),
@@ -1497,6 +1503,7 @@ class Repository extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     _komf?.dispose();
+    _ocr?.close();
     documents.close();
     pageUpscaler.close();
     _cacheEvents?.cancel();

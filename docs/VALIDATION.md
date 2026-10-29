@@ -378,3 +378,21 @@ All three jobs for continuous EPUB source `797c269694ea9edd213ed8b1ed4cdcbd420e1
 passed in [workflow 40797242432](https://github.com/LeValue/KMReader-Porting/actions/runs/40797242432),
 including native flow changes and navigation afterwards on Android WebView and
 Windows WebView2, both release builds and Windows startup.
+
+## OCR lifecycle and native-driver startup
+
+Static analysis, all 204 automated tests (Chromium/ONNX enabled), and Android
+debug compilation pass with repository-owned OCR lifetime and cache cleanup.
+Account removal during an active native reply and concurrent cache replacement
+have dedicated regressions.
+
+All three jobs passed for password source `e57f20dc935887527f0db8677496080b39b606cd`
+in [workflow 40798165296](https://github.com/LeValue/KMReader-Porting/actions/runs/40798165296).
+Authentication-activity source `0586c6c` passed Android release and Windows,
+but its native Android job timed out before any test ran: logcat shows a healthy
+app VM waiting while FlutterDriver could not connect through DDS. A later
+`717387c` native Android job passed with the same display suite. The Android
+smoke script now selects the supported `--no-dds` direct VM connection, retaining
+the existing per-drive timeout and all test assertions. Verification of that
+script change is pending its new CI run. Failure logcat is retained locally
+under ignored `artifacts/verification-post-0.5/auth-history-native-failure/`.
