@@ -1142,5 +1142,29 @@
     "zh-Hant": "IP 位址",
     "ru": "IP-адрес",
     "es": "Dirección IP"
+  },
+  "Group Text by Speech Bubbles": {
+    "en": "Group Text by Speech Bubbles",
+    "it": "Raggruppa il testo per balloon",
+    "de": "Text nach Sprechblasen gruppieren",
+    "fr": "Regrouper le texte par bulles",
+    "ja": "吹き出しごとにテキストをまとめる",
+    "ko": "말풍선별로 텍스트 묶기",
+    "zh-Hans": "按对话气泡分组文本",
+    "zh-Hant": "依對話框分組文字",
+    "ru": "Группировать текст по облачкам",
+    "es": "Agrupar texto por bocadillos"
+  },
+  "Bubble detection failed. System OCR regions are still available.": {
+    "en": "Bubble detection failed. System OCR regions are still available.",
+    "it": "Rilevamento dei balloon non riuscito. Le aree OCR di sistema sono ancora disponibili.",
+    "de": "Sprechblasenerkennung fehlgeschlagen. Die OCR-Bereiche des Systems sind weiterhin verfügbar.",
+    "fr": "La détection des bulles a échoué. Les zones OCR du système restent disponibles.",
+    "ja": "吹き出しの検出に失敗しました。システムOCRの領域は引き続き利用できます。",
+    "ko": "말풍선 감지에 실패했습니다. 시스템 OCR 영역은 계속 사용할 수 있습니다.",
+    "zh-Hans": "气泡检测失败。仍可使用系统 OCR 区域。",
+    "zh-Hant": "對話框偵測失敗。仍可使用系統 OCR 區域。",
+    "ru": "Не удалось распознать облачка. Области системного OCR по-прежнему доступны.",
+    "es": "No se pudieron detectar los bocadillos. Las regiones OCR del sistema siguen disponibles."
   }
 }

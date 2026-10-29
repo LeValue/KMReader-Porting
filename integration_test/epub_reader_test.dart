@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:kmreader/features/reader/reader_ocr.dart';
+import 'package:kmreader/features/reader/bubble_detector.dart';
 import 'package:kmreader/features/reader/page_upscaler.dart';
 
 import 'package:flutter/material.dart';
@@ -242,6 +243,28 @@ void main() {
       }
     },
   );
+  testWidgets('native bubble detection matches the converted model probe', (
+    tester,
+  ) async {
+    final detector = BubbleDetector();
+    try {
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawColor(Colors.white, BlendMode.src);
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(16, 16);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      picture.dispose();
+      final result = await detector.detect(
+        data!.buffer.asUint8List(),
+        cache: false,
+      );
+      expect(result.boxes, isEmpty);
+      expect(result.maxScore, closeTo(8.584473835e-5, 2e-5));
+    } finally {
+      await detector.close();
+    }
+  });
   testWidgets('native portable Waifu2x produces a cached 2x image', (
     tester,
   ) async {

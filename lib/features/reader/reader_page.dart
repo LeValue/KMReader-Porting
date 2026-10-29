@@ -583,6 +583,7 @@ class _ReaderPageState extends State<ReaderPage> {
               providers: TranslationProviders(widget.repository.store),
               bytes: bytes,
               ocr: widget.repository.ocr,
+              detector: widget.repository.bubbles,
               title: '${widget.book.title} · ${_session.page}',
               incognito: widget.incognito,
             ),

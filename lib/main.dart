@@ -31,6 +31,10 @@ Future<void> main() async {
     yield LicenseEntryWithLineBreaks([
       'Waifu2x portable model',
     ], await rootBundle.loadString('assets/models/LICENSE'));
+    yield LicenseEntryWithLineBreaks(
+      ['Comic bubble detector'],
+      '${await rootBundle.loadString('assets/models/BUBBLE-LICENSE')}\n${await rootBundle.loadString('assets/models/BUBBLE-NOTICE')}',
+    );
   });
   await Strings.initialize();
   try {

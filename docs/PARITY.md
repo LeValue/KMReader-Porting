@@ -21,7 +21,7 @@ This matrix distinguishes implemented behavior from full upstream parity.
 | API keys | List/create/copy/revoke, optional automatically created and independently verified key on password login, password fallback for unsupported servers, identification/protection of the managed active key; paginated own-account authentication activity with details, refresh/retry and offline snapshots | Manual-key identity discovery, target-vault acceptance |
 | Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors; duplicate-file catalog; live task queue and execution metrics (extended-server/Actuator fallback), scheduled tasks, session listing/revocation with per-user Komga fallback, shutdown, bounded log viewer and native file export; optional kmrs Komf search/identify/match/reset, provider links and own-job tracking with metadata refresh | Connected Komf backend acceptance, all server settings and import tools |
 | History/statistics | Reading-history catalog, paginated admin server events, library-scoped summaries/distributions/heatmap/top authors/genres/tags; extended reading-stat endpoints with 404-only local fallback and 24-hour capability retry; offline snapshots and local progress overlay | Real extended-server acceptance, complete offline metadata indexing, all history filters/detail layouts and richer charts |
-| AI/OCR | Offline ML Kit OCR for Latin/Japanese/Chinese/Korean/Devanagari on Android, WinRT OCR with installed Windows language packs, selectable text/region preview; OpenAI-compatible/OpenRouter/local provider configuration and model lists, secure API keys, strict-ID batched translations, selected EPUB text translation, translated region overlays, per-image/language cache and incognito exclusion; original Waifu2x model converted to portable ONNX with numerical source-network validation, worker-isolate inference, bounded input/output memory and disk cache | Learned bubble detection and exact typesetting, downloadable OCR/vision model catalog and additional recognition scripts |
+| AI/OCR | Offline ML Kit OCR for Latin/Japanese/Chinese/Korean/Devanagari on Android, WinRT OCR with installed Windows language packs, selectable text/region preview; OpenAI-compatible/OpenRouter/local provider configuration and model lists, secure API keys, strict-ID batched translations, selected EPUB text translation, translated region overlays, per-image/language cache and incognito exclusion; original Waifu2x model converted to portable ONNX with numerical source-network validation, worker-isolate inference, bounded input/output memory and disk cache; optional original YOLO11n bubble detection with worker inference, native OCR grouping and incognito exclusion | Exact translated typesetting, downloadable OCR/vision model catalog and additional recognition scripts |
 | OS integrations | Android/Windows launch targets and original logo; Windows portable packaging/runtime and isolated native-startup CI probe | Widgets, search indexing, quick actions, notifications/live activities, multiple reader windows; production installers/signing |
 | Artwork/localization | Original MIT logo, light/dark tokens, card dimensions, original 1,520 localization keys plus translated aliases and new Italian labels | Complete glyph/typography/animation matching; translations for new labels/errors in every language |
 
@@ -60,7 +60,7 @@ OCR, ONNX inference, and OS display-awake request/release. Android also checks
 simulated notch geometry/rotation and captures the composed EPUB via PixelCopy.
 These are controlled native fixtures, not physical-device performance measurements.
 
-The development suite passes 204 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
+The development suite passes 211 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
 progress conflicts between SQLite connections, multi-worker media generations,
 conditional HTTP 304 validation, immutable document refresh, download pause/resume,
 account deletion with active writes, wide-page gesture ownership and pan restoration.
@@ -136,3 +136,12 @@ new requests and suppresses late cache writes. Concurrent recognitions use
 independent temporary files and best-effort atomic cache replacement. Two
 regressions cover removal during recognition and simultaneous results; all 204
 automated checks, static analysis and Android debug compilation pass locally.
+
+The optional original YOLO11n bubble detector is converted to portable ONNX
+with pinned source hashes and independent source-network numerical probes.
+Native OCR blocks are grouped by detected bubbles without dropping narration;
+worker inference is separate from paging, with bounded memory caching and
+incognito exclusion. Failure leaves native OCR usable. All 211 automated checks
+(Chromium/ONNX enabled), static analysis and Android debug compilation pass.
+The original MangaOCR recognition models and exact translated typesetting remain
+outstanding. See [BUBBLE_MODEL.md](BUBBLE_MODEL.md) for reproduction and limits.
