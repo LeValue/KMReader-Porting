@@ -245,8 +245,19 @@
       await rendition.resize(window.innerWidth, window.innerHeight);
     });
   }
+  function geometry(phase, delta) {
+    const m = rendition.manager, c = m.container;
+    send('geometry', {state: {phase, delta, axis:m.settings.axis, paginated:m.isPaginated,
+      writingMode:m.writingMode, direction:m.settings.direction, fullsize:m.settings.fullsize,
+      preferenceFlow:preferences.flow, managerFlow:m.settings.flow,
+      x:c.scrollLeft,y:c.scrollTop,cw:c.clientWidth,ch:c.clientHeight,sw:c.scrollWidth,sh:c.scrollHeight,
+      width:m.layout.width,height:m.layout.height,pageWidth:m.layout.pageWidth,deltaSize:m.layout.delta,
+      location:location?.start,engineLocation:rendition.location?.start,
+      views:m.views.all().map(v=>({index:v.section.index,bounds:v.element.getBoundingClientRect().toJSON()}))}});
+  }
   async function advance(delta) {
     const manager = rendition.manager;
+    geometry('before', delta);
     if (!isFixedLayout() && !manager.isPaginated && manager.settings.axis === 'horizontal') {
       const fraction = preferences.flow === 'scrolled' ? (Number(preferences.tapScroll) || 80) / 100 : 1;
       manager.scrollBy(delta * manager.container.clientWidth * fraction, 0, true);
@@ -259,6 +270,7 @@
     } else if (delta > 0) await rendition.next();
     else await rendition.prev();
     await stable(rendition.getContents());
+    geometry('after', delta);
   }
   async function next() {
     if (!rendition || auxiliary) return;
