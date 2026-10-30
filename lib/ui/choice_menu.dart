@@ -3,6 +3,8 @@ import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/material.dart';
 
+import 'wheel_scroll.dart';
+
 /// A tall menu fades as one retained surface instead of resizing and laying out
 /// every row on each closing frame. Its result is delivered after removal.
 Future<T?> showChoiceMenu<T>(
@@ -60,7 +62,14 @@ class _ChoiceMenuRoute<T> extends PopupRoute<T> {
   final String label, dismissLabel;
   final bool reducedMotion;
   final _selected = GlobalKey();
+  final _scroll = AppScrollController();
   bool _scheduledSelection = false;
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   Color? get barrierColor => null;
   @override
@@ -118,6 +127,7 @@ class _ChoiceMenuRoute<T> extends PopupRoute<T> {
                   child: DefaultTextStyle(
                     style: menu.textStyle ?? theme.textTheme.bodyLarge!,
                     child: SingleChildScrollView(
+                      controller: _scroll,
                       primary: false,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Column(

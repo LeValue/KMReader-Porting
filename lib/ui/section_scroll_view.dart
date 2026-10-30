@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'wheel_scroll.dart';
+
 /// Bounded forms and dashboards retain section state and exact content height.
 /// Use lazy lists for unbounded catalogs, logs and rows inside horizontal shelves.
 class SectionScrollView extends StatelessWidget {
@@ -15,14 +17,17 @@ class SectionScrollView extends StatelessWidget {
   final ScrollController? controller;
   final ScrollPhysics? physics;
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    controller: controller,
-    primary: controller == null ? null : false,
-    physics: physics,
-    padding: padding,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [for (final child in children) RepaintBoundary(child: child)],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final scroll = SingleChildScrollView(
+      controller: controller,
+      primary: controller == null ? null : false,
+      physics: physics,
+      padding: padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [for (final child in children) RepaintBoundary(child: child)],
+      ),
+    );
+    return controller == null ? WheelScrollScope(child: scroll) : scroll;
+  }
 }

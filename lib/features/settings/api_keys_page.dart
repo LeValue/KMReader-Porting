@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 
 import '../../core/models.dart';
@@ -7,6 +8,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../catalog/list_actions.dart';
+import '../../ui/wheel_scroll.dart';
 
 class ApiKeysPage extends StatefulWidget {
   const ApiKeysPage({super.key, required this.repository});
@@ -119,7 +121,7 @@ class _ApiKeysPageState extends State<ApiKeysPage> {
               ),
             ),
         ],
-      ),
+      ).withWheelScrolling(),
     ),
   );
 }

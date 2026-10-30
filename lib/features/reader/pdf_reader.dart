@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -14,6 +15,7 @@ import '../../ui/strings.dart';
 import 'pdf_preferences.dart';
 import 'progress_gate.dart';
 import 'reader_display.dart';
+import '../../ui/wheel_scroll.dart';
 
 class PdfReader extends StatefulWidget {
   const PdfReader({
@@ -304,7 +306,7 @@ class _PdfReaderState extends State<PdfReader> {
                   ),
                 ],
               ),
-            ),
+            ).withWheelScrolling(),
           );
         },
       ),
@@ -411,7 +413,7 @@ class _PdfReaderState extends State<PdfReader> {
       showDragHandle: true,
       builder: (context) => nodes.isEmpty
           ? const EmptyView(title: 'No Table of Contents')
-          : ListView(children: nodes.map(node).toList()),
+          : ListView(children: nodes.map(node).toList()).withWheelScrolling(),
     );
   }
 

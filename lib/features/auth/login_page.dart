@@ -5,6 +5,7 @@ import '../../core/app_controller.dart';
 import '../../core/models.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.app, this.profile});
@@ -261,7 +262,7 @@ class _LoginPageState extends State<LoginPage> {
               textAlign: TextAlign.center,
             ),
           ],
-        ),
+        ).withWheelScrolling(),
       ),
     ),
   );

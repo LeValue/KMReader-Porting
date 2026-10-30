@@ -12,6 +12,7 @@ import '../../ui/strings.dart';
 import 'catalog_page.dart';
 import 'list_actions.dart';
 import 'server_smart_lists.dart';
+import '../../ui/wheel_scroll.dart';
 
 class FilterSelection {
   const FilterSelection(this.filter, this.search, this.sort);
@@ -458,6 +459,6 @@ class _FilterPageState extends State<FilterPage> {
           child: Text(tr(context, 'Clear Filters')),
         ),
       ],
-    ),
+    ).withWheelScrolling(),
   );
 }

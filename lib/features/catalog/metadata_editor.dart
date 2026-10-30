@@ -8,6 +8,7 @@ import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 class MetadataField {
   const MetadataField(
@@ -470,7 +471,7 @@ class _MetadataEditorState extends State<MetadataEditor> {
                   ),
                 ),
             ],
-          );
+          ).withWheelScrolling();
         },
       ),
     ),

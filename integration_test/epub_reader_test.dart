@@ -27,11 +27,13 @@ import '../test/support/epub_fixture.dart';
 import '../test/support/pdf_fixture.dart';
 import 'support/background_download_check.dart';
 import 'support/scroll_checks.dart';
+import 'support/windows_wheel_check.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   verifyNativeBackgroundDownloads();
   verifyNativeScrolling(binding);
+  verifyNativeWindowsWheel();
   testWidgets('Android export rejects files outside app-private storage', (
     tester,
   ) async {

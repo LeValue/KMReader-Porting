@@ -10,6 +10,7 @@ import '../reader/custom_fonts.dart';
 import 'preference_controls.dart';
 import 'settings_style.dart';
 import '../reader/epub_session.dart';
+import '../../ui/wheel_scroll.dart';
 
 const tapChoices = <Object, String>{
   'none': 'reader.tapZoneMode.none',
@@ -747,7 +748,7 @@ class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
                     ),
                   ),
                 ],
-              ),
+              ).withWheelScrolling(),
             );
           },
         ),
@@ -808,7 +809,7 @@ class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
                   ),
                 ),
               ],
-            ),
+            ).withWheelScrolling(),
           ),
         ),
       ),

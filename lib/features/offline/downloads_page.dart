@@ -8,6 +8,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../catalog/catalog_page.dart';
+import '../../ui/wheel_scroll.dart';
 
 class DownloadsPage extends StatelessWidget {
   const DownloadsPage({super.key, required this.repository});
@@ -148,7 +149,7 @@ class DownloadsPage extends StatelessWidget {
                     ),
             );
           },
-        );
+        ).withWheelScrolling();
       },
     ),
   );

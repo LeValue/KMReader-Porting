@@ -11,6 +11,7 @@ import '../features/offline/downloads_page.dart';
 import '../features/settings/settings_page.dart';
 import 'common.dart';
 import 'strings.dart';
+import 'wheel_scroll.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.app, required this.repository});
@@ -336,7 +337,7 @@ class _LibraryBrowser extends StatelessWidget {
                         ),
                       ),
                   ],
-                ),
+                ).withWheelScrolling(),
               ),
             ],
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
 import 'package:intl/intl.dart';
 
 import '../../core/models.dart';
@@ -12,6 +13,7 @@ import '../../ui/strings.dart';
 import 'catalog_page.dart';
 import 'reading_stats_overview.dart';
 import '../settings/settings_style.dart';
+import '../../ui/wheel_scroll.dart';
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key, required this.repository, this.initialTab = 0});
@@ -267,7 +269,7 @@ class ServerEventsPage extends StatefulWidget {
 
 class _ServerEventsPageState extends State<ServerEventsPage> {
   final _events = <Json>[];
-  final _scroll = ScrollController();
+  final _scroll = AppScrollController();
   int _page = 0, _generation = 0;
   bool _loading = false, _last = false;
   bool _retryReset = false;

@@ -14,6 +14,7 @@ import 'list_editor.dart';
 import 'metadata_editor.dart';
 import 'komf_page.dart';
 import '../../core/catalog_tools.dart';
+import '../../ui/wheel_scroll.dart';
 
 class DetailPage extends StatelessWidget {
   const DetailPage({super.key, required this.repository, required this.item});
@@ -453,6 +454,6 @@ class _BookDetail extends StatelessWidget {
             },
           ),
       ],
-    );
+    ).withWheelScrolling();
   }
 }

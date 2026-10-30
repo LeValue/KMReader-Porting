@@ -31,6 +31,7 @@ import 'library_editor.dart';
 import 'translation_settings.dart';
 import 'server_management_page.dart';
 import '../catalog/catalog_page.dart';
+import '../../ui/wheel_scroll.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.app, required this.repository});
@@ -820,7 +821,7 @@ class _DashboardSettingsState extends State<_DashboardSettings> {
                     ],
                   ),
               ],
-            ),
+            ).withWheelScrolling(),
           ),
         ],
       ),
@@ -976,7 +977,7 @@ class _LibraryManagementState extends State<LibraryManagement> {
               ),
             ),
         ],
-      ),
+      ).withWheelScrolling(),
     ),
   );
 }

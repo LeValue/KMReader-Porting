@@ -5,6 +5,7 @@ import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 Future<String?> askName(
   BuildContext context,
@@ -80,7 +81,7 @@ Future<void> addEntriesToList(
                 onTap: () => Navigator.pop(context, list.id),
               ),
           ],
-        ),
+        ).withWheelScrolling(),
       ),
     );
     if (selected == null || !context.mounted) return;

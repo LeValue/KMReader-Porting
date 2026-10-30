@@ -8,6 +8,7 @@ import '../../ui/common.dart';
 import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import 'catalog_page.dart';
+import '../../ui/wheel_scroll.dart';
 
 const dashboardSections = [
   'dashboard.keepReading',
@@ -94,7 +95,7 @@ class Dashboard extends StatefulWidget {
 }
 
 class _DashboardState extends State<Dashboard> {
-  final _scroll = ScrollController();
+  final _scroll = AppScrollController();
   Repository get repository => widget.repository;
   @override
   void dispose() {
@@ -141,7 +142,7 @@ class _DashboardState extends State<Dashboard> {
                       ),
                   ],
                 ),
-              ),
+              ).withWheelScrolling(),
             ),
             actions: [
               TextButton(
@@ -471,7 +472,7 @@ class _DashboardSection extends StatelessWidget {
                     ),
                   );
                 },
-              ),
+              ).withWheelScrolling(axis: Axis.horizontal),
             ),
           const SizedBox(height: 12),
         ],
@@ -651,7 +652,7 @@ class _ReadListSection extends StatelessWidget {
                       ),
                     );
                   },
-                ),
+                ).withWheelScrolling(axis: Axis.horizontal),
               ),
               const SizedBox(height: 12),
             ],

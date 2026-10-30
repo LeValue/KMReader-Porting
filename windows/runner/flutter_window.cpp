@@ -62,6 +62,30 @@ bool FlutterWindow::OnCreate() {
   reader_display_channel_=std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
     flutter_controller_->engine()->messenger(),"dev.levalue.kmreader/reader_display",&flutter::StandardMethodCodec::GetInstance());
   reader_display_channel_->SetMethodCallHandler([this](const auto& call,auto result) {
+#ifndef NDEBUG
+    // Integration tests exercise the real WM_MOUSEWHEEL -> engine path. Never
+    // expose synthetic native input in release builds.
+    if(call.method_name()=="testMouseWheel") {
+      const auto* args=call.arguments()?std::get_if<flutter::EncodableMap>(call.arguments()):nullptr;
+      if(!args) {result->Error("input","Expected wheel arguments");return;}
+      const auto x=args->find(flutter::EncodableValue("x"));
+      const auto y=args->find(flutter::EncodableValue("y"));
+      const auto delta=args->find(flutter::EncodableValue("delta"));
+      if(x==args->end() || y==args->end() || delta==args->end() ||
+          !std::holds_alternative<double>(x->second) || !std::holds_alternative<double>(y->second) ||
+          !std::holds_alternative<int32_t>(delta->second)) {result->Error("input","Invalid wheel arguments");return;}
+      const auto amount=std::get<int32_t>(delta->second);
+      const HWND view=flutter_controller_->view()->GetNativeWindow();
+      POINT point{static_cast<LONG>(std::get<double>(x->second)),static_cast<LONG>(std::get<double>(y->second))};
+      RECT bounds;GetClientRect(view,&bounds);
+      if(!PtInRect(&bounds,point) || amount==0 || amount < -1200 || amount > 1200) {result->Error("input","Wheel input out of bounds");return;}
+      POINT previous;GetCursorPos(&previous);
+      ClientToScreen(view,&point);SetCursorPos(point.x,point.y);
+      SendMessage(view,WM_MOUSEWHEEL,MAKEWPARAM(0,static_cast<WORD>(amount)),MAKELPARAM(point.x,point.y));
+      SetCursorPos(previous.x,previous.y);
+      result->Success();return;
+    }
+#endif
     if(call.method_name()=="getKeepAwake") {result->Success(flutter::EncodableValue(keep_awake_));return;}
     const auto* enabled=call.arguments()?std::get_if<bool>(call.arguments()):nullptr;
     if(call.method_name()=="getFullscreen") {result->Success(flutter::EncodableValue(fullscreen_ && (GetWindowLongPtr(GetHandle(),GWL_STYLE) & WS_OVERLAPPEDWINDOW)==0));return;}

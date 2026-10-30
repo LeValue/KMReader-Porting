@@ -8,6 +8,7 @@ import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 const libraryFlags = {
   'scanCbx': 'Scan Comic Archives',
@@ -327,7 +328,7 @@ class _LibraryEditorState extends State<LibraryEditor> {
                 onChanged: (v) => setState(() => _values[flag.key] = v),
               ),
           ],
-        ),
+        ).withWheelScrolling(),
       ),
     ),
   );
@@ -410,7 +411,7 @@ class _ServerFolderPickerState extends State<ServerFolderPicker> {
                 onTap: () => _go(text(item['path'])),
               ),
           ],
-        );
+        ).withWheelScrolling();
       },
     ),
   );
