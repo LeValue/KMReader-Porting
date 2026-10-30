@@ -11,14 +11,14 @@ network, translation and appearance preferences to their implementations and
 explicit remaining differences.
 
 The Android development APK is available in the
-[v0.7.0-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.7.0-preview.1).
+[v0.8.0-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.0-preview.1).
 Sign into a GitHub account with access to this private repository before downloading.
-In the release's **Assets**, select `KMReader-0.7.0-android-arm64-preview.apk`.
+In the release's **Assets**, select `KMReader-0.8.0-android-arm64-preview.apk`.
 ARMv7 and x86_64 APKs are also available for older devices and emulators. Each APK
 is a complete application for its architecture; install only one.
 This optimized build installs as **KMReader Preview** alongside the original
 debug preview, and updates earlier Preview builds while retaining their local data.
-The same release includes `KMReader-0.7.0-windows-x64-preview.zip`: extract the
+The same release includes `KMReader-0.8.0-windows-x64-preview.zip`: extract the
 whole folder and run `KMReader/kmreader.exe` on Windows 10/11 x64. The MSVC runtime
 is bundled; the portable Windows build is not Authenticode signed. See [performance changes](docs/PERFORMANCE.md) for cache behavior,
 test evidence and device-validation limits.
