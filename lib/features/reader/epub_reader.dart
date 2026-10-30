@@ -192,6 +192,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     }
     final event = object(value);
     assert(() {
+      if (event['type'] == 'geometry')
+        debugPrint('EPUB geometry: ${event['state']}');
       if (event['type'] == 'position') {
         debugPrint(
           'EPUB position: page=${event['page']} pages=${event['pages']} valid=${event['progression'] is num} changed=${event['changed']}',
