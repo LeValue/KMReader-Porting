@@ -1,33 +1,29 @@
 # Development validation
 
-## 0.8.0 candidate — Dashboard boundary and original settings layout
+## 0.8.0 preview — Dashboard boundaries and original settings layout
 
-Local analysis is clean. All **267 Flutter checks** pass with Chromium and the
-real ONNX runtime enabled; eight Python checks and the pinned upstream inventory
-check pass. The separately executed isolated Komga acceptance covers real
-CBZ/EPUB/PDF download, caching, offline progress and WebPub synchronization.
-The large-font CJK browser regression now also verifies navigation/CFI at 76px.
+Published [0.8.0](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.0-preview.1), runtime source `eb40fbddb6452ea124f7f17e0a4d72581d0ba55b`.
+All three required jobs passed in [verification 40979327556](https://github.com/LeValue/KMReader-Porting/actions/runs/40979327556).
+[Publisher 40981320810](https://github.com/LeValue/KMReader-Porting/actions/runs/40981320810) reused only that exact successful source/run and its Windows artifact.
 
-New checks cover stable Windows-platform Dashboard wheel bounds without shelf
-reloads, multi-library POST/GET/offline scopes, old-server and offline next-unread
-resolution, global-default changes retaining locators and unrelated book choices,
-fresh/upgrade defaults, vertical PDF geometry, calendar/leap/locale ranges,
-Italian compact/wide settings and statistics, numeric timeout validation, either
-spread page solo without progress changes, PNG export success/cancel/failure and
-private temporary-file cleanup. The original native Android export rejection
-check now exercises both log and image export. A further native test opens the
-EPUB text sheet using the expanded global typography limits (76px, line height
-0.5 and letter spacing 1em), covering the old inline-slider assertion. The native
-reflowable fixture starts with publisher typography and verifies that adjusting
-the text size enables the override while preserving its CFI. Native PDF host
-checks allow a bounded 20-second real-time worker startup (the former loop gave
-roughly six seconds) and include visible UI labels in timeout diagnostics;
-password, rendering and non-persistence assertions remain unchanged.
+All **267 Flutter checks** pass locally on this source with real Chromium and ONNX enabled; static analysis, eight Python checks and the pinned upstream inventory check pass. Isolated real Komga acceptance covers CBZ/EPUB/PDF, page caching, offline progress and WebPub synchronization. The final CI also repeats the host, backend and native-model checks.
 
-The [reference comparison](IPAD_REFERENCE.md) includes actual Flutter fixture
-renders. These do not establish native pixel parity or physical Windows mouse
-wheel/GPU performance. Source-matched native/build and package verification are
-required before this candidate is published; results are recorded here afterwards.
+Fourteen reader/native integration checks pass on both Android and Windows, including the added global typography extremes and publisher-typography override with CFI preservation. Both Android API35 display/cutout checks pass; Windows release compilation and isolated startup pass. A Windows-platform Dashboard regression repeatedly scrolls at the bottom and checks stable position, extent and shelf request count. Physical mouse/GPU frame times remain a separate acceptance task.
+
+Other new checks cover multiple-library POST/GET/offline scope, older-server and offline next-unread selection, global-default changes preserving locators/unrelated preferences, fresh/upgrade defaults, vertical PDF geometry, locale/calendar/leap ranges, compact/wide Italian settings and statistics, timeout fields, either spread page solo without progress writes, PNG export success/cancel/failure and private temporary cleanup. The CJK browser regression includes 76px typography. The native PDF host wait uses a bounded 20-second real-time worker startup, with unchanged password/rendering/non-persistence assertions and UI timeout diagnostics.
+
+After publication all five assets were downloaded again. Sizes, GitHub digests and SHA256SUMS match; every APK matches the locally verified signed bytes and exact source/version/build provenance. Every one of the **63 Windows bundle files** matches the successful source-matched CI artifact. The package contains its x64 native engines, models and MSVC runtime; it is not Authenticode signed.
+
+Android retains the Preview identity/certificate and build number 10 for in-place upgrades. All three APKs pass non-debuggable identity and 16KiB ZIP alignment checks; all nine ELF libraries in each 64-bit APK also have LOAD alignment of at least 16KiB. This does not assert 16KiB ELF compatibility for ARMv7.
+
+| Download | Bytes | SHA256 |
+| --- | ---: | --- |
+| Android ARM64 | 77,552,622 | `f4f950e97bd220d7b622b0075b9efcbf71d3a9289b5cf32c4eab730942a86b84` |
+| Android ARMv7 | 63,787,840 | `a30988c1afee863cf86a3d10b8a5fcc83234faeacd724a9d177384cb6b24a75d` |
+| Android x86_64 | 83,788,467 | `7718ce36b56df06ed9b381a89a81f3c20faf15205932b710e60123a87f3a5d6c` |
+| Windows x64 ZIP | 34,345,710 | `fef07045991e0fa953ac8174cefa7a86d2ffe13d4b30250f5cd103975c617277` |
+
+The [reference comparison](IPAD_REFERENCE.md) includes actual Flutter fixture renders. [Settings audit](SETTINGS_AUDIT.md) and [parity matrix](PARITY.md) retain the CoreML/model-role, Apple-only, native HTML fallback, sharing, layout and physical-device limits. This preview is not a claim of perfect upstream parity.
 
 ## 0.7.0 preview — settings audit and verified native controls
 

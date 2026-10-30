@@ -11,7 +11,7 @@ python3 tool/extract_upstream_settings.py /path/to/kmreader --output docs/upstre
 python3 -m unittest discover -s tool/tests
 ```
 
-The original inventory shipped in 0.7.0. The 0.8.0 implementation adds grouped settings matching the reference order, captions, inline/adaptive pickers, conditional controls, preset/font subpages and reading-statistics charts. Exact verification is recorded in [validation](VALIDATION.md).
+The original inventory shipped in 0.7.0. The 0.8.0 implementation adds grouped settings matching the reference order, captions, inline/adaptive pickers, conditional controls, preset/font subpages and reading-statistics charts. Delivered in [0.8.0](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.0-preview.1), source `eb40fbddb6452ea124f7f17e0a4d72581d0ba55b`. Exact native and downloaded-package verification is recorded in [validation](VALIDATION.md).
 
 ## Current coverage
 
