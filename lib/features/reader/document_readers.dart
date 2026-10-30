@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
 import '../../core/models.dart';
@@ -14,6 +15,7 @@ import 'pdf_reader.dart';
 import 'pdf_raster_reader.dart';
 import 'reader_display.dart';
 import 'epub_reader.dart';
+import '../../ui/wheel_scroll.dart';
 
 class DocumentReader extends StatefulWidget {
   const DocumentReader({
@@ -119,7 +121,7 @@ class _EpubReader extends StatefulWidget {
 class _EpubReaderState extends State<_EpubReader> {
   late Future<EpubDocument> _future;
   EpubDocument? _document;
-  final ScrollController _scroll = ScrollController(keepScrollOffset: false);
+  final ScrollController _scroll = AppScrollController(keepScrollOffset: false);
   late _EpubWidgetFactory _htmlFactory;
   int _contentGeneration = 0;
   String? _pendingAnchor, _auxiliaryPath;
@@ -425,7 +427,8 @@ class _EpubReaderState extends State<_EpubReader> {
       context: context,
       showDragHandle: true,
       builder: (_) => ReaderSafeArea(
-        child: ListView(children: doc.tableOfContents.map(node).toList()),
+        child: ListView(children: doc.tableOfContents.map(node).toList())
+            .withWheelScrolling(),
       ),
     );
   }

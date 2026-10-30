@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
@@ -22,6 +23,7 @@ import 'epub_session.dart';
 import 'reader_display.dart';
 import 'tap_zones.dart';
 import 'reader_text_page.dart';
+import '../../ui/wheel_scroll.dart';
 
 class BrowserEpubReader extends StatefulWidget {
   const BrowserEpubReader({
@@ -372,7 +374,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           height: MediaQuery.sizeOf(context).height * .75,
           child: ListView(
             children: session.document.tableOfContents.map(node).toList(),
-          ),
+          ).withWheelScrolling(),
         ),
       ),
     );
@@ -455,7 +457,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                             },
                           ),
                       ],
-                    ),
+                    ).withWheelScrolling(),
                   ),
                 ],
               ),
@@ -508,7 +510,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   ),
                 ),
             ],
-          ),
+          ).withWheelScrolling(),
         ),
       ),
     );
@@ -828,7 +830,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                     ),
                   ],
                 ),
-              ),
+              ).withWheelScrolling(),
             ),
           );
         },

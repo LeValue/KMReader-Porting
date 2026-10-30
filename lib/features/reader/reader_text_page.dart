@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' show sqrt;
 
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 
 import '../../core/translation.dart';
@@ -11,6 +12,7 @@ import '../settings/translation_settings.dart';
 import 'reader_display.dart';
 import 'reader_ocr.dart';
 import 'bubble_detector.dart';
+import '../../ui/wheel_scroll.dart';
 
 class ReaderTextPage extends StatefulWidget {
   const ReaderTextPage({
@@ -391,7 +393,7 @@ class _ReaderTextPageState extends State<ReaderTextPage> {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
-        );
+        ).withWheelScrolling();
   Widget _regions() => InteractiveViewer(
     minScale: 1,
     maxScale: 6,

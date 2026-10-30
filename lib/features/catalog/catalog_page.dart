@@ -14,6 +14,7 @@ import 'detail_page.dart';
 import 'filter_page.dart';
 import 'list_actions.dart';
 import 'metadata_editor.dart';
+import '../../ui/wheel_scroll.dart';
 
 Future<List<CatalogItem>?> pickCatalogItems(
   BuildContext context,
@@ -103,7 +104,7 @@ class CatalogPageView extends StatefulWidget {
 class _CatalogPageViewState extends State<CatalogPageView> {
   bool get _canFilter =>
       widget.path == null || widget.path!.startsWith('/api/v1/smart-lists/');
-  final _scroll = ScrollController();
+  final _scroll = AppScrollController();
   final _search = TextEditingController();
   List<CatalogItem> _items = [];
   bool _busy = false, _last = false;
@@ -797,7 +798,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                       message: 'Try another search or add content to your Komga library.',
                     ),
                   ],
-                ),
+                ).withWheelScrolling(),
               )
             : RefreshIndicator(
                 onRefresh: () => _load(reset: true, force: true),

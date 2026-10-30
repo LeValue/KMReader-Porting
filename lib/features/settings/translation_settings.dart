@@ -11,6 +11,7 @@ import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import '../reader/reader_display.dart';
 import 'preference_controls.dart';
+import '../../ui/wheel_scroll.dart';
 
 const translationLanguages = {
   'en': 'English',
@@ -272,7 +273,7 @@ class _TranslationSettingsPageState extends State<TranslationSettingsPage> {
               label: Text(tr(context, 'Add Provider')),
             ),
           ],
-        ),
+        ).withWheelScrolling(),
       ),
     );
   }
@@ -362,7 +363,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
                           onTap: () =>
                               Navigator.pop(context, visible[index]['id']),
                         ),
-                      ),
+                      ).withWheelScrolling(),
                     ),
                   ],
                 ),

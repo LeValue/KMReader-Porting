@@ -9,6 +9,7 @@ import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 class KomfButton extends StatefulWidget {
   const KomfButton({super.key, required this.repository, required this.item});
@@ -392,7 +393,7 @@ class _KomfContentState extends State<_KomfContent> {
                 onTap: busy ? null : () => _submit(result: result),
               ),
           ],
-        );
+        ).withWheelScrolling();
       },
     );
   }

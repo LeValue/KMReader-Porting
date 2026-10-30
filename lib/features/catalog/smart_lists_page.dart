@@ -9,6 +9,7 @@ import 'catalog_page.dart';
 import 'filter_page.dart';
 import 'list_actions.dart';
 import 'server_smart_lists.dart';
+import '../../ui/wheel_scroll.dart';
 
 class SmartListsPage extends StatefulWidget {
   const SmartListsPage({super.key, required this.repository});
@@ -190,7 +191,7 @@ class _SmartListsPageState extends State<SmartListsPage> {
                           ),
                         );
                       },
-                    ),
+                    ).withWheelScrolling(),
             ),
         ],
       );

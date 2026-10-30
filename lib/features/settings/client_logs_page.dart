@@ -6,6 +6,7 @@ import '../../core/client_log.dart';
 import '../../core/file_export.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 class ClientLogsPage extends StatefulWidget {
   const ClientLogsPage({super.key});
@@ -106,7 +107,7 @@ class _ClientLogsPageState extends State<ClientLogsPage> {
                           '${entries[index].time.toLocal()} · ${entries[index].level} · ${entries[index].category}',
                         ),
                       ),
-                    );
+                    ).withWheelScrolling();
             },
           ),
         ),

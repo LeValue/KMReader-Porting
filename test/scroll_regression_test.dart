@@ -311,6 +311,7 @@ void main() {
               scrollDelta: Offset(0, -120),
             ),
           );
+          await tester.pump();
           await tester.pump(const Duration(milliseconds: 16));
           expect(position.pixels, lessThan(before));
           expect(position.maxScrollExtent, extent);

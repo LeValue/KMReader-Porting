@@ -8,6 +8,7 @@ import 'page_transition.dart';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -36,6 +37,7 @@ import 'page_crop.dart';
 import 'reader_text_page.dart';
 import 'page_upscaler.dart';
 import 'raster_pages.dart';
+import '../../ui/wheel_scroll.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -175,7 +177,7 @@ class _ReaderPageState extends State<ReaderPage> {
               ),
             ],
           ),
-        ),
+        ).withWheelScrolling(),
       ),
     );
   }
@@ -1262,7 +1264,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 ],
               ),
             ),
-          ),
+          ).withWheelScrolling(),
         );
       },
     ),

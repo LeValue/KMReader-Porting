@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -10,6 +11,7 @@ import '../../core/repository.dart';
 import '../../core/server_management.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 class ServerManagementPage extends StatelessWidget {
   const ServerManagementPage({super.key, required this.repository});
@@ -186,7 +188,7 @@ class _TasksState extends State<_Tasks> {
         ),
       ),
     ],
-  );
+  ).withWheelScrolling();
 }
 
 class _Scheduled extends StatefulWidget {
@@ -242,7 +244,7 @@ class _ScheduledState extends State<_Scheduled> {
                       ),
                     );
                   },
-                ),
+                ).withWheelScrolling(),
         ),
       ),
     ],
@@ -348,7 +350,7 @@ class _SessionsState extends State<_Sessions> {
                   ),
                 ),
             ],
-          ),
+          ).withWheelScrolling(),
         ),
       ),
     ],
@@ -438,7 +440,7 @@ class _LogsState extends State<_Logs> {
                       fontSize: 12,
                     ),
                   ),
-                ),
+                ).withWheelScrolling(),
               ),
             ],
           ),

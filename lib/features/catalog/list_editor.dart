@@ -9,6 +9,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'catalog_page.dart';
+import '../../ui/wheel_scroll.dart';
 
 class ListEditor extends StatefulWidget {
   const ListEditor({super.key, required this.repository, required this.item});
@@ -278,7 +279,7 @@ class _ListEditorState extends State<ListEditor> {
                       ),
                     );
                   },
-                ),
+                ).withWheelScrolling(),
               ),
             ],
           );

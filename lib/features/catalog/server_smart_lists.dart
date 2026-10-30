@@ -11,6 +11,7 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'catalog_page.dart';
 import 'filter_page.dart';
+import '../../ui/wheel_scroll.dart';
 
 class ServerSmartListsPage extends StatefulWidget {
   const ServerSmartListsPage({super.key, required this.repository});
@@ -201,7 +202,7 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
                         ),
                       );
                     },
-                  ),
+                  ).withWheelScrolling(),
                 ),
               ),
             ],
@@ -359,7 +360,7 @@ class _ServerSmartListEditorState extends State<ServerSmartListEditor> {
                             }),
                           ),
                       ],
-                    ),
+                    ).withWheelScrolling(),
             ),
             actions: [
               TextButton(
@@ -567,7 +568,7 @@ class _ServerSmartListEditorState extends State<ServerSmartListEditor> {
                     ),
                 ],
               ],
-            ),
+            ).withWheelScrolling(),
           );
         },
       ),

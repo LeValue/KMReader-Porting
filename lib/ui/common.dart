@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../core/repository.dart';
 import 'strings.dart';
 import 'choice_menu.dart';
+import 'wheel_scroll.dart';
 
 Future<T?> chooseValue<T>(
   BuildContext context, {
@@ -114,7 +115,7 @@ Future<T?> chooseValue<T>(
                     onTap: () => Navigator.pop(sheet, entry.key),
                   );
                 },
-              ),
+              ).withWheelScrolling(),
             ),
           ],
         ),
