@@ -156,6 +156,9 @@ void main() {
           'kmreader-native-epub-',
         );
         final store = LocalStore(sqlite3.openInMemory());
+        if (layout == 'reflowable') {
+          store.setSetting('epubDefault', {'advancedLayout': false});
+        }
         const profile = ServerProfile(
           id: 'native-epub',
           name: 'Native fixture',
@@ -248,6 +251,13 @@ void main() {
             expect(
               object(store.cached(profile.id, 'epub:${book.id}'))['fontSize'],
               isNot(19),
+            );
+            expect(
+              object(
+                store.cached(profile.id, 'epub:${book.id}'),
+              )['advancedLayout'],
+              isTrue,
+              reason: 'An explicit typography adjustment must override publisher typography',
             );
           }
           for (final flow
