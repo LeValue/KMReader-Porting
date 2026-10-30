@@ -345,6 +345,7 @@
     try { await timeout(image.decode(), 250); } catch (_) { return move(); }
     image.id = 'page-transition';
     Object.assign(image.style, {position:'fixed',inset:'0',width:'100%',height:'100%',zIndex:'1000',pointerEvents:'none',objectFit:'fill'});
+    const startAnchor = anchor, turnPreferences = preferences;
     document.body.appendChild(image);
     const viewer = document.getElementById('viewer');
     try {
@@ -361,7 +362,19 @@
       if (value.style === 'slide') incoming = viewer.animate([{transform:`translateX(${-sign*100}%)`},{transform:'translateX(0)'}],timing);
       await old.finished;
       if (incoming) {await incoming.finished;incoming.cancel();}
-    } finally {image.remove();}
+    } finally {
+      image.remove();
+      if (!disposed && rendition && !auxiliary) {
+        // Native hit testing can see only the coarse paragraph locator while
+        // the snapshot covers the iframe. Recover a missed turn from the
+        // visible page; an already saved locator or a reflow stays unchanged.
+        await stable(rendition.getContents());
+        if (!disposed && rendition && !auxiliary) {
+          refreshViewportLocation();
+          position(anchor === startAnchor && preferences === turnPreferences);
+        }
+      }
+    }
   }
   async function legacyProgress(progression) {
     const all = rendition.getContents();

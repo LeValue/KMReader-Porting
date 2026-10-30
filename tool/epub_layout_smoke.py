@@ -73,7 +73,28 @@ with sync_playwright() as playwright:
                     return next(...args);
                 };
             }""")
-            page.evaluate('window.reader.next()')
+            # Rendering inside an occluded native iframe can finish after its
+            # transition snapshot is removed. Model that delayed visible move.
+            page.evaluate("""() => {
+                const manager = window.fixtureRendition.manager;
+                const run = manager.next.bind(manager);
+                manager.next = (...args) => {
+                    if (!document.getElementById('page-transition')) return run(...args);
+                    const observer = new MutationObserver(() => {
+                        if (document.getElementById('page-transition')) return;
+                        observer.disconnect();
+                        window.fixtureDeferredMove = true;
+                        run(...args);
+                    });
+                    observer.observe(document.body, {childList:true});
+                    return Promise.resolve();
+                };
+                const canvas = document.createElement('canvas');
+                canvas.width = canvas.height = 1;
+                window.fixtureSnapshot = canvas.toDataURL();
+            }""")
+            page.evaluate("window.reader.turn({delta:1,style:'slide',snapshot:window.fixtureSnapshot})")
+            assert page.evaluate('window.fixtureDeferredMove') is True
             assert page.evaluate('window.fixturePagedTurns') == 1
         second = page.evaluate('window.reader.position().start')
         assert second['cfi'] != first['cfi'], (first, second)
@@ -85,7 +106,10 @@ with sync_playwright() as playwright:
             anchor_x, anchor_y = frame_rect['x'] + anchor_rect['x'], frame_rect['y'] + anchor_rect['y']
             assert -1 <= anchor_x < page.viewport_size['width'] + 1 and -1 <= anchor_y < page.viewport_size['height'] + 1, {'font': font_size, 'anchor': anchor_rect, 'frame': frame_rect}
             page.evaluate('readerMessages.length=0')
-            page.evaluate('window.reader.next()')
+            if config['preferences']['flow'] == 'paged':
+                page.evaluate("window.reader.turn({delta:1,style:'slide',snapshot:window.fixtureSnapshot})")
+            else:
+                page.evaluate('window.reader.next()')
             advanced = page.evaluate("readerMessages.filter(m=>m.type==='position' && m.changed).at(-1)")
             if not advanced:
                 print('caret-diagnostics', frame.evaluate("""() => {

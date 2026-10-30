@@ -26,7 +26,13 @@ both flows at all tested sizes.
 All eleven real-browser checks pass, including held initial/turn reporting,
 viewport bounds, authored fixed-layout typography and large vertical CJK fonts.
 The engine also refreshes actual geometry before readiness and before/after
-navigation. Diagnostic branches are not publication gates; the full source-matched
+navigation. The bounded stage fixed the initial Android vertical turn; the next
+native case exposed an unchanged coarse paragraph locator after enlarging the
+font, despite advancing from page 9 to 10. Animated turns now recover a missed
+locator from the uncovered viewport after the snapshot is removed. A renderer
+fixture deferring its visible move until uncovering reproduces the stale locator
+on the previous code and passes with the correction, including animated large-font
+turns. Existing saved locators and concurrent typography changes are preserved. Diagnostic branches are not publication gates; the full source-matched
 native workflow remains required.
 
 Final source-matched native results remain pending. Publication requires all
