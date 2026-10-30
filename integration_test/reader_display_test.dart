@@ -10,6 +10,28 @@ void main() {
   testWidgets(
     'native Android cutout insets survive immersive mode and rotation',
     (tester) async {
+      Future<void> screenshot(String name) async {
+        for (var attempt = 0; ; attempt++) {
+          // Immersive/rotation changes can replace the Android window surface.
+          // Force a fresh render before PixelCopy, rather than capturing an
+          // idle surface that has not queued a buffer yet (SOURCE_NO_DATA).
+          for (final view in binding.renderViews) {
+            view.markNeedsPaint();
+          }
+          await tester.pump(const Duration(milliseconds: 250));
+          try {
+            await binding.takeScreenshot(name);
+            return;
+          } on PlatformException catch (error) {
+            if (error.code != 'Could not copy the pixels' ||
+                error.message != 'result was 3' ||
+                attempt >= 4) {
+              rethrow;
+            }
+          }
+        }
+      }
+
       Widget screen({
         bool document = false,
         bool extend = false,
@@ -139,7 +161,7 @@ void main() {
           tester.getRect(find.byKey(const ValueKey('footer'))).bottom,
           lessThanOrEqualTo(media.size.height - edge('bottom') + 1),
         );
-        await binding.takeScreenshot('comic-${orientation.name}');
+        await screenshot('comic-${orientation.name}');
 
         await tester.pumpWidget(screen(extend: true));
         await tester.pumpAndSettle();
@@ -156,7 +178,7 @@ void main() {
         );
         expect(documentTitle.top, greaterThanOrEqualTo(edge('top') - 1));
         expect(documentTitle.left, greaterThanOrEqualTo(edge('left') - 1));
-        await binding.takeScreenshot('document-${orientation.name}');
+        await screenshot('document-${orientation.name}');
         await tester.pumpWidget(screen());
       }
       await tester.pumpWidget(
