@@ -23,14 +23,22 @@ import 'package:sqlite3/sqlite3.dart';
 import 'support/pdf_fixture.dart';
 
 Future<void> until(WidgetTester tester, bool Function() ready) async {
-  for (var i = 0; i < 300; i++) {
+  // Native PDFium starts a real worker and performs real file I/O. Its cold
+  // startup cannot be bounded by Flutter's virtual frame clock on a busy runner.
+  final elapsed = Stopwatch()..start();
+  while (elapsed.elapsed < const Duration(seconds: 20)) {
     await tester.pump(const Duration(milliseconds: 30));
     if (ready()) return;
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
   }
-  fail('Native PDF reader did not reach the expected state');
+  final labels = tester
+      .widgetList<Text>(find.byType(Text))
+      .map((widget) => widget.data)
+      .whereType<String>()
+      .join(' | ');
+  fail('Native PDF reader did not reach the expected state. UI: $labels');
 }
 
 void main() {

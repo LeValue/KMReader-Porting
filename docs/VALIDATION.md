@@ -19,7 +19,10 @@ check now exercises both log and image export. A further native test opens the
 EPUB text sheet using the expanded global typography limits (76px, line height
 0.5 and letter spacing 1em), covering the old inline-slider assertion. The native
 reflowable fixture starts with publisher typography and verifies that adjusting
-the text size enables the override while preserving its CFI.
+the text size enables the override while preserving its CFI. Native PDF host
+checks allow a bounded 20-second real-time worker startup (the former loop gave
+roughly six seconds) and include visible UI labels in timeout diagnostics;
+password, rendering and non-persistence assertions remain unchanged.
 
 The [reference comparison](IPAD_REFERENCE.md) includes actual Flutter fixture
 renders. These do not establish native pixel parity or physical Windows mouse
