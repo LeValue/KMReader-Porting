@@ -191,6 +191,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return;
     }
     final event = object(value);
+    if (event['type'] == 'geometry') {
+      debugPrint('EPUB geometry: ${event['state']}');
+      return;
+    }
     assert(() {
       if (event['type'] == 'geometry')
         debugPrint('EPUB geometry: ${event['state']}');
