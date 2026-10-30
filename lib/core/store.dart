@@ -106,6 +106,8 @@ class LocalStore {
   final Database db;
   late final OfflineCatalog offlineCatalog;
   final _progress = <String, Json?>{};
+  int _settingsRevision = 0;
+  int get settingsRevision => _settingsRevision;
   T? setting<T>(String key) {
     final rows = db.select('SELECT value FROM settings WHERE key=?', [key]);
     return rows.isEmpty
@@ -113,10 +115,14 @@ class LocalStore {
         : jsonDecode(rows.first['value'] as String) as T?;
   }
 
-  void setSetting(String key, dynamic value) => db.execute(
-    'INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)',
-    [key, jsonEncode(value)],
-  );
+  void setSetting(String key, dynamic value) {
+    db.execute('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)', [
+      key,
+      jsonEncode(value),
+    ]);
+    _settingsRevision++;
+  }
+
   List<ServerProfile> get servers => db
       .select('SELECT value FROM servers ORDER BY rowid')
       .map(

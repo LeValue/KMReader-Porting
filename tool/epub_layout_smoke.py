@@ -80,31 +80,33 @@ with sync_playwright() as playwright:
                     return next(...args);
                 };
             }""")
-            # Rendering inside an occluded native iframe can finish after its
-            # transition snapshot is removed. Model that delayed visible move.
+            # Live viewport transitions must not cover the publication with a
+            # native screenshot: that invalidated caret hit testing and delayed
+            # real WebView pagination until the covering image was removed.
             page.evaluate("""() => {
                 const manager = window.fixtureRendition.manager;
                 const run = manager.next.bind(manager);
                 manager.next = (...args) => {
-                    if (!document.getElementById('page-transition')) return run(...args);
-                    const observer = new MutationObserver(() => {
-                        if (document.getElementById('page-transition')) return;
-                        observer.disconnect();
-                        window.fixtureDeferredMove = true;
-                        run(...args);
-                    });
-                    observer.observe(document.body, {childList:true});
-                    return Promise.resolve();
+                    if (document.getElementById('page-transition')) {
+                        throw new Error('A snapshot must never occlude the live EPUB');
+                    }
+                    return run(...args);
                 };
-                const canvas = document.createElement('canvas');
-                canvas.width = canvas.height = 1;
-                window.fixtureSnapshot = canvas.toDataURL();
             }""")
-            page.evaluate("window.reader.turn({delta:1,style:'slide',snapshot:window.fixtureSnapshot})")
-            assert page.evaluate('window.fixtureDeferredMove') is True
+            page.evaluate("window.reader.turn({delta:1,style:'slide'})")
             assert page.evaluate('window.fixturePagedTurns') == 1
         second = page.evaluate('window.reader.position().start')
         assert second['cfi'] != first['cfi'], (first, second)
+        if config['preferences']['flow'] == 'paged':
+            # Delayed native RAF reports may carry the coarse paragraph start
+            # after turn() has already committed a visible character locator.
+            page.evaluate('''cfi => {
+                const current=reader.position();
+                fixtureRendition.emit('relocated', {...current,start:{...current.start,cfi}});
+            }''', first['cfi'])
+            assert page.evaluate('reader.position().start.cfi') == second['cfi']
+            page.wait_for_timeout(150)
+            assert page.evaluate('reader.position().start.cfi') == second['cfi']
         for font_size in [52, 60, 76]:
             saved_turn = page.evaluate('window.reader.position().start.cfi')
             page.evaluate('(value)=>window.reader.preferences(value)', {**config['preferences'], 'fontSize': font_size})
@@ -114,7 +116,7 @@ with sync_playwright() as playwright:
             assert -1 <= anchor_x < page.viewport_size['width'] + 1 and -1 <= anchor_y < page.viewport_size['height'] + 1, {'font': font_size, 'anchor': anchor_rect, 'frame': frame_rect}
             page.evaluate('readerMessages.length=0')
             if config['preferences']['flow'] == 'paged':
-                page.evaluate("window.reader.turn({delta:1,style:'slide',snapshot:window.fixtureSnapshot})")
+                page.evaluate("window.reader.turn({delta:1,style:'slide'})")
             else:
                 page.evaluate('window.reader.next()')
             advanced = page.evaluate("readerMessages.filter(m=>m.type==='position' && m.changed).at(-1)")

@@ -1434,5 +1434,17 @@
   "settings.reader.contextMenu.port.caption": {
     "en": "Show a context menu to view a full page, save its image, recognize text or rotate it. Live Text uses long press when enabled.",
     "it": "Mostra un menu per visualizzare una pagina da sola, salvarne l’immagine, riconoscere il testo o ruotarla. Con Live Text attivo, la pressione prolungata riconosce il testo."
+  },
+  "reader.recoveryFailed": {
+    "en": "The reader was interrupted. Try opening it again.",
+    "it": "Il lettore si è interrotto. Prova a riaprirlo.",
+    "de": "Der Reader wurde unterbrochen. Bitte erneut öffnen.",
+    "fr": "La lecture a été interrompue. Essayez de la rouvrir.",
+    "ja": "リーダーが中断されました。もう一度開いてください。",
+    "ko": "리더가 중단되었습니다. 다시 열어 보세요.",
+    "zh-Hans": "阅读器已中断，请尝试重新打开。",
+    "zh-Hant": "閱讀器已中斷，請嘗試重新開啟。",
+    "ru": "Чтение прервано. Попробуйте открыть книгу снова.",
+    "es": "El lector se ha interrumpido. Intenta abrirlo de nuevo."
   }
 }

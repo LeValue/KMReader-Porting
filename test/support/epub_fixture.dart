@@ -6,9 +6,10 @@ import 'package:archive/archive.dart';
 File fixture(
   Directory directory, {
   Map<String, List<int>> resources = const {},
+  int paragraphCount = 120,
 }) {
   final paragraphs = List.generate(
-    120,
+    paragraphCount,
     (i) =>
         '<p>Paragraph $i contains enough text to span multiple browser pages and test retained positions after layout changes.</p>',
   ).join();
