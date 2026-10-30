@@ -2,6 +2,7 @@ import 'settings_style.dart';
 
 import 'package:flutter/material.dart';
 
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 
 class SystemFeaturesPage extends StatelessWidget {
@@ -9,7 +10,7 @@ class SystemFeaturesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SettingsScaffold(
     title: 'System Features',
-    body: ListView(
+    body: SectionScrollView(
       padding: const EdgeInsets.all(22),
       children: [
         Text(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_controller.dart';
 import '../../core/repository.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 
 class PasswordPage extends StatefulWidget {
@@ -59,7 +60,7 @@ class _PasswordPageState extends State<PasswordPage> {
             constraints: const BoxConstraints(maxWidth: 520),
             child: Form(
               key: _form,
-              child: ListView(
+              child: SectionScrollView(
                 padding: const EdgeInsets.all(24),
                 children: [
                   Text(widget.repository.profile.email),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_version.dart';
 import '../../core/external_links.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 
 class AboutPage extends StatelessWidget {
@@ -11,7 +12,7 @@ class AboutPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SettingsScaffold(
     title: 'About',
-    body: ListView(
+    body: SectionScrollView(
       padding: const EdgeInsets.all(22),
       children: [
         Image.asset('assets/logo.png', height: 96),

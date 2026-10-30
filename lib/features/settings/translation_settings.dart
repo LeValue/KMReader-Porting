@@ -7,6 +7,7 @@ import 'recognition_models_page.dart';
 
 import '../../core/translation.dart';
 import '../../ui/common.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import '../reader/reader_display.dart';
 import 'preference_controls.dart';
@@ -412,7 +413,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
-          child: ListView(
+          child: SectionScrollView(
             padding: const EdgeInsets.all(24),
             children: [
               Form(

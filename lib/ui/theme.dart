@@ -38,6 +38,7 @@ ThemeData appTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       foregroundColor: foreground,
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: false,
     ),
     dividerColor: foreground.withValues(alpha: .12),

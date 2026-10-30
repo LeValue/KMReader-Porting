@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../core/repository.dart';
 import 'strings.dart';
+import 'choice_menu.dart';
 
 Future<T?> chooseValue<T>(
   BuildContext context, {
@@ -14,13 +15,27 @@ Future<T?> chooseValue<T>(
   bool translateChoices = true,
   bool searchable = false,
   bool anchored = false,
-}) {
+}) async {
+  ModalRoute<dynamic>? pickerRoute;
   if (anchored && !searchable && choices.length <= 20) {
     final overlay =
         Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
     final row = context.findRenderObject()! as RenderBox;
     final origin = row.localToGlobal(Offset.zero, ancestor: overlay);
-    return showMenu<T>(
+    if (choices.length > 8) {
+      return showChoiceMenu<T>(
+        context,
+        anchor: origin & row.size,
+        selected: selected,
+        labels: {
+          for (final entry in choices.entries)
+            entry.key: translateChoices
+                ? tr(context, entry.value)
+                : entry.value,
+        },
+      );
+    }
+    final value = await showMenu<T>(
       context: context,
       position: RelativeRect.fromLTRB(
         origin.dx + row.size.width * .45,
@@ -38,12 +53,19 @@ Future<T?> chooseValue<T>(
           CheckedPopupMenuItem<T>(
             value: entry.key,
             checked: entry.key == selected,
-            child: Text(
-              translateChoices ? tr(context, entry.value) : entry.value,
+            child: Builder(
+              builder: (menu) {
+                pickerRoute = ModalRoute.of(menu);
+                return Text(
+                  translateChoices ? tr(context, entry.value) : entry.value,
+                );
+              },
             ),
           ),
       ],
     );
+    await pickerRoute?.completed;
+    return value;
   }
   var query = '';
   Widget content(BuildContext sheet) => StatefulBuilder(
@@ -100,30 +122,48 @@ Future<T?> chooseValue<T>(
     },
   );
   if (MediaQuery.sizeOf(context).width >= 700) {
-    return showDialog<T>(
+    final value = await showDialog<T>(
       context: context,
-      builder: (sheet) => Dialog(
+      builder: (sheet) {
+        pickerRoute = ModalRoute.of(sheet);
+        return Dialog(
+          child: RepaintBoundary(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 420,
+                maxHeight: MediaQuery.sizeOf(sheet).height * .8,
+              ),
+              child: content(sheet),
+            ),
+          ),
+        );
+      },
+    );
+    await pickerRoute?.completed;
+    return value;
+  }
+  final value = await showModalBottomSheet<T>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    sheetAnimationStyle: const AnimationStyle(
+      duration: Duration(milliseconds: 200),
+      reverseDuration: Duration(milliseconds: 160),
+    ),
+    builder: (sheet) {
+      pickerRoute = ModalRoute.of(sheet);
+      return RepaintBoundary(
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: 420,
             maxHeight: MediaQuery.sizeOf(sheet).height * .8,
           ),
           child: content(sheet),
         ),
-      ),
-    );
-  }
-  return showModalBottomSheet<T>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (sheet) => ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(sheet).height * .8,
-      ),
-      child: content(sheet),
-    ),
+      );
+    },
   );
+  await pickerRoute?.completed;
+  return value;
 }
 
 void showError(BuildContext context, Object error) {

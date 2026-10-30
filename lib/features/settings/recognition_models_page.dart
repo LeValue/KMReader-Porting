@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/store.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import '../reader/reader_ocr.dart';
 
@@ -36,7 +37,7 @@ class _RecognitionModelsPageState extends State<RecognitionModelsPage> {
         ),
       ],
     ),
-    body: ListView(
+    body: SectionScrollView(
       padding: const EdgeInsets.all(22),
       children: [
         Card(

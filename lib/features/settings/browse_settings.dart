@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/browse_preferences.dart';
 import '../../ui/catalog_card.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 
 const _labels = {
@@ -40,7 +41,7 @@ class BrowseSettingsPage extends StatelessWidget {
     title: 'settings.browse.title',
     body: ListenableBuilder(
       listenable: preferences,
-      builder: (context, _) => ListView(
+      builder: (context, _) => SectionScrollView(
         padding: const EdgeInsets.all(22),
         children: [
           _heading(context, 'settings.appearance.search'),

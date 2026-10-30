@@ -23,6 +23,7 @@ import 'package:kmreader/features/settings/service_settings.dart';
 import 'package:kmreader/features/settings/settings_style.dart';
 import 'package:kmreader/ui/strings.dart';
 import 'package:kmreader/ui/theme.dart';
+import 'package:kmreader/ui/section_scroll_view.dart';
 
 import 'widget_test.dart' show FixtureRepository, screenshot;
 
@@ -361,7 +362,7 @@ void main() {
       final list = find.byKey(const PageStorageKey('dashboard-scroll'));
       await tester.fling(list, const Offset(0, -5500), 5000);
       await tester.pumpAndSettle();
-      final controller = tester.widget<ListView>(list).controller!;
+      final controller = tester.widget<SectionScrollView>(list).controller!;
       controller.jumpTo(controller.position.maxScrollExtent);
       await tester.pumpAndSettle();
       final calls = repo.catalogs,
