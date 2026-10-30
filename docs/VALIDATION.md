@@ -15,14 +15,19 @@ static analysis is clean. Eight Python checks, the pinned upstream inventory and
 isolated real Komga acceptance passed earlier; CI repeats the relevant checks.
 Host regressions additionally cover Escape cancellation and reduced motion.
 
-Earlier candidates passed Windows native checks but missed Android EPUB turns
-in fixed and vertical layouts; none was published. Browser fixtures reproduce
-both an initial ready signal without a locator and a completed turn using stale
-reporting state. The engine now reads actual viewport geometry before readiness
-and before/after navigation. All eleven real-browser checks pass, including held
-initial reporting and turn reporting. A separate reader-only diagnostic run with
-geometry reads passed all seventeen Android checks; it skipped the display-driver
-prelude and is not a publication gate.
+Earlier candidates passed Windows checks but missed Android EPUB turns. A
+post-command trace identified a vertical reader scrollport of 16,680 pixels for
+a 556-pixel viewport: it had expanded to chapter height and had no scroll range.
+The outer EPUB stage now retains the viewport height when Epub.js clears inline
+dimensions. A real-browser fixture reproduces the same defect (23,400 versus
+780 pixels) by clearing the stage's inline height; the bounded stage passes in
+both flows at all tested sizes.
+
+All eleven real-browser checks pass, including held initial/turn reporting,
+viewport bounds, authored fixed-layout typography and large vertical CJK fonts.
+The engine also refreshes actual geometry before readiness and before/after
+navigation. Diagnostic branches are not publication gates; the full source-matched
+native workflow remains required.
 
 Final source-matched native results remain pending. Publication requires all
 seventeen native checks on each platform plus both Android display/rotation

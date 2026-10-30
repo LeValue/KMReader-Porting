@@ -30,6 +30,12 @@ with sync_playwright() as playwright:
     page.wait_for_function("readerMessages.some(m=>m.type==='ready')")
     assert page.evaluate('Boolean(window.reader.position()?.start?.cfi)'), 'Reader readiness needs a real initial viewport locator'
     page.evaluate('window.releaseInitialReports?.()')
+    # Epub.js may clear its inline stage height during layout. Its scrollport
+    # must stay bounded to the viewport rather than growing to chapter height.
+    page.evaluate("document.querySelector('.epub-container').style.removeProperty('height')")
+    bounds = page.evaluate("({height:document.querySelector('.epub-container').clientHeight, viewport:innerHeight})")
+    assert abs(bounds['height'] - bounds['viewport']) <= 1, bounds
+
 
     def check_authored():
         frame = next(frame for frame in page.frames if frame.locator('#label').count())
