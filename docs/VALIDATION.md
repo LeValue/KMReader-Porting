@@ -1,52 +1,59 @@
 # Development validation
 
-## 0.8.1 candidate — reverse scrolling and language-menu dismissal
+## 0.8.1 preview — reverse scrolling and language-menu dismissal
 
-The mixed-empty/full shelf fixture reproduces upward Dashboard movement on
-0.8.0: upward input can move the viewport down by 100 pixels on both Android
-and Windows configurations. Uneven settings groups also expose changes to the
-estimated scroll extent in the original lazy forms, including 2134 to 2210.5
-pixels on Windows. The old language picker changes locale during dismissal.
-These regressions fail against the original implementations and pass with
-retained bounded sections and deferred picker results.
+Published [0.8.1](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.1-preview.1), runtime source `3aaeafc32f13c8b6469806d26d970f86f02ea998`.
+All three required jobs passed in [verification 41096443421](https://github.com/LeValue/KMReader-Porting/actions/runs/41096443421).
+[Publisher 41098990293](https://github.com/LeValue/KMReader-Porting/actions/runs/41098990293) reused that exact successful source/run and Windows artifact.
 
 All **273 Flutter checks** pass locally with real Chromium and ONNX enabled;
-static analysis is clean. Eight Python checks, the pinned upstream inventory and
-isolated real Komga acceptance passed earlier; CI repeats the relevant checks.
-Host regressions additionally cover Escape cancellation and reduced motion.
+static analysis, eight Python checks, the pinned upstream inventory and isolated
+real Komga acceptance pass. The original 0.8.0 Dashboard and picker implementations
+fail three of the new checks: upward input moves the viewport down on both
+platform configurations, and locale updates occur during dismissal. The fixes
+retain bounded section state/height and defer picker results until route removal.
+The strengthened uneven-settings-group fixture also fails on the old forms on
+both platforms: its estimated Windows scroll extent changes from 2134 to 2210.5
+pixels while scrolling. The retained forms pass with exact, stable extents.
 
-Earlier candidates passed Windows checks but missed Android EPUB turns. A
-post-command trace identified a vertical reader scrollport of 16,680 pixels for
-a 556-pixel viewport: it had expanded to chapter height and had no scroll range.
-The outer EPUB stage now retains the viewport height when Epub.js clears inline
-dimensions. A real-browser fixture reproduces the same defect (23,400 versus
-780 pixels) by clearing the stage's inline height; the bounded stage passes in
-both flows at all tested sizes.
+All **17 reader/native integration checks** pass on both Android and Windows.
+The three added cases exercise upward traversal through mixed empty/full shelves
+without extent changes or refetches, settings upper-edge pixel stability under
+repeated wheel input, and the actual app's Appearance language flow with stable
+closing geometry and deferred locale updates. Host checks additionally cover
+Escape cancellation and reduced motion. Both Android API35 notch/rotation checks
+pass; Windows release compilation and isolated startup pass.
 
-All eleven real-browser checks pass, including held initial/turn reporting,
-viewport bounds, authored fixed-layout typography and large vertical CJK fonts.
-The engine also refreshes actual geometry before readiness and before/after
-navigation. The bounded stage fixed the initial Android vertical turn; the next
-native case exposed an unchanged coarse paragraph locator after enlarging the
-font, despite advancing from page 9 to 10. Animated turns now recover a missed
-locator from the uncovered viewport after the snapshot is removed. A renderer
-fixture deferring its visible move until uncovering reproduces the stale locator
-on the previous code and passes with the correction, including animated large-font
-turns. Existing saved locators and concurrent typography changes are preserved. WebViews
-with missing or stale caret hit testing now fall back to a bounded DOM Range
-search in the mapped paragraph. Prefix visibility permits binary search for the
-first visible character without scanning the chapter character by character.
-Browser fixtures disable caret hit testing at 390px and freeze it at 411px;
-the original code misses large-text turns and the geometry fallback passes all
-eleven checks. Final source-matched native results are still required. Diagnostic branches are not publication gates; the full source-matched
-native workflow remains required.
+Earlier candidates missed Android vertical EPUB turns. A post-command trace
+showed a 16,680-pixel scrollport for a 556-pixel viewport, leaving no scroll range;
+the bounded stage fixes this (the browser fixture reproduces 23,400 versus 780).
+Large-font turns also retained an unchanged coarse paragraph locator. The final
+source adds a bounded DOM Range geometry search for the first visible character and guarded recovery after animated
+snapshots are removed. Browser fixtures disable/freeze caret hit testing, hold
+initial/turn reporting and verify cleared inline sizing. The final native proof
+uses the complete Android display/rotation prelude and retains all assertions.
 
-Final source-matched native results remain pending. Publication requires all
-seventeen native checks on each platform plus both Android display/rotation
-checks in the complete workflow, optimized builds and downloaded-package
-verification. The scroll fixtures include mixed empty/full shelves, uneven
-settings group heights, upper-boundary pixel stability and the actual Appearance
-language flow. These checks do not measure physical-device frame times.
+After publication all five assets were downloaded again. Sizes, GitHub digests
+and SHA256SUMS match; every APK matches the locally verified signed bytes and
+exact source/version/build provenance. All **63 Windows bundle files** match
+the exact successful CI artifact, including its 21 x64 PE binaries.
+Android retains the Preview identity/certificate and increasing build number 11.
+All three APKs pass non-debuggable identity and 16KiB ZIP alignment checks; all
+nine ELF libraries in each 64-bit APK have LOAD alignment of at least 16KiB.
+This does not assert 16KiB ELF compatibility for ARMv7. Windows is not Authenticode signed.
+
+| Download | Bytes | SHA256 |
+| --- | ---: | --- |
+| Android ARM64 | 77,553,682 | `5028ad785c9b2bfce72f3f9ed4b834622de91403d724d557bea896092fc12ae8` |
+| Android ARMv7 | 63,821,668 | `55ec01e65d28b8c141d7b56dcf422a4f989431ed45ed5a2fd2d748fcbed3060a` |
+| Android x86_64 | 83,789,527 | `dde08748b9f66124224d3bb928d7e749515e05a8c3337d7482d5ea4309c12666` |
+| Windows x64 ZIP | 34,349,764 | `d91ef78fabd621613bf25ef38ec4ccd3db07eb6c2eec54e4f89d895436f0cfb1` |
+
+These are automated geometry, state and rendered-pixel checks, not physical-device
+frame-time measurements or coverage of every Windows graphics driver. Device
+acceptance of the reported jerk remains necessary. The [parity matrix](PARITY.md),
+[settings audit](SETTINGS_AUDIT.md) and [reference comparison](IPAD_REFERENCE.md)
+retain the explicit upstream differences.
 
 ## 0.8.0 preview — Dashboard boundaries and original settings layout
 

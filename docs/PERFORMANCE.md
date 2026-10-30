@@ -1,4 +1,39 @@
-# 0.2.0 performance and porting changes
+# Scrolling correction in 0.8.1
+
+The [0.8.1 preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.1-preview.1) corrects the mixed-shelf Dashboard regression:
+a lazy vertical list disposed offscreen empty sections, then reconstructed tall
+loading placeholders during upward scrolling. Shrinking those placeholders
+could push the viewport down despite upward input. The bounded Dashboard now
+retains each section's state and exact height. Horizontal shelves and unbounded
+catalogs/logs retain lazy construction; bounded settings forms use the stable
+section view. The app clamps scroll boundaries, suppresses stretch/glow and
+keeps app-bar elevation constant at the top.
+
+The Appearance language menu uses a fixed-size retained surface and fades
+without resizing its rows. Locale updates wait for route removal, avoiding a
+whole-app localization rebuild during dismissal. Shared short menus, sheets
+and dialogs also deliver their result after closing.
+
+Regression checks fail on the original 0.8.0 implementations and pass on this
+release. Native Android/Windows checks cover mixed-shelf reverse traversal,
+settings pixels at the upper wheel boundary and the real Appearance language
+flow. These establish geometry/state/rendered-pixel behavior in the test
+runtimes; physical device frame times and every GPU driver remain unmeasured.
+
+The native gate also exposed vertical EPUB stage growth to chapter height when
+inline sizing was cleared. The outer stage now stays at viewport height. Initial
+readiness and page turns refresh actual geometry, and animated turns recover a
+missed coarse locator from the uncovered viewport after snapshot removal. The
+regressions exercise cleared inline height, delayed reporting and animated large
+vertical text. WebViews with unavailable or stale caret hit testing use a
+bounded DOM Range search for the first visible character in the mapped paragraph.
+Browser fixtures disable/freeze that API and retain geometry/progress assertions.
+Saved anchors and concurrent typography changes remain protected.
+
+Exact source, native runs and downloaded-package hashes are in
+[validation](VALIDATION.md).
+
+## 0.2.0 performance and porting changes
 
 The first Android preview was a Flutter debug build. The optimized preview is
 an AOT-compiled release-mode build. A debug APK cannot establish release-mode
