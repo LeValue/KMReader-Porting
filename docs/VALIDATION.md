@@ -1,5 +1,43 @@
 # Development validation
 
+## 0.8.2 preview — continuous Windows wheel scrolling
+
+Published [0.8.2](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.2-preview.1), runtime source `1bb75274855204c554a48122af281e28b6661670`.
+All required jobs passed in [verification 41110608673](https://github.com/LeValue/KMReader-Porting/actions/runs/41110608673).
+[Publisher 41113100754](https://github.com/LeValue/KMReader-Porting/actions/runs/41113100754) reused the exact source and successful Windows artifact.
+
+The full host suite passes 272 checks with optional backend checks skipped.
+The targeted real Chromium/ONNX run passes 18 checks, including all eleven
+optional backend cases, for **283 distinct passing host checks**. The real Komga
+acceptance case runs separately in source-matched CI. Static analysis, eight
+Python checks and the pinned upstream settings inventory pass.
+
+Windows passes **18 native checks**, including a new WM_MOUSEWHEEL test that
+validates intermediate animated motion, reversal and raw pixel stability under
+repeated outward input at both edges. Android retains **17 native checks** and
+both notch/rotation checks. Optimized Android compilation and Windows release
+compilation/isolated startup pass. Debug-only native input injection is absent
+from the downloaded release executable.
+
+All five assets were downloaded again and verified against release digests and
+SHA256SUMS. All APKs match their locally verified signed bytes and embedded
+source/version/build provenance. All **63 Windows bundle files**
+match the exact successful CI artifact, including 21 x64 PE files.
+Android retains the Preview identity/certificate and increasing build number 12.
+All APKs pass non-debuggable identity and 16KiB ZIP alignment checks; each 64-bit
+ABI retains aligned ELF libraries. Windows is not Authenticode signed.
+
+Physical hardware frame-time measurements and full upstream functional/visual
+parity remain outside this evidence. See [performance](PERFORMANCE.md) and [parity](PARITY.md).
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.2-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-android-arm64-preview.apk) | 77,553,682 | `3ce679f2f466f0b00586112354a40436c793fbc4c0c95b18a3367742700cedb1` |
+| [KMReader-0.8.2-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-android-armv7-preview.apk) | 63,821,668 | `70632b1e4dae4a4c7af5446b966ea6688ebd93ee175ca3014757c3f3233c8720` |
+| [KMReader-0.8.2-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-android-x64-preview.apk) | 83,789,527 | `ccf368b5373327bd393bb0492ad20bae1af92d3af201fd5336cf1b0b76d6fcc3` |
+| [KMReader-0.8.2-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-windows-x64-preview.zip) | 34,350,899 | `042f6aa32337e58dad06ec64c8ab7d2139eba3014bb8283955def02e77b1024a` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/SHA256SUMS.txt) | 424 | `a1d9cc4b4906158f0ee30ec5853c8d87998d86449dccf004b969c33f275ff069` |
+
 ## 0.8.1 preview — reverse scrolling and language-menu dismissal
 
 Published [0.8.1](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.1-preview.1), runtime source `3aaeafc32f13c8b6469806d26d970f86f02ea998`.

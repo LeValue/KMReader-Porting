@@ -1,3 +1,31 @@
+# Windows mouse-wheel scrolling in 0.8.2
+
+The [0.8.2 preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.2-preview.1) animates Windows wheel detents in application
+browsing, settings, menus and forms. A scroll position owns one ticker for an
+active wheel sequence, retargeting a critically damped simulation without
+resetting its clock. Consecutive detents retain velocity and accumulate distance;
+a reversal discards the previous pending destination. Destinations and carried
+velocity are bounded so the animation cannot bounce beyond either content edge.
+Idle positions have no running ticker or pending event queue.
+
+The controller changes only wheel scrolling on Windows. Native touch and
+precision-trackpad pan gestures, scrollbar dragging, programmatic navigation and
+paginated reader gestures keep their separate handling. Windows reduced motion
+uses immediate wheel updates. Android uses the original Flutter positions.
+Each implicit view has its own scoped controller, including nested lists and
+horizontal shelves. Catalog/log builders remain lazy; the stable bounded
+Dashboard/settings layout from 0.8.1 is retained.
+
+Ten new host checks exercise continuous position/velocity, high-rate input while
+it is still arriving, reversal, both edges, nested propagation, Shift-wheel,
+interruptions, reduced motion, content resizing and lazy item construction.
+A native Windows check sends real WM_MOUSEWHEEL messages through the runner and
+Flutter engine, verifies intermediate motion and reversal, and compares rendered
+pixels under repeated outward input at both boundaries. Native test input exists
+only in debug builds. All source-matched CI jobs pass; see [validation](VALIDATION.md).
+This establishes animated behavior and boundary stability in the tested runtimes,
+not a physical-device FPS benchmark or Apple pixel parity.
+
 # Scrolling correction in 0.8.1
 
 The [0.8.1 preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.1-preview.1) corrects the mixed-shelf Dashboard regression:
