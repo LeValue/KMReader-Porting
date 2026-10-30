@@ -98,11 +98,41 @@
     }
     return Math.max(0, (displayed.page - 1) / Math.max(1, displayed.total));
   }
+  function visibleTextCfi(contents, viewport) {
+    const nodes = textIndex(contents).nodes, doc = contents.document;
+    let mapped;
+    try { mapped = contents.range(location.start.cfi); } catch (_) { return; }
+    let first = nodes.indexOf(mapped.startContainer);
+    if (first < 0) first = nodes.findIndex(node => mapped.startContainer.contains(node));
+    if (first < 0) first = 0;
+    const range = doc.createRange();
+    const visible = () => [...range.getClientRects()].some(rect =>
+      rect.width > 0 && rect.height > 0 && rect.right > viewport.left + 1 &&
+      rect.left < viewport.right - 1 && rect.bottom > viewport.top + 1 &&
+      rect.top < viewport.bottom - 1);
+    // The mapper identifies the paragraph. Prefix visibility is monotonic, so
+    // binary search finds its first visible UTF-16 offset without scanning the
+    // chapter character by character or relying on platform caret hit testing.
+    for (let i = first; i < Math.min(nodes.length, first + 64); i++) {
+      const node = nodes[i];
+      if (!node.length || !node.textContent.trim()) continue;
+      range.selectNodeContents(node);
+      if (!visible()) continue;
+      let low = 0, high = node.length - 1;
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        range.setStart(node, 0); range.setEnd(node, middle + 1);
+        if (visible()) high = middle; else low = middle + 1;
+      }
+      range.setStart(node, low); range.collapse(true);
+      return contents.cfiFromRange(range);
+    }
+  }
   function refineVerticalLocator() {
     if (!verticalWriting() || isFixedLayout() || !location) return;
     const contents = rendition.getContents().find(content => content.sectionIndex === location.start.index);
     const doc = contents?.document, frame = doc?.defaultView?.frameElement;
-    if (!frame || !doc.caretRangeFromPoint) return;
+    if (!frame) return;
     const viewport = rendition.manager.container.getBoundingClientRect(), bounds = frame.getBoundingClientRect();
     const style = doc.defaultView.getComputedStyle(doc.body);
     const leftToRight = contents.writingMode().endsWith('-lr');
@@ -116,15 +146,19 @@
       for (const dy of [fontSize / 2, fontSize, lineHeight / 2]) {
         const x = edge + (leftToRight ? inset : -inset);
         const y = top + (parseFloat(style.paddingTop) || 0) + dy;
-        const range = doc.caretRangeFromPoint(x, y);
+        const range = doc.caretRangeFromPoint?.(x, y);
         if (!range || range.startContainer.nodeType !== Node.TEXT_NODE || !range.startContainer.textContent.trim()) continue;
         const rect = range.getBoundingClientRect();
         if ((rect.width || rect.height) && rect.right >= left && rect.left <= right && rect.top >= top - 1 && rect.top < top + viewport.height) {
-          location.start.cfi = contents.cfiFromRange(range);
+          const cfi = contents.cfiFromRange(range);
+          if (cfi === anchor) continue;
+          location.start.cfi = cfi;
           return;
         }
       }
     }
+    const cfi = visibleTextCfi(contents, {left, right, top, bottom: top + viewport.height});
+    if (cfi) location.start.cfi = cfi;
   }
   function position(changed = false) {
     if (!location || restoring || auxiliary) return;

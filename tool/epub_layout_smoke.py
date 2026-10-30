@@ -50,6 +50,13 @@ with sync_playwright() as playwright:
         mode = frame.evaluate('getComputedStyle(document.documentElement).writingMode')
         assert mode == 'vertical-rl', mode
         assert frame.evaluate('getComputedStyle(document.body).direction') == 'ltr'
+        # Some Android caret APIs are missing or keep returning a paragraph
+        # start across several pages. Position tracking must use visible text.
+        if page.viewport_size['width'] == 390:
+            frame.evaluate('document.caretRangeFromPoint = null')
+        elif page.viewport_size['width'] == 411:
+            frame.evaluate("document.caretRangeFromPoint = () => new parent.ePub.CFI(parent.reader.position().start.cfi).toRange(document)")
+
         first = page.evaluate('window.reader.position().start')
         if config['preferences']['flow'] == 'scrolled':
             page.mouse.move(200, 300)
@@ -116,7 +123,7 @@ with sync_playwright() as playwright:
                   const f = frameElement.getBoundingClientRect(), v = parent.document.querySelector('.epub-container').getBoundingClientRect();
                   return [1, 21, 28, 44, 80].map(inset => {
                     const x = v.right - f.left - inset, y = v.top - f.top + 25;
-                    const range = document.caretRangeFromPoint(x,y);
+                    const range = document.caretRangeFromPoint?.(x,y);
                     return {x,y,node:range?.startContainer.parentElement?.id,offset:range?.startOffset,rect:range?.getBoundingClientRect().toJSON(),frame:f.toJSON(),viewport:v.toJSON()};
                   });
                 }"""))

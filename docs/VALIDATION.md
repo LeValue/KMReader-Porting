@@ -32,7 +32,13 @@ font, despite advancing from page 9 to 10. Animated turns now recover a missed
 locator from the uncovered viewport after the snapshot is removed. A renderer
 fixture deferring its visible move until uncovering reproduces the stale locator
 on the previous code and passes with the correction, including animated large-font
-turns. Existing saved locators and concurrent typography changes are preserved. Diagnostic branches are not publication gates; the full source-matched
+turns. Existing saved locators and concurrent typography changes are preserved. WebViews
+with missing or stale caret hit testing now fall back to a bounded DOM Range
+search in the mapped paragraph. Prefix visibility permits binary search for the
+first visible character without scanning the chapter character by character.
+Browser fixtures disable caret hit testing at 390px and freeze it at 411px;
+the original code misses large-text turns and the geometry fallback passes all
+eleven checks. Final source-matched native results are still required. Diagnostic branches are not publication gates; the full source-matched
 native workflow remains required.
 
 Final source-matched native results remain pending. Publication requires all
