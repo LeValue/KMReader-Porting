@@ -322,6 +322,15 @@ namespace flutter_inappwebview_plugin
     channel->InvokeMethod("shouldOverrideUrlLoading", std::move(arguments), std::move(callback));
   }
 
+  void WebViewChannelDelegate::onRenderProcessGone() const
+  {
+    if (!channel) return;
+    auto arguments = std::make_unique<flutter::EncodableValue>(flutter::EncodableMap{
+      {"didCrash", true}, {"rendererPriorityAtExit", flutter::EncodableValue()}
+    });
+    channel->InvokeMethod("onRenderProcessGone", std::move(arguments));
+  }
+
   void WebViewChannelDelegate::onReceivedError(std::shared_ptr<WebResourceRequest> request, std::shared_ptr<WebResourceError> error) const
   {
     if (!channel) {

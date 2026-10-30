@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/models.dart';
 import '../../core/external_links.dart';
 import '../../core/repository.dart';
+import '../../core/client_log.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
@@ -48,6 +49,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   EpubSession? _session;
   InAppWebViewController? _browser;
   WebViewEnvironment? _environment;
+  Widget? _webView;
+  Completer<void> _browserClosed = Completer<void>();
+  int _browserGeneration = 0, _recoveries = 0;
+  bool _recovering = false, _recoveryFailed = false;
   bool _initialized = false, _controls = true;
   bool _fixedLayout = false;
   bool _verticalWriting = false;
@@ -62,34 +67,56 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   );
   static Future<WebViewEnvironment>? _windowsEnvironment;
 
+  @visibleForTesting
+  InAppWebViewController? get browserController => _browser;
+
   @override
   void initState() {
     super.initState();
     _future = _open();
   }
 
-  Future<EpubSession> _open() async {
+  Future<void> _prepareEnvironment() async {
     if (Platform.isWindows) {
       if (await WebViewEnvironment.getAvailableVersion() == null) {
         throw StateError(
           'Install Microsoft Edge WebView2 Runtime to read EPUB books.',
         );
       }
-      _environment = await (_windowsEnvironment ??= () async {
+      final pending = _windowsEnvironment ??= () async {
         final directory = await getApplicationCacheDirectory();
         final folder = Directory('${directory.path}/epub-browser');
         await folder.create(recursive: true);
         return WebViewEnvironment.create(
           settings: WebViewEnvironmentSettings(userDataFolder: folder.path),
         );
-      }());
+      }();
+      try {
+        _environment = await pending;
+      } catch (_) {
+        if (identical(_windowsEnvironment, pending)) _windowsEnvironment = null;
+        rethrow;
+      }
     }
-    final session = await EpubSession.open(
-      widget.repository,
-      widget.book,
-      widget.file,
-      incognito: widget.incognito,
-    );
+  }
+
+  Future<EpubSession> _open() async {
+    EpubSession? opened;
+    try {
+      await Future.wait<void>([
+        EpubSession.open(
+          widget.repository,
+          widget.book,
+          widget.file,
+          incognito: widget.incognito,
+        ).then<void>((session) => opened = session),
+        _prepareEnvironment(),
+      ]);
+    } catch (_) {
+      await opened?.close();
+      rethrow;
+    }
+    final session = opened!;
     if (!mounted) {
       await session.close();
       throw StateError('Reader closed.');
@@ -105,6 +132,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   Future<dynamic> _call(String method, [dynamic value]) async {
     if (_browser == null || !mounted) return null;
+    final generation = _browserGeneration;
+    final browserClosed = _browserClosed.future;
     try {
       assert(() {
         debugPrint('EPUB command $method started');
@@ -118,6 +147,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           await Future.any<CallAsyncJavaScriptResult?>([
             work,
             _closed.future.then((_) => null),
+            browserClosed.then((_) => null),
           ]).timeout(
             Duration(
               seconds: method == 'search'
@@ -127,6 +157,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   : 12,
             ),
           );
+      if (generation != _browserGeneration) return null;
       if (result?.error != null) throw StateError(result!.error!);
       assert(() {
         debugPrint('EPUB command $method completed');
@@ -134,7 +165,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       }());
       return result?.value;
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted && generation == _browserGeneration) {
+        setState(() => _error = error.toString());
+      }
       return null;
     }
   }
@@ -154,34 +187,82 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return;
     }
     _turning = true;
+    final generation = _browserGeneration;
     try {
-      Uint8List? snapshot;
-      if (session.preferences.animate &&
-          session.preferences.transition != 'none') {
-        try {
-          snapshot = await _browser
-              ?.takeScreenshot(
-                screenshotConfiguration: ScreenshotConfiguration(
-                  compressFormat: CompressFormat.JPEG,
-                  quality: 85,
-                ),
-              )
-              .timeout(const Duration(milliseconds: 250));
-        } catch (_) {
-          /* A missing animation snapshot must never block a page. */
-        }
-      }
       await _call('turn', {
         'delta': delta,
-        'style': session.preferences.animate
+        'style':
+            session.preferences.animate &&
+                !MediaQuery.disableAnimationsOf(context)
             ? session.preferences.transition
             : 'none',
-        if (snapshot != null)
-          'snapshot': 'data:image/jpeg;base64,${base64Encode(snapshot)}',
       });
     } finally {
+      if (generation == _browserGeneration) {
+        _turning = false;
+        if (mounted && _turns.isNotEmpty) unawaited(_turn(_turns.removeAt(0)));
+      }
+    }
+  }
+
+  Future<void> _restartBrowser({bool manual = false}) async {
+    if (!mounted || _recovering || _session == null) return;
+    if (manual) _recoveries = 0;
+    if (_recoveries >= 2) {
+      _session!.ready = false;
+      if (!_browserClosed.isCompleted) _browserClosed.complete();
+      setState(() {
+        _browserGeneration++;
+        _browser = null;
+        _webView = null;
+        _turning = false;
+        _turns.clear();
+        _recoveryFailed = true;
+        _error = tr(context, 'reader.recoveryFailed');
+      });
+      return;
+    }
+    _recoveries++;
+    ClientLog.instance.add('warning', 'epub', 'Recreating interrupted reader');
+    _session!.save();
+    _session!.ready = false;
+    if (!_browserClosed.isCompleted) _browserClosed.complete();
+    _browserClosed = Completer<void>();
+    setState(() {
+      _recovering = true;
+      _recoveryFailed = false;
+      _initialized = false;
+      _error = null;
+      _browser = null;
+      _webView = null;
+      _browserGeneration++;
       _turning = false;
-      if (mounted && _turns.isNotEmpty) unawaited(_turn(_turns.removeAt(0)));
+      _turns.clear();
+    });
+    try {
+      // Remove the failed native view before asking WebView2 for a new one.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      if (Platform.isWindows) {
+        final old = _environment;
+        _environment = null;
+        _windowsEnvironment = null;
+        try {
+          await old?.dispose();
+        } catch (_) {
+          // The browser process may already have released this environment.
+        }
+        await _prepareEnvironment();
+      }
+      if (mounted) setState(() => _recovering = false);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _recovering = false;
+          _recoveryFailed = true;
+          _error = tr(context, 'reader.recoveryFailed');
+        });
+      }
     }
   }
 
@@ -838,9 +919,80 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     );
   }
 
+  Widget _readerView(EpubSession session) {
+    final generation = _browserGeneration;
+    return _webView ??= InAppWebView(
+      key: ValueKey(generation),
+      webViewEnvironment: _environment,
+      initialUrlRequest: URLRequest(
+        url: WebUri(session.host.reader.toString()),
+      ),
+      initialSettings: InAppWebViewSettings(
+        javaScriptEnabled: true,
+        useOnRenderProcessGone: true,
+        allowFileAccess: false,
+        allowContentAccess: false,
+        useShouldOverrideUrlLoading: true,
+        transparentBackground: false,
+        supportZoom: false,
+        isInspectable: false,
+      ),
+      onWebViewCreated: (controller) {
+        if (!mounted || generation != _browserGeneration) return;
+        _browser = controller;
+        controller.addJavaScriptHandler(
+          handlerName: 'readerEvent',
+          callback: (args) {
+            if (mounted &&
+                generation == _browserGeneration &&
+                args.isNotEmpty) {
+              _event(args.first);
+            }
+            return null;
+          },
+        );
+      },
+      onLoadStop: (_, _) async {
+        if (generation == _browserGeneration) await _load();
+      },
+      onRenderProcessGone: (_, _) {
+        if (generation == _browserGeneration) unawaited(_restartBrowser());
+      },
+      shouldOverrideUrlLoading: (controller, action) async {
+        final uri = action.request.url;
+        if (uri == null) {
+          return NavigationActionPolicy.CANCEL;
+        }
+        if (!action.isForMainFrame &&
+            uri.scheme == 'about' &&
+            ['blank', 'srcdoc'].contains(uri.path)) {
+          return NavigationActionPolicy.ALLOW;
+        }
+        if (!action.isForMainFrame &&
+            uri.scheme == 'blob' &&
+            uri.path.startsWith(session.host.base.origin)) {
+          return NavigationActionPolicy.ALLOW;
+        }
+        return uri.scheme == session.host.base.scheme &&
+                uri.authority == session.host.base.authority &&
+                uri.path.startsWith(session.host.base.path)
+            ? NavigationActionPolicy.ALLOW
+            : NavigationActionPolicy.CANCEL;
+      },
+      onReceivedError: (_, request, error) {
+        if (request.isForMainFrame == true &&
+            mounted &&
+            generation == _browserGeneration) {
+          setState(() => _error = error.description);
+        }
+      },
+    );
+  }
+
   @override
   void dispose() {
     if (!_closed.isCompleted) _closed.complete();
+    if (!_browserClosed.isCompleted) _browserClosed.complete();
     _session?.removeListener(_changed);
     unawaited(_session?.close() ?? Future.value());
     super.dispose();
@@ -945,6 +1097,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       content: Text(_error!),
                       actions: [
                         TextButton(
+                          onPressed: () => _restartBrowser(manual: true),
+                          child: Text(tr(context, 'Retry')),
+                        ),
+                        TextButton(
                           onPressed: () => setState(() => _error = null),
                           child: Text(tr(context, 'Close')),
                         ),
@@ -954,60 +1110,14 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        InAppWebView(
-                          webViewEnvironment: _environment,
-                          initialUrlRequest: URLRequest(
-                            url: WebUri(session.host.reader.toString()),
-                          ),
-                          initialSettings: InAppWebViewSettings(
-                            javaScriptEnabled: true,
-                            allowFileAccess: false,
-                            allowContentAccess: false,
-                            useShouldOverrideUrlLoading: true,
-                            transparentBackground: false,
-                            supportZoom: false,
-                            isInspectable: false,
-                          ),
-                          onWebViewCreated: (controller) {
-                            _browser = controller;
-                            controller.addJavaScriptHandler(
-                              handlerName: 'readerEvent',
-                              callback: (args) {
-                                if (args.isNotEmpty) _event(args.first);
-                                return null;
-                              },
-                            );
-                          },
-                          onLoadStop: (_, _) => _load(),
-                          shouldOverrideUrlLoading: (controller, action) async {
-                            final uri = action.request.url;
-                            if (uri == null) {
-                              return NavigationActionPolicy.CANCEL;
-                            }
-                            if (!action.isForMainFrame &&
-                                uri.scheme == 'about' &&
-                                ['blank', 'srcdoc'].contains(uri.path)) {
-                              return NavigationActionPolicy.ALLOW;
-                            }
-                            if (!action.isForMainFrame &&
-                                uri.scheme == 'blob' &&
-                                uri.path.startsWith(session.host.base.origin)) {
-                              return NavigationActionPolicy.ALLOW;
-                            }
-                            return uri.scheme == session.host.base.scheme &&
-                                    uri.authority ==
-                                        session.host.base.authority &&
-                                    uri.path.startsWith(session.host.base.path)
-                                ? NavigationActionPolicy.ALLOW
-                                : NavigationActionPolicy.CANCEL;
-                          },
-                          onReceivedError: (_, request, error) {
-                            if (request.isForMainFrame == true && mounted) {
-                              setState(() => _error = error.description);
-                            }
-                          },
-                        ),
-                        if (!session.ready)
+                        if (_recoveryFailed)
+                          FailureView(
+                            error: tr(context, 'reader.recoveryFailed'),
+                            retry: () => _restartBrowser(manual: true),
+                          )
+                        else if (!_recovering)
+                          RepaintBoundary(child: _readerView(session)),
+                        if (!session.ready && !_recoveryFailed)
                           ColoredBox(
                             color: background,
                             child: const Center(

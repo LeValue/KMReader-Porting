@@ -224,6 +224,41 @@ void main() {
       skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
     );
   }
+  for (final width in [390, 1044]) {
+    test(
+      'long default EPUB serializes rapid navigation and keeps visible text at $width pixels',
+      () async {
+        final file = fixture(directory, paragraphCount: 1400);
+        final document = EpubDocument.open(file.path);
+        final host = await EpubHost.open(document, filePath: file.path);
+        try {
+          final result = await Process.run('python3', [
+            'tool/epub_performance_smoke.py',
+            host.reader.toString(),
+            jsonEncode({
+              'url': host.publication.toString(),
+              'preferences': const EpubPreferences().toJson(),
+              'nonce': 'performance',
+              'direction': 'ltr',
+              'href': 'one.xhtml',
+              'viewport': {'width': width, 'height': width == 390 ? 780 : 720},
+            }),
+          ]);
+          // ignore: avoid_print
+          print(result.stdout);
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        } finally {
+          await host.close();
+          document.close();
+        }
+      },
+      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+    );
+  }
   test('shipped browser engine paginates, reflows, searches and restores footnotes', () async {
     final doc = EpubDocument.open(fixture(directory).path);
     final host = await EpubHost.open(

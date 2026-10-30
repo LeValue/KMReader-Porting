@@ -415,6 +415,19 @@ namespace flutter_inappwebview_plugin
         .Get(), nullptr));
     }
 
+    failedLog(webView->add_ProcessFailed(
+      Callback<ICoreWebView2ProcessFailedEventHandler>(
+        [this](ICoreWebView2*, ICoreWebView2ProcessFailedEventArgs* args) {
+          COREWEBVIEW2_PROCESS_FAILED_KIND kind;
+          if (SUCCEEDED(args->get_ProcessFailedKind(&kind)) && channelDelegate &&
+              (kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED ||
+               kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED ||
+               kind == COREWEBVIEW2_PROCESS_FAILED_KIND_FRAME_RENDER_PROCESS_EXITED)) {
+            channelDelegate->onRenderProcessGone();
+          }
+          return S_OK;
+        }).Get(), &processFailedToken_));
+
     failedLog(webView->add_NavigationStarting(
       Callback<ICoreWebView2NavigationStartingEventHandler>(
         [this](ICoreWebView2* sender, ICoreWebView2NavigationStartingEventArgs* args)
@@ -1392,12 +1405,14 @@ namespace flutter_inappwebview_plugin
     }
 
     auto hr = webView->CallDevToolsProtocolMethod(L"Page.captureScreenshot", utf8_to_wide(parameters.dump()).c_str(), Callback<ICoreWebView2CallDevToolsProtocolMethodCompletedHandler>(
-      [this, completionHandler](HRESULT errorCode, LPCWSTR returnObjectAsJson)
+      [completionHandler](HRESULT errorCode, LPCWSTR returnObjectAsJson)
       {
         std::optional<std::string> result = std::nullopt;
-        if (succeededOrLog(errorCode)) {
-          nlohmann::json json = nlohmann::json::parse(wide_to_utf8(returnObjectAsJson));
-          result = json["data"].get<std::string>();
+        if (succeededOrLog(errorCode) && returnObjectAsJson) {
+          const auto json = nlohmann::json::parse(wide_to_utf8(returnObjectAsJson), nullptr, false);
+          if (json.is_object() && json.contains("data") && json["data"].is_string()) {
+            result = json["data"].get<std::string>();
+          }
         }
         if (completionHandler) {
           completionHandler(result);
@@ -1607,6 +1622,7 @@ namespace flutter_inappwebview_plugin
     }
 
     if (surface_ && width > 0 && height > 0) {
+      if (width == surfaceWidth_ && height == surfaceHeight_ && scale_factor == surfaceScale_) return;
       scaleFactor_ = scale_factor;
       auto scaled_width = width * scale_factor;
       auto scaled_height = height * scale_factor;
@@ -1626,7 +1642,9 @@ namespace flutter_inappwebview_plugin
 
       if (webViewController->put_Bounds(bounds) != S_OK) {
         std::cerr << "Setting webview bounds failed." << std::endl;
+        return;
       }
+      surfaceWidth_ = width; surfaceHeight_ = height; surfaceScale_ = scale_factor;
 
       if (surfaceSizeChangedCallback_) {
         surfaceSizeChangedCallback_(width, height);
@@ -1868,6 +1886,7 @@ namespace flutter_inappwebview_plugin
     debugLog("dealloc InAppWebView");
     userContentController = nullptr;
     if (webView) {
+      if (processFailedToken_.value != 0) webView->remove_ProcessFailed(processFailedToken_);
       failedLog(webView->Stop());
     }
     HWND parentWindow = nullptr;

@@ -189,6 +189,9 @@ namespace flutter_inappwebview_plugin
     SurfaceSizeChangedCallback surfaceSizeChangedCallback_;
     CursorChangedCallback cursorChangedCallback_;
     float scaleFactor_ = 1.0;
+    size_t surfaceWidth_ = 0, surfaceHeight_ = 0;
+    float surfaceScale_ = 0;
+    EventRegistrationToken processFailedToken_ = {};
     POINT lastCursorPos_ = { 0, 0 };
     VirtualKeyState virtualKeys_;
 

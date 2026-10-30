@@ -1,13 +1,20 @@
 'use strict';
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
-  let renditionSpineHooks = [], preferenceQueue = Promise.resolve();
+  let renditionSpineHooks = [], operationQueue = Promise.resolve(), turnAnimation;
+  const settledDocuments = new WeakSet();
+  function enqueue(operation) {
+    const pending = operationQueue.then(() => disposed ? undefined : operation());
+    operationQueue = pending.catch(() => {});
+    return pending;
+  }
   let userMoveUntil = 0;
   let restoring = true, disposed = false, userMove = false, relocationTimer, resizeTimer = null, layoutJobs = 0;
   const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const inputEvents = ['wheel', 'touchstart', 'touchmove'];
   const noteUserMove = () => {
     if (!restoring && !disposed) {
+      cancelTurnAnimation();
       userMove = true; userMoveUntil = Date.now() + 2000;
       // A no-op programmatic scroll can leave Epub.js ignoring its next event.
       // Real input owns that next scroll and must update the reading locator.
@@ -20,7 +27,11 @@
     if (window.flutter_inappwebview) window.flutter_inappwebview.callHandler('readerEvent', message);
     else window.dispatchEvent(new CustomEvent('readerEvent', {detail: message}));
   };
-  const timeout = (promise, ms = 6000) => Promise.race([promise, new Promise(resolve => setTimeout(resolve, ms))]);
+  const timeout = (promise, ms = 6000) => {
+    let timer;
+    return Promise.race([promise, new Promise(resolve => {timer = setTimeout(resolve, ms);})])
+      .finally(() => clearTimeout(timer));
+  };
   const colors = () => /^#[a-f0-9]{6}$/i.test(preferences.backgroundColor || '') && /^#[a-f0-9]{6}$/i.test(preferences.textColor || '') ? [preferences.backgroundColor, preferences.textColor] : preferences.theme === 'black' ? ['#1c1c1e', '#e8e4dc'] : preferences.theme === 'white' ? ['#ffffff', '#262321'] : ['#efe5d0', '#262321'];
   const isFixedLayout = () => Boolean(book && (book.package?.metadata.layout === 'pre-paginated' || book.displayOptions?.fixedLayout === 'true'));
   const verticalWriting = () => Boolean(rendition?.manager?.writingMode?.startsWith('vertical'));
@@ -74,6 +85,7 @@
       })));
     })));
     await tick();
+    for (const content of contents) settledDocuments.add(content.document || content);
   }
   const textIndexes = new WeakMap();
   function textIndex(contents) {
@@ -162,7 +174,11 @@
   }
   function position(changed = false) {
     if (!location || restoring || auxiliary) return;
-    refineVerticalLocator();
+    // Delayed Epub.js reports contain a coarse paragraph CFI, which can lie on
+    // the preceding page in large vertical text. Only real navigation chooses
+    // a new anchor; reflow/reporting must retain the committed character CFI.
+    if (changed || !anchor) refineVerticalLocator();
+    else location.start.cfi = anchor;
     const start = location.start, displayed = start.displayed || {page: 1, total: 1};
     changed = changed && start.cfi !== anchor;
     if (changed) {
@@ -223,16 +239,28 @@
       touch = null;
     }, {passive: false});
     doc.addEventListener('wheel', noteUserMove, {passive: true});
-    for (const image of doc.images) image.addEventListener('load', () => {
-      if (active() && !restoring && location) preserve(() => Promise.resolve());
-    });
-    if (doc.fonts) doc.fonts.addEventListener('loadingdone', () => { if (active() && !restoring && location) preserve(() => Promise.resolve()); });
+    let reflowQueued = false;
+    const resourceChanged = () => {
+      settledDocuments.delete(doc);
+      if (!active() || restoring || !location || reflowQueued) return;
+      reflowQueued = true;
+      enqueue(async () => {
+        reflowQueued = false;
+        if (active()) await preserve(() => Promise.resolve());
+      }).catch(error => send('error', {message: String(error)}));
+    };
+    for (const image of doc.images) image.addEventListener('load', resourceChanged);
+    if (doc.fonts) doc.fonts.addEventListener('loadingdone', resourceChanged);
     doc.addEventListener('selectionchange', () => {
       const selection = doc.getSelection();
       if (!selection.isCollapsed && selection.toString().trim()) send('selection', {text: selection.toString().slice(0, 16000)});
     });
   }
   async function waitForLayout() {
+    if (resizeTimer !== null) {
+      clearTimeout(resizeTimer); resizeTimer = null;
+      await preserve(() => rendition.resize(window.innerWidth, window.innerHeight));
+    }
     const deadline = Date.now() + 10000;
     while (restoring || resizeTimer !== null || layoutJobs > 0) {
       if (disposed) return;
@@ -242,6 +270,7 @@
   }
   async function preserve(change) {
     if (!rendition) return;
+    cancelTurnAnimation();
     const cfi = anchor || (location && location.start.cfi);
     layoutJobs++; restoring = true; userMove = false; userMoveUntil = 0; clearTimeout(relocationTimer);
     try {
@@ -254,9 +283,7 @@
   function setPreferences(value) {
     // Flow changes replace the manager. Keep rapid preference updates ordered
     // so an older reflow cannot destroy a newer rendition or restore its CFI.
-    const pending = preferenceQueue.then(() => applyPreferences(value));
-    preferenceQueue = pending.catch(() => {});
-    return pending;
+    return enqueue(() => applyPreferences(value));
   }
   async function applyPreferences(value) {
     await waitForLayout();
@@ -300,7 +327,13 @@
       rendition.reportLocation();
     } else if (delta > 0) await rendition.next();
     else await rendition.prev();
-    await stable(rendition.getContents());
+    // The manager already completes the move on its rendering queue. Existing
+    // chapter documents have settled fonts/images; four extra RAFs on every
+    // page only delay input. New chapters still wait for complete layout.
+    const contents = rendition.getContents();
+    if (contents.some(content => !settledDocuments.has(content.document))) {
+      await stable(contents);
+    }
     // Epub.js resolves reportLocation's queue job before its RAF callback emits
     // relocated. Read the settled viewport before committing this user turn;
     // otherwise the old locator can be treated as an unchanged position.
@@ -367,48 +400,31 @@
     rendition.reportLocation();
     await tick();
   }
+  function cancelTurnAnimation() {
+    const previous = turnAnimation; turnAnimation = undefined;
+    if (previous) previous.cancel();
+  }
   async function turn(value) {
     if (!rendition || auxiliary) return;
-    await waitForLayout();
-    const move = value.delta > 0 ? next : previous;
-    if (!value.snapshot || value.style === 'none' || (value.delta > 0 && atReadingEnd())) return move();
-    if (!/^data:image\/(jpeg|png);base64,/.test(value.snapshot)) return move();
-    // Keep the native WebView visible: a Flutter raster overlay can suspend
-    // its animation-frame callbacks before pagination has settled.
-    const image = new Image(); image.src = value.snapshot;
-    try { await timeout(image.decode(), 250); } catch (_) { return move(); }
-    image.id = 'page-transition';
-    Object.assign(image.style, {position:'fixed',inset:'0',width:'100%',height:'100%',zIndex:'1000',pointerEvents:'none',objectFit:'fill'});
-    const startAnchor = anchor, turnPreferences = preferences;
-    document.body.appendChild(image);
+    cancelTurnAnimation();
+    const before = location?.start?.cfi;
+    await (value.delta > 0 ? next() : previous());
+    if (disposed || !rendition || auxiliary || location?.start?.cfi === before || value.style === 'none' ||
+        matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const viewer = document.getElementById('viewer');
-    try {
-      await tick(); await move();
-      const sign = (value.delta > 0) !== (config.direction === 'rtl') ? -1 : 1;
-      const timing = {duration:190,easing:'cubic-bezier(.2,.7,.2,1)',fill:'forwards'};
-      let old;
-      if (value.style === 'curl') {
-        image.style.transformOrigin = sign < 0 ? 'left center' : 'right center';
-        old = image.animate([{transform:'perspective(1200px) rotateY(0deg)',filter:'brightness(1)'},
-          {transform:`perspective(1200px) rotateY(${sign*100}deg)`,filter:'brightness(.7)'}],timing);
-      } else old = image.animate([{transform:'translateX(0)'},{transform:`translateX(${sign*100}%)`}],timing);
-      let incoming;
-      if (value.style === 'slide') incoming = viewer.animate([{transform:`translateX(${-sign*100}%)`},{transform:'translateX(0)'}],timing);
-      await old.finished;
-      if (incoming) {await incoming.finished;incoming.cancel();}
-    } finally {
-      image.remove();
-      if (!disposed && rendition && !auxiliary) {
-        // Native hit testing can see only the coarse paragraph locator while
-        // the snapshot covers the iframe. Recover a missed turn from the
-        // visible page; an already saved locator or a reflow stays unchanged.
-        await stable(rendition.getContents());
-        if (!disposed && rendition && !auxiliary) {
-          refreshViewportLocation();
-          position(anchor === startAnchor && preferences === turnPreferences);
-        }
-      }
-    }
+    const sign = (value.delta > 0) !== (config.direction === 'rtl') ? 1 : -1;
+    // Animate the live, clipped viewport, never a native screenshot or an
+    // entire offscreen chapter. Navigation is committed before the cosmetic
+    // animation and another input can cancel it immediately.
+    const transform = value.style === 'curl'
+      ? `perspective(1400px) rotateY(${sign * 5}deg)`
+      : value.style === 'cover' ? 'none' : `translateX(${sign * 20}px)`;
+    const animation = turnAnimation = viewer.animate([
+      {transform, opacity: .8}, {transform: 'none', opacity: 1},
+    ], {duration: 140, easing: 'cubic-bezier(.2,.7,.2,1)'});
+    animation.finished.catch(() => {}).finally(() => {
+      if (turnAnimation === animation) {turnAnimation = undefined; animation.cancel();}
+    });
   }
   async function legacyProgress(progression) {
     const all = rendition.getContents();
@@ -454,9 +470,13 @@
   }
   function onResize() {
     if (disposed || !rendition) return;
-    restoring = true;
+    cancelTurnAnimation();
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { resizeTimer = null; preserve(() => rendition.resize(window.innerWidth, window.innerHeight)); }, 150);
+    resizeTimer = setTimeout(() => {
+      resizeTimer = null;
+      enqueue(() => preserve(() => rendition.resize(window.innerWidth, window.innerHeight)))
+        .catch(error => send('error', {message: String(error)}));
+    }, 80);
   }
   function createRendition() {
     const before = new Set(book.spine.hooks.content.list());
@@ -472,6 +492,10 @@
     rendition.on('relocated', value => {
       if (rendition !== current || disposed) return;
       location = value;
+      if (!restoring && anchor && !userMove &&
+          !(preferences.flow === 'scrolled' && Date.now() < userMoveUntil)) {
+        location.start.cfi = anchor;
+      }
       clearTimeout(relocationTimer);
       relocationTimer = setTimeout(() => {
         const changed = userMove || (preferences.flow === 'scrolled' && Date.now() < userMoveUntil);
@@ -532,9 +556,13 @@
     }, true);
     send('auxiliary', {active: true});
   }
-  window.reader = {open, next, previous, turn, display, preferences: setPreferences, search, openAuxiliary, closeAuxiliary,
+  window.reader = {open: value => enqueue(() => open(value)), next: () => enqueue(next), previous: () => enqueue(previous),
+    turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
+    preferences: setPreferences, search: value => enqueue(() => search(value)),
+    openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
     position: () => location, destroy: () => {
       disposed = true; clearTimeout(relocationTimer); clearTimeout(resizeTimer);
+      cancelTurnAnimation();
       window.removeEventListener('resize', onResize);
       for (const event of inputEvents) document.removeEventListener(event, noteUserMove);
       destroyRendition(); if (book) book.destroy();

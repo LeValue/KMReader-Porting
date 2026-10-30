@@ -21,8 +21,19 @@ enum BrowseOption {
 class BrowsePreferences extends ChangeNotifier {
   BrowsePreferences(this.store);
   final LocalStore store;
-  bool operator [](BrowseOption option) =>
-      store.setting<bool>(option.key) ?? option.defaultValue;
+  int _revision = -1;
+  Map<BrowseOption, bool> _values = {};
+  bool operator [](BrowseOption option) {
+    if (_revision != store.settingsRevision) {
+      _values = {
+        for (final item in BrowseOption.values)
+          item: store.setting<bool>(item.key) ?? item.defaultValue,
+      };
+      _revision = store.settingsRevision;
+    }
+    return _values[option]!;
+  }
+
   void set(BrowseOption option, bool value) {
     if (this[option] == value) return;
     store.setSetting(option.key, value);

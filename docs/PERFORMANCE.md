@@ -1,3 +1,66 @@
+# EPUB and catalog performance audit in 0.8.3
+
+The paginated EPUB hot path previously took a native screenshot, JPEG-encoded it,
+sent its base64 bytes back into JavaScript, waited for several extra animation
+frames and then awaited the cosmetic transition. Rapid input queued behind that
+work. The new path animates the live clipped viewport, commits navigation before
+the effect finishes and cancels the preceding effect on further input. There is
+no native screenshot in the page-turn path. Settled chapter documents skip
+repeated font/image waits; newly opened chapters retain those waits.
+
+Reader operations share one queue, including resize, preferences, navigation,
+search and late resource layout. Delayed coarse Epub.js locator reports retain
+the committed character anchor. This matters particularly for large vertical
+text when a paragraph spans pages. The Flutter WebView widget is reused across
+locator notifications, and Windows skips unchanged native surface dimensions.
+WebView renderer exits trigger bounded recreation/restoration; malformed native
+screenshot data no longer throws an exception through the COM completion.
+
+A public-domain Gutenberg Moby Dick EPUB (ebook 2701, downloaded 2026-10-30,
+about 795 kB) was tested with publisher font, 19 px, 1.65 line spacing, 24 px
+margins, automatic columns, sepia, paginated slide transitions. The same bundled
+Epub.js/Chromium runtime, file, chapter and viewport were used for each comparison.
+Each case discards two warm-up turns and records ten further turns. The old
+Windows screenshot step is reproduced with Chromium's JPEG85 screenshot command.
+
+| Viewport | 0.8.2 slide command median | 0.8.3 slide command median |
+|---|---:|---:|
+| 1044 × 720 | 416.7 ms | 33.3 ms |
+| 390 × 780 | 400.2 ms | 33.3 ms |
+
+These cloud measurements ([raw results](benchmarks/epub-0.8.3.json)) measure command completion, including the old
+screenshot/animation waits. They are not native Windows/Android FPS, total input
+latency or a guarantee for every book/device. Initial opening remained roughly
+0.3–0.4 seconds in this browser fixture; the main gain is repeated page turns.
+The reproducible tool is `tool/epub_benchmark.py`; use the same EPUB and chapter
+with `--assets` pointing to the prior assets and `--capture` for the old path.
+
+Two long-chapter browser stress checks exercise 48 unique forward positions,
+all four transitions, a never-completing animation promise, concurrent resize/
+preferences/turns, reduced motion and actual nonblank screenshot pixels. They
+assert at most one active animation, bounded iframe count and no retained
+transform. Collected JS heap grew by about 0.5–0.6 MiB over this short run
+(using CDP metrics after collection, not the browser's coarse memory estimate).
+That short bounded-growth check does not establish unlimited-session memory use.
+Native integration adds the actual Dart page-turn controls, retained WebView
+identity, 48 further turns and visible rendered glyphs. On Windows it also
+crashes the WebView2 renderer deliberately and checks position/text restoration.
+Native debug timings are diagnostic and are not release performance claims.
+
+Catalog card preferences previously performed SQL and JSON decoding on every
+option lookup. A versioned nine-value snapshot now reloads only after a settings
+write. A 20,000-card lookup probe (180,000 option reads) dropped from 180,000 SQL
+reads to nine; measured host loop time fell from about 650 ms to 13–17 ms.
+Assertions use database counts and correct invalidation, not timing thresholds.
+
+The broader audit verified existing request coalescing, warm catalog reuse,
+cache quotas/invalidation, reserved foreground network slots, cover decode
+buckets, comic page preloading and isolate-based large JSON/EPUB parsing.
+Covers retain their image future across rebuilds. The real Komga loopback probe
+still makes zero additional HTTP requests over 20 warm visits. No extra global
+scrolling machinery was introduced in this audit. Physical hardware frame-time
+profiling and every Windows graphics driver remain outside this evidence.
+
 # Windows mouse-wheel scrolling in 0.8.2
 
 The [0.8.2 preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.2-preview.1) animates Windows wheel detents in application

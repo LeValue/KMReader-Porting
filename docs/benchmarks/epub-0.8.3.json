@@ -1,0 +1,106 @@
+{
+  "description": "Loopback Chromium command latency; no native device FPS claim",
+  "baseline_source": "ec157fbbbafb5349a2385d1c2d51b9172fdc91ad",
+  "optimized_version": "0.8.3+13",
+  "book_url": "https://www.gutenberg.org/ebooks/2701.epub3.images",
+  "before": {
+    "epub_sha256": "1bc88e79ef7cf9d5325abe0071e6302265b708df56d3af07db124c81e84197f6",
+    "epub_bytes": 814023,
+    "chapter": "OEBPS/3334821315445306974_2701-h-0.htm.xhtml",
+    "engine": "151.0.7922.34",
+    "capture": true,
+    "samples_per_case": 10,
+    "results": [
+      {
+        "width": 1044,
+        "height": 720,
+        "style": "none",
+        "open_ms": 406.0,
+        "turn_median_ms": 100.1,
+        "turn_max_ms": 100.9,
+        "first_locator_median_ms": 97.9,
+        "capture_median_ms": 0.0
+      },
+      {
+        "width": 1044,
+        "height": 720,
+        "style": "slide",
+        "open_ms": 364.5,
+        "turn_median_ms": 416.7,
+        "turn_max_ms": 434.3,
+        "first_locator_median_ms": 133.6,
+        "capture_median_ms": 27.0
+      },
+      {
+        "width": 390,
+        "height": 780,
+        "style": "none",
+        "open_ms": 314.1,
+        "turn_median_ms": 100.0,
+        "turn_max_ms": 100.7,
+        "first_locator_median_ms": 97.5,
+        "capture_median_ms": 0.0
+      },
+      {
+        "width": 390,
+        "height": 780,
+        "style": "slide",
+        "open_ms": 304.3,
+        "turn_median_ms": 400.2,
+        "turn_max_ms": 416.8,
+        "first_locator_median_ms": 125.2,
+        "capture_median_ms": 20.8
+      }
+    ]
+  },
+  "after": {
+    "epub_sha256": "1bc88e79ef7cf9d5325abe0071e6302265b708df56d3af07db124c81e84197f6",
+    "epub_bytes": 814023,
+    "chapter": "OEBPS/3334821315445306974_2701-h-0.htm.xhtml",
+    "engine": "151.0.7922.34",
+    "capture": false,
+    "samples_per_case": 10,
+    "results": [
+      {
+        "width": 1044,
+        "height": 720,
+        "style": "none",
+        "open_ms": 400.2,
+        "turn_median_ms": 33.2,
+        "turn_max_ms": 37.4,
+        "first_locator_median_ms": 31.0,
+        "capture_median_ms": 0.0
+      },
+      {
+        "width": 1044,
+        "height": 720,
+        "style": "slide",
+        "open_ms": 365.3,
+        "turn_median_ms": 33.3,
+        "turn_max_ms": 36.8,
+        "first_locator_median_ms": 30.7,
+        "capture_median_ms": 0.0
+      },
+      {
+        "width": 390,
+        "height": 780,
+        "style": "none",
+        "open_ms": 302.0,
+        "turn_median_ms": 33.1,
+        "turn_max_ms": 34.4,
+        "first_locator_median_ms": 31.0,
+        "capture_median_ms": 0.0
+      },
+      {
+        "width": 390,
+        "height": 780,
+        "style": "slide",
+        "open_ms": 354.9,
+        "turn_median_ms": 33.3,
+        "turn_max_ms": 34.2,
+        "first_locator_median_ms": 30.8,
+        "capture_median_ms": 0.0
+      }
+    ]
+  }
+}
