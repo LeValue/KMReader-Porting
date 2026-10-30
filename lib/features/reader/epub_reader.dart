@@ -541,7 +541,20 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         builder: (context, update) {
           final session = _session!, p = EpubPreferences.fromJson(draft);
           Future<void> apply(String key, dynamic value) async {
-            final next = EpubPreferences.fromJson({...draft, key: value});
+            final next = EpubPreferences.fromJson({
+              ...draft,
+              key: value,
+              if (const {
+                'fontSize',
+                'lineHeight',
+                'paragraphSpacing',
+                'indent',
+                'letterSpacing',
+                'wordSpacing',
+                'alignment',
+              }.contains(key))
+                'advancedLayout': true,
+            });
             draft = next.toJson();
             session.setPreferences(next);
             await session.prepareFont();
