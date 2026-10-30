@@ -19,11 +19,17 @@ with sync_playwright() as playwright:
             ePub.Book.prototype.renderTo = function(...args) {
                 const rendition = renderTo.apply(this, args);
                 window.fixtureRendition = rendition;
+                const report = rendition.reportLocation;
+                const pending = [];
+                rendition.reportLocation = () => {pending.push(() => report.call(rendition)); return Promise.resolve();};
+                window.releaseInitialReports = () => {rendition.reportLocation = report; for (const job of pending) job();};
                 return rendition;
             };
         }""")
     page.evaluate('(config)=>window.reader.open(config)', config)
     page.wait_for_function("readerMessages.some(m=>m.type==='ready')")
+    assert page.evaluate('Boolean(window.reader.position()?.start?.cfi)'), 'Reader readiness needs a real initial viewport locator'
+    page.evaluate('window.releaseInitialReports?.()')
 
     def check_authored():
         frame = next(frame for frame in page.frames if frame.locator('#label').count())

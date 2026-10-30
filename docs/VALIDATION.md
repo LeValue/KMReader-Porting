@@ -2,32 +2,34 @@
 
 ## 0.8.1 candidate — reverse scrolling and language-menu dismissal
 
-The new mixed-empty/full shelf fixture reproduces upward Dashboard movement on
-0.8.0: an upward input can move the viewport down by 100 pixels on both Android
-and Windows platform configurations. The old language picker also changes the
-locale before its route has finished closing. These failures were reproduced
-against the original 0.8.0 implementations and pass with this correction.
+The mixed-empty/full shelf fixture reproduces upward Dashboard movement on
+0.8.0: upward input can move the viewport down by 100 pixels on both Android
+and Windows configurations. Uneven settings groups also expose changes to the
+estimated scroll extent in the original lazy forms, including 2134 to 2210.5
+pixels on Windows. The old language picker changes locale during dismissal.
+These regressions fail against the original implementations and pass with
+retained bounded sections and deferred picker results.
 
 All **273 Flutter checks** pass locally with real Chromium and ONNX enabled;
-static analysis, eight Python checks and isolated real Komga acceptance pass.
-The new host checks cover upward traversal without refetch/extent changes,
-repeated upper-edge wheel input, stable language-menu geometry, deferred locale
-updates, Escape cancellation and reduced motion. Bounded sections retain state;
-unbounded catalog lists and horizontal shelves remain lazy.
+static analysis is clean. Eight Python checks, the pinned upstream inventory and
+isolated real Komga acceptance passed earlier; CI repeats the relevant checks.
+Host regressions additionally cover Escape cancellation and reduced motion.
 
-The first candidate passed all 17 Windows native checks, release compilation
-and startup. Android passed the three new scroll/picker cases and both cutout
-checks, but missed a vertical EPUB turn; an unchanged retry also missed a fixed
-layout return turn. No release was published from that failed candidate. The
-EPUB engine now reads the settled viewport's current locator after page turns.
-A real-browser regression withholding queued reporting reproduces the old fixed
-layout failure and passes with that correction; all eleven browser checks and
-the full 273-check host suite pass. Final native results are still pending.
+Earlier candidates passed Windows native checks but missed Android EPUB turns
+in fixed and vertical layouts; none was published. Browser fixtures reproduce
+both an initial ready signal without a locator and a completed turn using stale
+reporting state. The engine now reads actual viewport geometry before readiness
+and before/after navigation. All eleven real-browser checks pass, including held
+initial reporting and turn reporting. A separate reader-only diagnostic run with
+geometry reads passed all seventeen Android checks; it skipped the display-driver
+prelude and is not a publication gate.
 
-Three additional native checks are registered for each platform: the mixed-shelf
-reverse traversal, settings upper-edge pixel stability, and the actual app's
-Appearance language flow. Their native results and package verification are
-pending CI; host checks do not establish physical-device frame times.
+Final source-matched native results remain pending. Publication requires all
+seventeen native checks on each platform plus both Android display/rotation
+checks in the complete workflow, optimized builds and downloaded-package
+verification. The scroll fixtures include mixed empty/full shelves, uneven
+settings group heights, upper-boundary pixel stability and the actual Appearance
+language flow. These checks do not measure physical-device frame times.
 
 ## 0.8.0 preview — Dashboard boundaries and original settings layout
 

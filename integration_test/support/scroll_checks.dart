@@ -181,7 +181,8 @@ void verifyNativeScrolling(IntegrationTestWidgetsFlutterBinding binding) {
                       'option$i',
                       'Option $i',
                       false,
-                      section: 'Group ${i ~/ 4}',
+                      section:
+                          'Group ${[1, 7, 9, 16, 19, 24, 28].indexWhere((end) => i < end)}',
                       caption:
                           'Variable-height settings description. ' *
                           (i % 4 + 1),
