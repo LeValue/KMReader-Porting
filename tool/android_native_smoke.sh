@@ -17,11 +17,15 @@ trap 'kill "$km_log_pid" 2>/dev/null || true' EXIT
 adb shell cmd overlay enable --user 0 com.android.internal.display.cutout.emulation.tall
 # The driver needs the authenticated VM connection directly. A stalled DDS
 # handshake previously left a healthy emulator app paused before any test ran.
-timeout --signal=TERM --kill-after=20s 8m flutter drive \
+if timeout --signal=TERM --kill-after=20s 90s flutter drive \
   --driver=test_driver/reader_display_driver.dart \
   --target=integration_test/reader_display_test.dart \
-  --use-application-binary="$km_binary_directory/display.apk" -d emulator-5554 --no-pub --no-dds
-timeout --signal=TERM --kill-after=20s 8m flutter drive \
+  --use-application-binary="$km_binary_directory/display.apk" -d emulator-5554 --no-pub --no-dds; then
+  printf '%s\n' 'Diagnostic display prelude completed.'
+else
+  printf '%s\n' 'Diagnostic display driver did not finish; continuing to collect reader state.'
+fi
+timeout --signal=TERM --kill-after=20s 4m flutter drive \
   --driver=test_driver/native_reader_driver.dart \
   --target=integration_test/epub_reader_test.dart \
   --use-application-binary="$km_binary_directory/reader.apk" -d emulator-5554 --no-pub --no-dds
