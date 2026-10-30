@@ -15,6 +15,15 @@ repeated upper-edge wheel input, stable language-menu geometry, deferred locale
 updates, Escape cancellation and reduced motion. Bounded sections retain state;
 unbounded catalog lists and horizontal shelves remain lazy.
 
+The first candidate passed all 17 Windows native checks, release compilation
+and startup. Android passed the three new scroll/picker cases and both cutout
+checks, but missed a vertical EPUB turn; an unchanged retry also missed a fixed
+layout return turn. No release was published from that failed candidate. The
+EPUB engine now reads the settled viewport's current locator after page turns.
+A real-browser regression withholding queued reporting reproduces the old fixed
+layout failure and passes with that correction; all eleven browser checks and
+the full 273-check host suite pass. Final native results are still pending.
+
 Three additional native checks are registered for each platform: the mixed-shelf
 reverse traversal, settings upper-edge pixel stability, and the actual app's
 Appearance language flow. Their native results and package verification are

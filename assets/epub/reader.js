@@ -259,6 +259,11 @@
     } else if (delta > 0) await rendition.next();
     else await rendition.prev();
     await stable(rendition.getContents());
+    // Epub.js resolves reportLocation's queue job before its RAF callback emits
+    // relocated. Read the settled viewport before committing this user turn;
+    // otherwise the old locator can be treated as an unchanged position.
+    const current = rendition.currentLocation();
+    if (current?.start) location = current;
   }
   async function next() {
     if (!rendition || auxiliary) return;
