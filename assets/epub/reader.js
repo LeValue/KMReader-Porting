@@ -245,7 +245,15 @@
       await rendition.resize(window.innerWidth, window.innerHeight);
     });
   }
+  function refreshViewportLocation() {
+    // Reading the current location also synchronizes Epub.js layout with the
+    // actual native viewport. A turn must not use cached geometry from before
+    // the reader was shown or a settings sheet finished closing.
+    const current = rendition.currentLocation();
+    if (current?.start) location = current;
+  }
   async function advance(delta) {
+    refreshViewportLocation();
     const manager = rendition.manager;
     if (!isFixedLayout() && !manager.isPaginated && manager.settings.axis === 'horizontal') {
       const fraction = preferences.flow === 'scrolled' ? (Number(preferences.tapScroll) || 80) / 100 : 1;
@@ -262,8 +270,7 @@
     // Epub.js resolves reportLocation's queue job before its RAF callback emits
     // relocated. Read the settled viewport before committing this user turn;
     // otherwise the old locator can be treated as an unchanged position.
-    const current = rendition.currentLocation();
-    if (current?.start) location = current;
+    refreshViewportLocation();
   }
   async function next() {
     if (!rendition || auxiliary) return;
@@ -389,7 +396,11 @@
     }
     await stable(rendition.getContents());
     if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
-    await tick(); restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
+    await tick();
+    // Ready must describe a real viewport, even if the initial relocated
+    // callback is still queued by the renderer.
+    refreshViewportLocation();
+    restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
     position(false); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb'});
     window.addEventListener('resize', onResize);
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});

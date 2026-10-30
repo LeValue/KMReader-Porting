@@ -273,7 +273,8 @@ void main() {
                     'test$i',
                     'Option $i',
                     false,
-                    section: 'Section ${i ~/ 4}',
+                    section:
+                        'Group ${[1, 7, 9, 16, 19, 24, 28].indexWhere((end) => i < end)}',
                     caption:
                         'A variable height setting description. ' * (i % 4 + 1),
                   ),
