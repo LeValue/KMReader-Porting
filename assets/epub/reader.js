@@ -252,8 +252,26 @@
     const current = rendition.currentLocation();
     if (current?.start) location = current;
   }
+  let lastTurn = {};
+  function cachedTurnState() {
+    const m = rendition.manager;
+    return {axis:m.settings.axis,paginated:m.isPaginated,writingMode:m.writingMode,
+      direction:m.settings.direction,fullsize:m.settings.fullsize,flow:preferences.flow,
+      width:m.layout.width,height:m.layout.height,deltaSize:m.layout.delta,
+      cachedX:m.scrollLeft,cachedY:m.scrollTop,cfi:location?.start?.cfi,
+      engineCfi:rendition.location?.start?.cfi,anchor};
+  }
+  function inspectState() {
+    const m=rendition.manager,c=m.container;
+    return {before:lastTurn,after:cachedTurnState(),dom:{x:c.scrollLeft,y:c.scrollTop,
+      cw:c.clientWidth,ch:c.clientHeight,sw:c.scrollWidth,sh:c.scrollHeight,
+      viewport:{w:innerWidth,h:innerHeight},bounds:c.getBoundingClientRect().toJSON(),
+      views:m.views.all().map(v=>({index:v.section.index,bounds:v.element.getBoundingClientRect().toJSON()}))}};
+  }
   async function advance(delta) {
+    lastTurn = {delta,state:cachedTurnState()};
     refreshViewportLocation();
+    lastTurn.refreshed = cachedTurnState();
     const manager = rendition.manager;
     if (!isFixedLayout() && !manager.isPaginated && manager.settings.axis === 'horizontal') {
       const fraction = preferences.flow === 'scrolled' ? (Number(preferences.tapScroll) || 80) / 100 : 1;
@@ -485,7 +503,7 @@
     }, true);
     send('auxiliary', {active: true});
   }
-  window.reader = {open, next, previous, turn, display, preferences: setPreferences, search, openAuxiliary, closeAuxiliary,
+  window.reader = {inspectState, open, next, previous, turn, display, preferences: setPreferences, search, openAuxiliary, closeAuxiliary,
     position: () => location, destroy: () => {
       disposed = true; clearTimeout(relocationTimer); clearTimeout(resizeTimer);
       window.removeEventListener('resize', onResize);

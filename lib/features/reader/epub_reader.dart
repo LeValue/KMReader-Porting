@@ -109,8 +109,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         return true;
       }());
       final work = _browser!.callAsyncJavaScript(
-        functionBody:
-            'return await window.reader.$method(${value == null ? '' : jsonEncode(value)});',
+        functionBody: method == 'turn'
+            ? 'await window.reader.turn(${jsonEncode(value)}); return window.reader.inspectState();'
+            : 'return await window.reader.$method(${value == null ? '' : jsonEncode(value)});',
       );
       final result =
           await Future.any<CallAsyncJavaScriptResult?>([
@@ -128,6 +129,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       if (result?.error != null) throw StateError(result!.error!);
       assert(() {
         debugPrint('EPUB command $method completed');
+        if (method == 'turn')
+          debugPrint('EPUB post-turn state: ${result?.value}');
         return true;
       }());
       return result?.value;
