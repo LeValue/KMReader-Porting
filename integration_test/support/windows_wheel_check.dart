@@ -16,6 +16,8 @@ void verifyNativeWindowsWheel() {
     'Win32 wheel input animates continuously, reverses and stays at both edges',
     (tester) async {
       final controller = AppScrollController();
+      final propagateDeviceInput =
+          tester.binding.shouldPropagateDevicePointerEvents;
       final boundary = GlobalKey();
       final deltas = <double>[], starts = <double>[];
       Future<String> pixels() async {
@@ -60,8 +62,15 @@ void verifyNativeWindowsWheel() {
       }
 
       try {
+        // Flutter tests normally discard engine/device events. This check
+        // intentionally enters through Win32, so opt in only for its lifetime.
+        tester.binding.shouldPropagateDevicePointerEvents = true;
         await tester.pumpWidget(
           MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: false),
+              child: child!,
+            ),
             scrollBehavior: const AppScrollBehavior().copyWith(
               scrollbars: false,
             ),
@@ -126,6 +135,8 @@ void verifyNativeWindowsWheel() {
         expect(controller.position.isScrollingNotifier.value, isFalse);
         expect(tester.takeException(), isNull);
       } finally {
+        tester.binding.shouldPropagateDevicePointerEvents =
+            propagateDeviceInput;
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
         controller.dispose();
