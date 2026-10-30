@@ -10,6 +10,7 @@ import 'ui/shell.dart';
 import 'ui/device_lock_gate.dart';
 import 'ui/strings.dart';
 import 'ui/theme.dart';
+import 'ui/scroll_behavior.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,6 +71,7 @@ class KMReaderApp extends StatelessWidget {
       return MaterialApp(
         key: ValueKey(app.repository?.profile.id ?? 'welcome'),
         title: 'KMReader',
+        scrollBehavior: const AppScrollBehavior(),
         debugShowCheckedModeBanner: false,
         theme: appTheme(Brightness.light),
         darkTheme: appTheme(Brightness.dark),

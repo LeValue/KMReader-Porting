@@ -8,6 +8,7 @@ import '../../core/download_policy.dart';
 import '../../core/repository.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import 'pdf_reader_settings.dart';
 import 'browse_settings.dart';
@@ -117,7 +118,7 @@ class _SettingsIndex extends StatelessWidget {
   Widget build(BuildContext context) => SettingsScaffold(
     title: 'Settings',
     showBackButton: false,
-    body: ListView(
+    body: SectionScrollView(
       padding: const EdgeInsets.fromLTRB(22, 26, 22, 0),
       children: [
         _group([
@@ -297,7 +298,7 @@ class _SettingsSection extends StatelessWidget {
     title: title,
     body: ListenableBuilder(
       listenable: repository,
-      builder: (context, _) => ListView(
+      builder: (context, _) => SectionScrollView(
         padding: const EdgeInsets.all(22),
         children: switch (section) {
           SettingsSection.accounts => [
@@ -835,7 +836,7 @@ class ServerPage extends StatelessWidget {
     title: 'Server Info',
     body: AsyncPanel<dynamic>(
       load: () => repository.get('/actuator/info'),
-      builder: (context, value) => ListView(
+      builder: (context, value) => SectionScrollView(
         padding: const EdgeInsets.all(20),
         children: [
           Text(

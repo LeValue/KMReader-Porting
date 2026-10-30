@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/media_cache.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import 'preference_controls.dart';
 import 'settings_style.dart';
@@ -84,7 +85,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
     ],
     body: FutureBuilder<List<MediaCacheStats>>(
       future: _stats,
-      builder: (context, snapshot) => ListView(
+      builder: (context, snapshot) => SectionScrollView(
         padding: const EdgeInsets.all(22),
         children: [
           Padding(

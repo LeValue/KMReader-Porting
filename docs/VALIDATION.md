@@ -1,5 +1,25 @@
 # Development validation
 
+## 0.8.1 candidate — reverse scrolling and language-menu dismissal
+
+The new mixed-empty/full shelf fixture reproduces upward Dashboard movement on
+0.8.0: an upward input can move the viewport down by 100 pixels on both Android
+and Windows platform configurations. The old language picker also changes the
+locale before its route has finished closing. These failures were reproduced
+against the original 0.8.0 implementations and pass with this correction.
+
+All **273 Flutter checks** pass locally with real Chromium and ONNX enabled;
+static analysis, eight Python checks and isolated real Komga acceptance pass.
+The new host checks cover upward traversal without refetch/extent changes,
+repeated upper-edge wheel input, stable language-menu geometry, deferred locale
+updates, Escape cancellation and reduced motion. Bounded sections retain state;
+unbounded catalog lists and horizontal shelves remain lazy.
+
+Three additional native checks are registered for each platform: the mixed-shelf
+reverse traversal, settings upper-edge pixel stability, and the actual app's
+Appearance language flow. Their native results and package verification are
+pending CI; host checks do not establish physical-device frame times.
+
 ## 0.8.0 preview — Dashboard boundaries and original settings layout
 
 Published [0.8.0](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.0-preview.1), runtime source `eb40fbddb6452ea124f7f17e0a4d72581d0ba55b`.

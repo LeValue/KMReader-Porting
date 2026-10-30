@@ -5,6 +5,7 @@ import '../../core/models.dart';
 import '../../core/reader_defaults.dart';
 import '../../core/store.dart';
 import '../../ui/common.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import 'settings_style.dart';
 
@@ -164,7 +165,7 @@ class _PreferencePageState extends State<PreferencePage> {
     }
     return SettingsScaffold(
       title: widget.title,
-      body: ListView(
+      body: SectionScrollView(
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
         children: content,
       ),

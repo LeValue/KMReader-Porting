@@ -7,6 +7,7 @@ import '../../core/api.dart';
 import '../../core/repository.dart';
 import '../../core/reading_stats.dart';
 import '../../ui/common.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import 'catalog_page.dart';
 import 'reading_stats_overview.dart';
@@ -196,7 +197,7 @@ class _ReadingStatsPageState extends State<ReadingStatsPage> {
       final data = snapshot.data!;
       return RefreshIndicator(
         onRefresh: _refresh,
-        child: ListView(
+        child: SectionScrollView(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
           children: [
             ReadingStatsOverview(

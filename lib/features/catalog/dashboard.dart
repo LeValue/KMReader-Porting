@@ -5,6 +5,7 @@ import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../core/read_list_reading.dart';
 import '../../ui/common.dart';
+import '../../ui/section_scroll_view.dart';
 import '../../ui/strings.dart';
 import 'catalog_page.dart';
 
@@ -204,10 +205,9 @@ class _DashboardState extends State<Dashboard> {
           controller: _scroll,
           child: RefreshIndicator(
             onRefresh: () async => repository.refreshContent(),
-            child: ListView(
+            child: SectionScrollView(
               key: const PageStorageKey('dashboard-scroll'),
               controller: _scroll,
-              primary: false,
               physics: const AlwaysScrollableScrollPhysics(
                 parent: ClampingScrollPhysics(),
               ),
