@@ -13,7 +13,7 @@ with sync_playwright() as playwright:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script("window.readerMessages=[]; addEventListener('readerEvent', event=>readerMessages.push(event.detail));")
     page.goto(url)
-    if config.get('kind') == 'vertical' and config['preferences']['flow'] == 'paged':
+    if config.get('kind') != 'vertical' or config['preferences']['flow'] == 'paged':
         page.evaluate("""() => {
             const renderTo = ePub.Book.prototype.renderTo;
             ePub.Book.prototype.renderTo = function(...args) {
@@ -120,8 +120,21 @@ with sync_playwright() as playwright:
     check_authored()
     assert not page.evaluate("readerMessages.some(m=>m.type==='position' && m.changed)")
     assert page.evaluate('window.reader.position().start.cfi') == first['cfi']
+    # The queued reporting future can finish before its relocation callback.
+    # Hold reporting until after asserting the completed turn's current locator.
+    page.evaluate("""() => {
+        const rendition = window.fixtureRendition;
+        const report = rendition.reportLocation;
+        const pending = [];
+        const delayed = () => {pending.push(() => report.call(rendition)); return Promise.resolve();};
+        rendition.reportLocation = delayed;
+        if (rendition.reportLocation !== delayed) throw Error('Report hook was not installed');
+        window.releaseReports = () => {rendition.reportLocation = report; for (const job of pending) job();};
+    }""")
     page.evaluate('window.reader.next()')
     assert page.evaluate("window.reader.position().start.href.endsWith('two.xhtml')")
+    assert page.evaluate("readerMessages.some(m=>m.type==='position' && m.changed)")
+    page.evaluate('window.releaseReports()')
     check_authored()
     page.set_viewport_size({'width': 1100, 'height': 700})
     page.wait_for_timeout(600)
