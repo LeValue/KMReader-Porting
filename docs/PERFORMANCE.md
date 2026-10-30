@@ -53,6 +53,8 @@ write. A 20,000-card lookup probe (180,000 option reads) dropped from 180,000 SQ
 reads to nine; measured host loop time fell from about 650 ms to 13–17 ms.
 Assertions use database counts and correct invalidation, not timing thresholds.
 
+A separate [document-open probe](benchmarks/epub-open-0.8.3.json) records five sequential `EpubDocument.openAsync` calls on that complete EPUB in the Dart test VM. Opening takes 302 ms initially and 114–141 ms subsequently, while an 8 ms main-isolate heartbeat continues (largest observed callback gap 12.9 ms). This supports retaining the existing worker parsing approach; it does not measure native first paint, device frame times or OS scheduling under load.
+
 The broader audit verified existing request coalescing, warm catalog reuse,
 cache quotas/invalidation, reserved foreground network slots, cover decode
 buckets, comic page preloading and isolate-based large JSON/EPUB parsing.

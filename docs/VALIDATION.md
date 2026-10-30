@@ -1,5 +1,67 @@
 # Development validation
 
+## 0.8.3 preview — EPUB responsiveness and performance audit
+
+Published [0.8.3](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.3-preview.1), runtime source `43bc0e127aa8c7392482817ceacd4115e0980416`.
+All three required jobs passed in [verification 41137556086](https://github.com/LeValue/KMReader-Porting/actions/runs/41137556086).
+[Publisher 41139631009](https://github.com/LeValue/KMReader-Porting/actions/runs/41139631009) reused that exact source and successful Windows artifact.
+
+All **286 host checks** pass locally with real Chromium and ONNX enabled; the
+real Komga acceptance check passes separately. Static analysis, formatting,
+eight Python checks and the pinned 128-entry upstream inventory pass. The
+loopback Komga probe records zero extra HTTP requests over 20 warm visits.
+
+The same complete Moby Dick EPUB, reader defaults, Chromium runtime and viewports
+were used for the before/after command benchmark. Desktop slide commands fall
+from median 416.7 to 33.3 ms; the mobile viewport falls from 400.2 to 33.3 ms.
+[Raw measurements](benchmarks/epub-0.8.3.json) include file SHA256 and engine version.
+These include the old screenshot/animation waits and measure browser command
+completion, not native app FPS. Native debug/emulator timings are diagnostic.
+
+Two long-chapter stress checks exercise 48 unique forward positions, all
+transition choices, missing animation completion, concurrent resize/font/turn
+operations, reduced motion, nonblank pixels, bounded active animations and a
+short collected-JS-heap growth guard. The vertical CJK fixture deliberately
+injects delayed coarse reports and checks exact visible character restoration
+through typography extremes. An initial full-suite failure exposed that race;
+the corrected source and strengthened fixture pass the complete suite.
+
+Catalog preference lookups reuse an invalidated nine-value snapshot. The
+20,000-card probe drops from 180,000 SQL reads to nine, while direct settings
+writes and preference changes still take effect. Existing cover/page cache
+limits, request deduplication, foreground priority and isolated parsing retain
+regression coverage. No additional global scrolling behavior was added.
+
+Windows passes **19 native checks**; Android passes **18 native checks**
+and both notch/rotation checks. The added default EPUB case exercises six rapid
+Dart page-button taps, retained native widget identity, 48 further page turns and
+actual rendered glyphs on both platforms. Windows additionally crashes the real
+WebView2 renderer and verifies native view recreation, restored CFI and visible
+text. Windows release compilation/isolated startup and optimized Android
+compilation pass.
+
+All five assets were downloaded and verified against GitHub digests and
+SHA256SUMS. Every APK matches the locally verified signed bytes and exact
+source/version/build provenance. The retained Preview certificate, application
+identity and build number 13 support in-place updates. Each APK is non-debuggable
+and passes 16KiB ZIP alignment; the nine ELF libraries in each 64-bit APK also
+pass 16KiB LOAD alignment. All **63 Windows bundle files** match
+the exact successful CI artifact, including 21 x64 PE files.
+Debug-only wheel injection is absent from the release executable. Windows is
+not Authenticode signed.
+
+Physical-device frame-time profiling, OS-terminated app recovery and every
+Windows GPU/driver remain outside this evidence. Existing upstream differences
+remain in the [parity matrix](PARITY.md) and [settings audit](SETTINGS_AUDIT.md).
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.3-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-android-arm64-preview.apk) | 77,554,182 | `e7c0820eef0d44cd4d6229453e33da67ac2611505bf3eb31dd6dcf88ee35ac34` |
+| [KMReader-0.8.3-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-android-armv7-preview.apk) | 63,822,168 | `44c7ad958a958bcbd4a74acc960176e19ff2272053045eb42f7679082ddc503e` |
+| [KMReader-0.8.3-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-android-x64-preview.apk) | 83,790,027 | `b829e36c9ac55662281c95bf4aed553bb4fb45dce82fa1fbd6f58b4cfaf44022` |
+| [KMReader-0.8.3-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-windows-x64-preview.zip) | 34,355,985 | `1465a3d013f5c2e0014e06ef87174302276cbba43338732208e9ab677c8062cd` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/SHA256SUMS.txt) | 424 | `ce4b4e991b372ef9a858e98495b566918bfcaad44f30ebf368df46d4a508cfd0` |
+
 ## 0.8.2 preview — continuous Windows wheel scrolling
 
 Published [0.8.2](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.2-preview.1), runtime source `1bb75274855204c554a48122af281e28b6661670`.

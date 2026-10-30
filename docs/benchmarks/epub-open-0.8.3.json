@@ -1,0 +1,42 @@
+{
+  "mode": "Dart Flutter test VM; not native device FPS",
+  "epub_sha256": "1bc88e79ef7cf9d5325abe0071e6302265b708df56d3af07db124c81e84197f6",
+  "method": "Five sequential EpubDocument.openAsync calls; 8ms main-isolate heartbeat; close each document",
+  "samples": [
+    {
+      "iteration": 0,
+      "open_us": 301805,
+      "heartbeat_ticks": 37,
+      "largest_observed_timer_gap_us": 12860,
+      "chapters": 13
+    },
+    {
+      "iteration": 1,
+      "open_us": 141177,
+      "heartbeat_ticks": 17,
+      "largest_observed_timer_gap_us": 11090,
+      "chapters": 13
+    },
+    {
+      "iteration": 2,
+      "open_us": 139756,
+      "heartbeat_ticks": 17,
+      "largest_observed_timer_gap_us": 9324,
+      "chapters": 13
+    },
+    {
+      "iteration": 3,
+      "open_us": 122707,
+      "heartbeat_ticks": 15,
+      "largest_observed_timer_gap_us": 10007,
+      "chapters": 13
+    },
+    {
+      "iteration": 4,
+      "open_us": 114363,
+      "heartbeat_ticks": 14,
+      "largest_observed_timer_gap_us": 11017,
+      "chapters": 13
+    }
+  ]
+}
