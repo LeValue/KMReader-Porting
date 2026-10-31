@@ -1,70 +1,119 @@
 'use strict';
-// Slide uses compositor snapshots; curl samples full-resolution page textures
-// with an analytic cylinder in WebGL. No per-frame bitmap encoding/readback.
+// Slide uses compositor snapshots. Curl bends the entire sheet as a continuous
+// GPU mesh: a broad elastic front joins the roll with a continuous tangent.
+// The publication is uploaded once per turn, never read back/encoded per frame.
 class KMReaderCurlSurface {
   static shared;
   constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'page-curl-surface';
     this.canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2147483645';
-    const gl=this.gl=this.canvas.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false});
+    const gl=this.gl=this.canvas.getContext('webgl',{alpha:false,antialias:true,preserveDrawingBuffer:false});
     if (!gl) throw Error('WebGL unavailable');
     const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader;};
-    const vertex=compile(gl.VERTEX_SHADER,'attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,(1.-a.y)*.5);gl_Position=vec4(a,0.,1.);}');
-    const fragment=compile(gl.FRAGMENT_SHADER,`precision highp float;
-      varying vec2 v;uniform sampler2D oldPage,newPage;
-      uniform vec2 size;uniform float progress,spread,sign,slope,grabY;uniform vec3 paper;
-      vec4 oldAt(vec2 q){return texture2D(oldPage,clamp(q/size,vec2(0.),vec2(1.)));}
-      vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}
+    const uniforms=`uniform sampler2D oldPage,newPage;uniform vec2 size;uniform float progress,spread,sign,slope,grabY;`;
+    const samples=`vec4 oldAt(vec2 q){return texture2D(oldPage,clamp(q/size,vec2(0.),vec2(1.)));}
+      vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}`;
+    const quadVertex=`attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,(1.-a.y)*.5);gl_Position=vec4(a,0.,1.);}`;
+    const background=`precision highp float;varying vec2 v;${uniforms}${samples}
+      uniform vec4 shadowLine;uniform float shadowWidth,shadowStrength;
+      void main(){vec2 q=v*size;float hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
+        if(progress<.0001){gl_FragColor=oldAt(q);return;}
+        if(progress>.9999){gl_FragColor=newAt(q);return;}
+        vec4 color=spread>.5&&(q.x-hinge)*sign<0.?oldAt(q):newAt(q);
+        vec2 line=shadowLine.zw-shadowLine.xy;
+        float along=clamp(dot(q-shadowLine.xy,line)/max(1.,dot(line,line)),0.,1.);
+        vec2 delta=q-mix(shadowLine.xy,shadowLine.zw,along);
+        float shadow=shadowStrength*exp(-dot(delta,delta)/(shadowWidth*shadowWidth));
+        gl_FragColor=vec4(color.rgb*(1.-shadow),1.);
+      }`;
+    const meshVertex=`precision highp float;attribute vec2 a;${uniforms}
+      varying vec2 source;varying float normalZ;
       void main(){
-        vec2 screen=v*size;float w=size.x/(1.+spread),hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
-        vec2 q=vec2((screen.x-hinge)*sign,screen.y),n=normalize(vec2(1.,slope));
-        float p=progress,r=max(.001,w*.105*sin(3.14159265*p));
-        vec2 origin=vec2(w*(1.-p)-1.5707963*r,grabY*size.y);
-        float d=dot(q-origin,n),edge;
-        vec4 under=spread>.5&&q.x<0.?oldAt(screen):newAt(screen);
-        if(p<.0001){gl_FragColor=oldAt(screen);return;}
-        if(p>.9999){gl_FragColor=newAt(screen);return;}
-        vec2 source=q;bool back=false;float shade=1.;bool sheet=false;
-        if(d>=0.&&d<=r){
-          float angle=asin(clamp(d/r,0.,1.));source=q+n*(r*(3.14159265-angle)-d);
-          back=true;shade=.88+.12*cos(angle);sheet=true;
-        }else if(d<0.){
-          vec2 reflected=q+n*(3.14159265*r-2.*d);
-          if(reflected.x>=0.&&reflected.x<=w&&reflected.y>=0.&&reflected.y<=size.y){source=reflected;back=true;sheet=true;}
-          else if(q.x>=0.&&q.x<=w){source=q;sheet=true;}
+        float pi=3.14159265,w=size.x/(1.+spread),h=size.y;
+        vec2 n=normalize(vec2(1.,slope)),t=vec2(-n.y,n.x),origin=vec2(0.,grabY*h);
+        // The mesh is aligned to the fold, with extra samples across its tight
+        // radius. Varying the radius along the fold creates a corner-led roll.
+        float u0=min(0.,n.y*h)-dot(origin,n),u1=n.x*w+max(0.,n.y*h)-dot(origin,n);
+        float v0=min(0.,t.x*w)-dot(origin,t),v1=max(0.,t.x*w)+t.y*h-dot(origin,t);
+        float v=mix(v0,v1,a.y),wave=sin(pi*progress);
+        float cone=clamp((.5-grabY)*.65+slope*.35,-.45,.45);
+        float factor=clamp(1.+cone*v/h,.65,1.35);
+        float r=max(.001,w*.10*wave*factor),alpha=.60*wave*factor;
+        float f=max(.001,w*(1.-progress)-r*(pi-alpha)*.5),end=f+r*(pi-alpha);
+        float u=a.x<1.?mix(min(u0,0.),f,a.x):a.x<2.?mix(f,end,a.x-1.):mix(end,max(u1,end),a.x-2.);
+        source=origin+n*u+t*v;
+        float theta=alpha*clamp(u/f,0.,1.),frontR=f/max(.00001,alpha);
+        float xf=frontR*sin(alpha),zf=2.*frontR*pow(sin(alpha*.5),2.);
+        float x,z;
+        if(u<0.){x=u;z=0.;theta=0.;}
+        else if(u<=f){x=frontR*sin(theta);z=2.*frontR*pow(sin(theta*.5),2.);}
+        else if(u<=end){theta=alpha+(u-f)/r;x=xf+r*(sin(theta)-sin(alpha));z=zf+r*(cos(alpha)-cos(theta));}
+        else{theta=pi;x=xf-r*sin(alpha)-(u-end);z=zf+r*(1.+cos(alpha));}
+        normalZ=cos(theta);
+        vec2 world=origin+n*x+t*v;
+        float hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x),camera=w*3.,perspective=(camera-z)/camera;
+        vec2 center=vec2(hinge,grabY*h),screen=vec2(hinge+world.x*sign,world.y);
+        gl_Position=vec4((2.*center.x/size.x-1.)*perspective+2.*(screen.x-center.x)/size.x,
+          (1.-2.*center.y/h)*perspective-2.*(screen.y-center.y)/h,-z/camera,perspective);
+      }`;
+    const meshFragment=`precision highp float;${uniforms}${samples}
+      varying vec2 source;varying float normalZ;
+      void main(){
+        float w=size.x/(1.+spread),hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
+        if(source.x<0.||source.x>w||source.y<0.||source.y>size.y)discard;
+        vec4 color=oldAt(vec2(hinge+source.x*sign,source.y));
+        if(!gl_FrontFacing){
+          if(spread>.5)color=newAt(vec2(hinge-source.x*sign,source.y));
+          else{vec3 stock=oldAt(vec2(sign>0.?1.:size.x-1.,1.)).rgb;color=vec4(mix(stock,color.rgb,.36),1.);}
         }
-        if(source.x<0.||source.x>w||source.y<0.||source.y>size.y)sheet=false;
-        if(sheet){
-          vec2 tex=vec2(hinge+source.x*sign,source.y);
-          vec4 color=oldAt(tex);
-          if(back){
-            if(spread>.5)color=newAt(vec2(hinge-source.x*sign,source.y));
-            else {vec3 stock=oldAt(vec2(sign>0.?1.:size.x-1.,1.)).rgb;color=vec4(mix(stock,color.rgb,.36),1.);}
-          }
-          gl_FragColor=vec4(color.rgb*shade,1.);
-        }else{
-          float shadow=exp(-abs(d-r)/max(2.,w*.025))*.10*sin(3.14159265*p);
-          gl_FragColor=vec4(under.rgb*(1.-shadow),1.);
-        }
-      }`);
-    const program=this.program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);gl.deleteShader(vertex);gl.deleteShader(fragment);
-    if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
-    gl.useProgram(program);const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
-    const a=gl.getAttribLocation(program,'a');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
-    this.uniforms={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','paper'])this.uniforms[name]=gl.getUniformLocation(program,name);
+        float shade=.80+.20*abs(normalZ);
+        gl_FragColor=vec4(color.rgb*shade,1.);
+      }`;
+    const program=(vertexSource,fragmentSource)=>{
+      const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource),p=gl.createProgram();
+      gl.attachShader(p,vertex);gl.attachShader(p,fragment);gl.linkProgram(p);gl.deleteShader(vertex);gl.deleteShader(fragment);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
+      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','shadowLine','shadowWidth','shadowStrength'])u[name]=gl.getUniformLocation(p,name);
+      return {p,u,a:gl.getAttribLocation(p,'a')};
+    };
+    this.background=program(quadVertex,background);this.sheet=program(meshVertex,meshFragment);
+    this.quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+    const vertices=[],indices=[],columns=144,rows=24;
+    for(let col=0;col<=columns;col++)for(let row=0;row<=rows;row++)vertices.push(3*col/columns,row/rows);
+    for(let col=0;col<columns;col++)for(let row=0;row<rows;row++){const a=col*(rows+1)+row,b=a+rows+1;indices.push(a,b,a+1,a+1,b,b+1);}
+    this.mesh=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.mesh);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
+    this.indices=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indices);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);this.count=indices.length;
     this.textures=[0,1].map(i=>{gl.activeTexture(gl.TEXTURE0+i);const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;});
-    gl.uniform1i(this.uniforms.oldPage,0);gl.uniform1i(this.uniforms.newPage,1);
     this.canvas.addEventListener('webglcontextlost',()=>{KMReaderCurlSurface.shared=null;this.canvas.remove();});
   }
   upload(before,after,width,height) {
-    const gl=this.gl,dpr=Math.min(2,devicePixelRatio||1);
+    const gl=this.gl,dpr=Math.min(2,devicePixelRatio||1);this.width=width;this.height=height;
     this.canvas.width=Math.round(width*dpr);this.canvas.height=Math.round(height*dpr);gl.viewport(0,0,this.canvas.width,this.canvas.height);
     [before,after].forEach((image,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,this.textures[i]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);});
     if(gl.getError()!==gl.NO_ERROR)throw Error('Page texture unavailable');
-    gl.uniform2f(this.uniforms.size,width,height);
   }
-  render(progress,spread,sign,slope,y,paper){const g=this.gl,u=this.uniforms;g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform3fv(u.paper,paper);g.drawArrays(g.TRIANGLE_STRIP,0,4);}
+  render(progress,spread,sign,slope,y){
+    const g=this.gl;
+    const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);};
+    g.disable(g.DEPTH_TEST);bind(this.background,this.quad);
+    // Project the two ends of the raised ridge once per frame. The full-screen
+    // background shader only evaluates a soft distance shadow, not sheet trig.
+    const w=this.width/(spread?2:1),h=this.height,wave=Math.sin(Math.PI*progress),norm=Math.hypot(1,slope),nx=1/norm,ny=slope/norm;
+    const hinge=spread?this.width/2:sign>0?0:this.width,cone=Math.max(-.45,Math.min(.45,(.5-y)*.65+slope*.35));
+    const ridge=v=>{
+      const factor=Math.max(.65,Math.min(1.35,1+cone*v/h)),r=Math.max(.001,w*.10*wave*factor),alpha=.60*wave*factor;
+      const f=Math.max(.001,w*(1-progress)-r*(Math.PI-alpha)/2),frontR=f/Math.max(.00001,alpha);
+      const depth=2*frontR*Math.sin(alpha/2)**2+r*Math.cos(alpha),x=frontR*Math.sin(alpha)+r*(1-Math.sin(alpha))+depth*.08,scale=3*w/(3*w-depth);
+      return [hinge+(nx*x-ny*v)*scale*sign,y*h+(ny*x+nx*v)*scale,depth];
+    };
+    const start=ridge(Math.min(0,-ny*w)-nx*y*h),end=ridge(Math.max(0,-ny*w)+nx*(1-y)*h),u=this.background.u;
+    g.uniform4f(u.shadowLine,start[0],start[1],end[0],end[1]);g.uniform1f(u.shadowWidth,6+(start[2]+end[2])*.065);g.uniform1f(u.shadowStrength,.13*wave);
+    g.drawArrays(g.TRIANGLE_STRIP,0,4);
+    if(progress<.0001||progress>.9999)return;
+    g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);g.frontFace(sign>0?g.CW:g.CCW);
+    bind(this.sheet,this.mesh);g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);g.disable(g.DEPTH_TEST);
+  }
 }
 class KMReaderSheetEffect {
   static serial=0;
@@ -136,6 +185,7 @@ class KMReaderSheetEffect {
   let restoring = true, disposed = false, userMove = false, relocationTimer, resizeTimer = null, layoutJobs = 0;
   const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const inputEvents = ['wheel', 'touchstart', 'touchmove'];
+  const interruptMouse = event => {if(event.pointerType==='mouse'&&!gesture)cancelTurnAnimation();};
   const noteUserMove = () => {
     if (!restoring && !disposed) {
       if (!gesture) cancelTurnAnimation();
@@ -364,20 +414,25 @@ class KMReaderSheetEffect {
       }
       if (inputSuspended) { event.preventDefault(); return; }
       const p = point(event);
+      let textHit = false;
       if (event.pointerType === 'mouse') {
+        interruptMouse(event);
         // caretRangeFromPoint snaps to the nearest paragraph even in margins.
         // Only a hit on a real glyph may start a native text selection.
         const caret = doc.caretRangeFromPoint?.(event.clientX,event.clientY);
-        let textHit = false;
-        if (caret?.startContainer.nodeType === Node.TEXT_NODE) {
-          const range = caret.cloneRange(), node=caret.startContainer, offset=Math.min(caret.startOffset,Math.max(0,node.length-1));
-          range.setStart(node,offset); range.setEnd(node,Math.min(node.length,offset+1));
-          textHit=[...range.getClientRects()].some(r=>event.clientX>=r.left-2&&event.clientX<=r.right+2&&event.clientY>=r.top&&event.clientY<=r.bottom);
+        if (caret?.startContainer.nodeType === Node.TEXT_NODE && caret.startContainer.length) {
+          const range=caret.cloneRange(),node=caret.startContainer;
+          // A caret snaps to either side of a character. Test both neighbors,
+          // otherwise the right half of a glyph is mistaken for blank margin.
+          for(const offset of new Set([Math.min(caret.startOffset,node.length-1),Math.max(0,caret.startOffset-1)])) {
+            range.setStart(node,offset);range.setEnd(node,offset+1);
+            if([...range.getClientRects()].some(r=>event.clientX>=r.left-2&&event.clientX<=r.right+2&&event.clientY>=r.top&&event.clientY<=r.bottom)){textHit=true;break;}
+          }
         }
         if (!textHit && !event.target.closest?.('a[href]')) { event.preventDefault(); clearSelection(); }
       }
       const edge = p.x < innerWidth * .18 || p.x > innerWidth * .82;
-      contact = event.target.closest?.('a[href]') || (event.pointerType === 'mouse' && !edge)
+      contact = event.target.closest?.('a[href]') || (event.pointerType === 'mouse' && (!edge || textHit))
         ? null : {id:event.pointerId,x:p.x,y:p.y,time:Date.now()};
       if (contact && event.pointerType === 'mouse' && edge && preferences.flow === 'paged') {
         event.preventDefault();
@@ -851,6 +906,7 @@ class KMReaderSheetEffect {
     restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
     position(false); warmCurl(); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb'});
     window.addEventListener('resize', onResize);
+    document.addEventListener('pointerdown',interruptMouse,true);
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
   }
   function onResize() {
@@ -962,6 +1018,7 @@ class KMReaderSheetEffect {
       disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
       cancelTurnAnimation();
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('pointerdown',interruptMouse,true);
       for (const event of inputEvents) document.removeEventListener(event, noteUserMove);
       destroyRendition(); if (book) book.destroy();
     }};

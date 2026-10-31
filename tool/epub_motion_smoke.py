@@ -24,6 +24,29 @@ with sync_playwright() as pw:
     assert page.evaluate('reader.selectedText()') == selected, 'Toolbar focus destroyed the selected passage'
     page.evaluate('reader.clearSelection()')
     assert page.evaluate('reader.selectedText()') == ''
+    before_selection = page.evaluate('reader.position().start.cfi')
+    # A genuine drag on text near the page edge selects words, not a page.
+    page.evaluate('() => new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))')
+    box = page.frames[1].locator('p').first.evaluate('''p => {
+      const range=p.ownerDocument.createRange();range.setStart(p.firstChild,0);range.setEnd(p.firstChild,1);
+      const r=range.getBoundingClientRect(),f=p.ownerDocument.defaultView.frameElement.getBoundingClientRect();
+      return {x:r.x+f.x,y:r.y+f.y,width:r.width,height:r.height};
+    }''')
+    # Raw trusted pointer events avoid Playwright's native HTML drag interceptor
+    # waiting for an unrelated text-drop operation across the wide book iframe.
+    mouse_cdp=page.context.new_cdp_session(page)
+    x,y=box['x']+box['width']*.7,box['y']+box['height']*.5
+    mouse_cdp.send('Input.dispatchMouseEvent',{'type':'mouseMoved','x':x,'y':y,'buttons':0})
+    mouse_cdp.send('Input.dispatchMouseEvent',{'type':'mousePressed','x':x,'y':y,'button':'left','buttons':1,'clickCount':1})
+    for step in range(1,9):
+        mouse_cdp.send('Input.dispatchMouseEvent',{'type':'mouseMoved','x':x+step*(78/8),'y':y,'button':'left','buttons':1})
+    mouse_cdp.send('Input.dispatchMouseEvent',{'type':'mouseReleased','x':x+78,'y':y,'button':'left','buttons':0,'clickCount':1})
+    mouse_cdp.detach()
+    page.wait_for_timeout(150)
+    assert page.evaluate('reader.selectedText().length')>0, 'Mouse text drag was treated as a page gesture'
+    assert not page.evaluate('!!document.getElementById("page-gesture")'), 'Text selection started a turn'
+    assert page.evaluate('reader.position().start.cfi')==before_selection
+    page.evaluate('reader.clearSelection()')
     # Genuine mouse input in a margin must not create a phantom text selection.
     page.mouse.click(width*.5, 2)
     assert page.evaluate("document.querySelector('#viewer iframe').contentDocument.getSelection().isCollapsed")
@@ -59,6 +82,20 @@ with sync_playwright() as pw:
         if style == 'curl':
             assert page.evaluate('effect.surface.canvas.width') == width
             assert page.evaluate('effect.surface.canvas.height') == height
+            # The unturned front must bend before the tight roll reaches it.
+            # Compare glyph masks against the same GPU's flat endpoint, so
+            # differences cannot come from DOM/SVG text antialiasing or shade.
+            page.evaluate('effect.update(0)')
+            flat=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            page.evaluate('effect.update(.25)')
+            bent=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            leaf=width/2 if width>800 else width
+            hinge=width/2 if width>800 else (width if rtl else 0)
+            left,right=sorted([int(hinge+(-1 if rtl else 1)*leaf*f) for f in [.15,.35]])
+            crop=(left,50,right,height-50)
+            mask=lambda image:image.crop(crop).convert('L').point(lambda v:255 if v>120 else 0)
+            changed=sum(v>0 for v in ImageChops.difference(mask(flat),mask(bent)).getdata())
+            assert changed>40, 'Unturned text stayed flat until the fold arrived'
             # Full resolution GPU rendering: dragging never encodes/maps a PNG.
             page.evaluate("() => {window.originalEncoding=HTMLCanvasElement.prototype.toDataURL;HTMLCanvasElement.prototype.toDataURL=()=>{throw Error('Per-frame bitmap encoding');};}")
             page.evaluate('effect.update(.43,{x:innerWidth*.5,y:innerHeight*.2})')
@@ -83,6 +120,10 @@ with sync_playwright() as pw:
     page.wait_for_timeout(100)
     assert page.evaluate("document.getAnimations().some(a=>a.effect?.pseudoElement?.startsWith('::view-transition-'))"), 'Automatic effect vanished too early'
     assert page.evaluate('effect.progress') > 0
+    page.mouse.click(width*.5, 2)
+    assert not page.evaluate('document.querySelector("style[data-page-motion]") || document.getElementById("page-curl-surface")'), 'Mouse input did not expose the live publication'
+    page.evaluate("reader.turn({delta:1,style:'slide'})")
+    page.wait_for_timeout(100)
     page.evaluate('reader.suspendInput(true)')
     assert not page.evaluate('document.querySelector("style[data-page-motion]") || document.getElementById("page-curl-surface")')
     page.evaluate('reader.suspendInput(false)')

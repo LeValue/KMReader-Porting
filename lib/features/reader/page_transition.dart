@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 
 import '../../core/page_motion.dart';
+import 'curl_sheet.dart';
 
 import 'package:flutter/services.dart';
 
@@ -208,6 +209,13 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
     super.dispose();
   }
 
+  double get _grabY {
+    final origin = _activeDrag?.origin;
+    final box = context.findRenderObject();
+    if (origin == null || box is! RenderBox || box.size.height <= 0) return .5;
+    return (box.globalToLocal(origin).dy / box.size.height).clamp(0, 1);
+  }
+
   @override
   Widget build(BuildContext context) => Stack(
     fit: StackFit.expand,
@@ -227,6 +235,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
                   _direction,
                   motion: widget.motion,
                   foldSlope: _activeDrag?.slope ?? 0,
+                  grabY: _grabY,
                 ),
               ),
             ),
@@ -245,8 +254,9 @@ class PageTurnPainter extends CustomPainter {
     this.direction, {
     this.motion = const PageMotion(),
     this.foldSlope = 0,
+    this.grabY = .5,
   });
-  final double foldSlope;
+  final double foldSlope, grabY;
   final ui.Image before;
   final ui.Image? after;
   final double progress;
@@ -308,33 +318,31 @@ class PageTurnPainter extends CustomPainter {
 
   void _curl(Canvas canvas, Size size, double p) {
     final width = size.width, height = size.height;
-    final radius = width * .10 * math.sin(math.pi * p);
-    final fold = width * (1 - p) - math.pi * radius / 2;
-    const columns = 96, rows = 12;
+    const columns = 144, rows = 24;
     final positions = <Offset>[],
         textures = <Offset>[],
         colors = <Color>[],
         indices = <int>[];
+    final sections = List.generate(rows + 1, (row) {
+      final cone =
+          1 + ((.5 - grabY) * .65 + foldSlope * .35) * (row / rows - grabY);
+      return CurlSheet(width, p, cone: cone.clamp(.65, 1.35));
+    });
     for (var col = 0; col <= columns; col++) {
       final u = width * col / columns;
       for (var row = 0; row <= rows; row++) {
         final y = height * row / rows;
-        final base =
-            fold +
-            foldSlope * height * math.sin(math.pi * p) * (row / rows - .5);
-        final angle = ((u - base) / math.max(.001, radius)).clamp(0.0, math.pi);
-        final x = u <= base
-            ? u
-            : angle < math.pi
-            ? base + radius * math.sin(angle)
-            : 2 * base + math.pi * radius - u;
-        final z = radius * (1 - math.cos(angle));
+        final sheet = sections[row];
+        final tilt =
+            foldSlope * height * math.sin(math.pi * p) * (row / rows - grabY);
+        final point = sheet.point(u - tilt);
+        final x = point.x + tilt, z = point.z;
         final scale = width * 3 / (width * 3 - z);
-        final projected = (x - width / 2) * scale + width / 2;
+        final projected = x * scale;
         positions.add(
           Offset(
             direction > 0 ? projected : width - projected,
-            (y - height / 2) * scale + height / 2,
+            (y - height * grabY) * scale + height * grabY,
           ),
         );
         textures.add(
@@ -343,7 +351,7 @@ class PageTurnPainter extends CustomPainter {
             before.height * row / rows,
           ),
         );
-        final shade = u <= base ? 1.0 : .72 + .28 * math.cos(angle).abs();
+        final shade = .80 + .20 * math.cos(point.angle).abs();
         colors.add(
           Color.fromRGBO(
             (shade * 255).round(),
@@ -409,6 +417,7 @@ class PageTurnPainter extends CustomPainter {
   bool shouldRepaint(PageTurnPainter old) =>
       old.progress != progress ||
       old.foldSlope != foldSlope ||
+      old.grabY != grabY ||
       old.before != before ||
       old.after != after ||
       old.style != style ||
