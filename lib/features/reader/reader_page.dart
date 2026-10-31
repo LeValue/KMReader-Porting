@@ -78,6 +78,57 @@ class _ReaderPageState extends State<ReaderPage> {
     );
   }
 
+  Rect _sheetBounds(Size size, int direction) {
+    final p = _session.preferences;
+    if (p.fit != 'contain' ||
+        p.borderCrop != 'disabled' ||
+        _zoom.value.getMaxScaleOnAxis() > 1.01) {
+      return Offset.zero & size;
+    }
+    final first = _split
+        ? _parts[_viewIndex].page
+        : _session.firstPage(_viewIndex);
+    final count = _split ? 1 : _session.visiblePages(_viewIndex);
+    final cellWidth = size.width / count;
+    final physical = count == 1
+        ? 0
+        : direction > 0
+        ? count - 1
+        : 0;
+    final logical = p.direction == ReadingDirection.rtl
+        ? count - 1 - physical
+        : physical;
+    var aspect = _split ? _parts[_viewIndex].aspect : _aspects[first + logical];
+    if (aspect == null || aspect <= 0) return Offset.zero & size;
+    if (p.rotation.isOdd && !_split) aspect = 1 / aspect;
+    final fitted = applyBoxFit(
+      BoxFit.contain,
+      Size(aspect, 1),
+      Size(cellWidth, size.height),
+    ).destination;
+    return Rect.fromLTWH(
+      physical * cellWidth + (cellWidth - fitted.width) / 2,
+      (size.height - fitted.height) / 2,
+      fitted.width,
+      fitted.height,
+    );
+  }
+
+  Future<void> _waitVisibleArtwork([int? target]) async {
+    final view = target ?? _viewIndex;
+    final started = DateTime.now();
+    while (mounted &&
+        DateTime.now().difference(started) < const Duration(seconds: 3)) {
+      final first = _split ? _parts[view].page : _session.firstPage(view);
+      final count = _split ? 1 : _session.visiblePages(view);
+      if (List.generate(count, (i) => first + i).every(_readyPages.contains)) {
+        await WidgetsBinding.instance.endOfFrame;
+        return;
+      }
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
   bool _previewing = false;
   Drag? _pageDrag(DragStartDetails details) {
     if (!_pages.hasClients) return null;
@@ -96,13 +147,22 @@ class _ReaderPageState extends State<ReaderPage> {
         _pageBoundary.currentContext?.findRenderObject() as RenderBox?;
     return _curl.currentState!.drag(
       reverse: reverse,
-      width: boundary?.size.width ?? MediaQuery.sizeOf(context).width,
+      width: boundary == null
+          ? MediaQuery.sizeOf(context).width
+          : _sheetBounds(
+              boundary.size,
+              boundary.globalToLocal(details.globalPosition).dx >=
+                      boundary.size.width / 2
+                  ? 1
+                  : -1,
+            ).width,
       preview: (delta) async {
         final target = (origin + delta).clamp(0, _viewCount - 1);
         if (target == origin || !mounted) return false;
         _previewing = true;
         _pages.jumpToPage(target);
         await WidgetsBinding.instance.endOfFrame;
+        await _waitVisibleArtwork(target);
         return true;
       },
       finish: (delta, commit) async {
@@ -143,6 +203,7 @@ class _ReaderPageState extends State<ReaderPage> {
           () async {
             _turnDirect(delta);
             await WidgetsBinding.instance.endOfFrame;
+            await _waitVisibleArtwork();
           },
         ),
       );
@@ -612,7 +673,9 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   Widget _motion(int index, Widget child, Color background) =>
-      _session.preferences.animate && !MediaQuery.disableAnimationsOf(context)
+      _session.preferences.animate &&
+          _session.preferences.transition != 'curl' &&
+          !MediaQuery.disableAnimationsOf(context)
       ? CoverPage(
           controller: _pages,
           index: index,
@@ -622,7 +685,7 @@ class _ReaderPageState extends State<ReaderPage> {
           cover: _session.preferences.transition == 'cover',
           child: child,
         )
-      : child;
+      : ColoredBox(color: background, child: child);
 
   Timer? _preloadTimer;
   int _preloadGeneration = 0;
@@ -785,7 +848,10 @@ class _ReaderPageState extends State<ReaderPage> {
         _focus.requestFocus();
         _verticalReady = true;
         _preload();
-        if (_session.preferences.splitWide != 'none') _loadDimensions();
+        if (_session.preferences.splitWide != 'none' ||
+            _session.preferences.transition == 'curl') {
+          _loadDimensions();
+        }
         _loadSeriesDirection();
       }
     });
@@ -873,7 +939,11 @@ class _ReaderPageState extends State<ReaderPage> {
       old.dispose();
       _verticalReady = true;
       if (mounted) _preload();
-      if (mounted && preferences.splitWide != 'none') _loadDimensions();
+      if (mounted &&
+          (preferences.splitWide != 'none' ||
+              preferences.transition == 'curl')) {
+        _loadDimensions();
+      }
       if (mounted &&
           preferences.useSeriesDirection &&
           _seriesMetadata.isEmpty) {
@@ -1471,6 +1541,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 child: ReaderPageTransition(
                   key: _curl,
                   captureImage: _capturePageImage,
+                  sheetBounds: _sheetBounds,
                   motion: settings.motion,
                   child: RepaintBoundary(
                     key: _pageBoundary,

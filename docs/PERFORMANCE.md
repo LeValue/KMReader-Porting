@@ -1,3 +1,37 @@
+# Gesture rollback, localized curl and retained comic artwork in 0.8.6
+
+A canceled EPUB gesture now keeps its presentation snapshot until the original
+live viewport has been restored and delivered. Same-document rollback restores
+the existing scrollport; cross-chapter rollback retains stable CFI restoration.
+Both slide/curl checks assert the original CFI **at snapshot removal**, rather
+than only after the eventual return. Backward GPU curl peels the opposite leaf
+with its own material direction, rather than running the forward curl backward.
+
+The default front arc occupies 18% of a leaf near the roll, with a persisted
+8–55% deformation-reach control. Straight paper joins the local arc and roll
+with continuous positions/tangents. A tighter roll and leaf-width gestures make
+turns more responsive. Shading follows the front/roll normals; the cast shadow
+uses projected ridge depth. Transparent EPUB header/footer labels now overlay
+the continuous reading viewport instead of cutting it into separate rectangles.
+
+Mouse/touch update bursts coalesce into one GPU update per animation frame.
+Idle prewarming prepares only the next position; previous textures remain in
+the bounded cache. The compositor delivery barrier is retained: removing it
+caused rapid View Transition captures to block, as caught by the 48-turn test.
+
+Comic slide/cover keep a stable render subtree at both animation endpoints,
+preserving decoded image state. Curl bypasses that separate page transform,
+uses artwork dimensions to exclude black letterboxing from its mesh, and waits
+for target artwork readiness while retaining the original snapshot. Canceled
+previews restore under that snapshot before releasing it. A native GPU fixture
+checks paper/margin pixels through forward/backward folds, in addition to host
+checks for image lifetime, bounds, cancellation, and geometry continuity.
+
+These checks establish rendering/state invariants. Physical-device frame times
+and subjective comparison with Apple Books remain device acceptance work.
+
+The notes below describe earlier versions.
+
 # Reader input, opening and GPU sheets in 0.8.5
 
 EPUB opening now performs archive inspection and serving in one worker rather

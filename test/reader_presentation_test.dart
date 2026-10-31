@@ -30,6 +30,7 @@ void main() {
         'followGesture': false,
         'pageTint': .18,
         'pageCornerRadius': 26,
+        'curlReach': .32,
       });
       final comic = ReaderPreferences.fromJson(motion.toJson())
           .copy(background: 'white');
@@ -38,6 +39,8 @@ void main() {
       expect(epub.toJson(), containsPair('followGesture', false));
       expect(comic.motion.tint, .18);
       expect(epub.motion.cornerRadius, 26);
+      expect(epub.motion.curlReach, .32);
+      expect(comic.motion.curlReach, .32);
       final corrupt = PageMotion.fromJson({
         'animationDuration': double.nan,
         'pageTint': double.infinity,

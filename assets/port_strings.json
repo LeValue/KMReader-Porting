@@ -1566,5 +1566,9 @@
     "zh-Hant": "綠色",
     "ru": "Зелёная",
     "es": "Verde"
+  },
+  "motion.curlReach": {
+    "en": "Curl deformation reach",
+    "it": "Estensione della curvatura"
   }
 }

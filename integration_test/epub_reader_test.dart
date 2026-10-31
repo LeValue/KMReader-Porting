@@ -30,6 +30,7 @@ import 'support/background_download_check.dart';
 import 'support/scroll_checks.dart';
 import 'support/windows_wheel_check.dart';
 import 'support/epub_performance_check.dart';
+import 'support/comic_sheet_check.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,7 @@ void main() {
   verifyNativeScrolling(binding);
   verifyNativeWindowsWheel();
   verifyNativeEpubPerformance();
+  verifyNativeComicSheets();
   testWidgets('Android export rejects files outside app-private storage', (
     tester,
   ) async {

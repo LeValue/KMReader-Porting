@@ -11,7 +11,7 @@ class KMReaderCurlSurface {
     const gl=this.gl=this.canvas.getContext('webgl',{alpha:false,antialias:true,preserveDrawingBuffer:false});
     if (!gl) throw Error('WebGL unavailable');
     const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader;};
-    const uniforms=`uniform sampler2D oldPage,newPage;uniform vec2 size;uniform float progress,spread,sign,slope,grabY;`;
+    const uniforms=`uniform sampler2D oldPage,newPage;uniform vec2 size;uniform float progress,spread,sign,slope,grabY,curlReach;`;
     const samples=`vec4 oldAt(vec2 q){return texture2D(oldPage,clamp(q/size,vec2(0.),vec2(1.)));}
       vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}`;
     const quadVertex=`attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,(1.-a.y)*.5);gl_Position=vec4(a,0.,1.);}`;
@@ -28,7 +28,7 @@ class KMReaderCurlSurface {
         gl_FragColor=vec4(color.rgb*(1.-shadow),1.);
       }`;
     const meshVertex=`precision highp float;attribute vec2 a;${uniforms}
-      varying vec2 source;varying float normalZ;
+      varying vec2 source;varying float normalZ;varying float sheetAngle;
       void main(){
         float pi=3.14159265,w=size.x/(1.+spread),h=size.y;
         vec2 n=normalize(vec2(1.,slope)),t=vec2(-n.y,n.x),origin=vec2(0.,grabY*h);
@@ -39,18 +39,19 @@ class KMReaderCurlSurface {
         float v=mix(v0,v1,a.y),wave=sin(pi*progress);
         float cone=clamp((.5-grabY)*.65+slope*.35,-.45,.45);
         float factor=clamp(1.+cone*v/h,.65,1.35);
-        float r=max(.001,w*.10*wave*factor),alpha=.60*wave*factor;
+        float r=max(.001,w*.075*wave*factor),alpha=.75*wave*factor;
         float f=max(.001,w*(1.-progress)-r*(pi-alpha)*.5),end=f+r*(pi-alpha);
         float u=a.x<1.?mix(min(u0,0.),f,a.x):a.x<2.?mix(f,end,a.x-1.):mix(end,max(u1,end),a.x-2.);
         source=origin+n*u+t*v;
-        float theta=alpha*clamp(u/f,0.,1.),frontR=f/max(.00001,alpha);
-        float xf=frontR*sin(alpha),zf=2.*frontR*pow(sin(alpha*.5),2.);
+        float reach=min(f,w*curlReach),start=f-reach;
+        float theta=alpha*clamp((u-start)/max(.001,reach),0.,1.),frontR=reach/max(.00001,alpha);
+        float xf=start+frontR*sin(alpha),zf=2.*frontR*pow(sin(alpha*.5),2.);
         float x,z;
-        if(u<0.){x=u;z=0.;theta=0.;}
-        else if(u<=f){x=frontR*sin(theta);z=2.*frontR*pow(sin(theta*.5),2.);}
+        if(u<start){x=u;z=0.;theta=0.;}
+        else if(u<=f){x=start+frontR*sin(theta);z=2.*frontR*pow(sin(theta*.5),2.);}
         else if(u<=end){theta=alpha+(u-f)/r;x=xf+r*(sin(theta)-sin(alpha));z=zf+r*(cos(alpha)-cos(theta));}
         else{theta=pi;x=xf-r*sin(alpha)-(u-end);z=zf+r*(1.+cos(alpha));}
-        normalZ=cos(theta);
+        normalZ=cos(theta);sheetAngle=theta;
         vec2 world=origin+n*x+t*v;
         float hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x),camera=w*3.,perspective=(camera-z)/camera;
         vec2 center=vec2(hinge,grabY*h),screen=vec2(hinge+world.x*sign,world.y);
@@ -58,7 +59,7 @@ class KMReaderCurlSurface {
           (1.-2.*center.y/h)*perspective-2.*(screen.y-center.y)/h,-z/camera,perspective);
       }`;
     const meshFragment=`precision highp float;${uniforms}${samples}
-      varying vec2 source;varying float normalZ;
+      varying vec2 source;varying float normalZ;varying float sheetAngle;
       void main(){
         float w=size.x/(1.+spread),hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
         if(source.x<0.||source.x>w||source.y<0.||source.y>size.y)discard;
@@ -67,14 +68,17 @@ class KMReaderCurlSurface {
           if(spread>.5)color=newAt(vec2(hinge-source.x*sign,source.y));
           else{vec3 stock=oldAt(vec2(sign>0.?1.:size.x-1.,1.)).rgb;color=vec4(mix(stock,color.rgb,.36),1.);}
         }
-        float shade=.80+.20*abs(normalZ);
+        // A soft contact shadow on the front and a broad roll terminator.
+        // Lighting belongs to the sheet normal, independent of slide tint.
+        float shade=1.-.30*pow(max(0.,sin(sheetAngle)),1.4);
+        shade-=.09*exp(-pow((sheetAngle-.5)/.35,2.));
         gl_FragColor=vec4(color.rgb*shade,1.);
       }`;
     const program=(vertexSource,fragmentSource)=>{
       const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource),p=gl.createProgram();
       gl.attachShader(p,vertex);gl.attachShader(p,fragment);gl.linkProgram(p);gl.deleteShader(vertex);gl.deleteShader(fragment);
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
-      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','shadowLine','shadowWidth','shadowStrength'])u[name]=gl.getUniformLocation(p,name);
+      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowLine','shadowWidth','shadowStrength'])u[name]=gl.getUniformLocation(p,name);
       return {p,u,a:gl.getAttribLocation(p,'a')};
     };
     this.background=program(quadVertex,background);this.sheet=program(meshVertex,meshFragment);
@@ -93,22 +97,22 @@ class KMReaderCurlSurface {
     [before,after].forEach((image,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,this.textures[i]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);});
     if(gl.getError()!==gl.NO_ERROR)throw Error('Page texture unavailable');
   }
-  render(progress,spread,sign,slope,y){
+  render(progress,spread,sign,slope,y,reach=.18){
     const g=this.gl;
-    const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);};
+    const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform1f(u.curlReach,reach);};
     g.disable(g.DEPTH_TEST);bind(this.background,this.quad);
     // Project the two ends of the raised ridge once per frame. The full-screen
     // background shader only evaluates a soft distance shadow, not sheet trig.
     const w=this.width/(spread?2:1),h=this.height,wave=Math.sin(Math.PI*progress),norm=Math.hypot(1,slope),nx=1/norm,ny=slope/norm;
     const hinge=spread?this.width/2:sign>0?0:this.width,cone=Math.max(-.45,Math.min(.45,(.5-y)*.65+slope*.35));
     const ridge=v=>{
-      const factor=Math.max(.65,Math.min(1.35,1+cone*v/h)),r=Math.max(.001,w*.10*wave*factor),alpha=.60*wave*factor;
-      const f=Math.max(.001,w*(1-progress)-r*(Math.PI-alpha)/2),frontR=f/Math.max(.00001,alpha);
-      const depth=2*frontR*Math.sin(alpha/2)**2+r*Math.cos(alpha),x=frontR*Math.sin(alpha)+r*(1-Math.sin(alpha))+depth*.08,scale=3*w/(3*w-depth);
+      const factor=Math.max(.65,Math.min(1.35,1+cone*v/h)),r=Math.max(.001,w*.075*wave*factor),alpha=.75*wave*factor;
+      const f=Math.max(.001,w*(1-progress)-r*(Math.PI-alpha)/2),frontReach=Math.min(f,w*reach),frontR=frontReach/Math.max(.00001,alpha);
+      const depth=2*frontR*Math.sin(alpha/2)**2+r*Math.cos(alpha),x=f-frontReach+frontR*Math.sin(alpha)+r*(1-Math.sin(alpha))+depth*.08,scale=3*w/(3*w-depth);
       return [hinge+(nx*x-ny*v)*scale*sign,y*h+(ny*x+nx*v)*scale,depth];
     };
     const start=ridge(Math.min(0,-ny*w)-nx*y*h),end=ridge(Math.max(0,-ny*w)+nx*(1-y)*h),u=this.background.u;
-    g.uniform4f(u.shadowLine,start[0],start[1],end[0],end[1]);g.uniform1f(u.shadowWidth,6+(start[2]+end[2])*.065);g.uniform1f(u.shadowStrength,.13*wave);
+    g.uniform4f(u.shadowLine,start[0],start[1],end[0],end[1]);g.uniform1f(u.shadowWidth,8+(start[2]+end[2])*.11);g.uniform1f(u.shadowStrength,.22*wave);
     g.drawArrays(g.TRIANGLE_STRIP,0,4);
     if(progress<.0001||progress>.9999)return;
     g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);g.frontFace(sign>0?g.CW:g.CCW);
@@ -132,7 +136,7 @@ class KMReaderSheetEffect {
         this.surface.upload(before,before,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
         moved=true;await move();
         const after=await this.capture();if(this.stopped)return false;
-        this.surface.upload(this.reverse?after:before,this.reverse?before:after,this.width,this.height);this.update(0);return true;
+        this.surface.upload(before,after,this.width,this.height);this.update(0);return true;
       }catch(_){if(!moved)await move();this.stop();return false;}
     }
     this.sheet=document.createElement('style');this.sheet.dataset.pageMotion=this.id;
@@ -150,7 +154,7 @@ class KMReaderSheetEffect {
     const p=this.progress=Math.max(0,Math.min(1,value));
     if(point){const dx=Math.max(this.width*.15,p*this.width);this.slope=Math.max(-.65,Math.min(.65,-(point.y-this.y*this.height)/dx));}
     if(this.style==='curl'){
-      if(this.surface){const hex=this.preferences.backgroundColor||(this.preferences.theme==='black'?'#1c1c1e':this.preferences.theme==='white'?'#ffffff':'#efe5d0');const paper=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);this.surface.render(this.reverse?1-p:p,this.spread,this.reverse?-this.sign:this.sign,this.slope*Math.sin(Math.PI*p),this.y,paper);}return;
+      if(this.surface)this.surface.render(p,this.spread,this.sign,this.slope*Math.sin(Math.PI*p),this.y,this.preferences.curlReach);return;
     }
     const upperOld=this.style==='slide'?!this.reverse:false;
     const travel=this.style==='cover'?this.sign*(1-p)*100:upperOld?-this.sign*p*100:this.sign*(1-p)*100;
@@ -166,8 +170,9 @@ class KMReaderSheetEffect {
     this.frames.textContent=`::view-transition-old(km-reader-page){transform:translateX(${upperOld?travel:parallax}%);z-index:${upperOld?2:1};filter:${upperOld?lift:under};border-radius:${upperOld?radius:0}px}
       ::view-transition-new(km-reader-page){transform:translateX(${upperOld?parallax:travel}%);z-index:${upperOld?1:2};filter:${upperOld?under:lift};border-radius:${upperOld?0:radius}px}`;
   }
-  animateTo(target,duration){if(this.stopped)return Promise.resolve();this.finishAnimation?.();cancelAnimationFrame(this.frame);return new Promise(resolve=>{this.finishAnimation=resolve;const from=this.progress,start=performance.now();const frame=now=>{if(this.stopped){resolve();return;}const t=Math.min(1,(now-start)/Math.max(1,duration));const eased=1-Math.pow(1-t,4);this.update(from+(target-from)*eased);if(t<1)this.frame=requestAnimationFrame(frame);else{this.finishAnimation=null;resolve();}};this.frame=requestAnimationFrame(frame);});}
-  stop(){if(this.stopped)return;this.stopped=true;cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
+  track(value,point){this.pendingPoint=[value,point];if(this.tracking)return;this.tracking=requestAnimationFrame(()=>{this.tracking=0;const args=this.pendingPoint;this.pendingPoint=null;if(args)this.update(...args);});}
+  animateTo(target,duration){cancelAnimationFrame(this.tracking);this.tracking=0;this.pendingPoint=null;if(this.stopped)return Promise.resolve();this.finishAnimation?.();cancelAnimationFrame(this.frame);return new Promise(resolve=>{this.finishAnimation=resolve;const from=this.progress,start=performance.now();const frame=now=>{if(this.stopped){resolve();return;}const t=Math.min(1,(now-start)/Math.max(1,duration));const eased=1-Math.pow(1-t,4);this.update(from+(target-from)*eased);if(t<1)this.frame=requestAnimationFrame(frame);else{this.finishAnimation=null;resolve();}};this.frame=requestAnimationFrame(frame);});}
+  stop(){if(this.stopped)return;this.stopped=true;cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
 }
 
 
@@ -538,7 +543,7 @@ class KMReaderSheetEffect {
   }
   async function applyPreferences(value) {
     await waitForLayout();
-    const motionKeys = new Set(['animationDuration','followGesture','pageTint','pageCornerRadius','animate','transition']);
+    const motionKeys = new Set(['animationDuration','followGesture','pageTint','pageCornerRadius','curlReach','animate','transition']);
     if ([...new Set([...Object.keys(preferences), ...Object.keys(value)])].every(key =>
         motionKeys.has(key) || JSON.stringify(preferences[key]) === JSON.stringify(value[key]))) {
       cancelTurnAnimation(); preferences = value; warmCurl(); return;
@@ -658,7 +663,7 @@ class KMReaderSheetEffect {
     await tick();
   }
   const captureMarkup=new WeakMap(),capturePages=new Map(),captureResources=new Map();
-  let captureSerial=0,captureRevision=0,captureIdle,captureResourceBytes=0;
+  let captureSerial=0,captureRevision=0,captureIdle,captureIdleJob,captureResourceBytes=0;
   const captureResourceSizes=new Map();
   async function embeddedResource(value,base){
     if(!value||value.startsWith('data:')||value.startsWith('#'))return value;
@@ -726,9 +731,9 @@ class KMReaderSheetEffect {
     return task;
   }
   function warmCurl(){
-    clearTimeout(captureIdle);
+    clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);
     if(inputSuspended||preferences.transition!=='curl'||!motionAllowed('curl'))return;
-    captureIdle=setTimeout(async()=>{
+    const prepare=async()=>{
       if(disposed||inputSuspended||gesture||sheetEffect)return;
       try {
         await captureSheet();
@@ -738,12 +743,13 @@ class KMReaderSheetEffect {
         const bounds=frames[0].getBoundingClientRect();
         // Prepare adjacent positions without navigating, layout or progress
         // writes. Actual turns reuse these textures by viewport geometry.
-        for(const shift of [-innerWidth,innerWidth]){
+        for(const shift of [config.direction==='rtl'?innerWidth:-innerWidth]){
           if(disposed||inputSuspended||gesture||sheetEffect)return;
           if(bounds.left+shift<=0&&bounds.right+shift>=innerWidth)await captureSheet(shift);
         }
       }catch(_){/* Unsupported artwork retains direct reading. */}
-    },100);
+    };
+    captureIdle=setTimeout(()=>{if(window.requestIdleCallback)captureIdleJob=requestIdleCallback(prepare,{timeout:1500});else prepare();},180);
   }
   function cancelTurnAnimation() {
     sheetEffect?.stop(); sheetEffect = undefined;
@@ -771,8 +777,9 @@ class KMReaderSheetEffect {
       if (Math.abs(p.x - lastX) > .1) velocity = -(p.x - lastX) * physical / elapsed;
       else if (elapsed > 90) velocity = 0;
       lastX = p.x; lastTime = now;
-      state.progress = Math.max(0, Math.min(1, (contact.x - p.x) * physical / innerWidth));
-      state.point=p;state.effect?.update(state.progress,p);
+      const leaf=innerWidth/(rendition.manager?.layout?.divisor===2?2:1);
+      state.progress = Math.max(0, Math.min(1, (contact.x - p.x) * physical / leaf));
+      state.point=p;state.effect?.track(state.progress,p);
     };
     state.update = update;
     state.pointer = pointer;
@@ -795,6 +802,8 @@ class KMReaderSheetEffect {
     const safety = setTimeout(() => state.finish(false), 10000);
     enqueue(async () => {
       const saved = anchor || location?.start?.cfi;
+      const originalManager=rendition.manager,originalDocuments=rendition.getContents().map(c=>c.document);
+      const originalScroll={x:originalManager.container.scrollLeft,y:originalManager.container.scrollTop};
       interactiveNavigation = true;
       try {
         state.effect = await transitionMove(delta, preferences.transition, contact.y / innerHeight);
@@ -802,12 +811,22 @@ class KMReaderSheetEffect {
         let commit = await finished;
         const duration = Math.min(300, Math.max(80, (Number(preferences.animationDuration) || 380) *
           (commit ? 1 - state.progress : state.progress)));
-        if (!disposed) await state.effect?.animateTo(commit ? 1 : 0, duration);
-        state.effect?.stop();
+        if (!disposed) {
+          state.effect?.update(state.progress,state.point);
+          await state.effect?.animateTo(commit ? 1 : 0, duration);
+        }
         commit = commit && !state.invalidated;
         if (!disposed && !commit && saved) {
-          await displayStable(saved); refreshViewportLocation(); anchor = saved;
+          const current=rendition.getContents().map(c=>c.document);
+          if(rendition.manager===originalManager && current.length===originalDocuments.length && current.every((d,i)=>d===originalDocuments[i])) {
+            originalManager.scrollTo(originalScroll.x,originalScroll.y,true);
+            rendition.reportLocation();
+            await tick();
+          } else await displayStable(saved);
+          refreshViewportLocation(); anchor = saved;
+          await tick();
         }
+        state.effect?.stop();
         interactiveNavigation = false;
         if (!disposed) { refreshViewportLocation(); userMove = false; position(commit); }
       } finally {
@@ -844,6 +863,8 @@ class KMReaderSheetEffect {
     if (!motionAllowed(style) || !KMReaderSheetEffect.supported(style) || (delta > 0 && atReadingEnd())) {
       await move(); return null;
     }
+    // Retire the previous compositor snapshot before starting another capture.
+    // Skipping this delivery barrier can deadlock overlapping View Transitions.
     await tick();
     const effect = sheetEffect = new KMReaderSheetEffect(style,
       (delta > 0) !== (config.direction === 'rtl') ? 1 : -1, preferences, y, delta < 0, rendition.manager?.layout?.divisor === 2, captureSheet);
@@ -1004,7 +1025,7 @@ class KMReaderSheetEffect {
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
     suspendInput: value => {
-      inputSuspended=!!value;clearTimeout(captureIdle);cancelGesture();cancelTurnAnimation();
+      inputSuspended=!!value;clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);cancelGesture();cancelTurnAnimation();
       for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();
       if(inputSuspended)return true;
       // Android delivers native surface bounds/focus after the sheet closes.
@@ -1015,7 +1036,7 @@ class KMReaderSheetEffect {
     clearSelection: () => {for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();return true;},
     position: () => location, layoutReady,
     whenIdle: () => enqueue(waitForLayout), destroy: () => {
-      disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
+      disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
       cancelTurnAnimation();
       window.removeEventListener('resize', onResize);
       document.removeEventListener('pointerdown',interruptMouse,true);
