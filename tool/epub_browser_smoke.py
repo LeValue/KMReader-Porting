@@ -47,9 +47,14 @@ with sync_playwright() as playwright:
     page.evaluate('(value)=>window.reader.preferences(value)', config['preferences'])
     assert not page.evaluate("readerMessages.some(m=>m.type==='position' && m.changed)")
     first = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
+    report_index = page.evaluate('readerMessages.length')
     page.set_viewport_size({'width': 421, 'height': 699})
     page.evaluate('window.reader.next()')
-    second = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
+    page.evaluate('reader.whenIdle()')
+    changed = page.evaluate("index=>readerMessages.slice(index).filter(m=>m.type==='position'&&m.changed)", report_index)
+    assert len(changed) == 1, changed
+    second = changed[0]
+    assert page.evaluate('reader.position().start.cfi') == second['cfi']
     assert second['cfi'] != first['cfi'] and second['changed'] is True, second
     assert second['progression'] > first['progression'], (first, second)
     import base64

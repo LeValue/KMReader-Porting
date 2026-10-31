@@ -86,6 +86,7 @@ with sync_playwright() as pw:
     page.wait_for_function('() => !document.getElementById("page-gesture")')
     assert page.evaluate('reader.position().start.cfi') == saved, 'Canceled drag changed CFI'
     assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Canceled drag wrote progress'
+    page.evaluate('window.retainedFrame=document.querySelector("#viewer iframe")')
     # Resize during a held gesture must cancel and retain the saved character.
     page.mouse.move(xcoord(width - 6), height * .55)
     page.mouse.down()
@@ -122,6 +123,8 @@ with sync_playwright() as pw:
         page.wait_for_function('() => !document.getElementById("page-gesture")')
         assert page.evaluate('reader.position().start.cfi') == saved
         assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)')
+    page.wait_for_function('() => reader.layoutReady()')
+    assert page.evaluate('document.querySelector("#viewer iframe") === retainedFrame'), 'Resize replaced the publication iframe'
     # Reduced motion / older WebViews preserve direct navigation.
     page.emulate_media(reduced_motion='reduce')
     page.evaluate("reader.turn({delta:1,style:'curl'})")

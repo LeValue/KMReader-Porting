@@ -426,10 +426,30 @@ class KMReaderSheetEffect {
       if (!selection.isCollapsed && selection.toString().trim()) send('selection', {text: selection.toString().slice(0, 16000)});
     });
   }
+  function resizePublication(width, height) {
+    const manager = rendition.manager;
+    if (isFixedLayout() || preferences.flow !== 'paged' || !manager?.views?.length) {
+      rendition.resize(width, height); return;
+    }
+    // DefaultManager.resize clears every iframe and asks Rendition to display
+    // again. Keep the live reflowable document while updating its column box.
+    rendition.settings.width = width; rendition.settings.height = height;
+    manager.stage.size(width, height);
+    manager._stageSize = manager.stage.size(); manager._bounds = manager.bounds();
+    manager.updateLayout();
+    manager.views.forEach(view => {
+      view.size(manager.layout.width, manager.layout.height);
+      view.setLayout(manager.layout);
+    });
+  }
+  function layoutReady() {
+    return !restoring && resizeTimer === null && layoutJobs === 0 &&
+      Boolean(rendition?.getContents().length);
+  }
   async function waitForLayout() {
     if (resizeTimer !== null) {
       clearTimeout(resizeTimer); resizeTimer = null;
-      await preserve(() => rendition.resize(window.innerWidth, window.innerHeight));
+      await preserve(() => resizePublication(window.innerWidth, window.innerHeight));
     }
     const deadline = Date.now() + 10000;
     while (restoring || resizeTimer !== null || layoutJobs > 0) {
@@ -442,13 +462,14 @@ class KMReaderSheetEffect {
     if (!rendition) return;
     cancelTurnAnimation();
     const cfi = anchor || (location && location.start.cfi);
+    if (layoutJobs === 0) send('layout', {active:true});
     layoutJobs++; restoring = true; userMove = false; userMoveUntil = 0; clearTimeout(relocationTimer);
     try {
       await change();
       await stable(rendition.getContents());
       if (cfi) await displayStable(cfi);
       await tick();
-    } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); }
+    } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); if (!restoring) send('layout', {active:false}); }
   }
   function setPreferences(value) {
     cancelGesture();
@@ -479,7 +500,7 @@ class KMReaderSheetEffect {
       rendition.settings.gap = isFixedLayout() ? 0 : value.margin * 2;
       for (const contents of rendition.getContents()) style(contents.document);
       if (auxiliary) style(auxiliary.contentDocument);
-      await rendition.resize(window.innerWidth, window.innerHeight);
+      resizePublication(window.innerWidth, window.innerHeight);
     });
   }
   function refreshViewportLocation() {
@@ -742,7 +763,7 @@ class KMReaderSheetEffect {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       resizeTimer = null;
-      enqueue(() => preserve(() => rendition.resize(window.innerWidth, window.innerHeight)))
+      enqueue(() => preserve(() => resizePublication(window.innerWidth, window.innerHeight)))
         .catch(error => send('error', {message: String(error)}));
     }, 80);
   }
@@ -828,7 +849,8 @@ class KMReaderSheetEffect {
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
-    position: () => location, destroy: () => {
+    position: () => location, layoutReady,
+    whenIdle: () => enqueue(waitForLayout), destroy: () => {
       disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer);
       cancelTurnAnimation();
       window.removeEventListener('resize', onResize);
