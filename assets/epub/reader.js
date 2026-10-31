@@ -71,7 +71,7 @@ class KMReaderCurlSurface {
         // A soft contact shadow on the front and a broad roll terminator.
         // Lighting belongs to the sheet normal, independent of slide tint.
         float shade=1.-.30*pow(max(0.,sin(sheetAngle)),1.4);
-        shade-=.09*exp(-pow((sheetAngle-.5)/.35,2.));
+        shade-=.09*exp(-pow((sheetAngle-.5)/.35,2.))*smoothstep(0.,.15,sheetAngle);
         gl_FragColor=vec4(color.rgb*shade,1.);
       }`;
     const program=(vertexSource,fragmentSource)=>{
