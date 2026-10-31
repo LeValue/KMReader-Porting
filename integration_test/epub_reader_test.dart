@@ -9,6 +9,7 @@ import 'package:kmreader/features/reader/page_upscaler.dart';
 import 'package:kmreader/features/reader/pdf_raster_pages.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -198,6 +199,15 @@ void main() {
             if (ready()) return;
             await Future<void>.delayed(const Duration(milliseconds: 100));
           }
+          final dynamic readerState = tester.state(
+            find.byType(BrowserEpubReader),
+          );
+          final InAppWebViewController? browser =
+              readerState.browserController as InAppWebViewController?;
+          final diagnostics = await browser?.callAsyncJavaScript(
+            functionBody: 'return JSON.stringify(window.nativeMoves||[]);',
+          );
+          debugPrint('Native paging geometry: ${diagnostics?.value}');
           final labels = find
               .byType(Text)
               .evaluate()
@@ -226,6 +236,24 @@ void main() {
                 find.byTooltip('Next Page').evaluate().isNotEmpty,
           );
           expect(find.textContaining('Install Microsoft Edge'), findsNothing);
+          final dynamic readerState = tester.state(
+            find.byType(BrowserEpubReader),
+          );
+          final InAppWebViewController browser =
+              readerState.browserController as InAppWebViewController;
+          await browser.callAsyncJavaScript(
+            functionBody: """
+            window.nativeMoves=[];
+            for(const method of ['next','prev']){
+              const run=ePub.Rendition.prototype[method];
+              ePub.Rendition.prototype[method]=async function(...args){
+                const state=()=>({width:innerWidth,height:innerHeight,scroll:this.manager.container.scrollLeft,top:this.manager.container.scrollTop,pages:this.manager.isPaginated,layout:this.manager.layout.width,delta:this.manager.layout.delta});
+                const before=state(),result=await run.apply(this,args);nativeMoves.push({method,before,after:state()});return result;
+              };
+            }
+            return true;
+          """,
+          );
           await tester.tap(find.byTooltip('Next Page'));
           await waitFor(
             () =>
