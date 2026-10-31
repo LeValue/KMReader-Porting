@@ -350,6 +350,7 @@ class _CustomPlatformViewState extends State<CustomPlatformView> {
                             ev.pressure);
                         return;
                       }
+                      _controller._setCursorPos(ev.localPosition);
                       final button = _getButton(ev.buttons);
                       _downButtons[ev.pointer] = button;
                       _controller._setPointerButtonState(button, true);
@@ -365,6 +366,7 @@ class _CustomPlatformViewState extends State<CustomPlatformView> {
                             ev.pressure);
                         return;
                       }
+                      _controller._setCursorPos(ev.localPosition);
                       final button = _downButtons.remove(ev.pointer);
                       if (button != null) {
                         _controller._setPointerButtonState(button, false);

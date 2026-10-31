@@ -3,8 +3,9 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/core/api.dart';
@@ -226,12 +227,48 @@ void verifyNativeEpubPerformance() {
         );
         // Hiding controls must move the existing surface, never dispose it.
         final retainedController = controller();
-        final readingAnchor = await js('return reader.position().start.cfi;');
+        var readingAnchor = await js('return reader.position().start.cfi;');
         for (var i = 0; i < 2; i++) {
           await js(
             "const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();doc.body.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:innerWidth/2-b.left,clientY:innerHeight/2-b.top}));return true;",
           );
-          await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
+          if (Platform.isWindows) {
+            await tester.tapAt(
+              tester.getCenter(find.byType(InAppWebView)),
+              kind: PointerDeviceKind.mouse,
+            );
+            await tester.pump(const Duration(milliseconds: 200));
+            expect(find.byTooltip('Next Page'), findsOneWidget);
+            expect(
+              await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+              false,
+            );
+            expect(
+              await js(
+                "return document.querySelector('#viewer iframe').contentDocument.getSelection().isCollapsed;",
+              ),
+              true,
+            );
+            final beforeArrow = await js('return reader.position().start.cfi;');
+            await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+            for (var attempt = 0; attempt < 30; attempt++) {
+              await tester.pump(const Duration(milliseconds: 100));
+              if (await js('return reader.position().start.cfi;') !=
+                  beforeArrow) {
+                break;
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 50));
+            }
+            expect(
+              await js('return reader.position().start.cfi;'),
+              isNot(beforeArrow),
+            );
+            await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+            await js('await reader.whenIdle();return true;');
+            readingAnchor = await js('return reader.position().start.cfi;');
+          } else {
+            await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
+          }
           expect(identical(controller(), retainedController), true);
           await visibleText();
           await js(
@@ -268,6 +305,26 @@ void verifyNativeEpubPerformance() {
             readingAnchor,
           );
         }
+        // Exercise the real WebView GPU/texture path, not only headless Chrome.
+        expect(
+          await js("""
+          window.nativeStart=KMReaderSheetEffect.prototype.start;
+          window.nativeAnimate=KMReaderSheetEffect.prototype.animateTo;
+          KMReaderSheetEffect.prototype.start=async function(move){window.nativeCurl=this;return nativeStart.call(this,move);};
+          KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
+          await reader.turn({delta:1,style:'curl'});
+          if(!nativeCurl.surface||!document.getElementById('page-curl-surface'))throw Error('Native GPU curl unavailable');
+          nativeCurl.update(.5,{x:innerWidth*.5,y:innerHeight*.25});
+          return nativeCurl.surface.canvas.width>=innerWidth;
+        """),
+          true,
+        );
+        await visibleText();
+        await js("""
+          nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
+          KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
+          await reader.previous();return true;
+        """);
         final result = object(
           await js('''const times=[];
         for(let i=0;i<48;i++) { const old=reader.position().start.cfi, at=performance.now();

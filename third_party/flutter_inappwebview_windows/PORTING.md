@@ -7,4 +7,8 @@ Modern MSVC/C++20 compatibility corrections:
 
 The application requests standard C++20 so Windows SDK WinRT uses standard
 coroutines instead of the removed experimental coroutine implementation.
+Mouse pressure/release forwarding now updates the virtual cursor from the actual
+Flutter pointer event before forwarding its button state. This prevents stale
+coordinates after moving/resizing the reader or using a control outside the
+WebView. Existing per-pointer release/cancel ownership remains intact.
 Other source changes are limited to line-ending/trailing-whitespace normalization.

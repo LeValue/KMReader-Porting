@@ -47,12 +47,9 @@ class ReaderOptionsPanel extends StatelessWidget {
             ),
             const Divider(height: 1),
             Expanded(
-              child: SingleChildScrollView(
+              child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: children,
-                ),
+                children: children,
               ).withWheelScrolling(),
             ),
           ],
@@ -112,53 +109,54 @@ class ReaderOptionPicker extends StatelessWidget {
   final Map<String, String> choices;
   final ValueChanged<String> onChanged;
   @override
-  Widget build(BuildContext context) => Builder(
-    builder: (row) => InkWell(
-      onTap: () async {
-        final result = await chooseValue<String>(
-          row,
-          title: title,
-          selected: value,
-          choices: choices,
-          anchored: true,
-        );
-        if (result != null && row.mounted) onChanged(result);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 5,
-              child: Text(
-                tr(context, title),
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Flexible(
-              flex: 4,
-              child: Text(
-                tr(context, choices[value] ?? value),
-                textAlign: TextAlign.end,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) => Builder(
+      builder: (row) => InkWell(
+        onTap: () async {
+          final result = await chooseValue<String>(
+            row,
+            title: title,
+            selected: value,
+            choices: choices,
+            anchored: true,
+          );
+          if (result != null && row.mounted) onChanged(result);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  tr(context, title),
+                  style: const TextStyle(fontSize: 16),
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
-            const Icon(Icons.unfold_more, size: 18),
-          ],
+              const SizedBox(width: 16),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: bounds.maxWidth * .42),
+                child: Text(
+                  tr(context, choices[value] ?? value),
+                  textAlign: TextAlign.end,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.unfold_more, size: 18),
+            ],
+          ),
         ),
       ),
     ),
   );
 }
 
-class ReaderOptionSlider extends StatelessWidget {
+class ReaderOptionSlider extends StatefulWidget {
   const ReaderOptionSlider({
     super.key,
     required this.title,
@@ -177,6 +175,18 @@ class ReaderOptionSlider extends StatelessWidget {
   final ValueChanged<double> onChanged;
   final ValueChanged<double>? onChangeEnd;
   @override
+  State<ReaderOptionSlider> createState() => _ReaderOptionSliderState();
+}
+
+class _ReaderOptionSliderState extends State<ReaderOptionSlider> {
+  late double draft = widget.value;
+  @override
+  void didUpdateWidget(ReaderOptionSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) draft = widget.value;
+  }
+
+  @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
     child: Column(
@@ -185,24 +195,27 @@ class ReaderOptionSlider extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                tr(context, title),
+                tr(context, widget.title),
                 style: const TextStyle(fontSize: 16),
               ),
             ),
             const SizedBox(width: 12),
             Text(
-              label ?? value.toStringAsFixed(2),
+              widget.label ?? draft.toStringAsFixed(2),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
         Slider(
-          value: value.clamp(min, max),
-          min: min,
-          max: max,
-          divisions: divisions,
-          onChanged: onChanged,
-          onChangeEnd: onChangeEnd,
+          value: draft.clamp(widget.min, widget.max),
+          min: widget.min,
+          max: widget.max,
+          divisions: widget.divisions,
+          onChanged: (v) {
+            setState(() => draft = v);
+            widget.onChanged(v);
+          },
+          onChangeEnd: widget.onChangeEnd,
         ),
       ],
     ),

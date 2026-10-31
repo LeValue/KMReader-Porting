@@ -1,146 +1,131 @@
 'use strict';
-// Chromium captures the sheet directly in its compositor. Book pixels never
-// cross the native bridge or get JPEG/base64 encoded for page navigation.
-class KMReaderSheetEffect {
-  static serial = 0;
-  static supported() { return typeof document.startViewTransition === 'function'; }
-  constructor(style, sign, preferences, y = .5) {
-    this.style = style; this.sign = sign; this.preferences = preferences; this.y = y;
-    this.width = innerWidth; this.height = innerHeight; this.progress = 0;
-    this.id = `km-sheet-${++KMReaderSheetEffect.serial}`;
-    this.sheet = document.createElement('style');
-    this.sheet.dataset.pageMotion = this.id;
-    this.sheet.textContent = `
-      ::view-transition{pointer-events:none}
-      :root{view-transition-name:none}#viewer{view-transition-name:km-reader-page}
-      ::view-transition-group(km-reader-page){animation:none}
-      ::view-transition-old(km-reader-page),::view-transition-new(km-reader-page){
-        animation:km-sheet-hold 30s linear both paused;mix-blend-mode:normal;
-        transform-origin:center;object-fit:fill;overflow:hidden}
-      @keyframes km-sheet-hold{from{opacity:1}to{opacity:1}}`;
-    document.head.appendChild(this.sheet);
-    this.frames = document.createElement('style');
-    this.frames.dataset.pageMotionFrame = this.id;
-    document.head.appendChild(this.frames);
-    const ns = 'http://www.w3.org/2000/svg';
-    this.svg = document.createElementNS(ns, 'svg');
-    this.svg.style.cssText = 'position:fixed;width:0;height:0;pointer-events:none';
-    this.svg.innerHTML = `<defs><filter id="${this.id}" filterUnits="userSpaceOnUse" x="-${this.width}" y="-${this.height}" width="${this.width * 3}" height="${this.height * 3}" color-interpolation-filters="sRGB">
-      <feImage x="0" y="0" width="${this.width}" height="${this.height}" preserveAspectRatio="none" result="map"/>
-      <feDisplacementMap in="SourceGraphic" in2="map" scale="${this.width * 2}" xChannelSelector="R" yChannelSelector="G" result="warped"/>
-      <feOffset in="warped" dx="${this.width / 255}" dy="${this.width / 255}" result="aligned"/>
-      <feComposite in="aligned" in2="map" operator="in" result="clipped"/>
-      <feComponentTransfer in="clipped" result="paper"><feFuncR type="linear"/><feFuncG type="linear"/><feFuncB type="linear"/></feComponentTransfer>
-      <feColorMatrix in="map" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0" result="shade"/>
-      <feComposite in="shade" in2="clipped" operator="in" result="shadowed"/>
-      <feMerge><feMergeNode in="paper"/><feMergeNode in="shadowed"/></feMerge>
-      <feDropShadow dx="${sign * 6}" dy="2" stdDeviation="9" flood-opacity=".22"/>
-    </filter><filter id="${this.id}-tint" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="linear"/><feFuncG type="linear"/><feFuncB type="linear"/></feComponentTransfer></filter></defs>`;
-    document.body.appendChild(this.svg);
+// Slide uses compositor snapshots; curl samples full-resolution page textures
+// with an analytic cylinder in WebGL. No per-frame bitmap encoding/readback.
+class KMReaderCurlSurface {
+  static shared;
+  constructor() {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 255; this.canvas.height = 64;
-    this.context = this.canvas.getContext('2d');
+    this.canvas.id = 'page-curl-surface';
+    this.canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2147483645';
+    const gl=this.gl=this.canvas.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false});
+    if (!gl) throw Error('WebGL unavailable');
+    const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader;};
+    const vertex=compile(gl.VERTEX_SHADER,'attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,(1.-a.y)*.5);gl_Position=vec4(a,0.,1.);}');
+    const fragment=compile(gl.FRAGMENT_SHADER,`precision highp float;
+      varying vec2 v;uniform sampler2D oldPage,newPage;
+      uniform vec2 size;uniform float progress,spread,sign,slope,grabY;uniform vec3 paper;
+      vec4 oldAt(vec2 q){return texture2D(oldPage,clamp(q/size,vec2(0.),vec2(1.)));}
+      vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}
+      void main(){
+        vec2 screen=v*size;float w=size.x/(1.+spread),hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
+        vec2 q=vec2((screen.x-hinge)*sign,screen.y),n=normalize(vec2(1.,slope));
+        float p=progress,r=max(.001,w*.105*sin(3.14159265*p));
+        vec2 origin=vec2(w*(1.-p)-1.5707963*r,grabY*size.y);
+        float d=dot(q-origin,n),edge;
+        vec4 under=spread>.5&&q.x<0.?oldAt(screen):newAt(screen);
+        if(p<.0001){gl_FragColor=oldAt(screen);return;}
+        if(p>.9999){gl_FragColor=newAt(screen);return;}
+        vec2 source=q;bool back=false;float shade=1.;bool sheet=false;
+        if(d>=0.&&d<=r){
+          float angle=asin(clamp(d/r,0.,1.));source=q+n*(r*(3.14159265-angle)-d);
+          back=true;shade=.88+.12*cos(angle);sheet=true;
+        }else if(d<0.){
+          vec2 reflected=q+n*(3.14159265*r-2.*d);
+          if(reflected.x>=0.&&reflected.x<=w&&reflected.y>=0.&&reflected.y<=size.y){source=reflected;back=true;sheet=true;}
+          else if(q.x>=0.&&q.x<=w){source=q;sheet=true;}
+        }
+        if(source.x<0.||source.x>w||source.y<0.||source.y>size.y)sheet=false;
+        if(sheet){
+          vec2 tex=vec2(hinge+source.x*sign,source.y);
+          vec4 color=oldAt(tex);
+          if(back){
+            if(spread>.5)color=newAt(vec2(hinge-source.x*sign,source.y));
+            else color=vec4(mix(paper,color.rgb,.36),1.);
+          }
+          gl_FragColor=vec4(color.rgb*shade,1.);
+        }else{
+          float shadow=exp(-abs(d-r)/max(2.,w*.025))*.10*sin(3.14159265*p);
+          gl_FragColor=vec4(under.rgb*(1.-shadow),1.);
+        }
+      }`);
+    const program=this.program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);gl.deleteShader(vertex);gl.deleteShader(fragment);
+    if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+    gl.useProgram(program);const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+    const a=gl.getAttribLocation(program,'a');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+    this.uniforms={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','paper'])this.uniforms[name]=gl.getUniformLocation(program,name);
+    this.textures=[0,1].map(i=>{gl.activeTexture(gl.TEXTURE0+i);const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;});
+    gl.uniform1i(this.uniforms.oldPage,0);gl.uniform1i(this.uniforms.newPage,1);
+    this.canvas.addEventListener('webglcontextlost',()=>{KMReaderCurlSurface.shared=null;this.canvas.remove();});
   }
-  async start(move) {
-    let moved = false;
-    try {
-      this.transition = document.startViewTransition(async () => { moved = true; await move(); });
-      // Both promises may reject independently when a viewport is hidden or
-      // resized during capture. Always consume both, then expose the live page.
-      this.transition.finished.then(() => this.stop(), () => this.stop());
-      this.transition.updateCallbackDone.catch(() => {});
-      await this.transition.ready;
-      this.update(0);
-      return true;
-    } catch (_) {
-      if (this.transition) await this.transition.updateCallbackDone.catch(() => {});
-      if (!moved) await move();
-      this.stop();
-      return false;
-    }
+  upload(before,after,width,height) {
+    const gl=this.gl,dpr=Math.min(2,devicePixelRatio||1);
+    this.canvas.width=Math.round(width*dpr);this.canvas.height=Math.round(height*dpr);gl.viewport(0,0,this.canvas.width,this.canvas.height);
+    [before,after].forEach((image,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,this.textures[i]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);});
+    if(gl.getError()!==gl.NO_ERROR)throw Error('Page texture unavailable');
+    gl.uniform2f(this.uniforms.size,width,height);
   }
-  update(value) {
-    if (this.stopped) return;
-    const p = this.progress = Math.max(0, Math.min(1, value));
-    const shape = Math.sin(Math.PI * p), radius = (Number(this.preferences.pageCornerRadius) || 0) * shape;
-    const tint = Math.max(0, Math.min(.25, Number(this.preferences.pageTint) || 0)) * Math.min(1, shape * 2);
-    for (const f of this.svg.querySelectorAll('feFuncR,feFuncG,feFuncB')) {
-      f.setAttribute('slope', 1 - tint); f.setAttribute('intercept', tint);
-    }
-    const old = this.style === 'curl' ? 'none' : this.style === 'cover' ? 'none' : `translateX(${-this.sign * p * 100}%)`;
-    const next = this.style === 'cover' ? `translateX(${this.sign * (1 - p) * 100}%)`
-      : this.style === 'slide' ? `translateX(${this.sign * (1 - p) * 8}%)` : 'none';
-    const filter = this.style === 'curl' ? `url(#${this.id})` : `url(#${this.id}-tint)`;
-    if (this.style === 'curl') this.curlMap(p);
-    const movingOld = this.style !== 'cover';
-    this.frames.textContent = `
-      ::view-transition-old(km-reader-page){transform:${old};z-index:${movingOld ? 2 : 1};filter:${movingOld ? filter : 'none'};border-radius:${movingOld ? radius : 0}px}
-      ::view-transition-new(km-reader-page){transform:${next};z-index:${movingOld ? 1 : 2};filter:${movingOld ? 'none' : filter};border-radius:${movingOld ? 0 : radius}px}`;
-  }
-  curlMap(p) {
-    const width = this.width, height = this.height, cw = this.canvas.width, ch = this.canvas.height;
-    const data = this.context.createImageData(cw, ch), pixels = data.data;
-    // A cylindrical sheet: flat front, a curved half-cylinder, then the
-    // reflected back. The fold leans with the finger's vertical position.
-    const radius = Math.max(.001, width * .10 * Math.sin(Math.PI * p));
-    const base = width * (1 - p) - Math.PI * radius / 2;
-    const lean = width * .16 * Math.sin(Math.PI * p) * (this.y - .5);
-    for (let row = 0; row < ch; row++) {
-      const fold = base + lean * (row / ch - .5);
-      const edge = 2 * fold + Math.PI * radius - width;
-      for (let col = 0; col < cw; col++) {
-        const physicalX = (col + .5) * width / cw;
-        const x = this.sign > 0 ? physicalX : width - physicalX;
-        let source = x, alpha = 255, shade = 0;
-        if (p >= .9999) alpha = 0;
-        else if (p > .0001 && x >= fold && x <= fold + radius) {
-          const angle = Math.asin(Math.max(0, Math.min(1, (x - fold) / radius)));
-          source = fold + radius * (Math.PI - angle);
-          shade = 36 + 60 * Math.sin(angle);
-          if (source > width) alpha = 0;
-        } else if (p > .0001 && x >= Math.max(0, edge) && x < fold) {
-          source = 2 * fold + Math.PI * radius - x; shade = 18;
-          if (source > width) alpha = 0;
-        } else if (x > fold + radius && p > .0001) alpha = 0;
-        if (this.sign < 0) source = width - source;
-        const index = (row * cw + col) * 4;
-        pixels[index] = Math.max(0, Math.min(255, Math.round(128 + (source - physicalX) * 255 / (2 * width))));
-        pixels[index + 1] = 128; pixels[index + 2] = shade; pixels[index + 3] = alpha;
-      }
-    }
-    this.context.putImageData(data, 0, 0);
-    this.svg.querySelector('feImage').setAttribute('href', this.canvas.toDataURL('image/png'));
-  }
-  animateTo(target, duration) {
-    if (this.stopped) return Promise.resolve();
-    if (this.finishAnimation) this.finishAnimation();
-    cancelAnimationFrame(this.frame);
-    return new Promise(resolve => {
-      this.finishAnimation = resolve;
-      const from = this.progress, start = performance.now();
-      const frame = now => {
-        if (this.stopped) { resolve(); return; }
-        const t = Math.min(1, (now - start) / Math.max(1, duration));
-        this.update(from + (target - from) * (1 - Math.pow(1 - t, 3)));
-        if (t < 1) this.frame = requestAnimationFrame(frame);
-        else { this.finishAnimation = null; resolve(); }
-      };
-      this.frame = requestAnimationFrame(frame);
-    });
-  }
-  stop() {
-    if (this.stopped) return;
-    this.stopped = true;
-    cancelAnimationFrame(this.frame);
-    this.finishAnimation?.(); this.finishAnimation = null;
-    this.transition?.skipTransition(); this.sheet.remove(); this.frames.remove(); this.svg.remove();
-  }
+  render(progress,spread,sign,slope,y,paper){const g=this.gl,u=this.uniforms;g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform3fv(u.paper,paper);g.drawArrays(g.TRIANGLE_STRIP,0,4);}
 }
+class KMReaderSheetEffect {
+  static serial=0;
+  static supported(){return typeof document.startViewTransition==='function';}
+  constructor(style,sign,preferences,y=.5,reverse=false,spread=false,capture=null){
+    Object.assign(this,{style,sign,preferences,y,reverse,spread,capture});
+    this.width=innerWidth;this.height=innerHeight;this.progress=0;this.slope=0;this.id=`km-sheet-${++KMReaderSheetEffect.serial}`;
+  }
+  async start(move){
+    if(this.style==='curl'){
+      let moved=false;
+      try{
+        const before=await this.capture();
+        if(this.stopped)return false;
+        this.surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
+        this.surface.upload(before,before,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
+        moved=true;await move();
+        const after=await this.capture();if(this.stopped)return false;
+        this.surface.upload(this.reverse?after:before,this.reverse?before:after,this.width,this.height);this.update(0);return true;
+      }catch(_){if(!moved)await move();this.stop();return false;}
+    }
+    this.sheet=document.createElement('style');this.sheet.dataset.pageMotion=this.id;
+    this.sheet.textContent=`::view-transition{pointer-events:none}:root{view-transition-name:none}#viewer{view-transition-name:km-reader-page}
+      ::view-transition-group(km-reader-page){animation:none}
+      ::view-transition-old(km-reader-page),::view-transition-new(km-reader-page){animation:km-sheet-hold 30s linear both paused;mix-blend-mode:normal;transform-origin:center;object-fit:fill;overflow:hidden}
+      @keyframes km-sheet-hold{from{opacity:1}to{opacity:1}}`;
+    this.frames=document.createElement('style');this.frames.dataset.pageMotionFrame=this.id;document.head.append(this.sheet,this.frames);
+    let moved=false;
+    try{this.transition=document.startViewTransition(async()=>{moved=true;await move();});this.transition.finished.then(()=>this.stop(),()=>this.stop());this.transition.updateCallbackDone.catch(()=>{});await this.transition.ready;this.update(0);return true;}
+    catch(_){if(this.transition)await this.transition.updateCallbackDone.catch(()=>{});if(!moved)await move();this.stop();return false;}
+  }
+  update(value,point){
+    if(this.stopped)return;
+    const p=this.progress=Math.max(0,Math.min(1,value));
+    if(point){const dx=Math.max(this.width*.15,p*this.width);this.slope=Math.max(-.65,Math.min(.65,-(point.y-this.y*this.height)/dx));}
+    if(this.style==='curl'){
+      if(this.surface){const hex=this.preferences.backgroundColor||(this.preferences.theme==='black'?'#1c1c1e':this.preferences.theme==='white'?'#ffffff':'#efe5d0');const paper=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);this.surface.render(this.reverse?1-p:p,this.spread,this.reverse?-this.sign:this.sign,this.slope*Math.sin(Math.PI*p),this.y,paper);}return;
+    }
+    const upperOld=this.style==='slide'?!this.reverse:false;
+    const travel=this.style==='cover'?this.sign*(1-p)*100:upperOld?-this.sign*p*100:this.sign*(1-p)*100;
+    const parallax=this.style==='cover'?0:upperOld?this.sign*(1-p)*10:-this.sign*p*10;
+    const phase=upperOld?p:1-p;
+    const dark=(this.preferences.backgroundColor||'').match(/^#([0-9a-f]{6})$/i)?.[1];
+    const isDark=this.preferences.theme==='black'||dark&&parseInt(dark.slice(0,2),16)<90;
+    const tint=isDark?Math.min(.12,Math.max(0,Number(this.preferences.pageTint)||0))*Math.pow(Math.max(0,(phase-.25)/.75),2.4):0;
+    const dim=.12*Math.pow(upperOld?1-p:p,1.6);
+    const radius=(Number(this.preferences.pageCornerRadius)||0)*Math.min(1,phase*12);
+    const lift=`contrast(${1-tint}) brightness(${1+tint*.5})`;
+    const under=`brightness(${1-dim})`;
+    this.frames.textContent=`::view-transition-old(km-reader-page){transform:translateX(${upperOld?travel:parallax}%);z-index:${upperOld?2:1};filter:${upperOld?lift:under};border-radius:${upperOld?radius:0}px}
+      ::view-transition-new(km-reader-page){transform:translateX(${upperOld?parallax:travel}%);z-index:${upperOld?1:2};filter:${upperOld?under:lift};border-radius:${upperOld?0:radius}px}`;
+  }
+  animateTo(target,duration){if(this.stopped)return Promise.resolve();this.finishAnimation?.();cancelAnimationFrame(this.frame);return new Promise(resolve=>{this.finishAnimation=resolve;const from=this.progress,start=performance.now();const frame=now=>{if(this.stopped){resolve();return;}const t=Math.min(1,(now-start)/Math.max(1,duration));const eased=1-Math.pow(1-t,4);this.update(from+(target-from)*eased);if(t<1)this.frame=requestAnimationFrame(frame);else{this.finishAnimation=null;resolve();}};this.frame=requestAnimationFrame(frame);});}
+  stop(){if(this.stopped)return;this.stopped=true;cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
+}
+
 
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
   let renditionSpineHooks = [], operationQueue = Promise.resolve(), turnAnimation, sheetEffect, gesture;
-  let interactiveNavigation = false, suppressClickUntil = 0;
+  let interactiveNavigation = false, suppressClickUntil = 0, inputSuspended = false;
   const settledDocuments = new WeakSet();
   function enqueue(operation) {
     const pending = operationQueue.then(() => disposed ? undefined : operation());
@@ -213,7 +198,7 @@ class KMReaderSheetEffect {
     sheet.textContent = `${face}html,body{background:${background} !important;color:${foreground} !important;}
       body{${preferences.advancedLayout === false ? '' : `font-size:${preferences.fontSize}px !important;line-height:${preferences.lineHeight} !important;`}${family}${align}${preferences.fontWeight > 0 ? `font-weight:${preferences.fontWeight} !important;` : ''}}
       ${preferences.advancedLayout === false ? '' : `p{margin-block-end:${preferences.paragraphSpacing}em !important;text-indent:${preferences.indent}em !important;} body{letter-spacing:${preferences.letterSpacing}em !important;word-spacing:${preferences.wordSpacing}em !important;}`}
-      img,svg,video{max-width:100% !important;object-fit:contain;}a{color:${preferences.theme === 'black' ? '#9fc6ff' : '#235a9c'};}`;
+      ::selection{background:rgba(75,135,230,.38);color:inherit;}img,svg,video{max-width:100% !important;object-fit:contain;}a{color:${preferences.theme === 'black' ? '#9fc6ff' : '#235a9c'};}`;
   }
   async function stable(contents) {
     await tick();
@@ -337,6 +322,8 @@ class KMReaderSheetEffect {
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
+    const clearSelection = () => doc.getSelection()?.removeAllRanges();
+    doc.defaultView.addEventListener('blur', clearSelection);
     if (preferences.flow === 'scrolled' && rendition.manager?.stage) {
       // The first CJK view can change the manager axis after its stage chose
       // overflow-x/y. Reapply that policy so the new axis accepts input.
@@ -344,18 +331,20 @@ class KMReaderSheetEffect {
       manager.stage.overflow(manager.overflow || 'scroll');
     }
     doc.addEventListener('click', event => {
-      if (Date.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      if (inputSuspended || Date.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); return; }
       const link = event.target.closest && event.target.closest('a[href]');
       if (link) {
         event.preventDefault(); event.stopImmediatePropagation();
         send('link', {href: link.href, base: section.href});
       } else if (doc.getSelection().isCollapsed) {
         const bounds = doc.defaultView.frameElement.getBoundingClientRect();
-        send('tap', {x: (bounds.left + event.clientX) / window.innerWidth, y: (bounds.top + event.clientY) / window.innerHeight});
+        send('tap', {pointerType: event.pointerType || 'mouse', x: (bounds.left + event.clientX) / window.innerWidth, y: (bounds.top + event.clientY) / window.innerHeight});
       }
     }, true);
     doc.addEventListener('keydown', event => {
-      if (event.ctrlKey || event.metaKey || event.altKey || !doc.getSelection().isCollapsed) return;
+      if (inputSuspended || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === 'Escape' && !doc.getSelection().isCollapsed) { clearSelection(); event.preventDefault(); return; }
+      if (!doc.getSelection().isCollapsed && !['ArrowLeft','ArrowRight','PageDown','PageUp','F11'].includes(event.key)) return;
       const rtl = config.direction === 'rtl';
       if (event.key === 'F11') { event.preventDefault(); send('fullscreen'); }
       else if (event.key === ' ' && preferences.spaceKeyAction === 'toggleControls') { event.preventDefault(); send('controls'); }
@@ -374,7 +363,20 @@ class KMReaderSheetEffect {
       if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) {
         cancelGesture(); contact = null; return;
       }
+      if (inputSuspended) { event.preventDefault(); return; }
       const p = point(event);
+      if (event.pointerType === 'mouse') {
+        // caretRangeFromPoint snaps to the nearest paragraph even in margins.
+        // Only a hit on a real glyph may start a native text selection.
+        const caret = doc.caretRangeFromPoint?.(event.clientX,event.clientY);
+        let textHit = false;
+        if (caret?.startContainer.nodeType === Node.TEXT_NODE) {
+          const range = caret.cloneRange(), node=caret.startContainer, offset=Math.min(caret.startOffset,Math.max(0,node.length-1));
+          range.setStart(node,offset); range.setEnd(node,Math.min(node.length,offset+1));
+          textHit=[...range.getClientRects()].some(r=>event.clientX>=r.left-2&&event.clientX<=r.right+2&&event.clientY>=r.top&&event.clientY<=r.bottom);
+        }
+        if (!textHit && !event.target.closest?.('a[href]')) { event.preventDefault(); clearSelection(); }
+      }
       const edge = p.x < innerWidth * .18 || p.x > innerWidth * .82;
       contact = event.target.closest?.('a[href]') || (event.pointerType === 'mouse' && !edge)
         ? null : {id:event.pointerId,x:p.x,y:p.y,time:Date.now()};
@@ -423,7 +425,10 @@ class KMReaderSheetEffect {
     if (doc.fonts) doc.fonts.addEventListener('loadingdone', resourceChanged);
     doc.addEventListener('selectionchange', () => {
       const selection = doc.getSelection();
-      if (!selection.isCollapsed && selection.toString().trim()) send('selection', {text: selection.toString().slice(0, 16000)});
+      if (inputSuspended) return;
+      const selected = selection.isCollapsed ? '' : selection.toString().trim().slice(0,16000);
+      clearTimeout(doc._selectionReport);
+      doc._selectionReport=setTimeout(()=>send('selection',{text:selected}),80);
     });
   }
   function resizePublication(width, height) {
@@ -482,8 +487,9 @@ class KMReaderSheetEffect {
     const motionKeys = new Set(['animationDuration','followGesture','pageTint','pageCornerRadius','animate','transition']);
     if ([...new Set([...Object.keys(preferences), ...Object.keys(value)])].every(key =>
         motionKeys.has(key) || JSON.stringify(preferences[key]) === JSON.stringify(value[key]))) {
-      cancelTurnAnimation(); preferences = value; return;
+      cancelTurnAnimation(); preferences = value; warmCurl(); return;
     }
+    captureRevision++;capturePages.clear();
     const flowChanged = preferences.flow !== value.flow;
     preferences = value;
     const [background] = colors();
@@ -597,6 +603,93 @@ class KMReaderSheetEffect {
     rendition.reportLocation();
     await tick();
   }
+  const captureMarkup=new WeakMap(),capturePages=new Map(),captureResources=new Map();
+  let captureSerial=0,captureRevision=0,captureIdle,captureResourceBytes=0;
+  const captureResourceSizes=new Map();
+  async function embeddedResource(value,base){
+    if(!value||value.startsWith('data:')||value.startsWith('#'))return value;
+    const url=new URL(value,base);if(url.origin!==locationOrigin())throw Error('External page artwork');
+    if(!captureResources.has(url.href)){
+      const task=fetch(url.href).then(r=>{if(!r.ok)throw Error('Artwork unavailable');return r.blob();}).then(blob=>{
+        if(blob.size>32*1024*1024)throw Error('Artwork exceeds snapshot budget');
+        if(captureResources.has(url.href)){captureResourceSizes.set(url.href,blob.size);captureResourceBytes+=blob.size;}
+        while(captureResourceBytes>48*1024*1024&&captureResources.size>1){
+          const old=captureResources.keys().next().value;
+          captureResources.delete(old);captureResourceBytes-=captureResourceSizes.get(old)||0;captureResourceSizes.delete(old);
+        }
+        return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});
+      });
+      if(captureResources.size>=24){const old=captureResources.keys().next().value;captureResources.delete(old);captureResourceBytes-=captureResourceSizes.get(old)||0;captureResourceSizes.delete(old);}
+      captureResources.set(url.href,task);
+    }
+    return captureResources.get(url.href);
+  }
+  const locationOrigin=()=>window.location.origin;
+  async function embedCss(text,base){
+    const matches=[...text.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/g)];
+    for(const match of matches)text=text.replace(match[0],`url("${await embeddedResource(match[2],base)}")`);
+    return text;
+  }
+  async function cssSheet(sheet,base){
+    const rules=[...sheet.cssRules];
+    return (await Promise.all(rules.map(rule=>rule.styleSheet?cssSheet(rule.styleSheet,rule.styleSheet.href||base):embedCss(rule.cssText,sheet.href||base)))).join('\n');
+  }
+  async function sheetMarkup(frame){
+    const doc=frame.contentDocument,box=frame.getBoundingClientRect();
+    const signature=[captureRevision,box.width,box.height,doc.body.getAttribute('style'),doc.documentElement.getAttribute('style')].join('|');
+    const cached=captureMarkup.get(doc);if(cached?.signature===signature)return cached;
+    const value={signature,id:++captureSerial};
+    value.work=(async()=>{
+      const root=doc.documentElement.cloneNode(true);
+      root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
+      const css=(await Promise.all([...doc.styleSheets].map(sheet=>cssSheet(sheet,doc.baseURI)))).join('\n');
+      const style=doc.createElement('style');style.textContent=css+'\n*{caret-color:transparent!important}::selection{background:transparent!important}';root.querySelector('head').append(style);
+      const original=doc.querySelectorAll('img'),clones=root.querySelectorAll('img');
+      await Promise.all([...clones].map(async(img,i)=>{const url=original[i].currentSrc||original[i].src;if(url)img.setAttribute('src',await embeddedResource(url,doc.baseURI));img.removeAttribute('srcset');img.removeAttribute('loading');}));
+      await Promise.all([...root.querySelectorAll('image')].map(async(img)=>{const url=img.getAttribute('href')||img.getAttributeNS('http://www.w3.org/1999/xlink','href');if(url){const data=await embeddedResource(url,doc.baseURI);img.setAttribute('href',data);img.removeAttributeNS('http://www.w3.org/1999/xlink','href');}}));
+      root.querySelector('body').style.setProperty('overflow','visible','important');root.style.setProperty('overflow','visible','important');
+      root.setAttribute('xmlns','http://www.w3.org/1999/xhtml');root.style.width=box.width+'px';root.style.height=box.height+'px';
+      return new XMLSerializer().serializeToString(root);
+    })();captureMarkup.set(doc,value);return value;
+  }
+  async function captureSheet(shift=0){
+    const width=innerWidth,height=innerHeight,dpr=Math.min(2,devicePixelRatio||1),revision=captureRevision;
+    const frames=[...document.querySelectorAll('#viewer iframe')].filter(f=>{const b=f.getBoundingClientRect();return b.right>0&&b.left<width&&b.bottom>0&&b.top<height;});
+    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame)};}));
+    if(!parts.length)throw Error('No visible publication');
+    const key=JSON.stringify([width,height,dpr,...parts.map(p=>[p.markup.id,p.box.x,p.box.y])]);
+    if(capturePages.has(key)){const value=capturePages.get(key);capturePages.delete(key);capturePages.set(key,value);return value;}
+    const task=(async()=>{
+      const layers=await Promise.all(parts.map(async({box,markup})=>`<foreignObject x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}">${await markup.work}</foreignObject>`));
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width*dpr)}" height="${Math.round(height*dpr)}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
+      if(svg.length>8*1024*1024)throw Error('Page texture exceeds markup budget');
+      const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await image.decode();
+      if(disposed||revision!==captureRevision)throw Error('Stale page texture');return image;
+    })();capturePages.set(key,task);task.catch(()=>capturePages.delete(key));
+    // Four screen-sized textures at most; document markup is shared per chapter.
+    const limit=Math.max(2,Math.min(4,Math.floor(32*1024*1024/(width*height*dpr*dpr*4))));
+    while(capturePages.size>limit)capturePages.delete(capturePages.keys().next().value);
+    return task;
+  }
+  function warmCurl(){
+    clearTimeout(captureIdle);
+    if(preferences.transition!=='curl'||!motionAllowed('curl'))return;
+    captureIdle=setTimeout(async()=>{
+      if(disposed||gesture||sheetEffect)return;
+      try {
+        await captureSheet();
+        if(disposed||gesture||sheetEffect||rendition?.manager?.settings.axis!=='horizontal')return;
+        const frames=[...document.querySelectorAll('#viewer iframe')];
+        if(frames.length!==1)return;
+        const bounds=frames[0].getBoundingClientRect();
+        // Prepare adjacent positions without navigating, layout or progress
+        // writes. Actual turns reuse these textures by viewport geometry.
+        for(const shift of [-innerWidth,innerWidth]){
+          if(bounds.left+shift<=0&&bounds.right+shift>=innerWidth)await captureSheet(shift);
+        }
+      }catch(_){/* Unsupported artwork retains direct reading. */}
+    },100);
+  }
   function cancelTurnAnimation() {
     sheetEffect?.stop(); sheetEffect = undefined;
     const previous = turnAnimation; turnAnimation = undefined;
@@ -624,7 +717,7 @@ class KMReaderSheetEffect {
       else if (elapsed > 90) velocity = 0;
       lastX = p.x; lastTime = now;
       state.progress = Math.max(0, Math.min(1, (contact.x - p.x) * physical / innerWidth));
-      state.effect?.update(state.progress);
+      state.point=p;state.effect?.update(state.progress,p);
     };
     state.update = update;
     state.pointer = pointer;
@@ -650,7 +743,7 @@ class KMReaderSheetEffect {
       interactiveNavigation = true;
       try {
         state.effect = await transitionMove(delta, preferences.transition, contact.y / innerHeight);
-        state.effect?.update(state.progress);
+        state.effect?.update(state.progress,state.point);
         let commit = await finished;
         const duration = Math.min(300, Math.max(80, (Number(preferences.animationDuration) || 380) *
           (commit ? 1 - state.progress : state.progress)));
@@ -698,12 +791,13 @@ class KMReaderSheetEffect {
     }
     await tick();
     const effect = sheetEffect = new KMReaderSheetEffect(style,
-      (delta > 0) !== (config.direction === 'rtl') ? 1 : -1, preferences, y);
+      (delta > 0) !== (config.direction === 'rtl') ? 1 : -1, preferences, y, delta < 0, rendition.manager?.layout?.divisor === 2, captureSheet);
     if (!await effect.start(() => capturedLayout(move))) { if (sheetEffect === effect) sheetEffect = undefined; return null; }
     return effect;
   }
   async function turn(value) {
     if (!rendition || auxiliary) return;
+    for (const contents of rendition.getContents()) contents.document.getSelection()?.removeAllRanges();
     cancelTurnAnimation();
     const effect = await transitionMove(value.delta, value.style || preferences.transition, .5);
     if (!effect || disposed) return;
@@ -711,7 +805,7 @@ class KMReaderSheetEffect {
     // queue, and the next input can replace this compositor transition.
     const duration = Math.max(150, Math.min(900, Number(preferences.animationDuration) || 380));
     effect.animateTo(1, duration).then(() => {
-      effect.stop(); if (sheetEffect === effect) sheetEffect = undefined;
+      effect.stop(); if (sheetEffect === effect) sheetEffect = undefined; warmCurl();
     });
   }
   async function legacyProgress(progression) {
@@ -731,7 +825,7 @@ class KMReaderSheetEffect {
     }
   }
   async function open(value) {
-    config = value; preferences = value.preferences; restoring = true;
+    config = value; preferences = value.preferences; restoring = true; captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
     document.body.style.background = colors()[0];
     document.getElementById('viewer').style.background = colors()[0];
     book = ePub(value.url, {openAs: 'opf', replacements: 'none'});
@@ -745,19 +839,21 @@ class KMReaderSheetEffect {
       restoredCfi = false;
       await displayStable(value.href || undefined);
     }
-    await stable(rendition.getContents());
-    if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
-    await tick();
+    if (!restoredCfi && value.progression > 0) {
+      await legacyProgress(value.progression);
+      await stable(rendition.getContents());
+    }
     // Ready must describe a real viewport, even if the initial relocated
     // callback is still queued by the renderer.
     refreshViewportLocation();
     restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
-    position(false); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb'});
+    position(false); warmCurl(); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb'});
     window.addEventListener('resize', onResize);
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
   }
   function onResize() {
     cancelGesture();
+    captureRevision++;capturePages.clear();
     if (disposed || !rendition) return;
     cancelTurnAnimation();
     clearTimeout(resizeTimer);
@@ -849,9 +945,10 @@ class KMReaderSheetEffect {
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
+    suspendInput: value => { inputSuspended=!!value; cancelGesture(); cancelTurnAnimation(); for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges(); return true; },
     position: () => location, layoutReady,
     whenIdle: () => enqueue(waitForLayout), destroy: () => {
-      disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer);
+      disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
       cancelTurnAnimation();
       window.removeEventListener('resize', onResize);
       for (const event of inputEvents) document.removeEventListener(event, noteUserMove);

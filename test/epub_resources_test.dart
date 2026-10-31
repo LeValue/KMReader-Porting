@@ -22,6 +22,27 @@ void main() {
     () => directory = Directory.systemTemp.createTempSync('epub-resources-'),
   );
   tearDown(() => directory.deleteSync(recursive: true));
+  test(
+    'resource worker returns a navigation index without opening a UI archive',
+    () async {
+      final file = fixture(directory);
+      final host = await EpubHost.openFile(file.path);
+      addTearDown(host.close);
+      expect(
+        host.document.chapters.map((c) => c.path),
+        contains('OPS/one.xhtml'),
+      );
+      expect(host.document.tableOfContents, isNotEmpty);
+      expect(host.document.isReadingResource('OPS/one.xhtml'), true);
+      expect(host.document.isReadingResource('OPS/missing.xhtml'), false);
+      expect(() => host.document.archive, throwsStateError);
+      final response = await (await client.getUrl(
+        host.base.resolve('book/OPS/one.xhtml'),
+      )).close();
+      expect(response.statusCode, 200);
+      expect(await utf8.decoder.bind(response).join(), contains('<'));
+    },
+  );
   test('font imports validate, deduplicate and remove local files', () async {
     final store = LocalStore(sqlite3.openInMemory());
     addTearDown(store.close);

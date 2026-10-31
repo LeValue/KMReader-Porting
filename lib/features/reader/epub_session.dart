@@ -236,10 +236,23 @@ class EpubSession extends ChangeNotifier {
     File file, {
     bool incognito = false,
   }) async {
-    final doc = await EpubDocument.openAsync(file.path);
+    // Start remote resume and ZIP inspection together; only the resource worker
+    // opens the archive. The UI receives a small immutable navigation index.
+    final remoteProgress =
+        !repository.offline &&
+            !repository.store.isPending(repository.profile.id, book.id)
+        ? repository.api
+              .request(
+                '/api/v1/books/${Uri.encodeComponent(book.id)}/progression',
+                extra: {'Accept': 'application/vnd.readium.progression+json'},
+              )
+              .timeout(const Duration(seconds: 4))
+              .then<Json?>((v) => object(v), onError: (Object _) => null)
+        : Future<Json?>.value();
     EpubHost? host;
     try {
-      host = await EpubHost.open(doc, filePath: file.path);
+      host = await EpubHost.openFile(file.path);
+      final doc = host.document;
       final saved = object(
         repository.store.cached(repository.profile.id, 'epub:${book.id}'),
       );
@@ -267,14 +280,7 @@ class EpubSession extends ChangeNotifier {
       if (!repository.offline &&
           !repository.store.isPending(repository.profile.id, book.id)) {
         try {
-          final remote = object(
-            await repository.api
-                .request(
-                  '/api/v1/books/${Uri.encodeComponent(book.id)}/progression',
-                  extra: {'Accept': 'application/vnd.readium.progression+json'},
-                )
-                .timeout(const Duration(seconds: 4)),
-          );
+          final remote = await remoteProgress ?? <String, dynamic>{};
           final modified = DateTime.tryParse(text(remote['modified']));
           final local = DateTime.tryParse(text(saved['modified']));
           if (saved.isEmpty ||
@@ -312,7 +318,7 @@ class EpubSession extends ChangeNotifier {
       return session;
     } catch (_) {
       await host?.close();
-      doc.close();
+      host?.document.close();
       rethrow;
     }
   }
