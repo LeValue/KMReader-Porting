@@ -1,0 +1,89 @@
+{
+  "mode": "Flutter test VM / local archive, not native first paint or device FPS",
+  "baseline_source": "469ea3a6a8f6bd24c31d7c5ca1e3f850ba8a5995",
+  "optimized_source": "e264ccae459014148d7095c4e62f120cfe4cf2c6",
+  "method": "Five alternating old openAsync+host and new openFile pipelines; same EPUB, prepared current bundle assets, 8ms UI-isolate heartbeat; stop clock before closing",
+  "epub_sha256": "1bc88e79ef7cf9d5325abe0071e6302265b708df56d3af07db124c81e84197f6",
+  "samples": [
+    {
+      "iteration": 0,
+      "pipeline": "0.8.4",
+      "open_us": 431656,
+      "heartbeat_ticks": 53,
+      "largest_timer_gap_us": 10771,
+      "chapters": 13
+    },
+    {
+      "iteration": 0,
+      "pipeline": "0.8.5",
+      "open_us": 33490,
+      "heartbeat_ticks": 3,
+      "largest_timer_gap_us": 8804,
+      "chapters": 13
+    },
+    {
+      "iteration": 1,
+      "pipeline": "0.8.4",
+      "open_us": 232888,
+      "heartbeat_ticks": 28,
+      "largest_timer_gap_us": 12876,
+      "chapters": 13
+    },
+    {
+      "iteration": 1,
+      "pipeline": "0.8.5",
+      "open_us": 14388,
+      "heartbeat_ticks": 1,
+      "largest_timer_gap_us": 8576,
+      "chapters": 13
+    },
+    {
+      "iteration": 2,
+      "pipeline": "0.8.4",
+      "open_us": 227685,
+      "heartbeat_ticks": 28,
+      "largest_timer_gap_us": 10114,
+      "chapters": 13
+    },
+    {
+      "iteration": 2,
+      "pipeline": "0.8.5",
+      "open_us": 12373,
+      "heartbeat_ticks": 1,
+      "largest_timer_gap_us": 8985,
+      "chapters": 13
+    },
+    {
+      "iteration": 3,
+      "pipeline": "0.8.4",
+      "open_us": 215371,
+      "heartbeat_ticks": 26,
+      "largest_timer_gap_us": 8990,
+      "chapters": 13
+    },
+    {
+      "iteration": 3,
+      "pipeline": "0.8.5",
+      "open_us": 15130,
+      "heartbeat_ticks": 1,
+      "largest_timer_gap_us": 8621,
+      "chapters": 13
+    },
+    {
+      "iteration": 4,
+      "pipeline": "0.8.4",
+      "open_us": 221580,
+      "heartbeat_ticks": 27,
+      "largest_timer_gap_us": 9197,
+      "chapters": 13
+    },
+    {
+      "iteration": 4,
+      "pipeline": "0.8.5",
+      "open_us": 11449,
+      "heartbeat_ticks": 1,
+      "largest_timer_gap_us": 8844,
+      "chapters": 13
+    }
+  ]
+}

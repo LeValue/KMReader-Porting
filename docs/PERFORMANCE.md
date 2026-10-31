@@ -46,6 +46,18 @@ the unturned front deforms; geometry checks cover tangent continuity and local
 arc-length preservation. These are controlled rendering
 and state checks; native/physical-device frame-time acceptance is still needed.
 
+A [white-theme intermediate frame](images/epub-curl-front-0.8.5.png) shows
+front text bending into the diagonal roll; it is a controlled Chromium capture,
+not a frame-time measurement on a physical device.
+
+Five alternating local Moby Dick opening samples measured archive inspection
+and resource-worker preparation at median **228 ms → 14 ms**. Both pipelines
+used the same archive and prepared bundle assets. [Raw samples](benchmarks/epub-opening-0.8.5.json)
+retain the measured source revisions: the optimized archive/worker files are
+unchanged in the published runtime source. This excludes server download,
+native WebView creation and first visible paint; it is not total opening time
+or a Windows/Android FPS measurement.
+
 The 0.8.4 notes below describe the replaced implementation for comparison.
 
 # Reader controls, sheet transitions and gestures in 0.8.4

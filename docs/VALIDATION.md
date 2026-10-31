@@ -1,5 +1,57 @@
 # Development validation
 
+## 0.8.5 preview — desktop input, faster opening and GPU curls
+
+Published [0.8.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.5-preview.1), runtime source `0628968e2ad2dc80856ae017caf307fa2bdbca7e`.
+All three jobs passed in [verification 41196927319](https://github.com/LeValue/KMReader-Porting/actions/runs/41196927319);
+[publisher 41198455013](https://github.com/LeValue/KMReader-Porting/actions/runs/41198455013) reused that exact source and Windows artifact.
+
+All **302 host tests** pass with Chromium and ONNX enabled. Formatting, static
+analysis, eight Python checks, pinned 128-entry settings inventory and isolated
+real Komga acceptance pass. Twenty warm Komga visits make zero additional HTTP
+requests. New checks cover navigation-index-only worker ownership, menu alignment
+inside a narrow panel on a wide desktop, slider dragging without form rebuilds,
+and slide/cover layering in both directions. Existing cancellation, rapid turns,
+large text, default EPUB, CJK and native renderer recovery guards remain.
+
+Browser checks verify high-resolution GPU curl textures and their final rendered
+pixels against the live publication. The visible front bends before the roll
+arrives, with continuous tangent/arc-length checks. Changing the vertical drag
+changes the fold;
+PNG encoding is forbidden during the drag loop. Single/spread and RTL cases retain
+mouse/touch, second-finger, cancellation and resize checks. Real margin clicks
+cannot create a phantom selection, and options suspend book input. These are
+controlled pixel/state checks, not equality with Apple's renderer or physical FPS.
+
+Windows passes **19 native checks**, Android **18 native checks** plus
+both notch/rotation checks. The default EPUB case now uses actual Flutter mouse
+input, verifies clicks retain controls/OS window state, tests keyboard arrows,
+and captures rendered glyphs during a held WebGL curl. Fullscreen round-trips and
+real WebView2 crash/recreation remain tested. The first Android attempt lost its
+ADB/driver connection after the notch checks; the repeated job passed on unchanged
+source. Both native release builds and
+isolated Windows startup pass. See [implementation and limits](PERFORMANCE.md).
+
+All five release assets were downloaded and their SHA256SUMS/GitHub digests checked.
+The three signed, non-debuggable APKs match locally verified bytes and embedded
+source/version/build 15. Retained package/certificate support in-place updates.
+All APKs pass 16KiB ZIP alignment; all nine libraries in each 64-bit APK pass
+16KiB ELF LOAD alignment. All **63 Windows files**, including
+21 AMD64 PE files, match the exact successful CI artifact.
+The release executable omits debug wheel injection. Windows remains unsigned.
+
+GPU/artwork paths that cannot prepare a safe texture retain direct reading.
+Complete upstream parity and physical-device frame-time acceptance remain open;
+see [parity](PARITY.md). Historical results below describe their respective builds.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.5-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-android-arm64-preview.apk) | 77,565,814 | `a2d8b1b82061aeccae76ecb4d207b285dffb97ae46c20732b1627bfe55d86ade` |
+| [KMReader-0.8.5-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-android-armv7-preview.apk) | 63,882,952 | `2241e90c779446396b9f9f97fc9d2717841e61a043924c1cc4ef326d57f10271` |
+| [KMReader-0.8.5-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-android-x64-preview.apk) | 83,801,659 | `215d3e7c6fbac32659a3fdd1d6acaac2456c6f3e2b627e2fa11404e128c3d020` |
+| [KMReader-0.8.5-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-windows-x64-preview.zip) | 34,392,357 | `5defa0fa19a8f7b024943fc5a4b7e345245a1e78e29db33a9a795987a755c118` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/SHA256SUMS.txt) | 424 | `ea8cd0b5d29c17beea5545b4e772e4d11e8e267efd5b26aba7ab1029759c4f0e` |
+
 ## 0.8.4 preview — retained reader surfaces, fullscreen and visible page sheets
 
 Published [0.8.4](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.4-preview.1), runtime source `469ea3a6a8f6bd24c31d7c5ca1e3f850ba8a5995`.
