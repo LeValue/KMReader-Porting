@@ -15,6 +15,7 @@ class WidePage extends StatefulWidget {
     required this.child,
     required this.startPageScroll,
     this.onTap,
+    this.onTapKind,
     this.onControls,
     this.onZoomSettled,
     this.active = true,
@@ -29,6 +30,7 @@ class WidePage extends StatefulWidget {
   final Drag? Function(DragStartDetails) startPageScroll;
   final void Function(Offset, Size)? onTap;
   final VoidCallback? onControls;
+  final ValueChanged<PointerDeviceKind>? onTapKind;
   final ValueChanged<double>? onZoomSettled;
   @override
   State<WidePage> createState() => _WidePageState();
@@ -130,6 +132,7 @@ class _WidePageState extends State<WidePage> {
           if (_scroll.hasClients) _scroll.jumpTo(_gestureStart);
         },
         onZoomSettled: widget.onZoomSettled,
+        onTapKind: widget.onTapKind,
         onTap: (point) {
           if (_zoom.value.getMaxScaleOnAxis() > 1.001) {
             widget.onControls?.call();

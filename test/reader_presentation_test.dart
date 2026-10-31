@@ -12,6 +12,7 @@ import 'package:kmreader/features/reader/epub_session.dart';
 import 'package:kmreader/features/reader/page_transition.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
 import 'package:kmreader/features/reader/reader_page.dart';
+import 'package:kmreader/features/reader/reader_viewport.dart';
 import 'package:kmreader/features/settings/settings_style.dart';
 import 'package:kmreader/ui/reader_options.dart';
 import 'package:kmreader/ui/strings.dart';
@@ -262,6 +263,18 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        final beforeContentClick = List<bool>.of(native);
+        await tester.tap(
+          find.byType(ReaderViewport).first,
+          kind: ui.PointerDeviceKind.mouse,
+        );
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(find.byTooltip('Full Screen'), findsOneWidget);
+        expect(
+          native,
+          beforeContentClick,
+          reason: 'Desktop content clicks cannot toggle window or controls',
+        );
         await tester.tap(find.byTooltip('Full Screen'));
         await tester.pumpAndSettle();
         expect(native.last, true);
@@ -271,6 +284,20 @@ void main() {
         expect(native.last, false);
         expect(find.byTooltip('Full Screen'), findsOneWidget);
         expect(find.byType(ReaderPage), findsOneWidget);
+        await tester.tap(find.byTooltip('Full Screen'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(ReaderViewport).first);
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Exit Full Screen'), findsOneWidget);
+        expect(
+          native.last,
+          true,
+          reason: 'Windows touch retains a way to restore controls',
+        );
+        await tester.tap(find.byTooltip('Exit Full Screen'));
+        await tester.pumpAndSettle();
+        expect(native.last, false);
         expect(tester.takeException(), isNull);
       } finally {
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));

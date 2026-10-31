@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/foundation.dart';
 
 import 'page_transition.dart';
 
@@ -331,9 +332,18 @@ class _ReaderPageState extends State<ReaderPage> {
     _decodeZoom = 1;
   }
 
+  PointerDeviceKind _inputKind = PointerDeviceKind.touch;
+  void _toggleControlsFromTap() {
+    if (defaultTargetPlatform == TargetPlatform.windows &&
+        _inputKind == PointerDeviceKind.mouse) {
+      return;
+    }
+    setState(() => _controls = !_controls);
+  }
+
   void _tap(Offset point, Size size) {
     if (_zoom.value.getMaxScaleOnAxis() > 1.001) {
-      setState(() => _controls = !_controls);
+      _toggleControlsFromTap();
       return;
     }
     switch (tapAction(
@@ -346,7 +356,7 @@ class _ReaderPageState extends State<ReaderPage> {
       case TapAction.next:
         _turn(1);
       case TapAction.controls:
-        setState(() => _controls = !_controls);
+        _toggleControlsFromTap();
     }
   }
 
@@ -1498,6 +1508,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                       startScroll: _pageDrag,
                                       onActivityChanged: _activity,
                                       onZoomSettled: _zoomSettled,
+                                      onTapKind: (kind) => _inputKind = kind,
                                       onTap: (point) =>
                                           _tap(point, constraints.biggest),
                                       onWheel: (delta) {
@@ -1534,6 +1545,8 @@ class _ReaderPageState extends State<ReaderPage> {
                                             return _motion(
                                               index,
                                               _PageImage(
+                                                onTapKind: (kind) =>
+                                                    _inputKind = kind,
                                                 rasterPages: widget.rasterPages,
                                                 repository: widget.repository,
                                                 book: widget.book,
@@ -1568,6 +1581,8 @@ class _ReaderPageState extends State<ReaderPage> {
                                             )
                                               Expanded(
                                                 child: _PageImage(
+                                                  onTapKind: (kind) =>
+                                                      _inputKind = kind,
                                                   rasterPages:
                                                       widget.rasterPages,
                                                   repository: widget.repository,
@@ -1586,10 +1601,8 @@ class _ReaderPageState extends State<ReaderPage> {
                                                         )
                                                       : null,
                                                   onWideTap: _tap,
-                                                  onControls: () => setState(
-                                                    () =>
-                                                        _controls = !_controls,
-                                                  ),
+                                                  onControls:
+                                                      _toggleControlsFromTap,
                                                   decodeZoom:
                                                       index == _viewIndex
                                                       ? _decodeZoom
@@ -1627,10 +1640,13 @@ class _ReaderPageState extends State<ReaderPage> {
                                 itemCount: widget.book.pages,
                                 itemBuilder: (context, index) =>
                                     GestureDetector(
-                                      onTapUp: (details) => _tap(
-                                        details.localPosition,
-                                        MediaQuery.sizeOf(context),
-                                      ),
+                                      onTapUp: (details) {
+                                        _inputKind = details.kind;
+                                        _tap(
+                                          details.localPosition,
+                                          MediaQuery.sizeOf(context),
+                                        );
+                                      },
                                       child: FractionallySizedBox(
                                         widthFactor:
                                             settings.mode == ReadingMode.webtoon
@@ -1645,6 +1661,8 @@ class _ReaderPageState extends State<ReaderPage> {
                                                 : 12,
                                           ),
                                           child: _PageImage(
+                                            onTapKind: (kind) =>
+                                                _inputKind = kind,
                                             rasterPages: widget.rasterPages,
                                             repository: widget.repository,
                                             book: widget.book,
@@ -1906,6 +1924,7 @@ class _PageImage extends StatefulWidget {
     this.startPageScroll,
     this.onWideTap,
     this.onControls,
+    this.onTapKind,
     this.rasterPages,
   });
   final RasterPages? rasterPages;
@@ -1915,6 +1934,7 @@ class _PageImage extends StatefulWidget {
   final Drag? Function(DragStartDetails)? startPageScroll;
   final void Function(Offset, Size)? onWideTap;
   final VoidCallback? onControls;
+  final ValueChanged<PointerDeviceKind>? onTapKind;
   final Repository repository;
   final Book book;
   final int page;
@@ -2129,6 +2149,7 @@ class _PageImageState extends State<_PageImage>
                     : 1,
                 startPageScroll: widget.startPageScroll!,
                 onTap: widget.onWideTap,
+                onTapKind: widget.onTapKind,
                 onControls: widget.onControls,
                 onZoomSettled: (scale) {
                   final decode = scale > 1.1 ? 2.0 : 1.0;
