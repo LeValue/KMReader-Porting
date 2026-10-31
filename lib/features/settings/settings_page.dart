@@ -729,51 +729,53 @@ class _DashboardSettingsState extends State<_DashboardSettings> {
       ...saved.whereType<String>().where(dashboardSections.contains),
       ...dashboardSections.where((s) => !saved.contains(s)),
     ];
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(context, 'Dashboard Sections')),
-        actions: [
-          IconButton(
-            tooltip: tr(context, 'dashboard.reset'),
-            icon: const Icon(Icons.restore),
-            onPressed: () {
-              setState(() {
-                widget.repository.store.setSetting(key, <String>[]);
-                widget.repository.store.setSetting(
-                  'dashboardOrder:${widget.repository.profile.id}',
-                  dashboardSections,
-                );
-              });
-              widget.repository.catalogChanges.value++;
-            },
-          ),
-        ],
-      ),
+    return SettingsScaffold(
+      title: 'Dashboard Sections',
+      actions: [
+        IconButton(
+          tooltip: tr(context, 'dashboard.reset'),
+          icon: const Icon(Icons.restore),
+          onPressed: () {
+            setState(() {
+              widget.repository.store.setSetting(key, <String>[]);
+              widget.repository.store.setSetting(
+                'dashboardOrder:${widget.repository.profile.id}',
+                dashboardSections,
+              );
+            });
+            widget.repository.catalogChanges.value++;
+          },
+        ),
+      ],
       body: Column(
         children: [
-          PreferencePage(
-            title: 'Dashboard',
-            embedded: true,
-            store: widget.repository.store,
-            onChanged: (_) {
-              widget.repository.changed();
-              setState(() {});
-            },
-            specs: const [
-              PreferenceSpec(
-                'showDashboardCardKindMenu',
-                'settings.dashboard.cardKindMenu.title',
-                true,
-              ),
-              PreferenceSpec(
-                'showDashboardSectionGradientBackground',
-                'settings.dashboard.sectionBackground.title',
-                false,
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+            child: PreferencePage(
+              title: 'Dashboard',
+              embedded: true,
+              store: widget.repository.store,
+              onChanged: (_) {
+                widget.repository.changed();
+                setState(() {});
+              },
+              specs: const [
+                PreferenceSpec(
+                  'showDashboardCardKindMenu',
+                  'settings.dashboard.cardKindMenu.title',
+                  true,
+                ),
+                PreferenceSpec(
+                  'showDashboardSectionGradientBackground',
+                  'settings.dashboard.sectionBackground.title',
+                  false,
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: ReorderableListView(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
               buildDefaultDragHandles: false,
               onReorderItem: (old, target) {
                 final updated = [...order];

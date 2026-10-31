@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/core/models.dart';
+import 'package:kmreader/core/page_motion.dart';
 import 'package:kmreader/features/reader/cover_page.dart';
 
 void main() {
@@ -43,6 +44,7 @@ void main() {
                 itemCount: 2,
                 itemBuilder: (_, index) => CoverPage(
                   controller: pages,
+                  motion: const PageMotion(tint: 0, cornerRadius: 0),
                   index: index,
                   reverse: rtl,
                   background: Colors.white,

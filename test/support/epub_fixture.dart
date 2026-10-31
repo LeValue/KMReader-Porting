@@ -7,6 +7,7 @@ File fixture(
   Directory directory, {
   Map<String, List<int>> resources = const {},
   int paragraphCount = 120,
+  String readingDirection = 'ltr',
 }) {
   final paragraphs = List.generate(
     paragraphCount,
@@ -15,7 +16,8 @@ File fixture(
   ).join();
   final files = {
     'META-INF/container.xml': '<container><rootfiles><rootfile full-path="OPS/package.opf"/></rootfiles></container>',
-    'OPS/package.opf': '<package unique-identifier="uid"><metadata><identifier id="uid">urn:uuid:550e8400-e29b-41d4-a716-446655440000</identifier><language>en</language><title>Browser fixture</title></metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/><item id="notes" href="notes.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/><itemref idref="two"/><itemref idref="notes" linear="no"/></spine></package>',
+    'OPS/package.opf':
+        '<package unique-identifier="uid"><metadata><identifier id="uid">urn:uuid:550e8400-e29b-41d4-a716-446655440000</identifier><language>en</language><title>Browser fixture</title></metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/><item id="notes" href="notes.xhtml" media-type="application/xhtml+xml"/></manifest><spine page-progression-direction="$readingDirection"><itemref idref="one"/><itemref idref="two"/><itemref idref="notes" linear="no"/></spine></package>',
     'OPS/one.xhtml':
         '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter one</title></head><body><h1>Chapter one</h1><a href="notes.xhtml#note">Footnote</a>$paragraphs</body></html>',
     'OPS/two.xhtml':

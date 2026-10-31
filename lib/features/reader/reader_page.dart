@@ -21,6 +21,7 @@ import '../../core/document_cache.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/reader_options.dart';
 import '../../ui/theme.dart';
 import 'document_readers.dart';
 import 'reading_session.dart';
@@ -64,34 +65,85 @@ class ReaderPage extends StatefulWidget {
 class _ReaderPageState extends State<ReaderPage> {
   final _curl = GlobalKey<ReaderPageTransitionState>();
   final _pageBoundary = GlobalKey();
-  Future<Uint8List?> _capturePage() async {
+  Future<ui.Image?> _capturePageImage() async {
     final boundary = _pageBoundary.currentContext?.findRenderObject();
     if (boundary is! RenderRepaintBoundary || boundary.debugNeedsPaint) {
       return null;
     }
-    final image = await boundary.toImage(
+    return boundary.toImage(
       pixelRatio: boundary.size.longestSide > 2048
           ? 2048 / boundary.size.longestSide
           : 1,
     );
-    try {
-      return (await image.toByteData(format: ui.ImageByteFormat.png))?.buffer
-          .asUint8List();
-    } finally {
-      image.dispose();
+  }
+
+  bool _previewing = false;
+  Drag? _pageDrag(DragStartDetails details) {
+    if (!_pages.hasClients) return null;
+    final p = _session.preferences;
+    final reverse = p.direction == ReadingDirection.rtl;
+    if (!p.motion.followGesture ||
+        !p.animate ||
+        MediaQuery.disableAnimationsOf(context)) {
+      return DiscreteReaderDrag(reverse: reverse, onTurn: _turn);
     }
+    if (p.transition != 'curl' || _curl.currentState == null) {
+      return _pages.position.drag(details, () {});
+    }
+    final origin = _viewIndex;
+    final boundary =
+        _pageBoundary.currentContext?.findRenderObject() as RenderBox?;
+    return _curl.currentState!.drag(
+      reverse: reverse,
+      width: boundary?.size.width ?? MediaQuery.sizeOf(context).width,
+      preview: (delta) async {
+        final target = (origin + delta).clamp(0, _viewCount - 1);
+        if (target == origin || !mounted) return false;
+        _previewing = true;
+        _pages.jumpToPage(target);
+        await WidgetsBinding.instance.endOfFrame;
+        return true;
+      },
+      finish: (delta, commit) async {
+        if (!mounted || !_pages.hasClients) return;
+        if (commit) {
+          final target = (origin + delta).clamp(0, _viewCount - 1);
+          _previewing = true;
+          _pages.jumpToPage(target);
+          _previewing = false;
+          setState(() {
+            _partIndex = target;
+            _session.go(
+              _split ? _parts[target].page : _session.firstPage(target),
+            );
+          });
+        } else {
+          _pages.jumpToPage(_viewIndex);
+          await WidgetsBinding.instance.endOfFrame;
+          _previewing = false;
+        }
+        _settled();
+      },
+    );
   }
 
   void _turn(int delta) {
     if (_session.preferences.transition == 'curl' &&
         _session.preferences.animate &&
+        !MediaQuery.disableAnimationsOf(context) &&
         _session.preferences.mode == ReadingMode.paged &&
         _curl.currentState != null) {
       unawaited(
-        _curl.currentState!.turn('curl', delta, () async {
-          _turnDirect(delta);
-          await WidgetsBinding.instance.endOfFrame;
-        }),
+        _curl.currentState!.turn(
+          'curl',
+          _session.preferences.direction == ReadingDirection.rtl
+              ? -delta
+              : delta,
+          () async {
+            _turnDirect(delta);
+            await WidgetsBinding.instance.endOfFrame;
+          },
+        ),
       );
     } else {
       _turnDirect(delta);
@@ -245,10 +297,10 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _settled() {
-    if (_scrolling || _interacting || !mounted) return;
+    if (_previewing || _scrolling || _interacting || !mounted) return;
     _settleTimer?.cancel();
     _settleTimer = Timer(const Duration(milliseconds: 40), () {
-      if (!mounted || _scrolling || _interacting) return;
+      if (!mounted || _previewing || _scrolling || _interacting) return;
       _rememberPart();
       _commitIfReady();
       _preload();
@@ -301,6 +353,15 @@ class _ReaderPageState extends State<ReaderPage> {
   final _scroll = ItemScrollController();
   final _positions = ItemPositionsListener.create();
   bool _controls = true, _verticalReady = false;
+  bool? _fullscreenOverride;
+  bool get _isFullscreen =>
+      _fullscreenOverride ??
+      (widget.repository.store.setting<bool>('autoFullscreenOnOpen') == true);
+  void _toggleFullscreen() => setState(() {
+    final enabled = !_isFullscreen;
+    _fullscreenOverride = enabled;
+    _controls = !enabled;
+  });
   final Set<int> _readyPages = {};
   List<Json> _dimensions = [];
   Map<int, double> _aspects = {};
@@ -528,11 +589,12 @@ class _ReaderPageState extends State<ReaderPage> {
     }
     final index = (_partIndex + delta).clamp(0, _parts.length - 1);
     if (_session.preferences.animate &&
+        !MediaQuery.disableAnimationsOf(context) &&
         _session.preferences.transition != 'curl') {
       _pages.animateToPage(
         index,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+        duration: Duration(milliseconds: _session.preferences.motion.duration),
+        curve: Curves.easeInOutCubic,
       );
     } else {
       _pages.jumpToPage(index);
@@ -540,12 +602,14 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   Widget _motion(int index, Widget child, Color background) =>
-      _session.preferences.animate && _session.preferences.transition == 'cover'
+      _session.preferences.animate && !MediaQuery.disableAnimationsOf(context)
       ? CoverPage(
           controller: _pages,
           index: index,
           reverse: _session.preferences.direction == ReadingDirection.rtl,
           background: background,
+          motion: _session.preferences.motion,
+          cover: _session.preferences.transition == 'cover',
           child: child,
         )
       : child;
@@ -609,7 +673,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _commitIfReady() {
-    if (_scrolling || _interacting) return;
+    if (_previewing || _scrolling || _interacting) return;
     if (['auto', 'ltr', 'rtl'].contains(_session.preferences.splitWide) &&
         !_dimensionsLoaded) {
       return;
@@ -756,6 +820,7 @@ class _ReaderPageState extends State<ReaderPage> {
     }
     if (_session.preferences.mode == ReadingMode.paged && _pages.hasClients) {
       if (!_session.preferences.animate ||
+          MediaQuery.disableAnimationsOf(context) ||
           _session.preferences.transition == 'curl') {
         _pages.jumpToPage(_viewIndex);
         setState(() {});
@@ -764,8 +829,8 @@ class _ReaderPageState extends State<ReaderPage> {
       }
       _pages.animateToPage(
         _viewIndex,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+        duration: Duration(milliseconds: _session.preferences.motion.duration),
+        curve: Curves.easeInOutCubic,
       );
     } else if (_scroll.isAttached) {
       _scroll.scrollTo(
@@ -778,6 +843,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _configure(ReaderPreferences preferences) {
+    _curl.currentState?.cancelGesture();
     preferences = seriesReaderPreferences(preferences, _seriesMetadata);
     final old = _pages;
     _resetZoom();
@@ -896,6 +962,7 @@ class _ReaderPageState extends State<ReaderPage> {
   void _settings() => showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
+    constraints: const BoxConstraints(maxWidth: 760),
     isScrollControlled: true,
     builder: (context) => StatefulBuilder(
       builder: (context, update) {
@@ -906,365 +973,387 @@ class _ReaderPageState extends State<ReaderPage> {
 
         final p = _session.preferences;
         return ReaderSafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tr(context, 'Reader Settings'),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 20),
-                  Wrap(
-                    spacing: 10,
-                    children: [
-                      for (final mode in ReadingMode.values)
-                        ChoiceChip(
-                          label: Text(switch (mode) {
-                            ReadingMode.paged => tr(context, 'Paged'),
-                            ReadingMode.vertical => tr(context, 'Vertical'),
-                            ReadingMode.webtoon => 'Webtoon',
-                          }),
-                          selected: p.mode == mode,
-                          onSelected: (_) => apply(
-                            p.copy(mode: mode, useSeriesDirection: false),
+          child: ReaderOptionsPanel(
+            title: 'Reader Settings',
+            children:
+                [
+                      Wrap(
+                        spacing: 10,
+                        children: [
+                          for (final mode in ReadingMode.values)
+                            ChoiceChip(
+                              label: Text(switch (mode) {
+                                ReadingMode.paged => tr(context, 'Paged'),
+                                ReadingMode.vertical => tr(context, 'Vertical'),
+                                ReadingMode.webtoon => 'Webtoon',
+                              }),
+                              selected: p.mode == mode,
+                              onSelected: (_) => apply(
+                                p.copy(mode: mode, useSeriesDirection: false),
+                              ),
+                            ),
+                        ],
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          tr(context, 'Use Series Reading Direction'),
+                        ),
+                        value: p.useSeriesDirection,
+                        onChanged: (value) =>
+                            apply(p.copy(useSeriesDirection: value)),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Right to Left')),
+                        value: p.direction == ReadingDirection.rtl,
+                        onChanged: (v) => apply(
+                          p.copy(
+                            direction: v
+                                ? ReadingDirection.rtl
+                                : ReadingDirection.ltr,
+                            useSeriesDirection: false,
                           ),
                         ),
-                    ],
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Use Series Reading Direction')),
-                    value: p.useSeriesDirection,
-                    onChanged: (value) =>
-                        apply(p.copy(useSeriesDirection: value)),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Right to Left')),
-                    value: p.direction == ReadingDirection.rtl,
-                    onChanged: (v) => apply(
-                      p.copy(
-                        direction: v
-                            ? ReadingDirection.rtl
-                            : ReadingDirection.ltr,
-                        useSeriesDirection: false,
                       ),
-                    ),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Double Page')),
-                    value: p.spread,
-                    onChanged:
-                        p.mode == ReadingMode.paged && p.splitWide == 'none'
-                        ? (v) => apply(p.copy(spread: v))
-                        : null,
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Split Wide Pages')),
-                    subtitle: Text(
-                      tr(
-                        context,
-                        {
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Double Page')),
+                        value: p.spread,
+                        onChanged:
+                            p.mode == ReadingMode.paged && p.splitWide == 'none'
+                            ? (v) => apply(p.copy(spread: v))
+                            : null,
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Split Wide Pages')),
+                        subtitle: Text(
+                          tr(
+                            context,
+                            {
+                                  'none': 'reader.tapZoneMode.none',
+                                  'auto': 'reader.tapZoneMode.auto',
+                                  'ltr': 'Left to Right',
+                                  'rtl': 'Right to Left',
+                                  'scroll': 'reader.splitWidePage.scroll',
+                                }[p.splitWide] ??
+                                p.splitWide,
+                          ),
+                        ),
+                        onTap: () async {
+                          final value = await chooseValue(
+                            context,
+                            title: 'Split Wide Pages',
+                            selected: p.splitWide,
+                            choices: {
                               'none': 'reader.tapZoneMode.none',
                               'auto': 'reader.tapZoneMode.auto',
                               'ltr': 'Left to Right',
                               'rtl': 'Right to Left',
                               'scroll': 'reader.splitWidePage.scroll',
-                            }[p.splitWide] ??
-                            p.splitWide,
-                      ),
-                    ),
-                    onTap: () async {
-                      final value = await chooseValue(
-                        context,
-                        title: 'Split Wide Pages',
-                        selected: p.splitWide,
-                        choices: {
-                          'none': 'reader.tapZoneMode.none',
-                          'auto': 'reader.tapZoneMode.auto',
-                          'ltr': 'Left to Right',
-                          'rtl': 'Right to Left',
-                          'scroll': 'reader.splitWidePage.scroll',
+                            },
+                          );
+                          if (value != null && mounted && context.mounted) {
+                            apply(p.copy(splitWide: value, spread: false));
+                          }
                         },
-                      );
-                      if (value != null && mounted && context.mounted) {
-                        apply(p.copy(splitWide: value, spread: false));
-                      }
-                    },
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Page Fit')),
-                    subtitle: Text(
-                      tr(
-                        context,
-                        {
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Page Fit')),
+                        subtitle: Text(
+                          tr(
+                            context,
+                            {
+                                  'contain': 'Fit Page',
+                                  'fitWidth': 'Fit Width',
+                                  'cover': 'Fill Screen',
+                                }[p.fit] ??
+                                'Fit Page',
+                          ),
+                        ),
+                        onTap: () async {
+                          final fit = await chooseValue(
+                            context,
+                            title: 'Page Fit',
+                            selected: p.fit,
+                            choices: {
                               'contain': 'Fit Page',
                               'fitWidth': 'Fit Width',
                               'cover': 'Fill Screen',
-                            }[p.fit] ??
-                            'Fit Page',
-                      ),
-                    ),
-                    onTap: () async {
-                      final fit = await chooseValue(
-                        context,
-                        title: 'Page Fit',
-                        selected: p.fit,
-                        choices: {
-                          'contain': 'Fit Page',
-                          'fitWidth': 'Fit Width',
-                          'cover': 'Fill Screen',
+                            },
+                          );
+                          if (fit != null && mounted && context.mounted) {
+                            apply(p.copy(fit: fit));
+                          }
                         },
-                      );
-                      if (fit != null && mounted && context.mounted) {
-                        apply(p.copy(fit: fit));
-                      }
-                    },
-                  ),
-                  if (Theme.of(context).platform == TargetPlatform.android)
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(tr(context, 'Use Display Cutout')),
-                      subtitle: Text(
-                        tr(context, 'Allow the page behind the camera notch'),
                       ),
-                      value: p.extendIntoCutout,
-                      onChanged: (value) =>
-                          apply(p.copy(extendIntoCutout: value)),
-                    ),
-                  for (final setting in ['tapMode', 'tapInversion', 'preload'])
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        tr(
-                          context,
-                          {
-                            'tapMode': 'Tap Zones',
-                            'tapInversion': 'Tap Zone Inversion',
-                            'preload': 'Preloading',
-                          }[setting]!,
+                      if (Theme.of(context).platform == TargetPlatform.android)
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(tr(context, 'Use Display Cutout')),
+                          subtitle: Text(
+                            tr(
+                              context,
+                              'Allow the page behind the camera notch',
+                            ),
+                          ),
+                          value: p.extendIntoCutout,
+                          onChanged: (value) =>
+                              apply(p.copy(extendIntoCutout: value)),
                         ),
-                      ),
-                      subtitle: Text(
-                        tr(
-                          context,
-                          {
-                            'tapMode': p.tapMode,
-                            'tapInversion': p.tapInversion,
-                            'preload': p.preload,
-                          }[setting]!,
+                      for (final setting in [
+                        'tapMode',
+                        'tapInversion',
+                        'preload',
+                      ])
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            tr(
+                              context,
+                              {
+                                'tapMode': 'Tap Zones',
+                                'tapInversion': 'Tap Zone Inversion',
+                                'preload': 'Preloading',
+                              }[setting]!,
+                            ),
+                          ),
+                          subtitle: Text(
+                            tr(
+                              context,
+                              {
+                                'tapMode': p.tapMode,
+                                'tapInversion': p.tapInversion,
+                                'preload': p.preload,
+                              }[setting]!,
+                            ),
+                          ),
+                          onTap: () async {
+                            final choices = switch (setting) {
+                              'tapMode' => {
+                                'none': 'reader.tapZoneMode.none',
+                                'default': 'reader.tapZoneMode.default',
+                                'edge': 'reader.tapZoneMode.edge',
+                                'kindle': 'reader.tapZoneMode.kindle',
+                                'lShape': 'reader.tapZoneMode.lShape',
+                                'tSplit': 'reader.tapZoneMode.tSplit',
+                              },
+                              'tapInversion' => {
+                                'auto': 'reader.tapZoneInversionMode.auto',
+                                'normal': 'reader.tapZoneInversionMode.normal',
+                                'inverted':
+                                    'reader.tapZoneInversionMode.inverted',
+                              },
+                              _ => {
+                                'lowMemory': 'Low Memory',
+                                'balanced': 'Balanced',
+                                'fastPageTurns': 'Fast Page Turns',
+                              },
+                            };
+                            final selected = await chooseValue(
+                              context,
+                              title: {
+                                'tapMode': 'Tap Zones',
+                                'tapInversion': 'Tap Zone Inversion',
+                                'preload': 'Preloading',
+                              }[setting]!,
+                              selected: {
+                                'tapMode': p.tapMode,
+                                'tapInversion': p.tapInversion,
+                                'preload': p.preload,
+                              }[setting]!,
+                              choices: choices,
+                            );
+                            if (selected != null &&
+                                mounted &&
+                                context.mounted) {
+                              apply(switch (setting) {
+                                'tapMode' => p.copy(tapMode: selected),
+                                'tapInversion' => p.copy(
+                                  tapInversion: selected,
+                                ),
+                                _ => p.copy(preload: selected),
+                              });
+                            }
+                          },
                         ),
-                      ),
-                      onTap: () async {
-                        final choices = switch (setting) {
-                          'tapMode' => {
-                            'none': 'reader.tapZoneMode.none',
-                            'default': 'reader.tapZoneMode.default',
-                            'edge': 'reader.tapZoneMode.edge',
-                            'kindle': 'reader.tapZoneMode.kindle',
-                            'lShape': 'reader.tapZoneMode.lShape',
-                            'tSplit': 'reader.tapZoneMode.tSplit',
-                          },
-                          'tapInversion' => {
-                            'auto': 'reader.tapZoneInversionMode.auto',
-                            'normal': 'reader.tapZoneInversionMode.normal',
-                            'inverted': 'reader.tapZoneInversionMode.inverted',
-                          },
-                          _ => {
-                            'lowMemory': 'Low Memory',
-                            'balanced': 'Balanced',
-                            'fastPageTurns': 'Fast Page Turns',
-                          },
-                        };
-                        final selected = await chooseValue(
-                          context,
-                          title: {
-                            'tapMode': 'Tap Zones',
-                            'tapInversion': 'Tap Zone Inversion',
-                            'preload': 'Preloading',
-                          }[setting]!,
-                          selected: {
-                            'tapMode': p.tapMode,
-                            'tapInversion': p.tapInversion,
-                            'preload': p.preload,
-                          }[setting]!,
-                          choices: choices,
-                        );
-                        if (selected != null && mounted && context.mounted) {
-                          apply(switch (setting) {
-                            'tapMode' => p.copy(tapMode: selected),
-                            'tapInversion' => p.copy(tapInversion: selected),
-                            _ => p.copy(preload: selected),
-                          });
-                        }
-                      },
-                    ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Border Cropping')),
-                    subtitle: Text(
-                      tr(
-                        context,
-                        {
-                          'disabled': 'Disabled',
-                          'conservative': 'Conservative',
-                          'aggressive': 'Aggressive',
-                        }[p.borderCrop]!,
-                      ),
-                    ),
-                    onTap: () async {
-                      final value = await chooseValue(
-                        context,
-                        title: 'Border Cropping',
-                        selected: p.borderCrop,
-                        choices: const {
-                          'disabled': 'Disabled',
-                          'conservative': 'Conservative',
-                          'aggressive': 'Aggressive',
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Border Cropping')),
+                        subtitle: Text(
+                          tr(
+                            context,
+                            {
+                              'disabled': 'Disabled',
+                              'conservative': 'Conservative',
+                              'aggressive': 'Aggressive',
+                            }[p.borderCrop]!,
+                          ),
+                        ),
+                        onTap: () async {
+                          final value = await chooseValue(
+                            context,
+                            title: 'Border Cropping',
+                            selected: p.borderCrop,
+                            choices: const {
+                              'disabled': 'Disabled',
+                              'conservative': 'Conservative',
+                              'aggressive': 'Aggressive',
+                            },
+                          );
+                          if (value != null && mounted && context.mounted) {
+                            apply(p.copy(borderCrop: value));
+                          }
                         },
-                      );
-                      if (value != null && mounted && context.mounted) {
-                        apply(p.copy(borderCrop: value));
-                      }
-                    },
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Waifu2x Upscaling')),
-                    subtitle: Text(
-                      tr(context, 'Automatically enhance low-resolution pages'),
-                    ),
-                    value:
-                        widget.repository.store.setting<String>(
-                          'imageUpscalingMode',
-                        ) ==
-                        'auto',
-                    onChanged: (value) {
-                      widget.repository.store.setSetting(
-                        'imageUpscalingMode',
-                        value ? 'auto' : 'disabled',
-                      );
-                      apply(p);
-                    },
-                  ),
-                  if (widget.repository.store.setting<String>(
-                        'imageUpscalingMode',
-                      ) ==
-                      'auto')
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(tr(context, 'Upscale Trigger Scale')),
-                      subtitle: Slider(
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Waifu2x Upscaling')),
+                        subtitle: Text(
+                          tr(
+                            context,
+                            'Automatically enhance low-resolution pages',
+                          ),
+                        ),
                         value:
-                            (widget.repository.store.setting<double>(
-                                      'imageUpscaleAutoTriggerScale',
-                                    ) ??
-                                    1.05)
-                                .clamp(1, 3),
-                        min: 1,
-                        max: 3,
-                        divisions: 40,
-                        label:
-                            '${(widget.repository.store.setting<double>('imageUpscaleAutoTriggerScale') ?? 1.05).toStringAsFixed(2)}x',
+                            widget.repository.store.setting<String>(
+                              'imageUpscalingMode',
+                            ) ==
+                            'auto',
                         onChanged: (value) {
                           widget.repository.store.setSetting(
-                            'imageUpscaleAutoTriggerScale',
-                            value,
+                            'imageUpscalingMode',
+                            value ? 'auto' : 'disabled',
                           );
-                          update(() {});
+                          apply(p);
                         },
-                        onChangeEnd: (_) => apply(p),
                       ),
-                    ),
-                  Text(tr(context, 'Double Tap Zoom Scale')),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Slider(
-                          value: p.doubleTapZoom,
-                          min: 1,
-                          max: 8,
-                          divisions: 14,
-                          label: '${p.doubleTapZoom.toStringAsFixed(1)}×',
-                          onChanged: (value) =>
-                              apply(p.copy(doubleTapZoom: value)),
+                      if (widget.repository.store.setting<String>(
+                            'imageUpscalingMode',
+                          ) ==
+                          'auto')
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(tr(context, 'Upscale Trigger Scale')),
+                          subtitle: Slider(
+                            value:
+                                (widget.repository.store.setting<double>(
+                                          'imageUpscaleAutoTriggerScale',
+                                        ) ??
+                                        1.05)
+                                    .clamp(1, 3),
+                            min: 1,
+                            max: 3,
+                            divisions: 40,
+                            label:
+                                '${(widget.repository.store.setting<double>('imageUpscaleAutoTriggerScale') ?? 1.05).toStringAsFixed(2)}x',
+                            onChanged: (value) {
+                              widget.repository.store.setSetting(
+                                'imageUpscaleAutoTriggerScale',
+                                value,
+                              );
+                              update(() {});
+                            },
+                            onChangeEnd: (_) => apply(p),
+                          ),
                         ),
+                      Text(tr(context, 'Double Tap Zoom Scale')),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Slider(
+                              value: p.doubleTapZoom,
+                              min: 1,
+                              max: 8,
+                              divisions: 14,
+                              label: '${p.doubleTapZoom.toStringAsFixed(1)}×',
+                              onChanged: (value) =>
+                                  apply(p.copy(doubleTapZoom: value)),
+                            ),
+                          ),
+                          Text('${p.doubleTapZoom.toStringAsFixed(1)}×'),
+                        ],
                       ),
-                      Text('${p.doubleTapZoom.toStringAsFixed(1)}×'),
-                    ],
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Page Transition Style')),
-                    subtitle: Text(
-                      tr(
-                        context,
-                        p.transition == 'cover'
-                            ? 'reader.page_transition.cover'
-                            : 'reader.page_transition.scroll',
-                      ),
-                    ),
-                    onTap: () async {
-                      final value = await chooseValue(
-                        context,
-                        title: 'Page Transition Style',
-                        selected: p.transition,
-                        choices: const {
-                          'slide': 'reader.page_transition.scroll',
-                          'cover': 'reader.page_transition.cover',
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Page Transition Style')),
+                        subtitle: Text(
+                          tr(
+                            context,
+                            p.transition == 'curl'
+                                ? 'reader.page_transition.page_curl'
+                                : p.transition == 'cover'
+                                ? 'reader.page_transition.cover'
+                                : 'reader.page_transition.scroll',
+                          ),
+                        ),
+                        onTap: () async {
+                          final value = await chooseValue(
+                            context,
+                            title: 'Page Transition Style',
+                            selected: p.transition,
+                            choices: const {
+                              'slide': 'reader.page_transition.scroll',
+                              'cover': 'reader.page_transition.cover',
+                              'curl': 'reader.page_transition.page_curl',
+                            },
+                          );
+                          if (value != null && mounted && context.mounted) {
+                            apply(p.copy(transition: value));
+                          }
                         },
-                      );
-                      if (value != null && mounted && context.mounted) {
-                        apply(p.copy(transition: value));
-                      }
-                    },
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Page Turn Animation')),
-                    value: p.animate,
-                    onChanged: (v) => apply(p.copy(animate: v)),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      widget.repository.store.setSetting(
-                        'readerDefault',
-                        p.toJson(),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(tr(context, 'Saved'))),
-                      );
-                    },
-                    child: Text(tr(context, 'Use as Default')),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tr(context, 'Rotate Page')),
-                    trailing: const Icon(CupertinoIcons.rotate_right),
-                    onTap: () => apply(p.copy(rotation: (p.rotation + 1) % 4)),
-                  ),
-                  Wrap(
-                    spacing: 10,
-                    children: [
-                      for (final c in ['black', 'white', 'sepia'])
-                        ChoiceChip(
-                          label: Text(tr(context, c)),
-                          selected: p.background == c,
-                          onSelected: (_) => apply(p.copy(background: c)),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ).withWheelScrolling(),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Page Turn Animation')),
+                        value: p.animate,
+                        onChanged: (v) => apply(p.copy(animate: v)),
+                      ),
+                      ReaderMotionOptions(
+                        motion: p.motion,
+                        onChanged: (motion) => apply(p.copy(motion: motion)),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          widget.repository.store.setSetting(
+                            'readerDefault',
+                            p.toJson(),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(tr(context, 'Saved'))),
+                          );
+                        },
+                        child: Text(tr(context, 'Use as Default')),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, 'Rotate Page')),
+                        trailing: const Icon(CupertinoIcons.rotate_right),
+                        onTap: () =>
+                            apply(p.copy(rotation: (p.rotation + 1) % 4)),
+                      ),
+                      Wrap(
+                        spacing: 10,
+                        children: [
+                          for (final c in ['black', 'white', 'sepia'])
+                            ChoiceChip(
+                              label: Text(tr(context, c)),
+                              selected: p.background == c,
+                              onSelected: (_) => apply(p.copy(background: c)),
+                            ),
+                        ],
+                      ),
+                    ]
+                    .map(
+                      (child) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: child,
+                      ),
+                    )
+                    .toList(),
+          ),
         );
       },
     ),
@@ -1320,7 +1409,18 @@ class _ReaderPageState extends State<ReaderPage> {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
           final key = event.logicalKey;
           if (key == LogicalKeyboardKey.escape) {
-            Navigator.maybePop(context);
+            if (!_controls || _isFullscreen) {
+              setState(() {
+                _fullscreenOverride = false;
+                _controls = true;
+              });
+            } else {
+              Navigator.maybePop(context);
+            }
+            return KeyEventResult.handled;
+          }
+          if (key == LogicalKeyboardKey.f11) {
+            _toggleFullscreen();
             return KeyEventResult.handled;
           }
           if (key == LogicalKeyboardKey.space) {
@@ -1360,7 +1460,8 @@ class _ReaderPageState extends State<ReaderPage> {
                 extendIntoCutout: settings.extendIntoCutout,
                 child: ReaderPageTransition(
                   key: _curl,
-                  capture: _capturePage,
+                  captureImage: _capturePageImage,
+                  motion: settings.motion,
                   child: RepaintBoundary(
                     key: _pageBoundary,
                     child: GestureDetector(
@@ -1394,10 +1495,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                           _pages.jumpToPage(_gesturePage);
                                         }
                                       },
-                                      startScroll: (details) =>
-                                          _pages.hasClients
-                                          ? _pages.position.drag(details, () {})
-                                          : null,
+                                      startScroll: _pageDrag,
                                       onActivityChanged: _activity,
                                       onZoomSettled: _zoomSettled,
                                       onTap: (point) =>
@@ -1418,6 +1516,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                             ReadingDirection.rtl,
                                         itemCount: _viewCount,
                                         onPageChanged: (index) {
+                                          if (_previewing) return;
                                           setState(() {
                                             _resetZoom();
                                             _partIndex = index;
@@ -1654,8 +1753,11 @@ class _ReaderPageState extends State<ReaderPage> {
                           ),
                         IconButton(
                           color: Colors.white,
-                          tooltip: tr(context, 'Full Screen'),
-                          onPressed: () => setState(() => _controls = false),
+                          tooltip: tr(
+                            context,
+                            _isFullscreen ? 'Exit Full Screen' : 'Full Screen',
+                          ),
+                          onPressed: _toggleFullscreen,
                           icon: const Icon(
                             CupertinoIcons.arrow_up_left_arrow_down_right,
                           ),
@@ -1776,8 +1878,9 @@ class _ReaderPageState extends State<ReaderPage> {
             widget.repository.store.setting<bool>('showKeyboardHelpOverlay') !=
             false,
         fullscreen:
-            widget.repository.store.setting<bool>('autoFullscreenOnOpen') ==
-            true,
+            _fullscreenOverride ??
+            (widget.repository.store.setting<bool>('autoFullscreenOnOpen') ==
+                true),
         child: scaffold,
       ),
     );

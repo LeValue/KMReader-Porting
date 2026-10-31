@@ -196,6 +196,50 @@ void verifyNativeEpubPerformance() {
           true,
           reason: 'Locator updates must retain the native WebView widget',
         );
+        // Hiding controls must move the existing surface, never dispose it.
+        final retainedController = controller();
+        final readingAnchor = await js('return reader.position().start.cfi;');
+        for (var i = 0; i < 2; i++) {
+          await js(
+            "const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();doc.body.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:innerWidth/2-b.left,clientY:innerHeight/2-b.top}));return true;",
+          );
+          await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
+          expect(identical(controller(), retainedController), true);
+          await visibleText();
+          await js(
+            "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
+          );
+          await waitFor(
+            () => find.byTooltip('Next Page').evaluate().isNotEmpty,
+          );
+          await tester.tap(find.byTooltip('Full Screen'));
+          await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
+          if (Platform.isWindows) {
+            expect(
+              await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+              true,
+            );
+          }
+          expect(identical(controller(), retainedController), true);
+          await visibleText();
+          await js(
+            "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
+          );
+          await waitFor(
+            () => find.byTooltip('Next Page').evaluate().isNotEmpty,
+          );
+          if (Platform.isWindows) {
+            expect(
+              await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+              false,
+            );
+          }
+          await visibleText();
+          expect(
+            await js('return reader.position().start.cfi;'),
+            readingAnchor,
+          );
+        }
         final result = object(
           await js('''const times=[];
         for(let i=0;i<48;i++) { const old=reader.position().start.cfi, at=performance.now();

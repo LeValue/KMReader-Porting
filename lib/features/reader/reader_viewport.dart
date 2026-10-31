@@ -84,6 +84,15 @@ class _ReaderViewportState extends State<ReaderViewport>
     }
   }
 
+  void _cancel(PointerCancelEvent event) {
+    if (_drag != null) {
+      _drag!.cancel();
+      _drag = null;
+      widget.onPinch?.call();
+    }
+    _up(event);
+  }
+
   void _up(PointerEvent event) {
     _pointers.remove(event.pointer);
     if (_pointers.isEmpty) {
@@ -181,7 +190,7 @@ class _ReaderViewportState extends State<ReaderViewport>
   Widget build(BuildContext context) => Listener(
     onPointerDown: _down,
     onPointerUp: _up,
-    onPointerCancel: _up,
+    onPointerCancel: _cancel,
     onPointerSignal: (event) {
       if (event is! PointerScrollEvent && event is! PointerScaleEvent) return;
       GestureBinding.instance.pointerSignalResolver.register(event, (_) {
@@ -247,4 +256,36 @@ class _ReaderViewportState extends State<ReaderViewport>
       ),
     ),
   );
+}
+
+/// A discrete swipe is committed on release, retaining pinch cancellation.
+class DiscreteReaderDrag implements Drag {
+  DiscreteReaderDrag({required this.reverse, required this.onTurn});
+  final bool reverse;
+  final ValueChanged<int> onTurn;
+  double _distance = 0;
+  bool _finished = false;
+  @override
+  void update(DragUpdateDetails details) {
+    if (!_finished) _distance += details.delta.dx;
+  }
+
+  @override
+  void end(DragEndDetails details) {
+    if (_finished) return;
+    _finished = true;
+    if (_distance.abs() < 45 &&
+        details.velocity.pixelsPerSecond.dx.abs() < 450) {
+      return;
+    }
+    final forward = _distance.abs() > 10
+        ? _distance < 0
+        : details.velocity.pixelsPerSecond.dx < 0;
+    onTurn(forward != reverse ? 1 : -1);
+  }
+
+  @override
+  void cancel() {
+    _finished = true;
+  }
 }

@@ -35,13 +35,12 @@ with sync_playwright() as playwright:
     page.evaluate('messages.length=0')
     heap_before = heap()
     result = page.evaluate('''async () => {
-      const viewer=document.getElementById('viewer'), animate=viewer.animate.bind(viewer);
+      const viewer=document.getElementById('viewer'), animate=KMReaderSheetEffect.prototype.animateTo;
       let animations=0, maxActive=0;
-      // A platform animation completion that never arrives must not block input.
-      viewer.animate=(...args)=>{
-        const animation=animate(...args); animations++;
-        Object.defineProperty(animation,'finished',{value:new Promise(()=>{})});
-        maxActive=Math.max(maxActive,viewer.getAnimations().length); return animation;
+      KMReaderSheetEffect.prototype.animateTo=function(){
+        animations++;
+        maxActive=Math.max(maxActive,document.querySelectorAll('style[data-page-motion]').length);
+        return new Promise(()=>{});
       };
       const times=[], positions=new Set([reader.position().start.cfi]);
       for(let i=0;i<48;i++) {
@@ -56,7 +55,7 @@ with sync_playwright() as playwright:
         positions.add(after);
         if(document.querySelector('#page-transition')) throw Error('Snapshot overlay retained');
       }
-      viewer.animate=animate;
+      KMReaderSheetEffect.prototype.animateTo=animate;
       // Mutations arrive concurrently, including a resize while reflow is queued.
       const preferences={...CONFIG.preferences,fontSize:26};
       const a=reader.turn({delta:1,style:'slide'});
@@ -67,7 +66,7 @@ with sync_playwright() as playwright:
       await reader.preferences(CONFIG.preferences);
       await new Promise(resolve=>setTimeout(resolve,200));
       return {times,positions:positions.size,animations,maxActive,
-        active:viewer.getAnimations().length,transform:getComputedStyle(viewer).transform,
+        active:document.querySelectorAll('style[data-page-motion]').length,transform:getComputedStyle(viewer).transform,
         iframes:document.querySelectorAll('iframe').length,
         text:renditionFixture.getContents().some(c=>c.document.body.textContent.trim().length>100)};
     }'''.replace('CONFIG', json.dumps(config)))

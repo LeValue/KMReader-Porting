@@ -18,6 +18,13 @@ class ReaderDisplay extends StatefulWidget {
   final bool keepAwake, fullscreen, showKeyboardHelp;
   final Widget child;
   static const channel = MethodChannel('dev.levalue.kmreader/reader_display');
+  static void setFullscreen(BuildContext context, bool enabled) {
+    final owner = context.findAncestorStateOfType<_ReaderDisplayState>();
+    if (owner == null) return;
+    owner._requestedFullscreen = enabled;
+    owner._updateAwakeOwnership();
+  }
+
   // Physical pixels from Android. Flutter's padding can become zero when
   // immersive mode hides system bars, even though the display cutout remains.
   static final _safeInsets = ValueNotifier<EdgeInsets>(EdgeInsets.zero);
@@ -67,11 +74,13 @@ class _ReaderDisplayState extends State<ReaderDisplay>
     ],
   );
   bool _awakeOwned = false;
+  bool? _requestedFullscreen;
   ValueListenable<TickerModeData>? _tickerMode;
   void _updateAwakeOwnership() {
     if (defaultTargetPlatform == TargetPlatform.windows && !kIsWeb) {
       _fullscreenOwners[_owner] =
-          widget.fullscreen && (_tickerMode?.value.enabled ?? true);
+          (_requestedFullscreen ?? widget.fullscreen) &&
+          (_tickerMode?.value.enabled ?? true);
       _publishFullscreen();
     }
     final wanted = widget.keepAwake && (_tickerMode?.value.enabled ?? true);

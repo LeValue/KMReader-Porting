@@ -373,10 +373,25 @@ void main() {
       final countBeforeReorder = requests.length;
       await tester.tap(dashboardSettings);
       await tester.pumpAndSettle();
-      await tester.drag(
-        find.byIcon(CupertinoIcons.line_horizontal_3).first,
-        const Offset(0, 100),
+      final dashboardCard = tester.getRect(
+        find.byKey(const ValueKey('preference::showDashboardCardKindMenu')),
       );
+      expect(dashboardCard.left, greaterThanOrEqualTo(18));
+      expect(dashboardCard.right, lessThanOrEqualTo(size.width - 18));
+      final handles = find.byIcon(CupertinoIcons.line_horizontal_3);
+      final distance =
+          tester.getCenter(handles.at(1)).dy -
+          tester.getCenter(handles.first).dy;
+      // Follow the actual row height after responsive wrapping, rather than
+      // assuming all localized setting rows have a fixed height.
+      final reorder = await tester.startGesture(
+        tester.getCenter(handles.first),
+      );
+      await reorder.moveBy(const Offset(0, 24));
+      await tester.pump(const Duration(milliseconds: 32));
+      await reorder.moveBy(Offset(0, distance * 1.5));
+      await tester.pump(const Duration(milliseconds: 250));
+      await reorder.up();
       await tester.pumpAndSettle();
       final order = app.store.setting<List<dynamic>>('dashboardOrder:fixture');
       expect(order, isNotNull);
