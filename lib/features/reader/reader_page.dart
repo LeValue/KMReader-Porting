@@ -848,8 +848,7 @@ class _ReaderPageState extends State<ReaderPage> {
         _focus.requestFocus();
         _verticalReady = true;
         _preload();
-        if (_session.preferences.splitWide != 'none' ||
-            _session.preferences.transition == 'curl') {
+        if (_session.preferences.splitWide != 'none') {
           _loadDimensions();
         }
         _loadSeriesDirection();
@@ -939,9 +938,7 @@ class _ReaderPageState extends State<ReaderPage> {
       old.dispose();
       _verticalReady = true;
       if (mounted) _preload();
-      if (mounted &&
-          (preferences.splitWide != 'none' ||
-              preferences.transition == 'curl')) {
+      if (mounted && preferences.splitWide != 'none') {
         _loadDimensions();
       }
       if (mounted &&
@@ -1622,6 +1619,9 @@ class _ReaderPageState extends State<ReaderPage> {
                                                 repository: widget.repository,
                                                 book: widget.book,
                                                 page: part.page,
+                                                onAspect: (aspect) =>
+                                                    _aspects[part.page] =
+                                                        aspect,
                                                 half: part.half,
                                                 halfAspect: part.aspect,
                                                 decodeZoom: index == _viewIndex
@@ -1659,6 +1659,8 @@ class _ReaderPageState extends State<ReaderPage> {
                                                   repository: widget.repository,
                                                   book: widget.book,
                                                   page: i,
+                                                  onAspect: (aspect) =>
+                                                      _aspects[i] = aspect,
                                                   pageAspect: _aspects[i] ?? 1,
                                                   initialPan: _panFraction(i),
                                                   onPanSettled: (fraction) =>
@@ -1997,7 +1999,9 @@ class _PageImage extends StatefulWidget {
     this.onControls,
     this.onTapKind,
     this.rasterPages,
+    this.onAspect,
   });
+  final ValueChanged<double>? onAspect;
   final RasterPages? rasterPages;
   final double pageAspect, initialPan;
   final ValueChanged<double>? onPanSettled;
@@ -2142,6 +2146,12 @@ class _PageImageState extends State<_PageImage>
             frameBuilder: (context, child, frame, synchronous) {
               if ((frame != null || synchronous) && !_reported) {
                 _reported = true;
+                final decoded = child is Semantics ? child.child : child;
+                if (decoded is RawImage && decoded.image != null) {
+                  widget.onAspect?.call(
+                    decoded.image!.width / decoded.image!.height,
+                  );
+                }
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) widget.onReady();
                 });

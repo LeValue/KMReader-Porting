@@ -208,6 +208,83 @@ void main() {
     },
   );
   testWidgets(
+    'offline comic curl bounds come from decoded artwork rather than server metadata',
+    (tester) async {
+      final directory = Directory.systemTemp.createTempSync('comic-bounds-');
+      final store = LocalStore(sqlite3.openInMemory());
+      const profile = ServerProfile(
+        id: 'bounds',
+        name: 'Fixture',
+        url: 'https://example.invalid',
+        email: '',
+        authentication: Authentication.apiKey,
+      );
+      final repository = FixtureRepository(
+        profile: profile,
+        store: store,
+        directory: directory,
+        api: KomgaApi(
+          Uri.parse(profile.url),
+          authentication: profile.authentication,
+          credential: '',
+        ),
+      )..setOffline(true);
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ReaderPage(
+              repository: repository,
+              initialPreferences: const ReaderPreferences(
+                transition: 'curl',
+                useSeriesDirection: false,
+              ),
+              book: Book({
+                'id': 'bounds',
+                'name': 'Portrait artwork',
+                'media': {'pagesCount': 3},
+              }),
+            ),
+          ),
+        );
+        await tester.runAsync(
+          () => precacheImage(
+            MemoryImage(FixtureRepository.bytes),
+            tester.element(find.byType(Scaffold)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        for (var i = 0; i < 50; i++) {
+          if (tester
+              .widgetList<RawImage>(find.byType(RawImage))
+              .any((image) => image.image != null))
+            break;
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+        expect(
+          tester
+              .widgetList<RawImage>(find.byType(RawImage))
+              .any((image) => image.image != null),
+          true,
+        );
+        final presentation = tester.widget<ReaderPageTransition>(
+          find.byType(ReaderPageTransition),
+        );
+        final bounds = presentation.sheetBounds!(const Size(390, 800), 1);
+        expect(bounds.width, 390);
+        expect(bounds.height, 585);
+        expect(bounds.top, 107.5);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        repository.dispose();
+        store.close();
+        directory.deleteSync(recursive: true);
+      }
+    },
+  );
+  testWidgets(
     'comic fullscreen button enters native fullscreen and Escape restores controls',
     (tester) async {
       final native = <bool>[];
