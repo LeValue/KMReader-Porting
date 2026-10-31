@@ -29,10 +29,8 @@ class EpubHost {
   Uri get reader => base.resolve('reader/');
   Uri get publication => base.resolve('book/${Uri(path: packagePath)}');
 
-  static Future<EpubHost> open(
-    EpubDocument document, {
-    required String filePath,
-  }) async {
+  static Future<Map<String, Uint8List>>? _bundledAssets;
+  static Future<Map<String, Uint8List>> _loadAssets() async {
     final assets = <String, Uint8List>{};
     for (final name in [
       'epub.min.js',
@@ -46,6 +44,16 @@ class EpubHost {
         data.lengthInBytes,
       );
     }
+    return assets;
+  }
+
+  static Future<EpubHost> openFile(String filePath) => _open(null, filePath);
+  static Future<EpubHost> open(
+    EpubDocument document, {
+    required String filePath,
+  }) => _open(document, filePath);
+  static Future<EpubHost> _open(EpubDocument? document, String filePath) async {
+    final assets = await (_bundledAssets ??= _loadAssets());
     final ready = ReceivePort();
     final isolate = await Isolate.spawn(_startEpubServer, (
       filePath,
@@ -57,7 +65,13 @@ class EpubHost {
           await ready.first.timeout(const Duration(seconds: 30)) as Map;
       if (info['error'] != null) throw FormatException(info['error'] as String);
       return EpubHost._(
-        document,
+        document ??
+            EpubDocument.index(
+              (info['chapters'] as List).cast<EpubChapter>(),
+              info['title'] as String,
+              (info['contents'] as List).cast<EpubNavigationEntry>(),
+              (info['paths'] as List).cast<String>().toSet(),
+            ),
         isolate,
         info['control'] as SendPort,
         info['base'] as String,
@@ -113,6 +127,10 @@ Future<void> _startEpubServer(
     final control = ReceivePort();
     request.$3.send({
       'control': control.sendPort,
+      'chapters': document.chapters,
+      'title': document.title,
+      'contents': document.tableOfContents,
+      'paths': [for (final entry in document.archive) entry.name],
       'base': host.base.toString(),
       'package': host.packagePath,
       'identifier': host.identifier,

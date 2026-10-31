@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/page_motion.dart';
 
-/// Keeps the lower page stationary while the upper page slides over it.
-/// Uses the existing PageView position, so dragging and animation need no
-/// screenshots, additional decoding, or work on each page's contents.
+/// The earlier sheet stays above the later one in both drag directions. The
+/// lower sheet moves only 10% of a viewport and is clipped around the upper one,
+/// preserving paint order without additional page rasterization.
 class CoverPage extends StatelessWidget {
   const CoverPage({
     super.key,
@@ -20,11 +20,10 @@ class CoverPage extends StatelessWidget {
   });
   final PageController controller;
   final int index;
-  final bool reverse;
+  final bool reverse, cover;
   final Color background;
   final Widget child;
   final PageMotion motion;
-  final bool cover;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) => AnimatedBuilder(
@@ -35,62 +34,103 @@ class CoverPage extends StatelessWidget {
             controller.hasClients && controller.position.hasContentDimensions
             ? controller.page ?? controller.initialPage.toDouble()
             : controller.initialPage.toDouble();
-        final offset = page - index;
-        final lower = cover && offset >= 0 && offset < 1;
+        final offset = page - index,
+            sign = reverse ? -1.0 : 1.0,
+            w = constraints.maxWidth;
         final moving = page % 1 > .001 && page % 1 < .999;
+        if (!moving) return child!;
+        final lower = cover ? offset >= 0 : offset < 0;
+        final phase =
+            (cover
+                    ? offset.abs()
+                    : lower
+                    ? 1 + offset
+                    : offset)
+                .clamp(0.0, 1.0);
+        final radius = motion.cornerRadius * math.min(1, phase * 12);
+        final tint = background.computeLuminance() < .1 && !lower
+            ? motion.tint.clamp(0, .12) *
+                  math.pow(math.max(0, (phase - .25) / .75), 2.4)
+            : 0.0;
+        final dim = lower && !cover
+            ? .12 * math.pow((-offset).clamp(0.0, 1.0), 1.6)
+            : 0.0;
+        Widget sheet = ColorFiltered(
+          colorFilter: ColorFilter.matrix([
+            (1 - tint) * (1 - dim),
+            0,
+            0,
+            0,
+            tint * 128,
+            0,
+            (1 - tint) * (1 - dim),
+            0,
+            0,
+            tint * 128,
+            0,
+            0,
+            (1 - tint) * (1 - dim),
+            0,
+            tint * 128,
+            0,
+            0,
+            0,
+            1,
+            0,
+          ]),
+          child: child!,
+        );
+        if (!lower) {
+          sheet = ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: sheet,
+          );
+        }
+        if (lower && !cover) {
+          sheet = ClipPath(
+            clipper: _UnderSheetClipper(offset, radius, reverse),
+            child: sheet,
+          );
+        }
         return Transform.translate(
           offset: Offset(
-            lower ? offset * constraints.maxWidth * (reverse ? -1 : 1) : 0,
+            cover && lower
+                ? offset * w * sign
+                : !cover && lower
+                ? .9 * offset * w * sign
+                : 0,
             0,
           ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              boxShadow: moving && !lower
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: .3),
-                        blurRadius: 12,
-                        offset: Offset(reverse ? 4 : -4, 0),
-                      ),
-                    ]
-                  : const [],
-            ),
-            child: moving && !lower
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(
-                      motion.cornerRadius *
-                          math.sin(math.pi * offset.abs().clamp(0, 1)),
-                    ),
-                    child: ColorFiltered(
-                      colorFilter: ColorFilter.matrix([
-                        1 - motion.tint,
-                        0,
-                        0,
-                        0,
-                        motion.tint * 255,
-                        0,
-                        1 - motion.tint,
-                        0,
-                        0,
-                        motion.tint * 255,
-                        0,
-                        0,
-                        1 - motion.tint,
-                        0,
-                        motion.tint * 255,
-                        0,
-                        0,
-                        0,
-                        1,
-                        0,
-                      ]),
-                      child: child!,
-                    ),
-                  )
-                : child,
-          ),
+          child: sheet,
         );
       },
     ),
   );
+}
+
+class _UnderSheetClipper extends CustomClipper<Path> {
+  const _UnderSheetClipper(this.offset, this.radius, this.reverse);
+  final double offset, radius;
+  final bool reverse;
+  @override
+  Path getClip(Size size) {
+    final right = .9 * -offset * size.width;
+    final upper = Rect.fromLTWH(right - size.width, 0, size.width, size.height);
+    final r = reverse
+        ? Rect.fromLTRB(
+            size.width - upper.right,
+            0,
+            size.width - upper.left,
+            size.height,
+          )
+        : upper;
+    return Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(Offset.zero & size)
+      ..addRRect(RRect.fromRectAndRadius(r, Radius.circular(radius)));
+  }
+
+  @override
+  bool shouldReclip(_UnderSheetClipper old) =>
+      offset != old.offset || radius != old.radius || reverse != old.reverse;
 }

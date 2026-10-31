@@ -221,6 +221,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
                   _style,
                   _direction,
                   motion: widget.motion,
+                  foldSlope: _activeDrag?.slope ?? 0,
                 ),
               ),
             ),
@@ -238,7 +239,9 @@ class PageTurnPainter extends CustomPainter {
     this.style,
     this.direction, {
     this.motion = const PageMotion(),
+    this.foldSlope = 0,
   });
+  final double foldSlope;
   final ui.Image before;
   final ui.Image? after;
   final double progress;
@@ -254,7 +257,7 @@ class PageTurnPainter extends CustomPainter {
     source,
     Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
     offset & size,
-    Paint()..filterQuality = FilterQuality.low,
+    Paint()..filterQuality = FilterQuality.high,
   );
   @override
   void paint(Canvas canvas, Size size) {
@@ -307,13 +310,13 @@ class PageTurnPainter extends CustomPainter {
         textures = <Offset>[],
         colors = <Color>[],
         indices = <int>[];
-    final tint = motion.tint * math.min(1, math.sin(math.pi * p) * 2);
     for (var col = 0; col <= columns; col++) {
       final u = width * col / columns;
       for (var row = 0; row <= rows; row++) {
         final y = height * row / rows;
         final base =
-            fold + width * .035 * math.sin(math.pi * p) * (row / rows - .5);
+            fold +
+            foldSlope * height * math.sin(math.pi * p) * (row / rows - .5);
         final angle = ((u - base) / math.max(.001, radius)).clamp(0.0, math.pi);
         final x = u <= base
             ? u
@@ -377,29 +380,7 @@ class PageTurnPainter extends CustomPainter {
         TileMode.clamp,
         Matrix4.identity().storage,
       )
-      ..filterQuality = FilterQuality.medium
-      ..colorFilter = ColorFilter.matrix([
-        1 - tint,
-        0,
-        0,
-        0,
-        tint * 255,
-        0,
-        1 - tint,
-        0,
-        0,
-        tint * 255,
-        0,
-        0,
-        1 - tint,
-        0,
-        tint * 255,
-        0,
-        0,
-        0,
-        1,
-        0,
-      ]);
+      ..filterQuality = FilterQuality.high;
     canvas.drawVertices(mesh, BlendMode.modulate, paint);
     mesh.dispose();
   }
@@ -422,6 +403,7 @@ class PageTurnPainter extends CustomPainter {
   @override
   bool shouldRepaint(PageTurnPainter old) =>
       old.progress != progress ||
+      old.foldSlope != foldSlope ||
       old.before != before ||
       old.after != after ||
       old.style != style ||
@@ -436,13 +418,19 @@ class _CurlDrag implements Drag {
   final Future<bool> Function(int) preview;
   final Future<void> Function(int, bool) finish;
   final decision = Completer<bool>();
-  double distance = 0, progress = 0;
+  double distance = 0, progress = 0, slope = 0;
+  Offset? origin;
   int physical = 0;
   bool canceled = false;
   int get delta => reverse ? -physical : physical;
   @override
   void update(DragUpdateDetails details) {
     if (decision.isCompleted || owner._running && physical == 0) return;
+    origin ??= details.globalPosition - details.delta;
+    slope =
+        (-(details.globalPosition.dy - origin!.dy) /
+                math.max(width * .15, distance.abs()))
+            .clamp(-.65, .65);
     distance += details.delta.dx;
     if (physical == 0 && distance.abs() > 10) {
       physical = distance < 0 ? 1 : -1;

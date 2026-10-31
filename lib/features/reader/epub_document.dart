@@ -47,13 +47,25 @@ class EpubDocument {
 
   EpubDocument._(
     this._input,
-    this.archive,
+    this._archive,
     this.chapters,
     this.title,
     this.tableOfContents,
   );
-  final InputFileStream _input;
-  final Archive archive;
+  final InputFileStream? _input;
+  final Archive? _archive;
+  Archive get archive =>
+      _archive ??
+      (throw StateError('This EPUB index does not own archive resources.'));
+  Set<String>? _paths;
+  EpubDocument.index(
+    this.chapters,
+    this.title,
+    this.tableOfContents,
+    Set<String> paths,
+  ) : _input = null,
+      _archive = null,
+      _paths = paths;
   final List<EpubChapter> chapters;
   final String title;
   final List<EpubNavigationEntry> tableOfContents;
@@ -146,7 +158,13 @@ class EpubDocument {
       if (chapters.isEmpty) {
         throw const FormatException('This EPUB contains no readable chapters.');
       }
-      var contents = _navigation(elements, manifest, chapters, read);
+      var contents = _navigation(
+        elements,
+        manifest,
+        chapters,
+        read,
+        (path) => archive.findFile(path) != null,
+      );
       final titles = <String, String>{};
       void collect(List<EpubNavigationEntry> entries) {
         for (final entry in entries) {
@@ -186,6 +204,7 @@ class EpubDocument {
     Map<String, String> manifest,
     List<EpubChapter> chapters,
     String Function(String) read,
+    bool Function(String) exists,
   ) {
     final chapterPaths = {
       ...chapters.map((c) => c.path),
@@ -196,9 +215,7 @@ class EpubDocument {
       try {
         final location = locate(from, href);
         if (!chapterPaths.contains(location.path)) return null;
-        read(
-          location.path,
-        ); // Reject missing archive entries before exposing a destination.
+        if (!exists(location.path)) return null;
         return location;
       } on FormatException {
         return null;
@@ -357,10 +374,10 @@ class EpubDocument {
   bool isReadingResource(String path) =>
       (chapters.any((chapter) => chapter.path == path) ||
           _htmlResource(path)) &&
-      archive.findFile(path) != null;
+      (_paths?.contains(path) ?? archive.findFile(path) != null);
 
   String chapter(int index) => decodeText(resource(chapters[index].path));
-  void close() => _input.closeSync();
+  void close() => _input?.closeSync();
 }
 
 (List<EpubChapter>, String, List<EpubNavigationEntry>) _inspectEpub(

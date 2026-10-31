@@ -20,6 +20,14 @@ with sync_playwright() as pw:
     page.add_init_script("window.messages=[];addEventListener('readerEvent',e=>messages.push(e.detail));")
     page.goto(url)
     page.evaluate('(c)=>reader.open(c)', config)
+    # Genuine mouse input in a margin must not create a phantom text selection.
+    page.mouse.click(width*.5, 2)
+    assert page.evaluate("document.querySelector('#viewer iframe').contentDocument.getSelection().isCollapsed")
+    page.evaluate("reader.suspendInput(true)")
+    page.evaluate("messages.length=0")
+    page.evaluate("document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))")
+    assert not page.evaluate("messages.some(e=>e.type==='turn'||e.type==='tap')")
+    page.evaluate("reader.suspendInput(false)")
     page.evaluate('''() => {
       window.motionUpdate = KMReaderSheetEffect.prototype.update;
       window.motionAnimate = KMReaderSheetEffect.prototype.animateTo;
@@ -27,7 +35,7 @@ with sync_playwright() as pw:
       KMReaderSheetEffect.prototype.start=async function(move){window.effect=this;return start.call(this,move);};
       KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
     }''')
-    output = Path('artifacts/epub-motion-0.8.4')
+    output = Path('artifacts/epub-motion-0.8.5')
     output.mkdir(parents=True, exist_ok=True)
     for style in ['slide', 'cover', 'curl']:
         before = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
@@ -45,8 +53,24 @@ with sync_playwright() as pw:
             # A moving black page gains a visible gray paper background.
             assert sum(15 < min(p) and max(p) < 80 for p in pixels) > width * height * .05, style
         if style == 'curl':
-            assert page.evaluate('effect.svg.querySelector("feImage").getAttribute("href").startsWith("data:image/png")')
-        assert page.evaluate('document.querySelectorAll("style[data-page-motion]").length') == 1
+            assert page.evaluate('effect.surface.canvas.width') == width
+            assert page.evaluate('effect.surface.canvas.height') == height
+            # Full resolution GPU rendering: dragging never encodes/maps a PNG.
+            page.evaluate("() => {window.originalEncoding=HTMLCanvasElement.prototype.toDataURL;HTMLCanvasElement.prototype.toDataURL=()=>{throw Error('Per-frame bitmap encoding');};}")
+            page.evaluate('effect.update(.43,{x:innerWidth*.5,y:innerHeight*.2})')
+            angled=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            assert ImageChops.difference(image,angled).getbbox(), 'Curl does not follow the vertical drag'
+            page.evaluate('() => {HTMLCanvasElement.prototype.toDataURL=originalEncoding;}')
+            page.evaluate('effect.update(1)')
+            end=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            page.evaluate('effect.stop()')
+            live=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            # Native glyphs and texture endpoints must agree; tiny text-AA
+            # differences are expected between DOM and SVG rasterization.
+            from PIL import ImageStat
+            assert max(ImageStat.Stat(ImageChops.difference(end,live)).mean)<6, 'Curl endpoint changed the publication layout'
+        if style != 'curl':
+            assert page.evaluate('document.querySelectorAll("style[data-page-motion]").length') == 1
         page.evaluate('effect.stop()')
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
     # Actual automatic effects remain visible mid-flight, not just a retained
@@ -56,7 +80,8 @@ with sync_playwright() as pw:
     assert page.evaluate("document.getAnimations().some(a=>a.effect?.pseudoElement?.startsWith('::view-transition-'))"), 'Automatic effect vanished too early'
     assert page.evaluate('effect.progress') > 0
     page.wait_for_function('() => !document.querySelector("style[data-page-motion]")')
-    # Use real pointer capture across iframe/top-document boundaries.
+    page.evaluate('(p)=>reader.preferences({...p,transition:"curl"})', config['preferences'])
+    # Use real pointer capture within the original iframe document.
     saved = page.evaluate('reader.position().start.cfi')
     saved_page = page.evaluate('reader.position().start.displayed.page')
     page.evaluate('messages.length=0')

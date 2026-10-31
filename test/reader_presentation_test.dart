@@ -111,16 +111,98 @@ void main() {
         ),
       );
       final titleTop = tester.getTopLeft(find.text('Text Settings'));
-      await tester.drag(
-        find.byType(SingleChildScrollView),
-        const Offset(0, -500),
-      );
+      await tester.drag(find.byType(ListView), const Offset(0, -500));
       await tester.pumpAndSettle();
       expect(tester.getTopLeft(find.text('Text Settings')), titleTop);
       expect(find.byTooltip('Close'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
+  testWidgets(
+    'EPUB option menus stay beside the panel and slider drags do not rebuild the form',
+    (tester) async {
+      tester.view.physicalSize = const Size(1342, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var builds = 0, commits = 0;
+      double value = 19;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 760,
+                child: StatefulBuilder(
+                  builder: (context, update) {
+                    builds++;
+                    return ReaderOptionsPanel(
+                      title: 'Text Settings',
+                      children: [
+                        ReaderOptionGroup(
+                          title: 'Appearance',
+                          children: [
+                            ReaderOptionPicker(
+                              title: 'Theme',
+                              value: 'sepia',
+                              choices: const {
+                                'white': 'white',
+                                'sepia': 'sepia',
+                                'black': 'black',
+                              },
+                              onChanged: (_) {},
+                            ),
+                          ],
+                        ),
+                        ReaderOptionSlider(
+                          title: 'Text Size',
+                          value: value,
+                          min: 4,
+                          max: 76,
+                          onChanged: (v) => value = v,
+                          onChangeEnd: (v) {
+                            commits++;
+                            update(() {});
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final arrow = find.byIcon(Icons.unfold_more);
+      expect(tester.getCenter(arrow).dx, greaterThan(680));
+      await tester.tap(find.text('Theme'));
+      await tester.pumpAndSettle();
+      final option = find.byWidgetPredicate(
+        (w) => w is CheckedPopupMenuItem<String> && w.value == 'white',
+      );
+      expect(tester.getRect(option).right, lessThanOrEqualTo(760));
+      expect(tester.getRect(option).right, greaterThan(680));
+      await tester.tap(option);
+      await tester.pumpAndSettle();
+      final before = builds;
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(Slider)),
+      );
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(5, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(builds, before);
+      expect(commits, 0);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(commits, 1);
+      expect(value, greaterThan(19));
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'comic fullscreen button enters native fullscreen and Escape restores controls',
     (tester) async {

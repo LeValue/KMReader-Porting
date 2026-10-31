@@ -23,50 +23,15 @@ Future<T?> chooseValue<T>(
         Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
     final row = context.findRenderObject()! as RenderBox;
     final origin = row.localToGlobal(Offset.zero, ancestor: overlay);
-    if (choices.length > 8) {
-      return showChoiceMenu<T>(
-        context,
-        anchor: origin & row.size,
-        selected: selected,
-        labels: {
-          for (final entry in choices.entries)
-            entry.key: translateChoices
-                ? tr(context, entry.value)
-                : entry.value,
-        },
-      );
-    }
-    final value = await showMenu<T>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        origin.dx + row.size.width * .45,
-        origin.dy + row.size.height,
-        16,
-        0,
-      ),
-      constraints: BoxConstraints(
-        minWidth: 220,
-        maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(220, 420),
-      ),
-      initialValue: selected,
-      items: [
+    return showChoiceMenu<T>(
+      context,
+      anchor: origin & row.size,
+      selected: selected,
+      labels: {
         for (final entry in choices.entries)
-          CheckedPopupMenuItem<T>(
-            value: entry.key,
-            checked: entry.key == selected,
-            child: Builder(
-              builder: (menu) {
-                pickerRoute = ModalRoute.of(menu);
-                return Text(
-                  translateChoices ? tr(context, entry.value) : entry.value,
-                );
-              },
-            ),
-          ),
-      ],
+          entry.key: translateChoices ? tr(context, entry.value) : entry.value,
+      },
     );
-    await pickerRoute?.completed;
-    return value;
   }
   var query = '';
   Widget content(BuildContext sheet) => StatefulBuilder(

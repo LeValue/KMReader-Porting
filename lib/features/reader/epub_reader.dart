@@ -55,7 +55,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   int _browserGeneration = 0, _recoveries = 0;
   bool _recovering = false, _recoveryFailed = false;
   bool _initialized = false, _controls = true, _fullscreen = false;
-  bool _fixedLayout = false;
+  bool _fixedLayout = false, _settingsOpen = false;
   bool _verticalWriting = false;
   final _closed = Completer<void>();
   String? _error, _selection;
@@ -313,6 +313,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         unawaited(_turn(integer(event['delta'], 1)));
         return;
       case 'tap':
+        // Mouse clicks select text; the explicit button/F11 owns fullscreen.
+        if (Platform.isWindows &&
+            event['pointerType'] != 'touch' &&
+            event['pointerType'] != 'pen') {
+          return;
+        }
         final p = _session!.preferences;
         final action = p.flow == 'scrolled'
             ? TapAction.controls
@@ -644,278 +650,304 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<void> _settings() async {
+    if (_settingsOpen) return;
+    _settingsOpen = true;
+    await _call('suspendInput', true);
     var draft = _session!.preferences.toJson();
-    await showModalBottomSheet<void>(
-      context: context,
-      constraints: const BoxConstraints(maxWidth: 760),
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) {
-          final session = _session!, p = EpubPreferences.fromJson(draft);
-          Future<void> apply(String key, dynamic value) async {
-            final next = EpubPreferences.fromJson({
-              ...draft,
-              key: key == 'columns' && value is String
-                  ? int.tryParse(value) ?? 0
-                  : value,
-              if (const {
-                'fontSize',
-                'lineHeight',
-                'paragraphSpacing',
-                'indent',
-                'letterSpacing',
-                'wordSpacing',
-                'alignment',
-              }.contains(key))
-                'advancedLayout': true,
-            });
-            draft = next.toJson();
-            session.setPreferences(next);
-            await session.prepareFont();
-            if (!context.mounted) return;
-            unawaited(_call('preferences', session.browserPreferences));
-            update(() {});
-          }
+    if (!mounted) return;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        constraints: const BoxConstraints(maxWidth: 760),
+        isScrollControlled: true,
+        builder: (context) => StatefulBuilder(
+          builder: (context, update) {
+            final session = _session!, p = EpubPreferences.fromJson(draft);
+            Future<void> apply(String key, dynamic value) async {
+              final next = EpubPreferences.fromJson({
+                ...draft,
+                key: key == 'columns' && value is String
+                    ? int.tryParse(value) ?? 0
+                    : value,
+                if (const {
+                  'fontSize',
+                  'lineHeight',
+                  'paragraphSpacing',
+                  'indent',
+                  'letterSpacing',
+                  'wordSpacing',
+                  'alignment',
+                }.contains(key))
+                  'advancedLayout': true,
+              });
+              draft = next.toJson();
+              session.setPreferences(next);
+              await session.prepareFont();
+              if (!context.mounted) return;
+              unawaited(_call('preferences', session.browserPreferences));
+              update(() {});
+            }
 
-          Widget slider(
-            String title,
-            String key,
-            double value,
-            double min,
-            double max,
-            int divisions,
-          ) => ReaderOptionSlider(
-            key: ValueKey('epub-$key'),
-            title: title,
-            value: value,
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: (v) => update(() => draft[key] = v),
-            onChangeEnd: (v) => apply(key, v),
-          );
-          Widget picker(
-            String title,
-            String key,
-            String value,
-            Map<String, String> choices,
-          ) => ReaderOptionPicker(
-            title: title,
-            value: value,
-            choices: choices,
-            onChanged: (v) => apply(key, v),
-          );
-          return ReaderSafeArea(
-            child: ReaderOptionsPanel(
-              title: 'Text Settings',
-              children: [
-                ReaderOptionGroup(
-                  title: 'Reading',
-                  children: [
-                    picker('epub.reading_flow', 'flow', p.flow, {
-                      'paged': 'Paged',
-                      'scrolled': 'Vertical',
-                    }),
-                    if (!_verticalWriting)
-                      picker('Columns', 'columns', '${p.columns}', {
-                        '0': 'Automatic',
-                        '1': '1',
-                        '2': '2',
-                      }),
-                  ],
-                ),
-                if (_fixedLayout)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: Text(
-                      tr(context, 'This book uses a fixed page layout.'),
-                    ),
-                  )
-                else
+            Widget slider(
+              String title,
+              String key,
+              double value,
+              double min,
+              double max,
+              int divisions,
+            ) => ReaderOptionSlider(
+              key: ValueKey('epub-$key'),
+              title: title,
+              value: value,
+              min: min,
+              max: max,
+              divisions: divisions,
+              onChanged: (v) => draft[key] = v,
+              onChangeEnd: (v) => apply(key, v),
+            );
+            Widget picker(
+              String title,
+              String key,
+              String value,
+              Map<String, String> choices,
+            ) => ReaderOptionPicker(
+              title: title,
+              value: value,
+              choices: choices,
+              onChanged: (v) => apply(key, v),
+            );
+            return ReaderSafeArea(
+              child: ReaderOptionsPanel(
+                title: 'Text Settings',
+                children: [
                   ReaderOptionGroup(
-                    title: 'Typography',
+                    title: 'Reading',
                     children: [
-                      picker('Font', 'font', p.font, {
-                        'publisher': 'Publisher Font',
-                        'serif': 'Serif',
-                        'sans-serif': 'Sans Serif',
-                        for (final font in session.fonts.fonts)
-                          'custom:${font['id']}': text(font['name']),
+                      picker('epub.reading_flow', 'flow', p.flow, {
+                        'paged': 'Paged',
+                        'scrolled': 'Vertical',
                       }),
-                      slider('Text Size', 'fontSize', p.fontSize, 4.75, 76, 75),
-                      slider(
-                        'Line Height',
-                        'lineHeight',
-                        p.lineHeight,
-                        .5,
-                        3,
-                        25,
-                      ),
-                      slider('Page Margins', 'margin', p.margin, 0, 100, 20),
-                      picker(
-                        'epub.text_alignment.title',
-                        'alignment',
-                        p.alignment,
-                        {
-                          'publisher': 'epub.text_alignment.publisher_default',
-                          'left': 'left',
-                          'right': 'right',
-                          'justify': 'justify',
-                          'center': 'center',
-                        },
-                      ),
-                      slider(
-                        'Paragraph Spacing',
-                        'paragraphSpacing',
-                        p.paragraphSpacing,
-                        0,
-                        3,
-                        30,
-                      ),
-                      slider('Paragraph Indent', 'indent', p.indent, 0, 8, 20),
-                      slider(
-                        'Letter Spacing',
-                        'letterSpacing',
-                        p.letterSpacing,
-                        -.05,
-                        1,
-                        105,
-                      ),
-                      slider(
-                        'Word Spacing',
-                        'wordSpacing',
-                        p.wordSpacing,
-                        0,
-                        1,
-                        20,
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.add),
-                        title: Text(tr(context, 'Import Font')),
-                        onTap: () async {
-                          try {
-                            final font = await session.fonts.importFont();
-                            if (font != null && context.mounted) {
-                              await apply('font', 'custom:${font['id']}');
-                            }
-                          } catch (error) {
-                            if (context.mounted) {
-                              showError(context, error);
-                            }
-                          }
-                        },
-                      ),
-                      for (final font in session.fonts.fonts)
-                        ListTile(
-                          title: Text(text(font['name'])),
-                          trailing: IconButton(
-                            tooltip: tr(context, 'Delete'),
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () async {
-                              if (!await confirm(
-                                context,
-                                'Delete',
-                                text(font['name']),
-                              )) {
-                                return;
-                              }
-                              await session.fonts.remove(text(font['id']));
-                              if (p.font == 'custom:${font['id']}') {
-                                await apply('font', 'publisher');
-                              } else {
-                                update(() {});
-                              }
-                            },
-                          ),
-                        ),
+                      if (!_verticalWriting)
+                        picker('Columns', 'columns', '${p.columns}', {
+                          '0': 'Automatic',
+                          '1': '1',
+                          '2': '2',
+                        }),
                     ],
                   ),
-                ReaderOptionGroup(
-                  title: 'Appearance',
-                  children: [
-                    picker('Theme', 'theme', p.theme, {
-                      'system': 'System',
-                      'white': 'white',
-                      'sepia': 'sepia',
-                      'black': 'black',
-                      'quiet': 'Quiet',
-                      'green': 'Green',
-                    }),
-                  ],
-                ),
-                ReaderOptionGroup(
-                  title: 'Page Turn',
-                  children: [
-                    SwitchListTile.adaptive(
-                      title: Text(tr(context, 'Animate Page Turns')),
-                      value: p.animate,
-                      onChanged: (v) => apply('animate', v),
+                  if (_fixedLayout)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Text(
+                        tr(context, 'This book uses a fixed page layout.'),
+                      ),
+                    )
+                  else
+                    ReaderOptionGroup(
+                      title: 'Typography',
+                      children: [
+                        picker('Font', 'font', p.font, {
+                          'publisher': 'Publisher Font',
+                          'serif': 'Serif',
+                          'sans-serif': 'Sans Serif',
+                          for (final font in session.fonts.fonts)
+                            'custom:${font['id']}': text(font['name']),
+                        }),
+                        slider(
+                          'Text Size',
+                          'fontSize',
+                          p.fontSize,
+                          4.75,
+                          76,
+                          75,
+                        ),
+                        slider(
+                          'Line Height',
+                          'lineHeight',
+                          p.lineHeight,
+                          .5,
+                          3,
+                          25,
+                        ),
+                        slider('Page Margins', 'margin', p.margin, 0, 100, 20),
+                        picker(
+                          'epub.text_alignment.title',
+                          'alignment',
+                          p.alignment,
+                          {
+                            'publisher':
+                                'epub.text_alignment.publisher_default',
+                            'left': 'left',
+                            'right': 'right',
+                            'justify': 'justify',
+                            'center': 'center',
+                          },
+                        ),
+                        slider(
+                          'Paragraph Spacing',
+                          'paragraphSpacing',
+                          p.paragraphSpacing,
+                          0,
+                          3,
+                          30,
+                        ),
+                        slider(
+                          'Paragraph Indent',
+                          'indent',
+                          p.indent,
+                          0,
+                          8,
+                          20,
+                        ),
+                        slider(
+                          'Letter Spacing',
+                          'letterSpacing',
+                          p.letterSpacing,
+                          -.05,
+                          1,
+                          105,
+                        ),
+                        slider(
+                          'Word Spacing',
+                          'wordSpacing',
+                          p.wordSpacing,
+                          0,
+                          1,
+                          20,
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.add),
+                          title: Text(tr(context, 'Import Font')),
+                          onTap: () async {
+                            try {
+                              final font = await session.fonts.importFont();
+                              if (font != null && context.mounted) {
+                                await apply('font', 'custom:${font['id']}');
+                              }
+                            } catch (error) {
+                              if (context.mounted) {
+                                showError(context, error);
+                              }
+                            }
+                          },
+                        ),
+                        for (final font in session.fonts.fonts)
+                          ListTile(
+                            title: Text(text(font['name'])),
+                            trailing: IconButton(
+                              tooltip: tr(context, 'Delete'),
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () async {
+                                if (!await confirm(
+                                  context,
+                                  'Delete',
+                                  text(font['name']),
+                                )) {
+                                  return;
+                                }
+                                await session.fonts.remove(text(font['id']));
+                                if (p.font == 'custom:${font['id']}') {
+                                  await apply('font', 'publisher');
+                                } else {
+                                  update(() {});
+                                }
+                              },
+                            ),
+                          ),
+                      ],
                     ),
-                    picker(
-                      'Page Transition Style',
-                      'transition',
-                      p.transition,
-                      {
-                        'slide': 'reader.page_transition.scroll',
-                        'cover': 'reader.page_transition.cover',
-                        'curl': 'reader.page_transition.page_curl',
-                        'none': 'None',
-                      },
-                    ),
-                    ReaderMotionOptions(
-                      motion: p.motion,
-                      onChanged: (motion) {
-                        draft = {...draft, ...motion.toJson()};
-                        session.setPreferences(EpubPreferences.fromJson(draft));
-                        unawaited(
-                          _call('preferences', session.browserPreferences),
-                        );
-                        update(() {});
-                      },
-                    ),
-                  ],
-                ),
-                ReaderOptionGroup(
-                  title: 'Tap Zones',
-                  children: [
-                    picker('Tap Zones', 'tapMode', p.tapMode, {
-                      for (final mode in [
-                        'none',
-                        'default',
-                        'edge',
-                        'kindle',
-                        'lShape',
-                        'tSplit',
-                      ])
-                        mode: 'reader.tapZoneMode.$mode',
-                    }),
-                    picker(
-                      'Tap Zone Inversion',
-                      'tapInversion',
-                      p.tapInversion,
-                      {
-                        for (final mode in ['auto', 'normal', 'inverted'])
-                          mode: 'reader.tapZoneInversionMode.$mode',
-                      },
-                    ),
-                  ],
-                ),
-                OutlinedButton(
-                  onPressed: () {
-                    widget.repository.store.setSetting(
-                      'epubDefault',
-                      p.toJson(),
-                    );
-                    Navigator.pop(context);
-                  },
-                  child: Text(tr(context, 'Use as Default')),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+                  ReaderOptionGroup(
+                    title: 'Appearance',
+                    children: [
+                      picker('Theme', 'theme', p.theme, {
+                        'system': 'System',
+                        'white': 'white',
+                        'sepia': 'sepia',
+                        'black': 'black',
+                        'quiet': 'Quiet',
+                        'green': 'Green',
+                      }),
+                    ],
+                  ),
+                  ReaderOptionGroup(
+                    title: 'Page Turn',
+                    children: [
+                      SwitchListTile.adaptive(
+                        title: Text(tr(context, 'Animate Page Turns')),
+                        value: p.animate,
+                        onChanged: (v) => apply('animate', v),
+                      ),
+                      picker(
+                        'Page Transition Style',
+                        'transition',
+                        p.transition,
+                        {
+                          'slide': 'reader.page_transition.scroll',
+                          'cover': 'reader.page_transition.cover',
+                          'curl': 'reader.page_transition.page_curl',
+                          'none': 'None',
+                        },
+                      ),
+                      ReaderMotionOptions(
+                        motion: p.motion,
+                        onChanged: (motion) {
+                          draft = {...draft, ...motion.toJson()};
+                          session.setPreferences(
+                            EpubPreferences.fromJson(draft),
+                          );
+                          unawaited(
+                            _call('preferences', session.browserPreferences),
+                          );
+                          update(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                  ReaderOptionGroup(
+                    title: 'Tap Zones',
+                    children: [
+                      picker('Tap Zones', 'tapMode', p.tapMode, {
+                        for (final mode in [
+                          'none',
+                          'default',
+                          'edge',
+                          'kindle',
+                          'lShape',
+                          'tSplit',
+                        ])
+                          mode: 'reader.tapZoneMode.$mode',
+                      }),
+                      picker(
+                        'Tap Zone Inversion',
+                        'tapInversion',
+                        p.tapInversion,
+                        {
+                          for (final mode in ['auto', 'normal', 'inverted'])
+                            mode: 'reader.tapZoneInversionMode.$mode',
+                        },
+                      ),
+                    ],
+                  ),
+                  OutlinedButton(
+                    onPressed: () {
+                      widget.repository.store.setSetting(
+                        'epubDefault',
+                        p.toJson(),
+                      );
+                      Navigator.pop(context);
+                    },
+                    child: Text(tr(context, 'Use as Default')),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      _settingsOpen = false;
+      await _call('suspendInput', false);
+    }
   }
 
   Widget _readerView(EpubSession session) {
@@ -997,202 +1029,264 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     super.dispose();
   }
 
+  KeyEventResult _key(KeyEvent event) {
+    if (!Platform.isWindows ||
+        event is KeyUpEvent ||
+        _settingsOpen ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey, rtl = _session?.host.direction == 'rtl';
+    if (HardwareKeyboard.instance.isControlPressed &&
+        key == LogicalKeyboardKey.keyC &&
+        _selection?.isNotEmpty == true) {
+      unawaited(Clipboard.setData(ClipboardData(text: _selection!)));
+      return KeyEventResult.handled;
+    }
+    if (HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isAltPressed ||
+        HardwareKeyboard.instance.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.pageDown ||
+        key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.pageUp) {
+      final forward =
+          key == LogicalKeyboardKey.pageDown ||
+          key ==
+              (rtl
+                  ? LogicalKeyboardKey.arrowLeft
+                  : LogicalKeyboardKey.arrowRight);
+      unawaited(_turn(forward ? 1 : -1));
+    } else if (key == LogicalKeyboardKey.space) {
+      if (widget.repository.store.setting<String>('spaceKeyAction') ==
+          'nextPage') {
+        unawaited(_turn(1));
+      } else {
+        setState(() => _controls = !_controls);
+      }
+    } else if (key == LogicalKeyboardKey.f11) {
+      _toggleFullscreen();
+    } else if (key == LogicalKeyboardKey.escape) {
+      if (!_controls || _fullscreen) {
+        _showControls();
+      } else {
+        Navigator.maybePop(context);
+      }
+    } else {
+      return KeyEventResult.ignored;
+    }
+    return KeyEventResult.handled;
+  }
+
   @override
-  Widget build(BuildContext context) => FutureBuilder<EpubSession>(
-    future: _future,
-    builder: (context, snapshot) {
-      if (snapshot.hasError) {
-        return Scaffold(
-          appBar: AppBar(title: Text(widget.book.title)),
-          body: FailureView(
-            error: snapshot.error!,
-            retry: () => setState(() => _future = _open()),
-          ),
+  Widget build(BuildContext context) => Focus(
+    onKeyEvent: (_, event) => _key(event),
+    child: FutureBuilder<EpubSession>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: Text(widget.book.title)),
+            body: FailureView(
+              error: snapshot.error!,
+              retry: () => setState(() => _future = _open()),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: Text(widget.book.title)),
+            body: const Center(child: CircularProgressIndicator.adaptive()),
+          );
+        }
+        final session = snapshot.data!;
+        session.darkEnvironment =
+            Theme.of(context).brightness == Brightness.dark;
+        final background = Color(
+          int.parse(session.themeColors.$1.substring(1), radix: 16) |
+              0xff000000,
         );
-      }
-      if (!snapshot.hasData) {
-        return Scaffold(
-          appBar: AppBar(title: Text(widget.book.title)),
-          body: const Center(child: CircularProgressIndicator.adaptive()),
-        );
-      }
-      final session = snapshot.data!;
-      session.darkEnvironment = Theme.of(context).brightness == Brightness.dark;
-      final background = Color(
-        int.parse(session.themeColors.$1.substring(1), radix: 16) | 0xff000000,
-      );
-      final brightness = session.dark ? Brightness.dark : Brightness.light;
-      if (_readerTheme == null || _readerBrightness != brightness) {
-        _readerBrightness = brightness;
-        _readerTheme = appTheme(brightness);
-      }
-      return ReaderStatusBar(
-        visible:
-            widget.repository.store.setting<bool>(
-              'epubShowsStatusBarWhileReading',
-            ) ==
-            true,
-        child: Theme(
-          data: _readerTheme!,
-          child: Scaffold(
-            backgroundColor: background,
-            appBar: _controls
-                ? AppBar(
-                    backgroundColor: background,
-                    title: Text(
-                      epubOverlayText(context, session, 'controlsHeaderCenter'),
-                    ),
-                    actions: [
-                      if (widget.incognito)
-                        const Icon(CupertinoIcons.eye_slash),
-                      if (session.auxiliary)
-                        IconButton(
-                          tooltip: tr(context, 'Back to Reading'),
-                          onPressed: () => _call('closeAuxiliary'),
-                          icon: const Icon(CupertinoIcons.arrow_uturn_left),
-                        ),
-                      IconButton(
-                        tooltip: tr(
+        final brightness = session.dark ? Brightness.dark : Brightness.light;
+        if (_readerTheme == null || _readerBrightness != brightness) {
+          _readerBrightness = brightness;
+          _readerTheme = appTheme(brightness);
+        }
+        return ReaderStatusBar(
+          visible:
+              widget.repository.store.setting<bool>(
+                'epubShowsStatusBarWhileReading',
+              ) ==
+              true,
+          child: Theme(
+            data: _readerTheme!,
+            child: Scaffold(
+              backgroundColor: background,
+              appBar: _controls
+                  ? AppBar(
+                      backgroundColor: background,
+                      title: Text(
+                        epubOverlayText(
                           context,
-                          _fullscreen ? 'Exit Full Screen' : 'Full Screen',
-                        ),
-                        onPressed: _toggleFullscreen,
-                        icon: const Icon(
-                          CupertinoIcons.arrow_up_left_arrow_down_right,
+                          session,
+                          'controlsHeaderCenter',
                         ),
                       ),
-                      PopupMenuButton<String>(
-                        onSelected: (v) => switch (v) {
-                          'contents' => _contents(),
-                          'search' => _search(),
-                          'bookmarks' => _bookmarks(),
-                          'translate' => _translateSelection(),
-                          _ => _settings(),
-                        },
-                        itemBuilder: (_) => [
-                          for (final entry in {
-                            'contents': 'Table of Contents',
-                            'search': 'Search',
-                            'bookmarks': 'Bookmarks',
-                            if (_selection?.trim().isNotEmpty == true)
-                              'translate': 'Translate Selected Text',
-                            'settings': 'Text Settings',
-                          }.entries)
-                            PopupMenuItem(
-                              value: entry.key,
-                              child: Text(tr(context, entry.value)),
-                            ),
-                        ],
-                      ),
-                    ],
-                  )
-                : null,
-            body: ReaderSafeArea(
-              top: !_controls,
-              bottom: !_controls,
-              child: Column(
-                children: [
-                  if (!_controls)
-                    EpubReadingOverlay(session: session, header: true),
-                  if (_error != null)
-                    MaterialBanner(
-                      content: Text(_error!),
                       actions: [
-                        TextButton(
-                          onPressed: () => _restartBrowser(manual: true),
-                          child: Text(tr(context, 'Retry')),
-                        ),
-                        TextButton(
-                          onPressed: () => setState(() => _error = null),
-                          child: Text(tr(context, 'Close')),
-                        ),
-                      ],
-                    ),
-                  Expanded(
-                    key: const ValueKey('epub-surface-slot'),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (_recoveryFailed)
-                          FailureView(
-                            error: tr(context, 'reader.recoveryFailed'),
-                            retry: () => _restartBrowser(manual: true),
-                          )
-                        else if (!_recovering)
-                          RepaintBoundary(child: _readerView(session)),
-                        if (session.layoutBusy && session.ready && !_recovering)
-                          const Align(
-                            alignment: Alignment.bottomCenter,
-                            child: LinearProgressIndicator(minHeight: 2),
-                          ),
-                        if (!session.ready && !_recoveryFailed)
-                          ColoredBox(
-                            color: background,
-                            child: const Center(
-                              child: CircularProgressIndicator.adaptive(),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (!_controls)
-                    EpubReadingOverlay(session: session, header: false),
-                  if (!_controls &&
-                      object(
-                            widget.repository.store.setting<dynamic>(
-                              'epubOverlay',
-                            ),
-                          )['showsReaderProgressBar'] ==
-                          true)
-                    LinearProgressIndicator(
-                      value:
-                          (session.chapter + session.progression) /
-                          session.document.chapters.length,
-                      minHeight: 3,
-                    ),
-                  if (_controls)
-                    ReaderSafeArea(
-                      top: false,
-                      child: Row(
-                        children: [
+                        if (widget.incognito)
+                          const Icon(CupertinoIcons.eye_slash),
+                        if (session.auxiliary)
                           IconButton(
-                            tooltip: tr(context, 'Previous Page'),
-                            onPressed: () => _turn(-1),
-                            icon: const Icon(CupertinoIcons.chevron_left),
+                            tooltip: tr(context, 'Back to Reading'),
+                            onPressed: () => _call('closeAuxiliary'),
+                            icon: const Icon(CupertinoIcons.arrow_uturn_left),
                           ),
-                          Expanded(
-                            child: Text(
-                              epubOverlayText(
-                                context,
-                                session,
-                                'controlsFooterCenter',
+                        IconButton(
+                          tooltip: tr(
+                            context,
+                            _fullscreen ? 'Exit Full Screen' : 'Full Screen',
+                          ),
+                          onPressed: _toggleFullscreen,
+                          icon: const Icon(
+                            CupertinoIcons.arrow_up_left_arrow_down_right,
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          onSelected: (v) => switch (v) {
+                            'contents' => _contents(),
+                            'search' => _search(),
+                            'bookmarks' => _bookmarks(),
+                            'translate' => _translateSelection(),
+                            _ => _settings(),
+                          },
+                          itemBuilder: (_) => [
+                            for (final entry in {
+                              'contents': 'Table of Contents',
+                              'search': 'Search',
+                              'bookmarks': 'Bookmarks',
+                              if (_selection?.trim().isNotEmpty == true)
+                                'translate': 'Translate Selected Text',
+                              'settings': 'Text Settings',
+                            }.entries)
+                              PopupMenuItem(
+                                value: entry.key,
+                                child: Text(tr(context, entry.value)),
                               ),
-                              key: const ValueKey('epub-position'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : null,
+              body: ReaderSafeArea(
+                top: !_controls,
+                bottom: !_controls,
+                child: Column(
+                  children: [
+                    if (!_controls)
+                      EpubReadingOverlay(session: session, header: true),
+                    if (_error != null)
+                      MaterialBanner(
+                        content: Text(_error!),
+                        actions: [
+                          TextButton(
+                            onPressed: () => _restartBrowser(manual: true),
+                            child: Text(tr(context, 'Retry')),
                           ),
-                          if (session.atEnd && widget.onNextBook != null)
-                            IconButton(
-                              tooltip: tr(context, 'Next Book'),
-                              icon: const Icon(Icons.skip_next),
-                              onPressed: widget.onNextBook,
-                            ),
-                          IconButton(
-                            tooltip: tr(context, 'Next Page'),
-                            onPressed: () => _turn(1),
-                            icon: const Icon(CupertinoIcons.chevron_right),
+                          TextButton(
+                            onPressed: () => setState(() => _error = null),
+                            child: Text(tr(context, 'Close')),
                           ),
                         ],
                       ),
+                    Expanded(
+                      key: const ValueKey('epub-surface-slot'),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (_recoveryFailed)
+                            FailureView(
+                              error: tr(context, 'reader.recoveryFailed'),
+                              retry: () => _restartBrowser(manual: true),
+                            )
+                          else if (!_recovering)
+                            RepaintBoundary(child: _readerView(session)),
+                          if (session.layoutBusy &&
+                              session.ready &&
+                              !_recovering)
+                            const Align(
+                              alignment: Alignment.bottomCenter,
+                              child: LinearProgressIndicator(minHeight: 2),
+                            ),
+                          if (!session.ready && !_recoveryFailed)
+                            ColoredBox(
+                              color: background,
+                              child: const Center(
+                                child: CircularProgressIndicator.adaptive(),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                ],
+                    if (!_controls)
+                      EpubReadingOverlay(session: session, header: false),
+                    if (!_controls &&
+                        object(
+                              widget.repository.store.setting<dynamic>(
+                                'epubOverlay',
+                              ),
+                            )['showsReaderProgressBar'] ==
+                            true)
+                      LinearProgressIndicator(
+                        value:
+                            (session.chapter + session.progression) /
+                            session.document.chapters.length,
+                        minHeight: 3,
+                      ),
+                    if (_controls)
+                      ReaderSafeArea(
+                        top: false,
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: tr(context, 'Previous Page'),
+                              onPressed: () => _turn(-1),
+                              icon: const Icon(CupertinoIcons.chevron_left),
+                            ),
+                            Expanded(
+                              child: Text(
+                                epubOverlayText(
+                                  context,
+                                  session,
+                                  'controlsFooterCenter',
+                                ),
+                                key: const ValueKey('epub-position'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            if (session.atEnd && widget.onNextBook != null)
+                              IconButton(
+                                tooltip: tr(context, 'Next Book'),
+                                icon: const Icon(Icons.skip_next),
+                                onPressed: widget.onNextBook,
+                              ),
+                            IconButton(
+                              tooltip: tr(context, 'Next Page'),
+                              onPressed: () => _turn(1),
+                              icon: const Icon(CupertinoIcons.chevron_right),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }

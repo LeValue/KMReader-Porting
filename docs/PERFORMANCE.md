@@ -1,3 +1,43 @@
+# Reader input, opening and GPU sheets in 0.8.5
+
+EPUB opening now performs archive inspection and serving in one worker rather
+than opening it in an inspector, on the UI isolate, and again in the server.
+The resource worker returns chapter/navigation metadata and entry names. TOC
+target validation no longer decompresses every target chapter. Remote progression
+retrieval starts before worker preparation; its resume/error semantics remain.
+Only redundant post-display layout waits were removed: initial fonts/images
+still settle, and native view recovery/resize continue to retain glyph checks.
+
+EPUB forms use a lazy list of groups. A typography slider owns its drag value;
+the form and live publication are updated once on release. Book input and effects
+are suspended while options are open, and selection events are coalesced. All
+anchored choices share the retained fading menu and use the source row's overlay
+coordinates. Windows composition mouse buttons now use the event's actual local
+coordinates, and the reader handles keyboard paging in Flutter focus too.
+
+Slide has symmetric foreground/background ordering, 10% lower-sheet parallax,
+a small lower-page dim that fades as the page arrives, and an exponential dark
+foreground lift beginning after 25% travel. Curl does not use these color effects.
+
+EPUB curl now uses an analytic high-precision WebGL cylinder instead of an 8-bit
+SVG displacement map generated/encoded on every frame. Reusable native-size
+textures (DPR capped at two), one retained GPU surface and cached chapter markup
+keep pixel work outside the drag loop. During drag the renderer updates uniforms
+and draws a quad. Nearby same-chapter textures are prepared without navigating.
+Four page images at most are cached, with a 32 MiB target (two required images
+remain available for a large desktop viewport), 48 MiB resource-cache budget and
+8 MiB serialized-page guard. GPU/artwork failures retain direct reading. Embedded
+fonts/images are kept publication-local and included in the texture. No native
+book screenshot or PNG encoding crosses the bridge for these page turns.
+
+Single-page backs are mirrored/translucent; spread backs use the incoming left
+page, with stationary underlying page backgrounds. The fold's normal follows
+vertical as well as horizontal pointer movement. Reduced motion and cancellation
+retain direct navigation and the committed CFI. These are controlled rendering
+and state checks; native/physical-device frame-time acceptance is still needed.
+
+The 0.8.4 notes below describe the replaced implementation for comparison.
+
 # Reader controls, sheet transitions and gestures in 0.8.4
 
 The blank EPUB after clicking the text/fullscreen button came from the Flutter
