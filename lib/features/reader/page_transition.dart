@@ -427,6 +427,7 @@ class _CurlDrag implements Drag {
   void update(DragUpdateDetails details) {
     if (decision.isCompleted || owner._running && physical == 0) return;
     origin ??= details.globalPosition - details.delta;
+    final oldSlope = slope;
     slope =
         (-(details.globalPosition.dy - origin!.dy) /
                 math.max(width * .15, distance.abs()))
@@ -437,7 +438,11 @@ class _CurlDrag implements Drag {
       unawaited(owner._interactive(this));
     }
     progress = (-distance * physical / width).clamp(0, 1);
-    if (physical != 0 && owner.mounted) owner._animation.value = progress;
+    if (physical != 0 && owner.mounted) {
+      if (owner._animation.value == progress && slope != oldSlope)
+        owner.setState(() {});
+      owner._animation.value = progress;
+    }
   }
 
   @override

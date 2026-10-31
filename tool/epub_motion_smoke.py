@@ -79,6 +79,9 @@ with sync_playwright() as pw:
     page.wait_for_timeout(100)
     assert page.evaluate("document.getAnimations().some(a=>a.effect?.pseudoElement?.startsWith('::view-transition-'))"), 'Automatic effect vanished too early'
     assert page.evaluate('effect.progress') > 0
+    page.evaluate('reader.suspendInput(true)')
+    assert not page.evaluate('document.querySelector("style[data-page-motion]") || document.getElementById("page-curl-surface")')
+    page.evaluate('reader.suspendInput(false)')
     page.wait_for_function('() => !document.querySelector("style[data-page-motion]")')
     page.evaluate('(p)=>reader.preferences({...p,transition:"curl"})', config['preferences'])
     # Use real pointer capture within the original iframe document.
