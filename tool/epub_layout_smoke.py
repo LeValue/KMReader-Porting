@@ -154,6 +154,25 @@ with sync_playwright() as playwright:
         sys.exit(0)
 
     check_authored()
+    if config['preferences']['flow'] == 'paged':
+        # Publisher paper can differ from the reader theme. The translucent
+        # back must use that paper, never turn a white authored page black.
+        page.evaluate("""() => {
+          window.savedAnimate=KMReaderSheetEffect.prototype.animateTo;
+          window.savedStart=KMReaderSheetEffect.prototype.start;
+          KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
+          KMReaderSheetEffect.prototype.start=async function(move){window.artworkEffect=this;return savedStart.call(this,move);};
+        }""")
+        page.evaluate("reader.turn({delta:1,style:'curl'})")
+        assert page.evaluate('!!artworkEffect.surface'), 'Authored-page GPU curl unavailable'
+        page.evaluate('artworkEffect.update(.15)')
+        import io
+        from PIL import Image
+        image=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+        assert min(min(image.getpixel((x,10))) for x in range(image.width))>175, 'Publisher paper became a dark theme on the back'
+        page.evaluate("""() => {artworkEffect.stop();KMReaderSheetEffect.prototype.animateTo=savedAnimate;KMReaderSheetEffect.prototype.start=savedStart;}""")
+        page.evaluate('reader.previous()')
+        check_authored()
     if config['preferences']['flow'] == 'scrolled':
         assert not page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1).atEnd")
     first = page.evaluate('window.reader.position().start')

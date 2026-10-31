@@ -338,6 +338,43 @@ void verifyNativeEpubPerformance() {
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
           await reader.previous();return true;
         """);
+        // The action must retain its selected passage even if native focus
+        // clears the DOM selection while the toolbar popup is open.
+        final selected = await js("""
+          const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();
+          const paragraph=[...doc.querySelectorAll('p')].find(p=>[...p.getClientRects()].some(r=>r.right+b.left>0&&r.left+b.left<innerWidth&&r.bottom+b.top>0&&r.top+b.top<innerHeight));
+          window.selectionParagraph=paragraph;doc.getSelection().selectAllChildren(paragraph);return paragraph.textContent;
+        """);
+        final dynamic selectionState = tester.state(
+          find.byType(BrowserEpubReader),
+        );
+        await waitFor(() => selectionState.selectedText == selected);
+        if (Platform.isWindows) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await waitFor(() => selectionState.selectedText == '');
+          expect(
+            find.byType(BrowserEpubReader),
+            findsOneWidget,
+            reason: 'Escape clears text selection before leaving a book',
+          );
+          await js(
+            'selectionParagraph.ownerDocument.getSelection().selectAllChildren(selectionParagraph);return true;',
+          );
+          await waitFor(() => selectionState.selectedText == selected);
+        }
+        await tester.tap(find.byType(PopupMenuButton<String>).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Translate Selected Text'), findsOneWidget);
+        await js(
+          "document.querySelector('#viewer iframe').contentDocument.getSelection().removeAllRanges();return true;",
+        );
+        await waitFor(() => selectionState.selectedText == '');
+        await tester.tap(find.text('Translate Selected Text'));
+        await tester.pumpAndSettle();
+        expect(find.text(selected as String), findsOneWidget);
+        await tester.tap(find.byType(BackButton).last);
+        await tester.pumpAndSettle();
+        await visibleText();
         final result = object(
           await js('''const times=[];
         for(let i=0;i<48;i++) { const old=reader.position().start.cfi, at=performance.now();

@@ -58,7 +58,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   bool _fixedLayout = false, _settingsOpen = false;
   bool _verticalWriting = false;
   final _closed = Completer<void>();
-  String? _error, _selection;
+  String? _error, _selection, _actionSelection;
   bool _turning = false;
   final _turns = <int>[];
   ThemeData? _readerTheme;
@@ -70,6 +70,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   @visibleForTesting
   InAppWebViewController? get browserController => _browser;
+
+  @visibleForTesting
+  String? get selectedText => _selection;
 
   void _showControls() {
     ReaderDisplay.setFullscreen(context, false);
@@ -586,7 +589,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     controller.dispose();
   }
 
-  Future<void> _bookmarks() async {
+  Future<void> _bookmarks([String? selectedText]) async {
+    final selected = selectedText ?? _selection ?? '';
     final session = _session!;
     await showModalBottomSheet<void>(
       context: context,
@@ -600,7 +604,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                 leading: const Icon(CupertinoIcons.bookmark),
                 title: Text(tr(context, 'Toggle Bookmark')),
                 onTap: () {
-                  session.toggleBookmark(_selection ?? '');
+                  session.toggleBookmark(selected);
                   update(() {});
                 },
               ),
@@ -633,14 +637,15 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     );
   }
 
-  Future<void> _translateSelection() async {
-    if (_selection?.trim().isNotEmpty != true) return;
+  Future<void> _translateSelection([String? selectedText]) async {
+    final selected = selectedText ?? _selection;
+    if (selected?.trim().isNotEmpty != true) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => ReaderDisplay(
           child: ReaderTextPage(
-            initialText: _selection,
+            initialText: selected,
             providers: TranslationProviders(widget.repository.store),
             title: widget.book.title,
             incognito: widget.incognito,
@@ -1031,6 +1036,13 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     super.dispose();
   }
 
+  Future<void> _copySelection() async {
+    final selected = await _call('selectedText');
+    if (selected is String && selected.trim().isNotEmpty) {
+      await Clipboard.setData(ClipboardData(text: selected));
+    }
+  }
+
   bool _readerKey(KeyEvent event) {
     assert(() {
       if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -1053,9 +1065,16 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     }
     final key = event.logicalKey, rtl = _session?.host.direction == 'rtl';
     if (HardwareKeyboard.instance.isControlPressed &&
-        key == LogicalKeyboardKey.keyC &&
-        _selection?.isNotEmpty == true) {
-      unawaited(Clipboard.setData(ClipboardData(text: _selection!)));
+        key == LogicalKeyboardKey.keyC) {
+      unawaited(_copySelection());
+      return KeyEventResult.handled;
+    }
+    if (event is KeyRepeatEvent &&
+        [
+          LogicalKeyboardKey.f11,
+          LogicalKeyboardKey.space,
+          LogicalKeyboardKey.escape,
+        ].contains(key)) {
       return KeyEventResult.handled;
     }
     if (HardwareKeyboard.instance.isControlPressed ||
@@ -1084,7 +1103,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     } else if (key == LogicalKeyboardKey.f11) {
       _toggleFullscreen();
     } else if (key == LogicalKeyboardKey.escape) {
-      if (!_controls || _fullscreen) {
+      if (_selection?.isNotEmpty == true) {
+        setState(() => _selection = '');
+        unawaited(_call('clearSelection'));
+      } else if (!_controls || _fullscreen) {
         _showControls();
       } else {
         Navigator.maybePop(context);
@@ -1160,11 +1182,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         ),
                       ),
                       PopupMenuButton<String>(
+                        onOpened: () => _actionSelection = _selection,
                         onSelected: (v) => switch (v) {
                           'contents' => _contents(),
                           'search' => _search(),
-                          'bookmarks' => _bookmarks(),
-                          'translate' => _translateSelection(),
+                          'bookmarks' => _bookmarks(_actionSelection),
+                          'translate' => _translateSelection(_actionSelection),
                           _ => _settings(),
                         },
                         itemBuilder: (_) => [

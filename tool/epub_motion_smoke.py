@@ -20,6 +20,10 @@ with sync_playwright() as pw:
     page.add_init_script("window.messages=[];addEventListener('readerEvent',e=>messages.push(e.detail));")
     page.goto(url)
     page.evaluate('(c)=>reader.open(c)', config)
+    selected = page.evaluate("""() => {const doc=document.querySelector('#viewer iframe').contentDocument,p=doc.querySelector('p');doc.getSelection().selectAllChildren(p);doc.defaultView.dispatchEvent(new Event('blur'));return p.textContent;}""")
+    assert page.evaluate('reader.selectedText()') == selected, 'Toolbar focus destroyed the selected passage'
+    page.evaluate('reader.clearSelection()')
+    assert page.evaluate('reader.selectedText()') == ''
     # Genuine mouse input in a margin must not create a phantom text selection.
     page.mouse.click(width*.5, 2)
     assert page.evaluate("document.querySelector('#viewer iframe').contentDocument.getSelection().isCollapsed")

@@ -40,7 +40,7 @@ class KMReaderCurlSurface {
           vec4 color=oldAt(tex);
           if(back){
             if(spread>.5)color=newAt(vec2(hinge-source.x*sign,source.y));
-            else color=vec4(mix(paper,color.rgb,.36),1.);
+            else {vec3 stock=oldAt(vec2(sign>0.?1.:size.x-1.,1.)).rgb;color=vec4(mix(stock,color.rgb,.36),1.);}
           }
           gl_FragColor=vec4(color.rgb*shade,1.);
         }else{
@@ -323,7 +323,6 @@ class KMReaderSheetEffect {
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
     const clearSelection = () => doc.getSelection()?.removeAllRanges();
-    doc.defaultView.addEventListener('blur', clearSelection);
     if (preferences.flow === 'scrolled' && rendition.manager?.stage) {
       // The first CJK view can change the manager axis after its stage chose
       // overflow-x/y. Reapply that policy so the new axis accepts input.
@@ -956,6 +955,8 @@ class KMReaderSheetEffect {
       // Settle that delivery once here, ahead of queued turns, not per page.
       return enqueue(async()=>{await tick();await waitForLayout();warmCurl();return true;});
     },
+    selectedText: () => (rendition?.getContents()||[]).map(c=>c.document.getSelection()?.toString()||'').find(text=>text.trim())||'',
+    clearSelection: () => {for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();return true;},
     position: () => location, layoutReady,
     whenIdle: () => enqueue(waitForLayout), destroy: () => {
       disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;

@@ -14,6 +14,7 @@ class ReaderViewport extends StatefulWidget {
     required this.startScroll,
     this.axis = Axis.horizontal,
     this.onTap,
+    this.onTapKind,
     this.onContact,
     this.onPinch,
     this.onActivityChanged,
@@ -26,6 +27,7 @@ class ReaderViewport extends StatefulWidget {
   final Axis axis;
   final Drag? Function(DragStartDetails) startScroll;
   final ValueChanged<Offset>? onTap;
+  final ValueChanged<PointerDeviceKind>? onTapKind;
   final VoidCallback? onContact, onPinch;
   final ValueChanged<bool>? onActivityChanged;
   final ValueChanged<double>? onZoomSettled;
@@ -240,7 +242,10 @@ class _ReaderViewportState extends State<ReaderViewport>
       onTapUp: widget.onTap == null
           ? null
           : (details) {
-              if (!_multiple) widget.onTap!(details.localPosition);
+              if (!_multiple) {
+                widget.onTapKind?.call(details.kind);
+                widget.onTap!(details.localPosition);
+              }
             },
       onDoubleTapDown: widget.doubleTapZoom <= 1
           ? null
