@@ -1,5 +1,65 @@
 # Development validation
 
+## 0.8.4 preview — retained reader surfaces, fullscreen and visible page sheets
+
+Published [0.8.4](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.4-preview.1), runtime source `469ea3a6a8f6bd24c31d7c5ca1e3f850ba8a5995`.
+All three required jobs passed in [verification 41150951221](https://github.com/LeValue/KMReader-Porting/actions/runs/41150951221).
+[Publisher 41184467763](https://github.com/LeValue/KMReader-Porting/actions/runs/41184467763) reused that exact source and successful Windows artifact.
+
+All **296 host checks** pass locally with real Chromium and ONNX enabled. Static
+analysis, formatting, eight Python checks, the pinned upstream inventory and the
+separate real Komga acceptance case pass. Twenty warm Komga visits make no extra
+HTTP requests. The seven new presentation checks cover motion persistence/ranges,
+small/large forms with enlarged text, comic fullscreen wiring/Escape, interruptible
+rapid curl commands and both committed/canceled finger previews. Existing artwork
+geometry checks retain exact color assertions with tint disabled explicitly.
+
+Three new real-browser presentation cases cover narrow/wide LTR and narrow RTL.
+The RTL fixture contains actual RTL spine metadata. They validate all three
+visible sheet styles, nonblank pixels, moving-page tint, actual mid-flight
+View Transition pseudo-elements, mouse tracking, canceled progress, resize,
+real touchscreen input and second-finger interruption. Reduced motion and an
+engine without View Transitions retain navigation. Long-chapter lost-completion,
+bounded-effect, memory and typography/CJK regressions remain covered.
+
+Settings headers now carry a title at every width and content remains beneath
+the toolbar. Dashboard control cards retain explicit margins, and reader forms
+keep their title/close action while fields scroll. The responsive Dashboard test
+checks card bounds and uses measured row geometry and framed drag input while
+retaining its real reorder/no-refetch assertions. These are layout/state checks,
+not pixel equality with Apple controls or proprietary page-turn physics.
+
+Windows passes **19 native checks**; Android passes **18 native checks**
+plus both notch/rotation checks. At an advanced EPUB position, the default-reader
+case repeatedly clicks text, enters fullscreen, sends Escape and verifies the
+same native controller, rendered glyphs and unchanged character anchor. Windows
+also verifies actual OS fullscreen state and retains the real WebView2 renderer
+crash/recreation test. Typography controls, flow switching and the new modal
+close action are exercised in native reflowable, vertical and fixed-layout books.
+Windows release compilation/isolated startup and optimized Android compilation pass.
+
+All five release assets were downloaded and checked against GitHub digests and
+SHA256SUMS. APKs match the locally verified signed bytes and embedded exact
+source/version/build provenance. Build number 14 and the retained Preview
+identity/certificate permit in-place updates. All APKs are non-debuggable and
+pass 16KiB ZIP alignment; all nine ELF libraries in each 64-bit APK pass 16KiB
+LOAD alignment. All **63 Windows bundle files** match the successful
+CI artifact, including 21 x64 PE files. Debug-only wheel injection is absent
+from the release executable. Windows is not Authenticode signed.
+
+These checks do not measure physical-device frame rates or every GPU driver.
+Advanced EPUB sheet rendering requires a View Transitions-capable WebView;
+older engines retain direct reading. See [performance](PERFORMANCE.md) and
+[remaining upstream differences](PARITY.md).
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.4-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-android-arm64-preview.apk) | 77,560,174 | `ae7dacf896c36411440d2628f2b40b019e804f42ccfa8a84fd075ed25d1b4bcc` |
+| [KMReader-0.8.4-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-android-armv7-preview.apk) | 63,877,312 | `c905d891adbc576946b05b502981fac4923e5523ff62ef658c1e10a4a0855e42` |
+| [KMReader-0.8.4-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-android-x64-preview.apk) | 83,796,019 | `518d4f234edfce75d64f40141157fc23ee4c45febb2556b0b6c244466fd9146a` |
+| [KMReader-0.8.4-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-windows-x64-preview.zip) | 34,378,917 | `4672fd1a838169e00a9032331812c0e4be85db66213c7e7619c834da5c0be80e` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/SHA256SUMS.txt) | 424 | `1acdcb87646485d98ccbb372ebb685fb7775436760783c171539a6e2d253ef76` |
+
 ## 0.8.3 preview — EPUB responsiveness and performance audit
 
 Published [0.8.3](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.3-preview.1), runtime source `43bc0e127aa8c7392482817ceacd4115e0980416`.
