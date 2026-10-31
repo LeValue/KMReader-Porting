@@ -19,6 +19,60 @@ void main() {
     }
   }
 
+  testWidgets(
+    'comic curl bends the artwork without lifting its black letterbox',
+    (tester) async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder)..drawColor(Colors.black, BlendMode.src);
+      canvas.drawRect(
+        const Rect.fromLTWH(50, 0, 100, 200),
+        Paint()..color = Colors.red,
+      );
+      final picture = recorder.endRecording();
+      final before = (await tester.runAsync(() => picture.toImage(200, 200)))!;
+      picture.dispose();
+      final after = (await tester.runAsync(() => raster(Colors.green)))!;
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: RepaintBoundary(
+              key: key,
+              child: SizedBox(
+                width: 200,
+                height: 200,
+                child: CustomPaint(
+                  painter: PageTurnPainter(
+                    before,
+                    after,
+                    .25,
+                    'curl',
+                    1,
+                    sheetBounds: const Rect.fromLTWH(50, 0, 100, 200),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = (await tester.runAsync(() => boundary.toImage()))!;
+      final data = (await tester.runAsync(
+        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+      ))!;
+      image.dispose();
+      final offset = (100 * 200 + 20) * 4;
+      expect(
+        data.getUint8(offset + 1),
+        greaterThan(100),
+        reason: 'Black margins must stay off the curled sheet',
+      );
+    },
+  );
   testWidgets('page effects preserve the first and final rendered pages', (
     tester,
   ) async {

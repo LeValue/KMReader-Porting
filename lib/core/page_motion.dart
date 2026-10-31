@@ -5,10 +5,11 @@ class PageMotion {
     this.followGesture = true,
     this.tint = .10,
     this.cornerRadius = 18,
+    this.curlReach = .18,
   });
   final int duration;
   final bool followGesture;
-  final double tint, cornerRadius;
+  final double tint, cornerRadius, curlReach;
   factory PageMotion.fromJson(Map<String, dynamic> data) {
     double value(String key, double fallback, double min, double max) {
       final v = data[key];
@@ -20,6 +21,7 @@ class PageMotion {
       followGesture: data['followGesture'] != false,
       tint: value('pageTint', .10, 0, .25),
       cornerRadius: value('pageCornerRadius', 18, 0, 32),
+      curlReach: value('curlReach', .18, .08, .55),
     );
   }
   Map<String, dynamic> toJson() => {
@@ -27,16 +29,19 @@ class PageMotion {
     'followGesture': followGesture,
     'pageTint': tint,
     'pageCornerRadius': cornerRadius,
+    'curlReach': curlReach,
   };
   PageMotion copy({
     int? duration,
     bool? followGesture,
     double? tint,
     double? cornerRadius,
+    double? curlReach,
   }) => PageMotion(
     duration: duration ?? this.duration,
     followGesture: followGesture ?? this.followGesture,
     tint: tint ?? this.tint,
     cornerRadius: cornerRadius ?? this.cornerRadius,
+    curlReach: curlReach ?? this.curlReach,
   );
 }

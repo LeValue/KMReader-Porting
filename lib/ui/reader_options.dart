@@ -277,6 +277,16 @@ class _ReaderMotionOptionsState extends State<ReaderMotionOptions> {
         onChangeEnd: (_) => commit(),
       ),
       ReaderOptionSlider(
+        title: 'motion.curlReach',
+        value: draft.curlReach,
+        min: .08,
+        max: .55,
+        divisions: 47,
+        label: '${(draft.curlReach * 100).round()}%',
+        onChanged: (v) => setState(() => draft = draft.copy(curlReach: v)),
+        onChangeEnd: (_) => commit(),
+      ),
+      ReaderOptionSlider(
         title: 'motion.corners',
         value: draft.cornerRadius,
         min: 0,

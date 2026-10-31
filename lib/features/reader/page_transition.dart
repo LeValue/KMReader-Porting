@@ -18,11 +18,13 @@ class ReaderPageTransition extends StatefulWidget {
     required this.child,
     this.capture,
     this.captureImage,
+    this.sheetBounds,
     this.motion = const PageMotion(),
   });
   final Widget child;
   final Future<Uint8List?> Function()? capture;
   final Future<ui.Image?> Function()? captureImage;
+  final Rect Function(Size size, int direction)? sheetBounds;
   final PageMotion motion;
   @override
   State<ReaderPageTransition> createState() => ReaderPageTransitionState();
@@ -35,9 +37,10 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
     duration: Duration(milliseconds: widget.motion.duration),
   );
   ui.Image? _before, _after;
+  Rect? _sheetBounds;
   String _style = 'none';
   int _direction = 1;
-  bool _running = false, _interrupt = false;
+  bool _running = false, _interrupt = false, _previewReady = true;
   _CurlDrag? _activeDrag;
   void cancelGesture() {
     _activeDrag?.cancel();
@@ -45,6 +48,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
   }
 
   void _updateCurlDrag(double progress, bool foldChanged) {
+    if (!_previewReady) return;
     if (_animation.value == progress && foldChanged) setState(() {});
     _animation.value = progress;
   }
@@ -89,6 +93,10 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         await move();
         return;
       }
+      final box = context.findRenderObject();
+      _sheetBounds = box is RenderBox
+          ? widget.sheetBounds?.call(box.size, direction)
+          : null;
       before = await _capture();
       if (!mounted) return;
       if (before == null || _interrupt) {
@@ -142,9 +150,14 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
     if (_running) return;
     _activeDrag = drag;
     _running = true;
-    ui.Image? before;
+    _previewReady = false;
+    ui.Image? before, after;
     var previewed = false;
     try {
+      final box = context.findRenderObject();
+      _sheetBounds = box is RenderBox
+          ? widget.sheetBounds?.call(box.size, drag.physical)
+          : null;
       before = await _capture();
       if (!mounted || drag.canceled) return;
       if (before == null) {
@@ -156,11 +169,18 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         _after = null;
         _style = 'curl';
         _direction = drag.physical;
-        _animation.value = drag.progress;
+        _animation.value = 0;
       });
       await WidgetsBinding.instance.endOfFrame;
       previewed = await drag.preview(drag.delta);
       if (!previewed) return;
+      after = await _capture();
+      if (!mounted) return;
+      setState(() {
+        _after = after;
+        _previewReady = true;
+        _animation.value = drag.progress;
+      });
       final commit = await drag.decision.future && !drag.canceled;
       if (!mounted) return;
       if (!drag.canceled) {
@@ -179,6 +199,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
             .orCancel;
       }
       await drag.finish(drag.delta, commit && !drag.canceled);
+      await WidgetsBinding.instance.endOfFrame;
       previewed = false;
     } on TickerCanceled {
       /* Reader closed during a gesture. */
@@ -192,8 +213,10 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         await WidgetsBinding.instance.endOfFrame;
       }
       before?.dispose();
+      after?.dispose();
       if (_activeDrag == drag) _activeDrag = null;
       _running = false;
+      _previewReady = true;
       if (mounted && _queue.isNotEmpty) {
         final next = _queue.removeAt(0);
         unawaited(turn(next.$1, next.$2, next.$3));
@@ -236,6 +259,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
                   motion: widget.motion,
                   foldSlope: _activeDrag?.slope ?? 0,
                   grabY: _grabY,
+                  sheetBounds: _sheetBounds,
                 ),
               ),
             ),
@@ -255,8 +279,10 @@ class PageTurnPainter extends CustomPainter {
     this.motion = const PageMotion(),
     this.foldSlope = 0,
     this.grabY = .5,
+    this.sheetBounds,
   });
   final double foldSlope, grabY;
+  final Rect? sheetBounds;
   final ui.Image before;
   final ui.Image? after;
   final double progress;
@@ -317,8 +343,9 @@ class PageTurnPainter extends CustomPainter {
   }
 
   void _curl(Canvas canvas, Size size, double p) {
-    final width = size.width, height = size.height;
-    const columns = 144, rows = 24;
+    final bounds = sheetBounds ?? Offset.zero & size;
+    final width = bounds.width, height = bounds.height;
+    const columns = 120, rows = 20;
     final positions = <Offset>[],
         textures = <Offset>[],
         colors = <Color>[],
@@ -326,7 +353,12 @@ class PageTurnPainter extends CustomPainter {
     final sections = List.generate(rows + 1, (row) {
       final cone =
           1 + ((.5 - grabY) * .65 + foldSlope * .35) * (row / rows - grabY);
-      return CurlSheet(width, p, cone: cone.clamp(.65, 1.35));
+      return CurlSheet(
+        width,
+        p,
+        cone: cone.clamp(.65, 1.35),
+        reach: motion.curlReach,
+      );
     });
     for (var col = 0; col <= columns; col++) {
       final u = width * col / columns;
@@ -341,17 +373,21 @@ class PageTurnPainter extends CustomPainter {
         final projected = x * scale;
         positions.add(
           Offset(
-            direction > 0 ? projected : width - projected,
-            (y - height * grabY) * scale + height * grabY,
+            bounds.left + (direction > 0 ? projected : width - projected),
+            bounds.top + (y - height * grabY) * scale + height * grabY,
           ),
         );
         textures.add(
           Offset(
-            before.width * (direction > 0 ? col / columns : 1 - col / columns),
-            before.height * row / rows,
+            (bounds.left +
+                    width *
+                        (direction > 0 ? col / columns : 1 - col / columns)) *
+                before.width /
+                size.width,
+            (bounds.top + height * row / rows) * before.height / size.height,
           ),
         );
-        final shade = .80 + .20 * math.cos(point.angle).abs();
+        final shade = 1 - .30 * math.pow(math.sin(point.angle).abs(), 1.4);
         colors.add(
           Color.fromRGBO(
             (shade * 255).round(),
@@ -418,6 +454,8 @@ class PageTurnPainter extends CustomPainter {
       old.progress != progress ||
       old.foldSlope != foldSlope ||
       old.grabY != grabY ||
+      old.sheetBounds != sheetBounds ||
+      old.motion != motion ||
       old.before != before ||
       old.after != after ||
       old.style != style ||

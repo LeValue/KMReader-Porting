@@ -38,7 +38,6 @@ class CoverPage extends StatelessWidget {
             sign = reverse ? -1.0 : 1.0,
             w = constraints.maxWidth;
         final moving = page % 1 > .001 && page % 1 < .999;
-        if (!moving) return child!;
         final lower = cover ? offset >= 0 : offset < 0;
         final phase =
             (cover
@@ -47,12 +46,14 @@ class CoverPage extends StatelessWidget {
                     ? 1 + offset
                     : offset)
                 .clamp(0.0, 1.0);
-        final radius = motion.cornerRadius * math.min(1, phase * 12);
-        final tint = background.computeLuminance() < .1 && !lower
+        final radius = moving
+            ? motion.cornerRadius * math.min(1, phase * 12)
+            : 0.0;
+        final tint = moving && background.computeLuminance() < .1 && !lower
             ? motion.tint.clamp(0, .12) *
                   math.pow(math.max(0, (phase - .25) / .75), 2.4)
             : 0.0;
-        final dim = lower && !cover
+        final dim = moving && lower && !cover
             ? .12 * math.pow((-offset).clamp(0.0, 1.0), 1.6)
             : 0.0;
         Widget sheet = ColorFiltered(
@@ -80,23 +81,23 @@ class CoverPage extends StatelessWidget {
           ]),
           child: child!,
         );
-        if (!lower) {
-          sheet = ClipRRect(
-            borderRadius: BorderRadius.circular(radius),
+        sheet = ClipRRect(
+          borderRadius: BorderRadius.circular(!lower ? radius : 0),
+          child: ClipPath(
+            clipper: _UnderSheetClipper(
+              offset,
+              radius,
+              reverse,
+              moving && lower && !cover,
+            ),
             child: sheet,
-          );
-        }
-        if (lower && !cover) {
-          sheet = ClipPath(
-            clipper: _UnderSheetClipper(offset, radius, reverse),
-            child: sheet,
-          );
-        }
+          ),
+        );
         return Transform.translate(
           offset: Offset(
-            cover && lower
+            moving && cover && lower
                 ? offset * w * sign
-                : !cover && lower
+                : moving && !cover && lower
                 ? .9 * offset * w * sign
                 : 0,
             0,
@@ -109,11 +110,12 @@ class CoverPage extends StatelessWidget {
 }
 
 class _UnderSheetClipper extends CustomClipper<Path> {
-  const _UnderSheetClipper(this.offset, this.radius, this.reverse);
+  const _UnderSheetClipper(this.offset, this.radius, this.reverse, this.active);
   final double offset, radius;
-  final bool reverse;
+  final bool reverse, active;
   @override
   Path getClip(Size size) {
+    if (!active) return Path()..addRect(Offset.zero & size);
     final right = .9 * -offset * size.width;
     final upper = Rect.fromLTWH(right - size.width, 0, size.width, size.height);
     final r = reverse
@@ -132,5 +134,8 @@ class _UnderSheetClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(_UnderSheetClipper old) =>
-      offset != old.offset || radius != old.radius || reverse != old.reverse;
+      offset != old.offset ||
+      radius != old.radius ||
+      reverse != old.reverse ||
+      active != old.active;
 }

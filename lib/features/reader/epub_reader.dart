@@ -1213,8 +1213,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               bottom: !_controls,
               child: Column(
                 children: [
-                  if (!_controls)
-                    EpubReadingOverlay(session: session, header: true),
                   if (_error != null)
                     MaterialBanner(
                       content: Text(_error!),
@@ -1241,6 +1239,26 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           )
                         else if (!_recovering)
                           RepaintBoundary(child: _readerView(session)),
+                        if (!_controls) ...[
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: EpubReadingOverlay(
+                              session: session,
+                              header: true,
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: EpubReadingOverlay(
+                              session: session,
+                              header: false,
+                            ),
+                          ),
+                        ],
                         if (session.layoutBusy && session.ready && !_recovering)
                           const Align(
                             alignment: Alignment.bottomCenter,
@@ -1256,8 +1274,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       ],
                     ),
                   ),
-                  if (!_controls)
-                    EpubReadingOverlay(session: session, header: false),
                   if (!_controls &&
                       object(
                             widget.repository.store.setting<dynamic>(

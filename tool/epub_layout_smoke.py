@@ -169,7 +169,9 @@ with sync_playwright() as playwright:
         import io
         from PIL import Image
         image=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
-        assert min(min(image.getpixel((x,10))) for x in range(image.width))>175, 'Publisher paper became a dark theme on the back'
+        # Front/roll shadows may darken authored stock by up to 39%.
+        # The reader's black theme would instead replace it with RGB ~28.
+        assert min(min(image.getpixel((x,10))) for x in range(image.width))>130, 'Publisher paper became a dark theme on the back'
         page.evaluate("""() => {artworkEffect.stop();KMReaderSheetEffect.prototype.animateTo=savedAnimate;KMReaderSheetEffect.prototype.start=savedStart;}""")
         page.evaluate('reader.previous()')
         check_authored()

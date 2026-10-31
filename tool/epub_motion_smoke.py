@@ -91,7 +91,7 @@ with sync_playwright() as pw:
             bent=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
             leaf=width/2 if width>800 else width
             hinge=width/2 if width>800 else (width if rtl else 0)
-            left,right=sorted([int(hinge+(-1 if rtl else 1)*leaf*f) for f in [.15,.35]])
+            left,right=sorted([int(hinge+(-1 if rtl else 1)*leaf*f) for f in [.48,.64]])
             crop=(left,50,right,height-50)
             mask=lambda image:image.crop(crop).convert('L').point(lambda v:255 if v>120 else 0)
             changed=sum(v>0 for v in ImageChops.difference(mask(flat),mask(bent)).getdata())
@@ -113,6 +113,24 @@ with sync_playwright() as pw:
         if style != 'curl':
             assert page.evaluate('document.querySelectorAll("style[data-page-motion]").length') == 1
         page.evaluate('effect.stop()')
+    # Backward turns peel the other leaf; they must not play a forward curl
+    # in reverse time on the same side of the spine.
+    page.evaluate("reader.turn({delta:-1,style:'curl'})")
+    page.evaluate('effect.update(0)')
+    reverse_flat=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+    page.evaluate('effect.update(.25)')
+    reverse_bent=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+    reverse_bent.save(output / f'{width}-{config.get("direction", "ltr")}-curl-backward.png')
+    if width>800:
+        static=(0,40,width//4,height-40) if rtl else (width*3//4,40,width,height-40)
+        # This leaf remains stationary and retains the old publication.
+        difference=ImageChops.difference(reverse_flat.crop(static),reverse_bent.crop(static))
+        assert max(ImageStat.Stat(difference).mean)<1, 'Backward curl moved the wrong leaf'
+    page.evaluate('effect.update(1)')
+    reverse_end=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+    page.evaluate('effect.stop()')
+    reverse_live=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+    assert max(ImageStat.Stat(ImageChops.difference(reverse_end,reverse_live)).mean)<6
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
     # Actual automatic effects remain visible mid-flight, not just a retained
     # JS object after Chromium already removed its snapshot pseudo-elements.
@@ -139,7 +157,7 @@ with sync_playwright() as pw:
     page.wait_for_function('() => document.getElementById("page-gesture") && window.effect && !effect.stopped')
     page.wait_for_timeout(100)
     progress = page.evaluate('effect.progress')
-    assert .30 < progress < .55, progress
+    assert (.60 < progress < 1 if width>800 else .30 < progress < .55), progress
     assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Gesture preview wrote progress'
     page.mouse.move(xcoord(width * .35), height * .52, steps=4)
     assert page.evaluate('effect.progress') > progress
@@ -148,17 +166,29 @@ with sync_playwright() as pw:
     assert page.evaluate('reader.position().start.cfi') != saved
     assert page.evaluate('reader.position().start.displayed.page') > saved_page
     assert page.evaluate('messages.filter(e=>e.type==="position"&&e.changed).length') == 1
-    saved = page.evaluate('reader.position().start.cfi')
-    page.evaluate('messages.length=0')
-    page.mouse.move(xcoord(width - 6), height * .55)
-    page.mouse.down()
-    page.mouse.move(xcoord(width * .84), height * .55, steps=7)
-    page.wait_for_timeout(100)
-    page.mouse.move(xcoord(width * .97), height * .55, steps=6)
-    page.mouse.up()
-    page.wait_for_function('() => !document.getElementById("page-gesture")')
-    assert page.evaluate('reader.position().start.cfi') == saved, 'Canceled drag changed CFI'
-    assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Canceled drag wrote progress'
+    page.evaluate('''() => {
+      const stop=KMReaderSheetEffect.prototype.stop;
+      KMReaderSheetEffect.prototype.stop=function(){
+        if(window.cancelAnchor && !this.stopped)window.cancelStops.push(reader.position().start.cfi);
+        return stop.call(this);
+      };
+    }''')
+    for cancel_style in ['slide','curl']:
+        page.evaluate('(v)=>reader.preferences({...v,transition:"' + cancel_style + '"})', config['preferences'])
+        saved = page.evaluate('reader.position().start.cfi')
+        page.evaluate('(c)=>{window.cancelAnchor=c;window.cancelStops=[];messages.length=0;}',saved)
+        page.mouse.move(xcoord(width - 6), height * .55)
+        page.mouse.down()
+        page.mouse.move(xcoord(width * .84), height * .55, steps=7)
+        page.wait_for_timeout(100)
+        page.mouse.move(xcoord(width * .97), height * .55, steps=6)
+        page.mouse.up()
+        page.wait_for_function('() => !document.getElementById("page-gesture")')
+        assert page.evaluate('reader.position().start.cfi') == saved, 'Canceled drag changed CFI'
+        assert page.evaluate('cancelStops') == [saved], 'Snapshot removed before the original publication was restored'
+        assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Canceled drag wrote progress'
+        page.evaluate('window.cancelAnchor=null')
+    page.evaluate('(v)=>reader.preferences({...v,transition:"curl"})', config['preferences'])
     page.evaluate('window.retainedFrame=document.querySelector("#viewer iframe")')
     # Resize during a held gesture must cancel and retain the saved character.
     page.mouse.move(xcoord(width - 6), height * .55)
@@ -211,4 +241,4 @@ with sync_playwright() as pw:
     page.evaluate('reader.destroy()')
     assert page.evaluate('document.querySelectorAll("style[data-page-motion],#page-gesture").length') == 0
     browser.close()
-print('Visible slide/cover/cylindrical curl, tracked/canceled gestures, resize and fallback passed', width)
+print('Visible sheets, localized/bidirectional curl, atomic cancellation, tracked gestures and fallback passed', width)

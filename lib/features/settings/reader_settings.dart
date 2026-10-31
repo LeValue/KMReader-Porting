@@ -47,6 +47,17 @@ List<PreferenceSpec> pageMotionSpecs(
     formatValue: (n) => '${(n * 100).round()}%',
   ),
   PreferenceSpec(
+    'curlReach',
+    'motion.curlReach',
+    .18,
+    bucket: bucket,
+    visible: visible,
+    min: .08,
+    max: .55,
+    step: .01,
+    formatValue: (n) => '${(n * 100).round()}%',
+  ),
+  PreferenceSpec(
     'pageCornerRadius',
     'motion.corners',
     18.0,

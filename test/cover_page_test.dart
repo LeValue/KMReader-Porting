@@ -23,6 +23,62 @@ void main() {
     },
   );
   for (final cover in [true, false]) {
+    testWidgets(
+      'sheet transitions retain decoded artwork at both endpoints: cover=$cover',
+      (tester) async {
+        final pages = PageController();
+        final mounts = <int, int>{};
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SizedBox(
+              width: 200,
+              height: 200,
+              child: PageView.builder(
+                controller: pages,
+                allowImplicitScrolling: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 2,
+                itemBuilder: (_, i) => CoverPage(
+                  controller: pages,
+                  index: i,
+                  reverse: false,
+                  background: Colors.black,
+                  cover: cover,
+                  child: _TrackedArtwork(
+                    onMount: () => mounts[i] = (mounts[i] ?? 0) + 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final extent = pages.position.viewportDimension;
+        for (final fraction in [
+          .001,
+          .25,
+          .75,
+          .999,
+          1.0,
+          .999,
+          .5,
+          .001,
+          0.0,
+        ]) {
+          pages.jumpTo(extent * fraction);
+          await tester.pumpAndSettle();
+        }
+        expect(
+          mounts.values,
+          everyElement(1),
+          reason: 'Recreating the image subtree flashes its loading state',
+        );
+        await tester.pumpWidget(const SizedBox());
+        pages.dispose();
+      },
+    );
+  }
+  for (final cover in [true, false]) {
     for (final rtl in [false, true]) {
       testWidgets(
         'reader sheet motion preserves layering and final artwork; cover=$cover RTL=$rtl',
@@ -103,4 +159,22 @@ void main() {
       );
     }
   }
+}
+
+class _TrackedArtwork extends StatefulWidget {
+  const _TrackedArtwork({required this.onMount});
+  final VoidCallback onMount;
+  @override
+  State<_TrackedArtwork> createState() => _TrackedArtworkState();
+}
+
+class _TrackedArtworkState extends State<_TrackedArtwork> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onMount();
+  }
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(color: Colors.red);
 }
