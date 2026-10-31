@@ -96,9 +96,12 @@ class SettingsScaffold extends StatelessWidget {
           backgroundColor:
               backgroundColor ?? Theme.of(context).scaffoldBackgroundColor,
           automaticallyImplyLeading: false,
-          title: MediaQuery.sizeOf(context).width < 700
-              ? Text(tr(context, title))
-              : null,
+          title: Text(
+            tr(context, title),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          ),
           leading: showBackButton && Navigator.canPop(context)
               ? Padding(
                   padding: const EdgeInsets.all(8),
@@ -117,7 +120,13 @@ class SettingsScaffold extends StatelessWidget {
               : null,
           actions: actions,
         ),
-        body: body,
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: body,
+          ),
+        ),
       ),
     ),
   );

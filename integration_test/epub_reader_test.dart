@@ -243,7 +243,7 @@ void main() {
               find.text('This book uses a fixed page layout.'),
               findsOneWidget,
             );
-            expect(find.byType(Slider), findsNothing);
+            expect(find.byKey(const ValueKey('epub-fontSize')), findsNothing);
           } else {
             final slider = find.byType(Slider).first;
             await tester.drag(slider, const Offset(80, 0));
@@ -268,7 +268,11 @@ void main() {
           }
           for (final flow
               in layout == 'reflowable' ? ['Vertical', 'Paged'] : <String>[]) {
-            await tester.tap(find.widgetWithText(ChoiceChip, flow));
+            await tester.tap(
+              find.text(flow == 'Vertical' ? 'Paged' : 'Vertical').last,
+            );
+            await tester.pumpAndSettle();
+            await tester.tap(find.text(flow).last);
             await tester.pumpAndSettle();
             await Future<void>.delayed(const Duration(seconds: 1));
             await tester.pump();
@@ -281,7 +285,7 @@ void main() {
               saved['cfi'],
             );
           }
-          await tester.tapAt(const Offset(8, 8));
+          await tester.tap(find.byTooltip('Close').last);
           await tester.pumpAndSettle();
           await tester.tap(
             find.byTooltip(layout == 'fixed' ? 'Previous Page' : 'Next Page'),

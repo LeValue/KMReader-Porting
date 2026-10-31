@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/models.dart';
+import '../../core/page_motion.dart';
 import '../../core/repository.dart';
 import 'epub_document.dart';
 import 'progress_gate.dart';
@@ -26,6 +27,7 @@ class EpubPreferences {
     this.letterSpacing = 0,
     this.wordSpacing = 0,
     this.transition = 'slide',
+    this.motion = const PageMotion(),
     this.tapMode = 'default',
     this.tapInversion = 'auto',
     this.animate = true,
@@ -46,6 +48,7 @@ class EpubPreferences {
   final bool animate, advancedLayout;
   final double tapScroll;
   final String colorScheme;
+  final PageMotion motion;
   factory EpubPreferences.fromJson(Json data) {
     double number(String key, double fallback, double min, double max) {
       final value = data[key];
@@ -57,6 +60,7 @@ class EpubPreferences {
     String choice(String key, List<String> values, String fallback) =>
         values.contains(data[key]) ? data[key] as String : fallback;
     return EpubPreferences(
+      motion: PageMotion.fromJson(data),
       flow: choice('flow', ['paged', 'scrolled'], 'paged'),
       font: RegExp(r'^custom:[a-f0-9]{64}$').hasMatch(text(data['font']))
           ? text(data['font'])
@@ -131,6 +135,7 @@ class EpubPreferences {
     'letterSpacing': letterSpacing,
     'wordSpacing': wordSpacing,
     'transition': transition,
+    ...motion.toJson(),
     'tapMode': tapMode,
     'tapInversion': tapInversion,
   };

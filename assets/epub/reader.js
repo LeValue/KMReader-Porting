@@ -1,7 +1,146 @@
 'use strict';
+// Chromium captures the sheet directly in its compositor. Book pixels never
+// cross the native bridge or get JPEG/base64 encoded for page navigation.
+class KMReaderSheetEffect {
+  static serial = 0;
+  static supported() { return typeof document.startViewTransition === 'function'; }
+  constructor(style, sign, preferences, y = .5) {
+    this.style = style; this.sign = sign; this.preferences = preferences; this.y = y;
+    this.width = innerWidth; this.height = innerHeight; this.progress = 0;
+    this.id = `km-sheet-${++KMReaderSheetEffect.serial}`;
+    this.sheet = document.createElement('style');
+    this.sheet.dataset.pageMotion = this.id;
+    this.sheet.textContent = `
+      ::view-transition{pointer-events:none}
+      :root{view-transition-name:none}#viewer{view-transition-name:km-reader-page}
+      ::view-transition-group(km-reader-page){animation:none}
+      ::view-transition-old(km-reader-page),::view-transition-new(km-reader-page){
+        animation:km-sheet-hold 30s linear both paused;mix-blend-mode:normal;
+        transform-origin:center;object-fit:fill;overflow:hidden}
+      @keyframes km-sheet-hold{from{opacity:1}to{opacity:1}}`;
+    document.head.appendChild(this.sheet);
+    this.frames = document.createElement('style');
+    this.frames.dataset.pageMotionFrame = this.id;
+    document.head.appendChild(this.frames);
+    const ns = 'http://www.w3.org/2000/svg';
+    this.svg = document.createElementNS(ns, 'svg');
+    this.svg.style.cssText = 'position:fixed;width:0;height:0;pointer-events:none';
+    this.svg.innerHTML = `<defs><filter id="${this.id}" filterUnits="userSpaceOnUse" x="-${this.width}" y="-${this.height}" width="${this.width * 3}" height="${this.height * 3}" color-interpolation-filters="sRGB">
+      <feImage x="0" y="0" width="${this.width}" height="${this.height}" preserveAspectRatio="none" result="map"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="${this.width * 2}" xChannelSelector="R" yChannelSelector="G" result="warped"/>
+      <feOffset in="warped" dx="${this.width / 255}" dy="${this.width / 255}" result="aligned"/>
+      <feComposite in="aligned" in2="map" operator="in" result="clipped"/>
+      <feComponentTransfer in="clipped" result="paper"><feFuncR type="linear"/><feFuncG type="linear"/><feFuncB type="linear"/></feComponentTransfer>
+      <feColorMatrix in="map" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0" result="shade"/>
+      <feComposite in="shade" in2="clipped" operator="in" result="shadowed"/>
+      <feMerge><feMergeNode in="paper"/><feMergeNode in="shadowed"/></feMerge>
+      <feDropShadow dx="${sign * 6}" dy="2" stdDeviation="9" flood-opacity=".22"/>
+    </filter><filter id="${this.id}-tint" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="linear"/><feFuncG type="linear"/><feFuncB type="linear"/></feComponentTransfer></filter></defs>`;
+    document.body.appendChild(this.svg);
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = 255; this.canvas.height = 64;
+    this.context = this.canvas.getContext('2d');
+  }
+  async start(move) {
+    let moved = false;
+    try {
+      this.transition = document.startViewTransition(async () => { moved = true; await move(); });
+      // Both promises may reject independently when a viewport is hidden or
+      // resized during capture. Always consume both, then expose the live page.
+      this.transition.finished.then(() => this.stop(), () => this.stop());
+      this.transition.updateCallbackDone.catch(() => {});
+      await this.transition.ready;
+      this.update(0);
+      return true;
+    } catch (_) {
+      if (this.transition) await this.transition.updateCallbackDone.catch(() => {});
+      if (!moved) await move();
+      this.stop();
+      return false;
+    }
+  }
+  update(value) {
+    if (this.stopped) return;
+    const p = this.progress = Math.max(0, Math.min(1, value));
+    const shape = Math.sin(Math.PI * p), radius = (Number(this.preferences.pageCornerRadius) || 0) * shape;
+    const tint = Math.max(0, Math.min(.25, Number(this.preferences.pageTint) || 0)) * Math.min(1, shape * 2);
+    for (const f of this.svg.querySelectorAll('feFuncR,feFuncG,feFuncB')) {
+      f.setAttribute('slope', 1 - tint); f.setAttribute('intercept', tint);
+    }
+    const old = this.style === 'curl' ? 'none' : this.style === 'cover' ? 'none' : `translateX(${-this.sign * p * 100}%)`;
+    const next = this.style === 'cover' ? `translateX(${this.sign * (1 - p) * 100}%)`
+      : this.style === 'slide' ? `translateX(${this.sign * (1 - p) * 8}%)` : 'none';
+    const filter = this.style === 'curl' ? `url(#${this.id})` : `url(#${this.id}-tint)`;
+    if (this.style === 'curl') this.curlMap(p);
+    const movingOld = this.style !== 'cover';
+    this.frames.textContent = `
+      ::view-transition-old(km-reader-page){transform:${old};z-index:${movingOld ? 2 : 1};filter:${movingOld ? filter : 'none'};border-radius:${movingOld ? radius : 0}px}
+      ::view-transition-new(km-reader-page){transform:${next};z-index:${movingOld ? 1 : 2};filter:${movingOld ? 'none' : filter};border-radius:${movingOld ? 0 : radius}px}`;
+  }
+  curlMap(p) {
+    const width = this.width, height = this.height, cw = this.canvas.width, ch = this.canvas.height;
+    const data = this.context.createImageData(cw, ch), pixels = data.data;
+    // A cylindrical sheet: flat front, a curved half-cylinder, then the
+    // reflected back. The fold leans with the finger's vertical position.
+    const radius = Math.max(.001, width * .10 * Math.sin(Math.PI * p));
+    const base = width * (1 - p) - Math.PI * radius / 2;
+    const lean = width * .16 * Math.sin(Math.PI * p) * (this.y - .5);
+    for (let row = 0; row < ch; row++) {
+      const fold = base + lean * (row / ch - .5);
+      const edge = 2 * fold + Math.PI * radius - width;
+      for (let col = 0; col < cw; col++) {
+        const physicalX = (col + .5) * width / cw;
+        const x = this.sign > 0 ? physicalX : width - physicalX;
+        let source = x, alpha = 255, shade = 0;
+        if (p >= .9999) alpha = 0;
+        else if (p > .0001 && x >= fold && x <= fold + radius) {
+          const angle = Math.asin(Math.max(0, Math.min(1, (x - fold) / radius)));
+          source = fold + radius * (Math.PI - angle);
+          shade = 36 + 60 * Math.sin(angle);
+          if (source > width) alpha = 0;
+        } else if (p > .0001 && x >= Math.max(0, edge) && x < fold) {
+          source = 2 * fold + Math.PI * radius - x; shade = 18;
+          if (source > width) alpha = 0;
+        } else if (x > fold + radius && p > .0001) alpha = 0;
+        if (this.sign < 0) source = width - source;
+        const index = (row * cw + col) * 4;
+        pixels[index] = Math.max(0, Math.min(255, Math.round(128 + (source - physicalX) * 255 / (2 * width))));
+        pixels[index + 1] = 128; pixels[index + 2] = shade; pixels[index + 3] = alpha;
+      }
+    }
+    this.context.putImageData(data, 0, 0);
+    this.svg.querySelector('feImage').setAttribute('href', this.canvas.toDataURL('image/png'));
+  }
+  animateTo(target, duration) {
+    if (this.stopped) return Promise.resolve();
+    if (this.finishAnimation) this.finishAnimation();
+    cancelAnimationFrame(this.frame);
+    return new Promise(resolve => {
+      this.finishAnimation = resolve;
+      const from = this.progress, start = performance.now();
+      const frame = now => {
+        if (this.stopped) { resolve(); return; }
+        const t = Math.min(1, (now - start) / Math.max(1, duration));
+        this.update(from + (target - from) * (1 - Math.pow(1 - t, 3)));
+        if (t < 1) this.frame = requestAnimationFrame(frame);
+        else { this.finishAnimation = null; resolve(); }
+      };
+      this.frame = requestAnimationFrame(frame);
+    });
+  }
+  stop() {
+    if (this.stopped) return;
+    this.stopped = true;
+    cancelAnimationFrame(this.frame);
+    this.finishAnimation?.(); this.finishAnimation = null;
+    this.transition?.skipTransition(); this.sheet.remove(); this.frames.remove(); this.svg.remove();
+  }
+}
+
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
-  let renditionSpineHooks = [], operationQueue = Promise.resolve(), turnAnimation;
+  let renditionSpineHooks = [], operationQueue = Promise.resolve(), turnAnimation, sheetEffect, gesture;
+  let interactiveNavigation = false, suppressClickUntil = 0;
   const settledDocuments = new WeakSet();
   function enqueue(operation) {
     const pending = operationQueue.then(() => disposed ? undefined : operation());
@@ -14,7 +153,7 @@
   const inputEvents = ['wheel', 'touchstart', 'touchmove'];
   const noteUserMove = () => {
     if (!restoring && !disposed) {
-      cancelTurnAnimation();
+      if (!gesture) cancelTurnAnimation();
       userMove = true; userMoveUntil = Date.now() + 2000;
       // A no-op programmatic scroll can leave Epub.js ignoring its next event.
       // Real input owns that next scroll and must update the reading locator.
@@ -58,6 +197,7 @@
     return nativeWritingMode.call(this, value);
   };
   function style(document) {
+    document.documentElement.style.touchAction = preferences.flow === 'paged' ? 'pan-y pinch-zoom' : 'auto';
     const [background, foreground] = colors();
     let head = document.head || document.querySelector('head');
     if (!head) { head = document.createElementNS('http://www.w3.org/1999/xhtml', 'head'); document.documentElement.prepend(head); }
@@ -173,7 +313,7 @@
     if (cfi) location.start.cfi = cfi;
   }
   function position(changed = false) {
-    if (!location || restoring || auxiliary) return;
+    if (!location || restoring || auxiliary || interactiveNavigation) return;
     // Delayed Epub.js reports contain a coarse paragraph CFI, which can lie on
     // the preceding page in large vertical text. Only real navigation chooses
     // a new anchor; reflow/reporting must retain the committed character CFI.
@@ -204,6 +344,7 @@
       manager.stage.overflow(manager.overflow || 'scroll');
     }
     doc.addEventListener('click', event => {
+      if (Date.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); return; }
       const link = event.target.closest && event.target.closest('a[href]');
       if (link) {
         event.preventDefault(); event.stopImmediatePropagation();
@@ -216,28 +357,57 @@
     doc.addEventListener('keydown', event => {
       if (event.ctrlKey || event.metaKey || event.altKey || !doc.getSelection().isCollapsed) return;
       const rtl = config.direction === 'rtl';
-      if (event.key === ' ' && preferences.spaceKeyAction === 'toggleControls') { event.preventDefault(); send('controls'); }
+      if (event.key === 'F11') { event.preventDefault(); send('fullscreen'); }
+      else if (event.key === ' ' && preferences.spaceKeyAction === 'toggleControls') { event.preventDefault(); send('controls'); }
       else if ([rtl ? 'ArrowLeft' : 'ArrowRight', 'PageDown', ' '].includes(event.key)) {
         event.preventDefault(); send('turn', {delta: 1});
       } else if ([rtl ? 'ArrowRight' : 'ArrowLeft', 'PageUp'].includes(event.key)) {
         event.preventDefault(); send('turn', {delta: -1});
       } else if (event.key === 'Escape') send('close');
     });
-    let touch;
-    doc.addEventListener('touchstart', event => {
-      touch = event.touches.length === 1 ? {x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now()} : null;
-      noteUserMove();
-    }, {passive: true});
-    doc.addEventListener('touchmove', noteUserMove, {passive: true});
-    doc.addEventListener('touchend', event => {
-      if (!touch || preferences.flow === 'scrolled' || !doc.getSelection().isCollapsed) return;
-      const end = event.changedTouches[0];
-      const dx = end.clientX - touch.x, dy = end.clientY - touch.y;
-      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3 && Date.now() - touch.time < 1000) {
-        event.preventDefault(); send('turn', {delta: dx < 0 !== (config.direction === 'rtl') ? 1 : -1});
+    let contact;
+    const point = event => {
+      const frame = doc.defaultView.frameElement.getBoundingClientRect();
+      return {x: frame.left + event.clientX, y: frame.top + event.clientY};
+    };
+    doc.addEventListener('pointerdown', event => {
+      if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) {
+        cancelGesture(); contact = null; return;
       }
-      touch = null;
-    }, {passive: false});
+      const p = point(event);
+      const edge = p.x < innerWidth * .18 || p.x > innerWidth * .82;
+      contact = event.target.closest?.('a[href]') || (event.pointerType === 'mouse' && !edge)
+        ? null : {id:event.pointerId,x:p.x,y:p.y,time:Date.now()};
+      if (contact && event.pointerType === 'mouse' && edge && preferences.flow === 'paged') {
+        event.preventDefault();
+        try { doc.documentElement.setPointerCapture(event.pointerId); } catch (_) {}
+      }
+    }, {passive:false});
+    doc.addEventListener('dragstart', event => { if (preferences.flow === 'paged') event.preventDefault(); });
+    doc.addEventListener('pointermove', event => {
+      if (gesture?.pointer === event.pointerId) { event.preventDefault(); gesture.update(point(event)); return; }
+      if (!contact || event.pointerId !== contact.id || preferences.flow !== 'paged' || auxiliary ||
+          !doc.getSelection().isCollapsed) return;
+      const p = point(event), dx = p.x - contact.x, dy = p.y - contact.y;
+      if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.3 || Date.now() - contact.time > 550) return;
+      if (preferences.followGesture !== false && motionAllowed(preferences.transition) && KMReaderSheetEffect.supported()) {
+        event.preventDefault();
+        beginGesture(contact, p, event.pointerId);
+        contact = null;
+      }
+    }, {passive:false});
+    doc.addEventListener('pointerup', event => {
+      if (gesture?.pointer === event.pointerId) { event.preventDefault(); gesture.update(point(event)); gesture.release(); contact = null; return; }
+      if (!contact || event.pointerId !== contact.id) return;
+      const p = point(event), dx = p.x - contact.x, dy = p.y - contact.y;
+      if (preferences.flow === 'paged' && doc.getSelection().isCollapsed && Math.abs(dx) > 45 &&
+          Math.abs(dx) > Math.abs(dy) * 1.3 && Date.now() - contact.time < 1000) {
+        event.preventDefault(); suppressClickUntil = Date.now() + 500;
+        send('turn', {delta: dx < 0 !== (config.direction === 'rtl') ? 1 : -1});
+      }
+      contact = null;
+    }, {passive:false});
+    doc.addEventListener('pointercancel', () => { contact = null; cancelGesture(); });
     doc.addEventListener('wheel', noteUserMove, {passive: true});
     let reflowQueued = false;
     const resourceChanged = () => {
@@ -281,12 +451,18 @@
     } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); }
   }
   function setPreferences(value) {
+    cancelGesture();
     // Flow changes replace the manager. Keep rapid preference updates ordered
     // so an older reflow cannot destroy a newer rendition or restore its CFI.
     return enqueue(() => applyPreferences(value));
   }
   async function applyPreferences(value) {
     await waitForLayout();
+    const motionKeys = new Set(['animationDuration','followGesture','pageTint','pageCornerRadius','animate','transition']);
+    if ([...new Set([...Object.keys(preferences), ...Object.keys(value)])].every(key =>
+        motionKeys.has(key) || JSON.stringify(preferences[key]) === JSON.stringify(value[key]))) {
+      cancelTurnAnimation(); preferences = value; return;
+    }
     const flowChanged = preferences.flow !== value.flow;
     preferences = value;
     const [background] = colors();
@@ -401,29 +577,120 @@
     await tick();
   }
   function cancelTurnAnimation() {
+    sheetEffect?.stop(); sheetEffect = undefined;
     const previous = turnAnimation; turnAnimation = undefined;
     if (previous) previous.cancel();
+  }
+  function cancelGesture() { if (gesture) { gesture.invalidated = true; gesture.finish(false); } }
+  function beginGesture(contact, point, pointer) {
+    if (gesture || disposed) return;
+    const physical = point.x < contact.x ? 1 : -1;
+    const delta = (physical > 0) !== (config.direction === 'rtl') ? 1 : -1;
+    if (delta > 0 && atReadingEnd() || delta < 0 && location?.atStart) return;
+    cancelTurnAnimation();
+    const shield = document.createElement('div');
+    shield.id = 'page-gesture';
+    shield.style.cssText = 'position:fixed;inset:0;z-index:2147483646;touch-action:none;cursor:grabbing';
+    document.body.appendChild(shield);
+    let resolve;
+    const finished = new Promise(done => resolve = done);
+    const state = gesture = {progress:0,effect:null,ended:false,invalidated:false,width:innerWidth,height:innerHeight,
+      finish: commit => { if (!state.ended) { state.ended = true; resolve(commit && innerWidth === state.width && innerHeight === state.height); } }};
+    let lastX = point.x, lastTime = performance.now(), velocity = 0;
+    const update = p => {
+      const now = performance.now(), elapsed = Math.max(1, now - lastTime);
+      if (Math.abs(p.x - lastX) > .1) velocity = -(p.x - lastX) * physical / elapsed;
+      else if (elapsed > 90) velocity = 0;
+      lastX = p.x; lastTime = now;
+      state.progress = Math.max(0, Math.min(1, (contact.x - p.x) * physical / innerWidth));
+      state.effect?.update(state.progress);
+    };
+    state.update = update;
+    state.pointer = pointer;
+    state.release = () => state.finish(state.progress > .28 || state.progress > .06 && velocity > .45);
+    update(point);
+    shield.addEventListener('pointermove', event => {
+      if (!event.isPrimary || event.pointerId !== pointer) { state.finish(false); return; }
+      event.preventDefault(); update({x:event.clientX,y:event.clientY});
+    }, {passive:false});
+    shield.addEventListener('pointerup', event => {
+      if (event.pointerId !== pointer) return;
+      event.preventDefault(); update({x:event.clientX,y:event.clientY});
+      state.finish(state.progress > .28 || state.progress > .06 && velocity > .45);
+    });
+    shield.addEventListener('pointercancel', () => state.finish(false));
+
+    shield.addEventListener('pointerdown', event => { if (event.pointerId !== pointer) state.finish(false); });
+    // Keep input in its original document. Moving capture between a book iframe
+    // and the top document can deadlock Chromium's input router during capture.
+    const safety = setTimeout(() => state.finish(false), 10000);
+    enqueue(async () => {
+      const saved = anchor || location?.start?.cfi;
+      interactiveNavigation = true;
+      try {
+        state.effect = await transitionMove(delta, preferences.transition, contact.y / innerHeight);
+        state.effect?.update(state.progress);
+        let commit = await finished;
+        const duration = Math.min(300, Math.max(80, (Number(preferences.animationDuration) || 380) *
+          (commit ? 1 - state.progress : state.progress)));
+        if (!disposed) await state.effect?.animateTo(commit ? 1 : 0, duration);
+        state.effect?.stop();
+        commit = commit && !state.invalidated;
+        if (!disposed && !commit && saved) {
+          await displayStable(saved); refreshViewportLocation(); anchor = saved;
+        }
+        interactiveNavigation = false;
+        if (!disposed) { refreshViewportLocation(); userMove = false; position(commit); }
+      } finally {
+        state.effect?.stop();
+        if (sheetEffect === state.effect) sheetEffect = undefined;
+        interactiveNavigation = false;
+        clearTimeout(safety); shield.remove();
+        if (gesture === state) gesture = undefined;
+        suppressClickUntil = Date.now() + 500;
+      }
+    }).catch(error => send('error', {message:String(error)}));
+  }
+  function motionAllowed(style) {
+    return preferences.animate !== false && preferences.flow === 'paged' && style !== 'none' &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  async function capturedLayout(move) {
+    // View Transitions freeze painting until their update resolves. Epub.js
+    // queues layout on RAF, so use task turns during this brief frozen update;
+    // geometry is still synchronously available. Restore schedulers afterward.
+    const raf = window.requestAnimationFrame;
+    const schedule = callback => setTimeout(() => callback(performance.now()), 0);
+    const queues = [rendition.q, rendition.manager?.q].filter(Boolean).map(q => [q, q.tick]);
+    window.requestAnimationFrame = schedule;
+    for (const [q] of queues) q.tick = schedule;
+    try { return await move(); }
+    finally {
+      window.requestAnimationFrame = raf;
+      for (const [q, tick] of queues) q.tick = tick;
+    }
+  }
+  async function transitionMove(delta, style, y) {
+    const move = () => delta > 0 ? next() : previous();
+    if (!motionAllowed(style) || !KMReaderSheetEffect.supported() || (delta > 0 && atReadingEnd())) {
+      await move(); return null;
+    }
+    await tick();
+    const effect = sheetEffect = new KMReaderSheetEffect(style,
+      (delta > 0) !== (config.direction === 'rtl') ? 1 : -1, preferences, y);
+    if (!await effect.start(() => capturedLayout(move))) { if (sheetEffect === effect) sheetEffect = undefined; return null; }
+    return effect;
   }
   async function turn(value) {
     if (!rendition || auxiliary) return;
     cancelTurnAnimation();
-    const before = location?.start?.cfi;
-    await (value.delta > 0 ? next() : previous());
-    if (disposed || !rendition || auxiliary || location?.start?.cfi === before || value.style === 'none' ||
-        matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const viewer = document.getElementById('viewer');
-    const sign = (value.delta > 0) !== (config.direction === 'rtl') ? 1 : -1;
-    // Animate the live, clipped viewport, never a native screenshot or an
-    // entire offscreen chapter. Navigation is committed before the cosmetic
-    // animation and another input can cancel it immediately.
-    const transform = value.style === 'curl'
-      ? `perspective(1400px) rotateY(${sign * 5}deg)`
-      : value.style === 'cover' ? 'none' : `translateX(${sign * 20}px)`;
-    const animation = turnAnimation = viewer.animate([
-      {transform, opacity: .8}, {transform: 'none', opacity: 1},
-    ], {duration: 140, easing: 'cubic-bezier(.2,.7,.2,1)'});
-    animation.finished.catch(() => {}).finally(() => {
-      if (turnAnimation === animation) {turnAnimation = undefined; animation.cancel();}
+    const effect = await transitionMove(value.delta, value.style || preferences.transition, .5);
+    if (!effect || disposed) return;
+    // Navigation is already committed. Cosmetic motion never owns the input
+    // queue, and the next input can replace this compositor transition.
+    const duration = Math.max(150, Math.min(900, Number(preferences.animationDuration) || 380));
+    effect.animateTo(1, duration).then(() => {
+      effect.stop(); if (sheetEffect === effect) sheetEffect = undefined;
     });
   }
   async function legacyProgress(progression) {
@@ -469,6 +736,7 @@
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
   }
   function onResize() {
+    cancelGesture();
     if (disposed || !rendition) return;
     cancelTurnAnimation();
     clearTimeout(resizeTimer);
@@ -492,7 +760,7 @@
     rendition.on('relocated', value => {
       if (rendition !== current || disposed) return;
       location = value;
-      if (!restoring && anchor && !userMove &&
+      if (!restoring && !interactiveNavigation && anchor && !userMove &&
           !(preferences.flow === 'scrolled' && Date.now() < userMoveUntil)) {
         location.start.cfi = anchor;
       }
@@ -561,7 +829,7 @@
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
     position: () => location, destroy: () => {
-      disposed = true; clearTimeout(relocationTimer); clearTimeout(resizeTimer);
+      disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer);
       cancelTurnAnimation();
       window.removeEventListener('resize', onResize);
       for (const event of inputEvents) document.removeEventListener(event, noteUserMove);

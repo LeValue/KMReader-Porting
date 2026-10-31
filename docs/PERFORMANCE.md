@@ -1,3 +1,44 @@
+# Reader controls, sheet transitions and gestures in 0.8.4
+
+The blank EPUB after clicking the text/fullscreen button came from the Flutter
+child tree: inserting a header moved an unkeyed Expanded to a different slot,
+disposed the native view and reused its already closed platform widget. The
+surface slot now keeps a stable key across controls/error/header changes. The
+fullscreen actions also update actual Windows display ownership; hiding reader
+chrome and entering OS fullscreen have distinct state.
+
+EPUB sheet transitions use `document.startViewTransition` to retain browser-owned
+compositor surfaces. Neither JPEG encoding nor book pixels cross the native
+bridge. Because painting is frozen inside the View Transition update callback,
+Epub.js layout queues use task scheduling for that short update and then restore
+their normal RAF schedulers. Cosmetic progression is independent of the command
+queue and another input can replace it. Hold keyframes remain in a stable style
+sheet; per-frame transforms do not recreate their animation lifetime.
+
+Curl uses an SVG displacement field for cylindrical front/back projection,
+shading and shadow. The small PNG data URL is a generated UV/lighting field,
+not a screenshot of the publication. Comic curl uses a 96-by-12 textured mesh
+with depth, back reflection and normal-based lighting. Its bounded native Flutter
+images are captured directly rather than encoded/decoded through PNG. All sheet
+resources are released on completion, replacement or disposal.
+
+Gesture previews retain the original reading anchor until release. Moving back,
+a second finger, cancellation or a resize restores the anchor; speculative pages
+do not commit progress. Same-document pointer ownership avoids moving capture
+between the book iframe and top document. Mouse text selection stays available
+in the center of the EPUB; edge dragging turns pages. Reduced motion and older
+WebViews retain direct navigation.
+
+The default cosmetic duration is 380 ms, configurable from 150 to 900 ms, with
+independent moving-page tint and corner radius. This intentionally makes the
+transition more visible than 0.8.3's 140 ms/20 px effect while keeping navigation
+independent of that duration. The browser checks assert visible pseudo-elements
+mid-flight, nonblank pixels, bounded live effects, canceled-progress behavior,
+RTL, touch, mouse, interrupted gestures and fallback behavior. Native checks
+exercise controls/fullscreen at a saved position, retained WebView identity,
+actual rendered text and renderer recovery. These do not establish physical
+hardware frame rates or exact Apple animation parity.
+
 # EPUB and catalog performance audit in 0.8.3
 
 The paginated EPUB hot path previously took a native screenshot, JPEG-encoded it,

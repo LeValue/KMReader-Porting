@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
+import 'page_motion.dart';
+
 typedef Json = Map<String, dynamic>;
 
 List<String> serverSort(String kind, String value) =>
@@ -181,6 +183,7 @@ class ReaderPreferences {
     this.preload = 'balanced',
     this.animate = true,
     this.transition = 'cover',
+    this.motion = const PageMotion(),
     this.splitWide = 'none',
     this.useSeriesDirection = true,
     this.borderCrop = 'disabled',
@@ -207,6 +210,7 @@ class ReaderPreferences {
   final String tapMode, tapInversion, preload;
   final bool animate;
   final String transition;
+  final PageMotion motion;
   final String splitWide;
   final bool useSeriesDirection;
   final String borderCrop;
@@ -240,6 +244,7 @@ class ReaderPreferences {
     tapInversion: text(j['tapInversion'], 'auto'),
     preload: text(j['preload'], 'balanced'),
     animate: j['animate'] != false,
+    motion: PageMotion.fromJson(j),
     transition: ['cover', 'slide', 'curl'].contains(j['transition'])
         ? j['transition'] as String
         : j.containsKey('animate')
@@ -289,6 +294,7 @@ class ReaderPreferences {
     'preload': preload,
     'animate': animate,
     'transition': transition,
+    ...motion.toJson(),
     'splitWide': splitWide,
     'useSeriesDirection': useSeriesDirection,
     'borderCrop': borderCrop,
@@ -319,6 +325,7 @@ class ReaderPreferences {
     String? preload,
     bool? animate,
     String? transition,
+    PageMotion? motion,
     String? splitWide,
     bool? useSeriesDirection,
     String? borderCrop,
@@ -348,6 +355,7 @@ class ReaderPreferences {
     preload: preload ?? this.preload,
     animate: animate ?? this.animate,
     transition: transition ?? this.transition,
+    motion: motion ?? this.motion,
     splitWide: splitWide ?? this.splitWide,
     useSeriesDirection: useSeriesDirection ?? this.useSeriesDirection,
     borderCrop: borderCrop ?? this.borderCrop,

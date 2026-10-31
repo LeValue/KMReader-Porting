@@ -12,6 +12,53 @@ import 'settings_style.dart';
 import '../reader/epub_session.dart';
 import '../../ui/wheel_scroll.dart';
 
+List<PreferenceSpec> pageMotionSpecs(
+  String bucket, {
+  bool Function(LocalStore)? visible,
+}) => [
+  PreferenceSpec(
+    'followGesture',
+    'motion.followGesture',
+    true,
+    bucket: bucket,
+    visible: visible,
+    caption: 'motion.followGesture.caption',
+  ),
+  PreferenceSpec(
+    'animationDuration',
+    'motion.duration',
+    380,
+    bucket: bucket,
+    visible: visible,
+    min: 150,
+    max: 900,
+    step: 10,
+    formatValue: (n) => '${n.round()} ms',
+  ),
+  PreferenceSpec(
+    'pageTint',
+    'motion.tint',
+    .10,
+    bucket: bucket,
+    visible: visible,
+    min: 0,
+    max: .25,
+    step: .01,
+    formatValue: (n) => '${(n * 100).round()}%',
+  ),
+  PreferenceSpec(
+    'pageCornerRadius',
+    'motion.corners',
+    18.0,
+    bucket: bucket,
+    visible: visible,
+    min: 0,
+    max: 32,
+    step: 1,
+    formatValue: (n) => '${n.round()} px',
+  ),
+];
+
 const tapChoices = <Object, String>{
   'none': 'reader.tapZoneMode.none',
   'default': 'reader.tapZoneMode.default',
@@ -221,6 +268,7 @@ class DivinaSettingsPage extends StatelessWidget {
         captionValue: (store) =>
             'reader.page_transition.${const {'cover': 'cover', 'curl': 'page_curl'}[_comic(store)['transition']] ?? 'scroll'}.description',
       ),
+      ...pageMotionSpecs('readerDefault', visible: _comicAllowsPaged),
       PreferenceSpec(
         "animate",
         "Animate Page Turns",
@@ -489,6 +537,7 @@ class EpubSettingsPage extends StatelessWidget {
         captionValue: (store) =>
             'reader.page_transition.${const {'cover': 'cover', 'curl': 'page_curl'}[object(store.setting<dynamic>('epubDefault'))['transition']] ?? 'scroll'}.description',
       ),
+      ...pageMotionSpecs('epubDefault', visible: _epubPaged),
       PreferenceSpec(
         'tapScroll',
         'epub.scrolled.tap_scroll_height',

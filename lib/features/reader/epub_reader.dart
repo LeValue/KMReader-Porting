@@ -17,6 +17,7 @@ import '../../core/client_log.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/reader_options.dart';
 import '../../ui/theme.dart';
 import 'epub_document.dart';
 import 'epub_overlay.dart';
@@ -53,7 +54,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Completer<void> _browserClosed = Completer<void>();
   int _browserGeneration = 0, _recoveries = 0;
   bool _recovering = false, _recoveryFailed = false;
-  bool _initialized = false, _controls = true;
+  bool _initialized = false, _controls = true, _fullscreen = false;
   bool _fixedLayout = false;
   bool _verticalWriting = false;
   final _closed = Completer<void>();
@@ -70,9 +71,28 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   @visibleForTesting
   InAppWebViewController? get browserController => _browser;
 
+  void _showControls() {
+    ReaderDisplay.setFullscreen(context, false);
+    setState(() {
+      _controls = true;
+      _fullscreen = false;
+    });
+  }
+
+  void _toggleFullscreen() {
+    final enabled = !_fullscreen;
+    ReaderDisplay.setFullscreen(context, enabled);
+    setState(() {
+      _fullscreen = enabled;
+      _controls = !enabled;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _fullscreen =
+        widget.repository.store.setting<bool>('autoFullscreenOnOpen') == true;
     _future = _open();
   }
 
@@ -323,8 +343,15 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       case 'controls':
         setState(() => _controls = !_controls);
         return;
+      case 'fullscreen':
+        _toggleFullscreen();
+        return;
       case 'close':
-        Navigator.maybePop(context);
+        if (!_controls || _fullscreen) {
+          _showControls();
+        } else {
+          Navigator.maybePop(context);
+        }
         return;
       case 'selection':
         setState(() => _selection = text(event['text']));
@@ -394,7 +421,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                     }
                     if (context.mounted) Navigator.pop(context);
                   } catch (error) {
-                    if (context.mounted) showError(context, error);
+                    if (context.mounted) {
+                      showError(context, error);
+                    }
                   }
                 },
                 child: Text(tr(context, 'Open in Browser')),
@@ -618,15 +647,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     var draft = _session!.preferences.toJson();
     await showModalBottomSheet<void>(
       context: context,
+      constraints: const BoxConstraints(maxWidth: 760),
       isScrollControlled: true,
-      showDragHandle: true,
       builder: (context) => StatefulBuilder(
         builder: (context, update) {
           final session = _session!, p = EpubPreferences.fromJson(draft);
           Future<void> apply(String key, dynamic value) async {
             final next = EpubPreferences.fromJson({
               ...draft,
-              key: value,
+              key: key == 'columns' && value is String
+                  ? int.tryParse(value) ?? 0
+                  : value,
               if (const {
                 'fontSize',
                 'lineHeight',
@@ -647,186 +678,71 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           }
 
           Widget slider(
-            String label,
+            String title,
             String key,
             double value,
             double min,
             double max,
-            int steps,
-          ) => Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(tr(context, label))),
-                  Text(value.toStringAsFixed(2)),
-                ],
-              ),
-              Slider(
-                value: value,
-                min: min,
-                max: max,
-                divisions: steps,
-                onChanged: (v) => update(() => draft[key] = v),
-                onChangeEnd: (v) => apply(key, v),
-              ),
-            ],
+            int divisions,
+          ) => ReaderOptionSlider(
+            key: ValueKey('epub-$key'),
+            title: title,
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: (v) => update(() => draft[key] = v),
+            onChangeEnd: (v) => apply(key, v),
+          );
+          Widget picker(
+            String title,
+            String key,
+            String value,
+            Map<String, String> choices,
+          ) => ReaderOptionPicker(
+            title: title,
+            value: value,
+            choices: choices,
+            onChanged: (v) => apply(key, v),
           );
           return ReaderSafeArea(
-            child: SizedBox(
-              height: MediaQuery.sizeOf(context).height * .78,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: ReaderOptionsPanel(
+              title: 'Text Settings',
+              children: [
+                ReaderOptionGroup(
+                  title: 'Reading',
                   children: [
-                    Text(
-                      tr(context, 'Text Settings'),
-                      style: Theme.of(context).textTheme.titleLarge,
+                    picker('epub.reading_flow', 'flow', p.flow, {
+                      'paged': 'Paged',
+                      'scrolled': 'Vertical',
+                    }),
+                    if (!_verticalWriting)
+                      picker('Columns', 'columns', '${p.columns}', {
+                        '0': 'Automatic',
+                        '1': '1',
+                        '2': '2',
+                      }),
+                  ],
+                ),
+                if (_fixedLayout)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: Text(
+                      tr(context, 'This book uses a fixed page layout.'),
                     ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final flow in ['paged', 'scrolled'])
-                          ChoiceChip(
-                            label: Text(
-                              tr(
-                                context,
-                                flow == 'paged' ? 'Paged' : 'Vertical',
-                              ),
-                            ),
-                            selected: p.flow == flow,
-                            onSelected: (_) => apply('flow', flow),
-                          ),
-                      ],
-                    ),
-                    if (_fixedLayout)
-                      Text(tr(context, 'This book uses a fixed page layout.'))
-                    else ...[
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final font in [
-                            'publisher',
-                            'serif',
-                            'sans-serif',
-                          ])
-                            ChoiceChip(
-                              label: Text(
-                                tr(
-                                  context,
-                                  {
-                                    'publisher': 'Publisher Font',
-                                    'serif': 'Serif',
-                                    'sans-serif': 'Sans Serif',
-                                  }[font]!,
-                                ),
-                              ),
-                              selected: p.font == font,
-                              onSelected: (_) => apply('font', font),
-                            ),
-                        ],
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final font in session.fonts.fonts)
-                            InputChip(
-                              label: Text(text(font['name'])),
-                              selected: p.font == 'custom:${font['id']}',
-                              onSelected: (_) =>
-                                  apply('font', 'custom:${font['id']}'),
-                              onDeleted: () async {
-                                await session.fonts.remove(text(font['id']));
-                                if (!context.mounted) return;
-                                if (p.font == 'custom:${font['id']}') {
-                                  await apply('font', 'publisher');
-                                } else {
-                                  update(() {});
-                                }
-                              },
-                            ),
-                          ActionChip(
-                            avatar: const Icon(Icons.add),
-                            label: Text(tr(context, 'Import Font')),
-                            onPressed: () async {
-                              try {
-                                final font = await session.fonts.importFont();
-                                if (font != null && context.mounted) {
-                                  await apply('font', 'custom:${font['id']}');
-                                }
-                              } catch (error) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(error.toString())),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final theme in ['white', 'sepia', 'black'])
-                          ChoiceChip(
-                            label: Text(tr(context, theme)),
-                            selected: p.theme == theme,
-                            onSelected: (_) => apply('theme', theme),
-                          ),
-                      ],
-                    ),
-                    if (!_fixedLayout)
+                  )
+                else
+                  ReaderOptionGroup(
+                    title: 'Typography',
+                    children: [
+                      picker('Font', 'font', p.font, {
+                        'publisher': 'Publisher Font',
+                        'serif': 'Serif',
+                        'sans-serif': 'Sans Serif',
+                        for (final font in session.fonts.fonts)
+                          'custom:${font['id']}': text(font['name']),
+                      }),
                       slider('Text Size', 'fontSize', p.fontSize, 4.75, 76, 75),
-                    Text(tr(context, 'Page Turn Animation')),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final style in ['slide', 'cover', 'curl', 'none'])
-                          ChoiceChip(
-                            label: Text(tr(context, style)),
-                            selected: p.transition == style,
-                            onSelected: (_) => apply('transition', style),
-                          ),
-                      ],
-                    ),
-                    Text(tr(context, 'Tap Zones')),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final mode in [
-                          'none',
-                          'default',
-                          'edge',
-                          'kindle',
-                          'lShape',
-                          'tSplit',
-                        ])
-                          ChoiceChip(
-                            label: Text(
-                              tr(context, 'reader.tapZoneMode.$mode'),
-                            ),
-                            selected: p.tapMode == mode,
-                            onSelected: (_) => apply('tapMode', mode),
-                          ),
-                      ],
-                    ),
-                    Text(tr(context, 'Tap Zone Inversion')),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final mode in ['auto', 'normal', 'inverted'])
-                          ChoiceChip(
-                            label: Text(
-                              tr(context, 'reader.tapZoneInversionMode.$mode'),
-                            ),
-                            selected: p.tapInversion == mode,
-                            onSelected: (_) => apply('tapInversion', mode),
-                          ),
-                      ],
-                    ),
-                    if (!_fixedLayout) ...[
                       slider(
                         'Line Height',
                         'lineHeight',
@@ -836,6 +752,18 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         25,
                       ),
                       slider('Page Margins', 'margin', p.margin, 0, 100, 20),
+                      picker(
+                        'epub.text_alignment.title',
+                        'alignment',
+                        p.alignment,
+                        {
+                          'publisher': 'epub.text_alignment.publisher_default',
+                          'left': 'left',
+                          'right': 'right',
+                          'justify': 'justify',
+                          'center': 'center',
+                        },
+                      ),
                       slider(
                         'Paragraph Spacing',
                         'paragraphSpacing',
@@ -861,57 +789,128 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         1,
                         20,
                       ),
-                    ],
-                    if (!_verticalWriting)
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final count in [0, 1, 2])
-                            ChoiceChip(
-                              label: Text(
-                                count == 0
-                                    ? tr(context, 'Automatic')
-                                    : _fixedLayout
-                                    ? '${tr(context, 'Pages')}: $count'
-                                    : '$count ${tr(context, 'Columns')}',
-                              ),
-                              selected: p.columns == count,
-                              onSelected: (_) => apply('columns', count),
-                            ),
-                        ],
+                      ListTile(
+                        leading: const Icon(Icons.add),
+                        title: Text(tr(context, 'Import Font')),
+                        onTap: () async {
+                          try {
+                            final font = await session.fonts.importFont();
+                            if (font != null && context.mounted) {
+                              await apply('font', 'custom:${font['id']}');
+                            }
+                          } catch (error) {
+                            if (context.mounted) {
+                              showError(context, error);
+                            }
+                          }
+                        },
                       ),
-                    if (!_fixedLayout) ...[
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final alignment in [
-                            'publisher',
-                            'left',
-                            'right',
-                            'justify',
-                            'center',
-                          ])
-                            ChoiceChip(
-                              label: Text(tr(context, alignment)),
-                              selected: p.alignment == alignment,
-                              onSelected: (_) => apply('alignment', alignment),
-                            ),
-                        ],
-                      ),
+                      for (final font in session.fonts.fonts)
+                        ListTile(
+                          title: Text(text(font['name'])),
+                          trailing: IconButton(
+                            tooltip: tr(context, 'Delete'),
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () async {
+                              if (!await confirm(
+                                context,
+                                'Delete',
+                                text(font['name']),
+                              )) {
+                                return;
+                              }
+                              await session.fonts.remove(text(font['id']));
+                              if (p.font == 'custom:${font['id']}') {
+                                await apply('font', 'publisher');
+                              } else {
+                                update(() {});
+                              }
+                            },
+                          ),
+                        ),
                     ],
-                    TextButton(
-                      onPressed: () {
-                        widget.repository.store.setSetting(
-                          'epubDefault',
-                          p.toJson(),
-                        );
-                        Navigator.pop(context);
+                  ),
+                ReaderOptionGroup(
+                  title: 'Appearance',
+                  children: [
+                    picker('Theme', 'theme', p.theme, {
+                      'system': 'System',
+                      'white': 'white',
+                      'sepia': 'sepia',
+                      'black': 'black',
+                      'quiet': 'Quiet',
+                      'green': 'Green',
+                    }),
+                  ],
+                ),
+                ReaderOptionGroup(
+                  title: 'Page Turn',
+                  children: [
+                    SwitchListTile.adaptive(
+                      title: Text(tr(context, 'Animate Page Turns')),
+                      value: p.animate,
+                      onChanged: (v) => apply('animate', v),
+                    ),
+                    picker(
+                      'Page Transition Style',
+                      'transition',
+                      p.transition,
+                      {
+                        'slide': 'reader.page_transition.scroll',
+                        'cover': 'reader.page_transition.cover',
+                        'curl': 'reader.page_transition.page_curl',
+                        'none': 'None',
                       },
-                      child: Text(tr(context, 'Use as Default')),
+                    ),
+                    ReaderMotionOptions(
+                      motion: p.motion,
+                      onChanged: (motion) {
+                        draft = {...draft, ...motion.toJson()};
+                        session.setPreferences(EpubPreferences.fromJson(draft));
+                        unawaited(
+                          _call('preferences', session.browserPreferences),
+                        );
+                        update(() {});
+                      },
                     ),
                   ],
                 ),
-              ).withWheelScrolling(),
+                ReaderOptionGroup(
+                  title: 'Tap Zones',
+                  children: [
+                    picker('Tap Zones', 'tapMode', p.tapMode, {
+                      for (final mode in [
+                        'none',
+                        'default',
+                        'edge',
+                        'kindle',
+                        'lShape',
+                        'tSplit',
+                      ])
+                        mode: 'reader.tapZoneMode.$mode',
+                    }),
+                    picker(
+                      'Tap Zone Inversion',
+                      'tapInversion',
+                      p.tapInversion,
+                      {
+                        for (final mode in ['auto', 'normal', 'inverted'])
+                          mode: 'reader.tapZoneInversionMode.$mode',
+                      },
+                    ),
+                  ],
+                ),
+                OutlinedButton(
+                  onPressed: () {
+                    widget.repository.store.setSetting(
+                      'epubDefault',
+                      p.toJson(),
+                    );
+                    Navigator.pop(context);
+                  },
+                  child: Text(tr(context, 'Use as Default')),
+                ),
+              ],
             ),
           );
         },
@@ -1053,8 +1052,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           icon: const Icon(CupertinoIcons.arrow_uturn_left),
                         ),
                       IconButton(
-                        tooltip: tr(context, 'Full Screen'),
-                        onPressed: () => setState(() => _controls = false),
+                        tooltip: tr(
+                          context,
+                          _fullscreen ? 'Exit Full Screen' : 'Full Screen',
+                        ),
+                        onPressed: _toggleFullscreen,
                         icon: const Icon(
                           CupertinoIcons.arrow_up_left_arrow_down_right,
                         ),
@@ -1107,6 +1109,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       ],
                     ),
                   Expanded(
+                    key: const ValueKey('epub-surface-slot'),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
