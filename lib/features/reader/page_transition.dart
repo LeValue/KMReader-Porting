@@ -43,6 +43,11 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
     _animation.stop(canceled: true);
   }
 
+  void _updateCurlDrag(double progress, bool foldChanged) {
+    if (_animation.value == progress && foldChanged) setState(() {});
+    _animation.value = progress;
+  }
+
   final _queue = <(String, int, Future<void> Function())>[];
   Future<ui.Image?> _capture() async {
     try {
@@ -439,9 +444,7 @@ class _CurlDrag implements Drag {
     }
     progress = (-distance * physical / width).clamp(0, 1);
     if (physical != 0 && owner.mounted) {
-      if (owner._animation.value == progress && slope != oldSlope)
-        owner.setState(() {});
-      owner._animation.value = progress;
+      owner._updateCurlDrag(progress, slope != oldSlope);
     }
   }
 
