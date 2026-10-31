@@ -91,6 +91,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   @override
   void initState() {
     super.initState();
+    if (Platform.isWindows) HardwareKeyboard.instance.addHandler(_readerKey);
     _fullscreen =
         widget.repository.store.setting<bool>('autoFullscreenOnOpen') == true;
     _future = _open();
@@ -1022,11 +1023,25 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   @override
   void dispose() {
+    if (Platform.isWindows) HardwareKeyboard.instance.removeHandler(_readerKey);
     if (!_closed.isCompleted) _closed.complete();
     if (!_browserClosed.isCompleted) _browserClosed.complete();
     _session?.removeListener(_changed);
     unawaited(_session?.close() ?? Future.value());
     super.dispose();
+  }
+
+  bool _readerKey(KeyEvent event) {
+    assert(() {
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+          event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        debugPrint(
+          'EPUB paging key: current=${ModalRoute.of(context)?.isCurrent}, options=$_settingsOpen, key=${event.logicalKey.keyLabel}',
+        );
+      }
+      return true;
+    }());
+    return _key(event) == KeyEventResult.handled;
   }
 
   KeyEventResult _key(KeyEvent event) {
@@ -1081,212 +1096,201 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   @override
-  Widget build(BuildContext context) => Focus(
-    onKeyEvent: (_, event) => _key(event),
-    child: FutureBuilder<EpubSession>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(title: Text(widget.book.title)),
-            body: FailureView(
-              error: snapshot.error!,
-              retry: () => setState(() => _future = _open()),
-            ),
-          );
-        }
-        if (!snapshot.hasData) {
-          return Scaffold(
-            appBar: AppBar(title: Text(widget.book.title)),
-            body: const Center(child: CircularProgressIndicator.adaptive()),
-          );
-        }
-        final session = snapshot.data!;
-        session.darkEnvironment =
-            Theme.of(context).brightness == Brightness.dark;
-        final background = Color(
-          int.parse(session.themeColors.$1.substring(1), radix: 16) |
-              0xff000000,
+  Widget build(BuildContext context) => FutureBuilder<EpubSession>(
+    future: _future,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return Scaffold(
+          appBar: AppBar(title: Text(widget.book.title)),
+          body: FailureView(
+            error: snapshot.error!,
+            retry: () => setState(() => _future = _open()),
+          ),
         );
-        final brightness = session.dark ? Brightness.dark : Brightness.light;
-        if (_readerTheme == null || _readerBrightness != brightness) {
-          _readerBrightness = brightness;
-          _readerTheme = appTheme(brightness);
-        }
-        return ReaderStatusBar(
-          visible:
-              widget.repository.store.setting<bool>(
-                'epubShowsStatusBarWhileReading',
-              ) ==
-              true,
-          child: Theme(
-            data: _readerTheme!,
-            child: Scaffold(
-              backgroundColor: background,
-              appBar: _controls
-                  ? AppBar(
-                      backgroundColor: background,
-                      title: Text(
-                        epubOverlayText(
+      }
+      if (!snapshot.hasData) {
+        return Scaffold(
+          appBar: AppBar(title: Text(widget.book.title)),
+          body: const Center(child: CircularProgressIndicator.adaptive()),
+        );
+      }
+      final session = snapshot.data!;
+      session.darkEnvironment = Theme.of(context).brightness == Brightness.dark;
+      final background = Color(
+        int.parse(session.themeColors.$1.substring(1), radix: 16) | 0xff000000,
+      );
+      final brightness = session.dark ? Brightness.dark : Brightness.light;
+      if (_readerTheme == null || _readerBrightness != brightness) {
+        _readerBrightness = brightness;
+        _readerTheme = appTheme(brightness);
+      }
+      return ReaderStatusBar(
+        visible:
+            widget.repository.store.setting<bool>(
+              'epubShowsStatusBarWhileReading',
+            ) ==
+            true,
+        child: Theme(
+          data: _readerTheme!,
+          child: Scaffold(
+            backgroundColor: background,
+            appBar: _controls
+                ? AppBar(
+                    backgroundColor: background,
+                    title: Text(
+                      epubOverlayText(context, session, 'controlsHeaderCenter'),
+                    ),
+                    actions: [
+                      if (widget.incognito)
+                        const Icon(CupertinoIcons.eye_slash),
+                      if (session.auxiliary)
+                        IconButton(
+                          tooltip: tr(context, 'Back to Reading'),
+                          onPressed: () => _call('closeAuxiliary'),
+                          icon: const Icon(CupertinoIcons.arrow_uturn_left),
+                        ),
+                      IconButton(
+                        tooltip: tr(
                           context,
-                          session,
-                          'controlsHeaderCenter',
+                          _fullscreen ? 'Exit Full Screen' : 'Full Screen',
+                        ),
+                        onPressed: _toggleFullscreen,
+                        icon: const Icon(
+                          CupertinoIcons.arrow_up_left_arrow_down_right,
                         ),
                       ),
-                      actions: [
-                        if (widget.incognito)
-                          const Icon(CupertinoIcons.eye_slash),
-                        if (session.auxiliary)
-                          IconButton(
-                            tooltip: tr(context, 'Back to Reading'),
-                            onPressed: () => _call('closeAuxiliary'),
-                            icon: const Icon(CupertinoIcons.arrow_uturn_left),
-                          ),
-                        IconButton(
-                          tooltip: tr(
-                            context,
-                            _fullscreen ? 'Exit Full Screen' : 'Full Screen',
-                          ),
-                          onPressed: _toggleFullscreen,
-                          icon: const Icon(
-                            CupertinoIcons.arrow_up_left_arrow_down_right,
-                          ),
-                        ),
-                        PopupMenuButton<String>(
-                          onSelected: (v) => switch (v) {
-                            'contents' => _contents(),
-                            'search' => _search(),
-                            'bookmarks' => _bookmarks(),
-                            'translate' => _translateSelection(),
-                            _ => _settings(),
-                          },
-                          itemBuilder: (_) => [
-                            for (final entry in {
-                              'contents': 'Table of Contents',
-                              'search': 'Search',
-                              'bookmarks': 'Bookmarks',
-                              if (_selection?.trim().isNotEmpty == true)
-                                'translate': 'Translate Selected Text',
-                              'settings': 'Text Settings',
-                            }.entries)
-                              PopupMenuItem(
-                                value: entry.key,
-                                child: Text(tr(context, entry.value)),
-                              ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : null,
-              body: ReaderSafeArea(
-                top: !_controls,
-                bottom: !_controls,
-                child: Column(
-                  children: [
-                    if (!_controls)
-                      EpubReadingOverlay(session: session, header: true),
-                    if (_error != null)
-                      MaterialBanner(
-                        content: Text(_error!),
-                        actions: [
-                          TextButton(
-                            onPressed: () => _restartBrowser(manual: true),
-                            child: Text(tr(context, 'Retry')),
-                          ),
-                          TextButton(
-                            onPressed: () => setState(() => _error = null),
-                            child: Text(tr(context, 'Close')),
-                          ),
+                      PopupMenuButton<String>(
+                        onSelected: (v) => switch (v) {
+                          'contents' => _contents(),
+                          'search' => _search(),
+                          'bookmarks' => _bookmarks(),
+                          'translate' => _translateSelection(),
+                          _ => _settings(),
+                        },
+                        itemBuilder: (_) => [
+                          for (final entry in {
+                            'contents': 'Table of Contents',
+                            'search': 'Search',
+                            'bookmarks': 'Bookmarks',
+                            if (_selection?.trim().isNotEmpty == true)
+                              'translate': 'Translate Selected Text',
+                            'settings': 'Text Settings',
+                          }.entries)
+                            PopupMenuItem(
+                              value: entry.key,
+                              child: Text(tr(context, entry.value)),
+                            ),
                         ],
                       ),
-                    Expanded(
-                      key: const ValueKey('epub-surface-slot'),
-                      child: Stack(
-                        fit: StackFit.expand,
+                    ],
+                  )
+                : null,
+            body: ReaderSafeArea(
+              top: !_controls,
+              bottom: !_controls,
+              child: Column(
+                children: [
+                  if (!_controls)
+                    EpubReadingOverlay(session: session, header: true),
+                  if (_error != null)
+                    MaterialBanner(
+                      content: Text(_error!),
+                      actions: [
+                        TextButton(
+                          onPressed: () => _restartBrowser(manual: true),
+                          child: Text(tr(context, 'Retry')),
+                        ),
+                        TextButton(
+                          onPressed: () => setState(() => _error = null),
+                          child: Text(tr(context, 'Close')),
+                        ),
+                      ],
+                    ),
+                  Expanded(
+                    key: const ValueKey('epub-surface-slot'),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (_recoveryFailed)
+                          FailureView(
+                            error: tr(context, 'reader.recoveryFailed'),
+                            retry: () => _restartBrowser(manual: true),
+                          )
+                        else if (!_recovering)
+                          RepaintBoundary(child: _readerView(session)),
+                        if (session.layoutBusy && session.ready && !_recovering)
+                          const Align(
+                            alignment: Alignment.bottomCenter,
+                            child: LinearProgressIndicator(minHeight: 2),
+                          ),
+                        if (!session.ready && !_recoveryFailed)
+                          ColoredBox(
+                            color: background,
+                            child: const Center(
+                              child: CircularProgressIndicator.adaptive(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (!_controls)
+                    EpubReadingOverlay(session: session, header: false),
+                  if (!_controls &&
+                      object(
+                            widget.repository.store.setting<dynamic>(
+                              'epubOverlay',
+                            ),
+                          )['showsReaderProgressBar'] ==
+                          true)
+                    LinearProgressIndicator(
+                      value:
+                          (session.chapter + session.progression) /
+                          session.document.chapters.length,
+                      minHeight: 3,
+                    ),
+                  if (_controls)
+                    ReaderSafeArea(
+                      top: false,
+                      child: Row(
                         children: [
-                          if (_recoveryFailed)
-                            FailureView(
-                              error: tr(context, 'reader.recoveryFailed'),
-                              retry: () => _restartBrowser(manual: true),
-                            )
-                          else if (!_recovering)
-                            RepaintBoundary(child: _readerView(session)),
-                          if (session.layoutBusy &&
-                              session.ready &&
-                              !_recovering)
-                            const Align(
-                              alignment: Alignment.bottomCenter,
-                              child: LinearProgressIndicator(minHeight: 2),
-                            ),
-                          if (!session.ready && !_recoveryFailed)
-                            ColoredBox(
-                              color: background,
-                              child: const Center(
-                                child: CircularProgressIndicator.adaptive(),
+                          IconButton(
+                            tooltip: tr(context, 'Previous Page'),
+                            onPressed: () => _turn(-1),
+                            icon: const Icon(CupertinoIcons.chevron_left),
+                          ),
+                          Expanded(
+                            child: Text(
+                              epubOverlayText(
+                                context,
+                                session,
+                                'controlsFooterCenter',
                               ),
+                              key: const ValueKey('epub-position'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
                             ),
+                          ),
+                          if (session.atEnd && widget.onNextBook != null)
+                            IconButton(
+                              tooltip: tr(context, 'Next Book'),
+                              icon: const Icon(Icons.skip_next),
+                              onPressed: widget.onNextBook,
+                            ),
+                          IconButton(
+                            tooltip: tr(context, 'Next Page'),
+                            onPressed: () => _turn(1),
+                            icon: const Icon(CupertinoIcons.chevron_right),
+                          ),
                         ],
                       ),
                     ),
-                    if (!_controls)
-                      EpubReadingOverlay(session: session, header: false),
-                    if (!_controls &&
-                        object(
-                              widget.repository.store.setting<dynamic>(
-                                'epubOverlay',
-                              ),
-                            )['showsReaderProgressBar'] ==
-                            true)
-                      LinearProgressIndicator(
-                        value:
-                            (session.chapter + session.progression) /
-                            session.document.chapters.length,
-                        minHeight: 3,
-                      ),
-                    if (_controls)
-                      ReaderSafeArea(
-                        top: false,
-                        child: Row(
-                          children: [
-                            IconButton(
-                              tooltip: tr(context, 'Previous Page'),
-                              onPressed: () => _turn(-1),
-                              icon: const Icon(CupertinoIcons.chevron_left),
-                            ),
-                            Expanded(
-                              child: Text(
-                                epubOverlayText(
-                                  context,
-                                  session,
-                                  'controlsFooterCenter',
-                                ),
-                                key: const ValueKey('epub-position'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            if (session.atEnd && widget.onNextBook != null)
-                              IconButton(
-                                tooltip: tr(context, 'Next Book'),
-                                icon: const Icon(Icons.skip_next),
-                                onPressed: widget.onNextBook,
-                              ),
-                            IconButton(
-                              tooltip: tr(context, 'Next Page'),
-                              onPressed: () => _turn(1),
-                              icon: const Icon(CupertinoIcons.chevron_right),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
           ),
-        );
-      },
-    ),
+        ),
+      );
+    },
   );
 }

@@ -5,8 +5,10 @@ than opening it in an inspector, on the UI isolate, and again in the server.
 The resource worker returns chapter/navigation metadata and entry names. TOC
 target validation no longer decompresses every target chapter. Remote progression
 retrieval starts before worker preparation; its resume/error semantics remain.
-Only redundant post-display layout waits were removed: initial fonts/images
-still settle, and native view recovery/resize continue to retain glyph checks.
+The verified native first-layout barrier is retained: fonts, images and spread
+views settle before ready. A separate queued frame/bounds barrier on options
+resume keeps the first subsequent turn behind native surface delivery, without
+adding waits to ordinary turns. Recovery/resize retain their glyph checks.
 
 EPUB forms use a lazy list of groups. A typography slider owns its drag value;
 the form and live publication are updated once on release. Book input and effects

@@ -250,6 +250,8 @@ void verifyNativeEpubPerformance() {
               true,
             );
             final beforeArrow = await js('return reader.position().start.cfi;');
+            final beforeCount = (await js('return completedTurns;') as num)
+                .toInt();
             await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
             for (var attempt = 0; attempt < 30; attempt++) {
               await tester.pump(const Duration(milliseconds: 100));
@@ -264,6 +266,12 @@ void verifyNativeEpubPerformance() {
               isNot(beforeArrow),
             );
             await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+            for (var attempt = 0; attempt < 50; attempt++) {
+              await tester.pump(const Duration(milliseconds: 100));
+              if (await js('return completedTurns;') == beforeCount + 2) break;
+              await Future<void>.delayed(const Duration(milliseconds: 50));
+            }
+            expect(await js('return completedTurns;'), beforeCount + 2);
             await js('await reader.whenIdle();return true;');
             readingAnchor = await js('return reader.position().start.cfi;');
           } else {
@@ -308,11 +316,16 @@ void verifyNativeEpubPerformance() {
         // Exercise the real WebView GPU/texture path, not only headless Chrome.
         expect(
           await js("""
+          // Emulator accessibility disables animation. Exercise actual GPU
+          // pixels in this scoped branch, then restore the media query.
+          window.nativeMedia=window.matchMedia;
+          window.matchMedia=query=>query.includes('prefers-reduced-motion')?{matches:false}:nativeMedia.call(window,query);
           window.nativeStart=KMReaderSheetEffect.prototype.start;
           window.nativeAnimate=KMReaderSheetEffect.prototype.animateTo;
           KMReaderSheetEffect.prototype.start=async function(move){window.nativeCurl=this;return nativeStart.call(this,move);};
           KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
           await reader.turn({delta:1,style:'curl'});
+          if(!window.nativeCurl)throw Error('GPU effect did not start: supported='+KMReaderSheetEffect.supported('curl')+', reduced='+matchMedia('(prefers-reduced-motion: reduce)').matches);
           if(!nativeCurl.surface||!document.getElementById('page-curl-surface'))throw Error('Native GPU curl unavailable');
           nativeCurl.update(.5,{x:innerWidth*.5,y:innerHeight*.25});
           return nativeCurl.surface.canvas.width>=innerWidth;
@@ -321,7 +334,7 @@ void verifyNativeEpubPerformance() {
         );
         await visibleText();
         await js("""
-          nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
+          nativeCurl.stop();window.matchMedia=nativeMedia;KMReaderSheetEffect.prototype.start=nativeStart;
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
           await reader.previous();return true;
         """);

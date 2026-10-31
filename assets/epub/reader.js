@@ -68,7 +68,7 @@ class KMReaderCurlSurface {
 }
 class KMReaderSheetEffect {
   static serial=0;
-  static supported(){return typeof document.startViewTransition==='function';}
+  static supported(style='slide'){return style==='curl'?typeof WebGLRenderingContext!=='undefined':typeof document.startViewTransition==='function';}
   constructor(style,sign,preferences,y=.5,reverse=false,spread=false,capture=null){
     Object.assign(this,{style,sign,preferences,y,reverse,spread,capture});
     this.width=innerWidth;this.height=innerHeight;this.progress=0;this.slope=0;this.id=`km-sheet-${++KMReaderSheetEffect.serial}`;
@@ -392,7 +392,7 @@ class KMReaderSheetEffect {
           !doc.getSelection().isCollapsed) return;
       const p = point(event), dx = p.x - contact.x, dy = p.y - contact.y;
       if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.3 || Date.now() - contact.time > 550) return;
-      if (preferences.followGesture !== false && motionAllowed(preferences.transition) && KMReaderSheetEffect.supported()) {
+      if (preferences.followGesture !== false && motionAllowed(preferences.transition) && KMReaderSheetEffect.supported(preferences.transition)) {
         event.preventDefault();
         beginGesture(contact, p, event.pointerId);
         contact = null;
@@ -787,7 +787,7 @@ class KMReaderSheetEffect {
   }
   async function transitionMove(delta, style, y) {
     const move = () => delta > 0 ? next() : previous();
-    if (!motionAllowed(style) || !KMReaderSheetEffect.supported() || (delta > 0 && atReadingEnd())) {
+    if (!motionAllowed(style) || !KMReaderSheetEffect.supported(style) || (delta > 0 && atReadingEnd())) {
       await move(); return null;
     }
     await tick();
@@ -840,10 +840,12 @@ class KMReaderSheetEffect {
       restoredCfi = false;
       await displayStable(value.href || undefined);
     }
-    if (!restoredCfi && value.progression > 0) {
-      await legacyProgress(value.progression);
-      await stable(rendition.getContents());
-    }
+    // A native WebView can attach its remaining spread view after display's
+    // first completion. Keep the verified initial layout barrier; archive
+    // preparation is optimized independently of native first-paint readiness.
+    await stable(rendition.getContents());
+    if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
+    await tick();
     // Ready must describe a real viewport, even if the initial relocated
     // callback is still queued by the renderer.
     refreshViewportLocation();
@@ -946,7 +948,14 @@ class KMReaderSheetEffect {
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
-    suspendInput: value => { inputSuspended=!!value; clearTimeout(captureIdle); cancelGesture(); cancelTurnAnimation(); if(!inputSuspended)warmCurl(); for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges(); return true; },
+    suspendInput: value => {
+      inputSuspended=!!value;clearTimeout(captureIdle);cancelGesture();cancelTurnAnimation();
+      for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();
+      if(inputSuspended)return true;
+      // Android delivers native surface bounds/focus after the sheet closes.
+      // Settle that delivery once here, ahead of queued turns, not per page.
+      return enqueue(async()=>{await tick();await waitForLayout();warmCurl();return true;});
+    },
     position: () => location, layoutReady,
     whenIdle: () => enqueue(waitForLayout), destroy: () => {
       disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
