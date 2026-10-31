@@ -577,6 +577,8 @@ class KMReaderSheetEffect {
   }
   async function advance(delta) {
     refreshViewportLocation();
+    const beforeCfi=location?.start?.cfi;
+    const fixedTarget=delta>0?(location?.end?.index??location?.start?.index)+1:(location?.start?.index??0)-1;
     const manager = rendition.manager;
     if (!isFixedLayout() && !manager.isPaginated && manager.settings.axis === 'horizontal') {
       const fraction = preferences.flow === 'scrolled' ? (Number(preferences.tapScroll) || 80) / 100 : 1;
@@ -600,6 +602,20 @@ class KMReaderSheetEffect {
     // relocated. Read the settled viewport before committing this user turn;
     // otherwise the old locator can be treated as an unchanged position.
     refreshViewportLocation();
+    if(isFixedLayout() && beforeCfi===location?.start?.cfi) {
+      // A native fixed-layout view can finish its resize/display queue without
+      // accepting the first manager.next(). Wait for delivery, then explicitly
+      // display the adjacent spine item only if the viewport really stayed put.
+      await tick();refreshViewportLocation();
+      if(beforeCfi===location?.start?.cfi && fixedTarget>=0) {
+        const section=book.spine.get(fixedTarget);
+        if(section){
+          await rendition.display(section.href);
+          await stable(rendition.getContents());
+          refreshViewportLocation();
+        }
+      }
+    }
   }
   async function next() {
     if (!rendition || auxiliary) return;

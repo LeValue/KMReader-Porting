@@ -3,6 +3,9 @@
 A canceled EPUB gesture now keeps its presentation snapshot until the original
 live viewport has been restored and delivered. Same-document rollback restores
 the existing scrollport; cross-chapter rollback retains stable CFI restoration.
+Fixed-layout turns detect an unchanged native viewport after delivery and can
+explicitly display the adjacent spine item. A simulated manager no-op regression
+ensures exactly one page is reached from one user turn.
 Both slide/curl checks assert the original CFI **at snapshot removal**, rather
 than only after the eventual return. Backward GPU curl peels the opposite leaf
 with its own material direction, rather than running the forward curl backward.
