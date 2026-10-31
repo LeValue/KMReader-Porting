@@ -74,7 +74,35 @@ void verifyNativeEpubPerformance() {
       }
 
       Future<void> visibleText() async {
-        await Future<void>.delayed(const Duration(milliseconds: 200));
+        // Native bounds, DOM repagination and raster delivery are independent.
+        // Wait for the actual surface size and layout instead of assuming a
+        // fixed 300ms is sufficient on a software-rendered emulator.
+        var settled = false;
+        for (var attempt = 0; attempt < 60; attempt++) {
+          final expected = tester.getSize(find.byType(InAppWebView));
+          final geometry = object(
+            await js(
+              'return {width:innerWidth,height:innerHeight,ready:reader.layoutReady()};',
+            ),
+          );
+          if (geometry['ready'] == true &&
+              ((geometry['width'] as num).toDouble() - expected.width).abs() <
+                  2 &&
+              ((geometry['height'] as num).toDouble() - expected.height).abs() <
+                  2) {
+            settled = true;
+            break;
+          }
+          await tester.pump(const Duration(milliseconds: 100));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(
+          settled,
+          true,
+          reason: 'Native WebView bounds and EPUB layout must settle',
+        );
+        await js('await reader.whenIdle();return true;');
+        await Future<void>.delayed(const Duration(milliseconds: 100));
         for (final view in tester.binding.renderViews) {
           view.markNeedsPaint();
         }

@@ -208,6 +208,7 @@ class EpubSession extends ChangeNotifier {
   String cfi = '', href = '';
   int chapter = 0, page = 1, pages = 1;
   double progression = 0;
+  bool layoutBusy = false;
   bool ready = false,
       auxiliary = false,
       atStart = true,
@@ -347,6 +348,8 @@ class EpubSession extends ChangeNotifier {
   void receive(Json event) {
     if (_closed) return;
     switch (event['type']) {
+      case 'layout':
+        layoutBusy = event['active'] == true;
       case 'ready':
         ready = true;
       case 'auxiliary':

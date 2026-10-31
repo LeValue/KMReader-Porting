@@ -3,7 +3,7 @@
 The blank EPUB after clicking the text/fullscreen button came from the Flutter
 child tree: inserting a header moved an unkeyed Expanded to a different slot,
 disposed the native view and reused its already closed platform widget. The
-surface slot now keeps a stable key across controls/error/header changes. The
+surface slot now keeps a stable key across controls/error/header changes. Reflowable paginated documents also resize their existing iframe instead of clearing and loading it again; native verification waits for matching WebView bounds and settled layout before checking actual glyph pixels. The
 fullscreen actions also update actual Windows display ownership; hiding reader
 chrome and entering OS fullscreen have distinct state.
 

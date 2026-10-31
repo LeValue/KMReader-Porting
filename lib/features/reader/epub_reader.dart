@@ -1120,6 +1120,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           )
                         else if (!_recovering)
                           RepaintBoundary(child: _readerView(session)),
+                        if (session.layoutBusy && session.ready && !_recovering)
+                          const Align(
+                            alignment: Alignment.bottomCenter,
+                            child: LinearProgressIndicator(minHeight: 2),
+                          ),
                         if (!session.ready && !_recoveryFailed)
                           ColoredBox(
                             color: background,
