@@ -131,6 +131,21 @@ with sync_playwright() as pw:
     page.evaluate('effect.stop()')
     reverse_live=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
     assert max(ImageStat.Stat(ImageChops.difference(reverse_end,reverse_live)).mean)<6
+    # A raised free paper edge must cast its own shadow, away from the roll
+    # ridge. White textures isolate actual lighting from text/ink differences.
+    shadow=page.evaluate('''() => {
+      const surface=effect.surface,g=surface.gl,stock=document.createElement('canvas');
+      stock.width=innerWidth;stock.height=innerHeight;
+      const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
+      surface.upload(stock,stock,innerWidth,innerHeight);document.body.append(surface.canvas);
+      surface.render(.68,true,-1,-.1,.5,.18);
+      const edge=g.getUniform(surface.background.p,surface.background.u.edge0);
+      const x=(edge[0]+edge[2])/2,y=(edge[1]+edge[3])/2,dpr=surface.canvas.width/innerWidth;
+      const pixel=new Uint8Array(4);
+      g.readPixels(Math.round(x*dpr),surface.canvas.height-1-Math.round(y*dpr),1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+      surface.canvas.remove();return [...pixel];
+    }''')
+    assert 180<shadow[0]<250 and max(shadow[:3])-min(shadow[:3])<=1, ('Missing free-edge cast shadow',shadow)
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
     # Actual automatic effects remain visible mid-flight, not just a retained
     # JS object after Chromium already removed its snapshot pseudo-elements.

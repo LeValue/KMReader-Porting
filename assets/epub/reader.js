@@ -16,7 +16,13 @@ class KMReaderCurlSurface {
       vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}`;
     const quadVertex=`attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,(1.-a.y)*.5);gl_Position=vec4(a,0.,1.);}`;
     const background=`precision highp float;varying vec2 v;${uniforms}${samples}
-      uniform vec4 shadowLine;uniform float shadowWidth,shadowStrength;
+      uniform vec4 shadowLine,edge0,edge1,edge2;uniform vec3 edgeWidth;uniform float shadowWidth,shadowStrength;
+      float edgeShadow(vec2 q,vec4 edge,float width){
+        vec2 line=edge.zw-edge.xy;
+        float along=clamp(dot(q-edge.xy,line)/max(1.,dot(line,line)),0.,1.);
+        vec2 d=q-mix(edge.xy,edge.zw,along);
+        return shadowStrength*.8*(1.-smoothstep(0.,width*width,dot(d,d)));
+      }
       void main(){vec2 q=v*size;float hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
         if(progress<.0001){gl_FragColor=oldAt(q);return;}
         if(progress>.9999){gl_FragColor=newAt(q);return;}
@@ -25,6 +31,7 @@ class KMReaderCurlSurface {
         float along=clamp(dot(q-shadowLine.xy,line)/max(1.,dot(line,line)),0.,1.);
         vec2 delta=q-mix(shadowLine.xy,shadowLine.zw,along);
         float shadow=shadowStrength*exp(-dot(delta,delta)/(shadowWidth*shadowWidth));
+        shadow=max(shadow,max(edgeShadow(q,edge0,edgeWidth.x),max(edgeShadow(q,edge1,edgeWidth.y),edgeShadow(q,edge2,edgeWidth.z))));
         gl_FragColor=vec4(color.rgb*(1.-shadow),1.);
       }`;
     const meshVertex=`precision highp float;attribute vec2 a;${uniforms}
@@ -78,7 +85,7 @@ class KMReaderCurlSurface {
       const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource),p=gl.createProgram();
       gl.attachShader(p,vertex);gl.attachShader(p,fragment);gl.linkProgram(p);gl.deleteShader(vertex);gl.deleteShader(fragment);
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
-      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowLine','shadowWidth','shadowStrength'])u[name]=gl.getUniformLocation(p,name);
+      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowLine','shadowWidth','shadowStrength','edge0','edge1','edge2','edgeWidth'])u[name]=gl.getUniformLocation(p,name);
       return {p,u,a:gl.getAttribLocation(p,'a')};
     };
     this.background=program(quadVertex,background);this.sheet=program(meshVertex,meshFragment);
@@ -108,11 +115,37 @@ class KMReaderCurlSurface {
     const ridge=v=>{
       const factor=Math.max(.65,Math.min(1.35,1+cone*v/h)),r=Math.max(.001,w*.075*wave*factor),alpha=.75*wave*factor;
       const f=Math.max(.001,w*(1-progress)-r*(Math.PI-alpha)/2),frontReach=Math.min(f,w*reach),frontR=frontReach/Math.max(.00001,alpha);
-      const depth=2*frontR*Math.sin(alpha/2)**2+r*Math.cos(alpha),x=f-frontReach+frontR*Math.sin(alpha)+r*(1-Math.sin(alpha))+depth*.08,scale=3*w/(3*w-depth);
+      const depth=2*frontR*Math.sin(alpha/2)**2+r*Math.cos(alpha),x=f-frontReach+frontR*Math.sin(alpha)+r*(1-Math.sin(alpha))+depth*.08*sign,scale=3*w/(3*w-depth);
       return [hinge+(nx*x-ny*v)*scale*sign,y*h+(ny*x+nx*v)*scale,depth];
     };
     const start=ridge(Math.min(0,-ny*w)-nx*y*h),end=ridge(Math.max(0,-ny*w)+nx*(1-y)*h),u=this.background.u;
     g.uniform4f(u.shadowLine,start[0],start[1],end[0],end[1]);g.uniform1f(u.shadowWidth,8+(start[2]+end[2])*.11);g.uniform1f(u.shadowStrength,.22*wave);
+    // Cast shadows from the free back edge and the two exposed paper edges,
+    // in addition to the roll ridge. Evaluate material geometry on the CPU at
+    // a few boundary points, never read back a texture or rebuild a mesh.
+    const boundary=(sx,sy)=>{
+      const material=nx*sx+ny*(sy-y*h),v=-ny*sx+nx*(sy-y*h);
+      const factor=Math.max(.65,Math.min(1.35,1+cone*v/h)),r=Math.max(.001,w*.075*wave*factor),alpha=.75*wave*factor;
+      const f=Math.max(.001,w*(1-progress)-r*(Math.PI-alpha)/2),arc=Math.min(f,w*reach),flat=f-arc,end=f+r*(Math.PI-alpha);
+      const frontR=arc/Math.max(.00001,alpha),xf=flat+frontR*Math.sin(alpha),zf=2*frontR*Math.sin(alpha/2)**2;
+      let x,z;
+      if(material<flat){x=material;z=0;}
+      else if(material<=f){const angle=alpha*(material-flat)/Math.max(.001,arc);x=flat+frontR*Math.sin(angle);z=2*frontR*Math.sin(angle/2)**2;}
+      else if(material<=end){const angle=alpha+(material-f)/r;x=xf+r*(Math.sin(angle)-Math.sin(alpha));z=zf+r*(Math.cos(alpha)-Math.cos(angle));}
+      else{x=xf-r*Math.sin(alpha)-(material-end);z=zf+r*(1+Math.cos(alpha));}
+      const scale=3*w/(3*w-z);
+      return {x:hinge+(nx*x-ny*v)*scale*sign+z*.06*scale,y:y*h+(ny*x+nx*v+z*.04)*scale,z,back:material-end};
+    };
+    const backStart=sy=>{
+      if(boundary(w,sy).back<0)return boundary(w,sy);
+      let lo=0,hi=w;
+      for(let i=0;i<8;i++){const middle=(lo+hi)/2;if(boundary(middle,sy).back<0)lo=middle;else hi=middle;}
+      return boundary((lo+hi)/2,sy);
+    };
+    const top=boundary(w,0),bottom=boundary(w,h),topStart=backStart(0),bottomStart=backStart(h);
+    const edges=[[top,bottom],[topStart,top],[bottomStart,bottom]];
+    for(let i=0;i<3;i++){const [a,b]=edges[i];g.uniform4f(u['edge'+i],a.x,a.y,b.x,b.y);}
+    g.uniform3f(u.edgeWidth,...edges.map(([a,b])=>4+(a.z+b.z)*.06));
     g.drawArrays(g.TRIANGLE_STRIP,0,4);
     if(progress<.0001||progress>.9999)return;
     g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);g.frontFace(sign>0?g.CW:g.CCW);
@@ -754,6 +787,9 @@ class KMReaderSheetEffect {
       try {
         await captureSheet();
         if(disposed||inputSuspended||gesture||sheetEffect||rendition?.manager?.settings.axis!=='horizontal')return;
+        // Compile the retained GPU programs while idle, rather than on the
+        // first finger movement. No texture upload or frame draw is needed.
+        KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
         const frames=[...document.querySelectorAll('#viewer iframe')];
         if(frames.length!==1)return;
         const bounds=frames[0].getBoundingClientRect();

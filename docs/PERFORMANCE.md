@@ -14,11 +14,11 @@ The default front arc occupies 18% of a leaf near the roll, with a persisted
 8–55% deformation-reach control. Straight paper joins the local arc and roll
 with continuous positions/tangents. A tighter roll and leaf-width gestures make
 turns more responsive. Shading follows the front/roll normals; the cast shadow
-uses projected ridge depth. Transparent EPUB header/footer labels now overlay
+uses projected ridge and free-edge depth, with a fixed light direction. Transparent EPUB header/footer labels now overlay
 the continuous reading viewport instead of cutting it into separate rectangles.
 
 Mouse/touch update bursts coalesce into one GPU update per animation frame.
-Idle prewarming prepares only the next position; previous textures remain in
+Idle prewarming initializes the retained GPU programs and prepares only the next position; previous textures remain in
 the bounded cache. The compositor delivery barrier is retained: removing it
 caused rapid View Transition captures to block, as caught by the 48-turn test.
 
