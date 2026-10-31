@@ -673,18 +673,19 @@ class KMReaderSheetEffect {
   }
   function warmCurl(){
     clearTimeout(captureIdle);
-    if(preferences.transition!=='curl'||!motionAllowed('curl'))return;
+    if(inputSuspended||preferences.transition!=='curl'||!motionAllowed('curl'))return;
     captureIdle=setTimeout(async()=>{
-      if(disposed||gesture||sheetEffect)return;
+      if(disposed||inputSuspended||gesture||sheetEffect)return;
       try {
         await captureSheet();
-        if(disposed||gesture||sheetEffect||rendition?.manager?.settings.axis!=='horizontal')return;
+        if(disposed||inputSuspended||gesture||sheetEffect||rendition?.manager?.settings.axis!=='horizontal')return;
         const frames=[...document.querySelectorAll('#viewer iframe')];
         if(frames.length!==1)return;
         const bounds=frames[0].getBoundingClientRect();
         // Prepare adjacent positions without navigating, layout or progress
         // writes. Actual turns reuse these textures by viewport geometry.
         for(const shift of [-innerWidth,innerWidth]){
+          if(disposed||inputSuspended||gesture||sheetEffect)return;
           if(bounds.left+shift<=0&&bounds.right+shift>=innerWidth)await captureSheet(shift);
         }
       }catch(_){/* Unsupported artwork retains direct reading. */}
@@ -945,7 +946,7 @@ class KMReaderSheetEffect {
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
-    suspendInput: value => { inputSuspended=!!value; cancelGesture(); cancelTurnAnimation(); for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges(); return true; },
+    suspendInput: value => { inputSuspended=!!value; clearTimeout(captureIdle); cancelGesture(); cancelTurnAnimation(); if(!inputSuspended)warmCurl(); for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges(); return true; },
     position: () => location, layoutReady,
     whenIdle: () => enqueue(waitForLayout), destroy: () => {
       disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
