@@ -155,6 +155,17 @@ with sync_playwright() as playwright:
 
     check_authored()
     if config['preferences']['flow'] == 'paged':
+        # Simulate the native manager accepting a turn request while its fixed
+        # view is being delivered, leaving the viewport unchanged. The reader
+        # must advance exactly one spine item without requiring a second tap.
+        start_index=page.evaluate('reader.position().start.index')
+        page.evaluate("() => {const m=fixtureRendition.manager;window.fixedNext=m.next;m.next=()=>Promise.resolve();}")
+        page.evaluate('reader.next()')
+        assert page.evaluate('reader.position().start.index')==start_index+1, 'Fixed native no-op consumed the page turn'
+        page.evaluate("() => {fixtureRendition.manager.next=fixedNext;}")
+        page.evaluate('reader.previous()')
+        assert page.evaluate('reader.position().start.index')==start_index
+        check_authored()
         # Publisher paper can differ from the reader theme. The translucent
         # back must use that paper, never turn a white authored page black.
         page.evaluate("""() => {
