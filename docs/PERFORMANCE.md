@@ -21,11 +21,17 @@ Slide has symmetric foreground/background ordering, 10% lower-sheet parallax,
 a small lower-page dim that fades as the page arrives, and an exponential dark
 foreground lift beginning after 25% travel. Curl does not use these color effects.
 
-EPUB curl now uses an analytic high-precision WebGL cylinder instead of an 8-bit
-SVG displacement map generated/encoded on every frame. Reusable native-size
+EPUB curl now uses a high-precision WebGL sheet instead of an 8-bit
+SVG displacement map generated/encoded on every frame. A broad elastic front
+arc joins the tight roll with a continuous tangent: still-visible text bends
+before the fold reaches it. A fold-aligned 144-by-24 mesh concentrates samples
+on the roll, applies perspective-correct texture interpolation and uses depth
+testing for overlapping faces. Corner position changes the roll radius along
+the sheet; surface normals determine shading and the raised ridge casts a soft
+shadow. The comic mesh uses the same continuous section for artwork. Reusable native-size
 textures (DPR capped at two), one retained GPU surface and cached chapter markup
 keep pixel work outside the drag loop. During drag the renderer updates uniforms
-and draws a quad. Nearby same-chapter textures are prepared without navigating.
+and draws a reusable mesh. Nearby same-chapter textures are prepared without navigating.
 Four page images at most are cached, with a 32 MiB target (two required images
 remain available for a large desktop viewport), 48 MiB resource-cache budget and
 8 MiB serialized-page guard. GPU/artwork failures retain direct reading. Embedded
@@ -35,7 +41,9 @@ book screenshot or PNG encoding crosses the bridge for these page turns.
 Single-page backs are mirrored/translucent; spread backs use the incoming left
 page, with stationary underlying page backgrounds. The fold's normal follows
 vertical as well as horizontal pointer movement. Reduced motion and cancellation
-retain direct navigation and the committed CFI. These are controlled rendering
+retain direct navigation and the committed CFI. Glyph-mask checks verify that
+the unturned front deforms; geometry checks cover tangent continuity and local
+arc-length preservation. These are controlled rendering
 and state checks; native/physical-device frame-time acceptance is still needed.
 
 The 0.8.4 notes below describe the replaced implementation for comparison.
