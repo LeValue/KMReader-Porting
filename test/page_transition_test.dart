@@ -1,3 +1,5 @@
+import 'support/comic_spread_check.dart';
+
 import 'dart:async';
 import 'dart:ui' as ui;
 
@@ -19,6 +21,95 @@ void main() {
     }
   }
 
+  testWidgets('page boundary rejects taps and drags before capturing a frame', (
+    tester,
+  ) async {
+    final key = GlobalKey<ReaderPageTransitionState>();
+    var captures = 0, moves = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReaderPageTransition(
+          key: key,
+          canTurn: (_) => false,
+          captureImage: () async {
+            captures++;
+            return null;
+          },
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+    await key.currentState!.turn('curl', 1, () async {
+      moves++;
+    });
+    final drag = key.currentState!.drag(
+      reverse: false,
+      width: 300,
+      preview: (_) async {
+        moves++;
+        return true;
+      },
+      finish: (_, _) async {
+        moves++;
+      },
+    );
+    drag.update(
+      DragUpdateDetails(delta: Offset(-150, 0), globalPosition: Offset(10, 50)),
+    );
+    drag.end(DragEndDetails());
+    await tester.pumpAndSettle();
+    expect(captures, 0);
+    expect(moves, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets(
+    'prepared comic turns start without a screen capture or early navigation',
+    (tester) async {
+      final before = (await tester.runAsync(() => raster(Colors.red)))!;
+      final after = (await tester.runAsync(() => raster(Colors.green)))!;
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+      final key = GlobalKey<ReaderPageTransitionState>();
+      var captures = 0, moves = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderPageTransition(
+            key: key,
+            prepare: (_) => PreparedPageTurn(
+              before.clone(),
+              after.clone(),
+              const Rect.fromLTWH(0, 0, 100, 100),
+              null,
+            ),
+            captureImage: () async {
+              captures++;
+              return null;
+            },
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+      final work = key.currentState!.turn('curl', 1, () async {
+        moves++;
+      });
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(captures, 0);
+      expect(moves, 0);
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((w) => w.painter)
+          .whereType<PageTurnPainter>()
+          .single;
+      expect(painter.progress, greaterThan(0));
+      await tester.pumpAndSettle();
+      await work;
+      expect(moves, 1);
+      expect(captures, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  verifyComicSpread();
   testWidgets(
     'comic curl bends the artwork without lifting its black letterbox',
     (tester) async {

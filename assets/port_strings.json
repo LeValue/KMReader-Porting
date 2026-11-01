@@ -1570,5 +1570,29 @@
   "motion.curlReach": {
     "en": "Curl deformation reach",
     "it": "Estensione della curvatura"
+  },
+  "Local Books": {
+    "en": "Local Books",
+    "it": "Libri locali"
+  },
+  "Import Files": {
+    "en": "Import Files",
+    "it": "Importa file"
+  },
+  "No local books yet": {
+    "en": "No local books yet",
+    "it": "Non hai ancora importato libri"
+  },
+  "Import EPUB, PDF or CBZ/ZIP files from this device.": {
+    "en": "Import EPUB, PDF or CBZ/ZIP files from this device.",
+    "it": "Importa file EPUB, PDF o CBZ/ZIP da questo dispositivo."
+  },
+  "Remove Local Book": {
+    "en": "Remove Local Book",
+    "it": "Rimuovi libro locale"
+  },
+  "Only the imported copy is removed. The original file stays on your device.": {
+    "en": "Only the imported copy is removed. The original file stays on your device.",
+    "it": "Viene rimossa solo la copia importata. Il file originale rimane sul dispositivo."
   }
 }

@@ -1,3 +1,5 @@
+import 'support/local_library_check.dart';
+
 import 'package:kmreader/core/background_downloads.dart';
 
 import 'dart:io';
@@ -39,6 +41,7 @@ void main() {
   verifyNativeWindowsWheel();
   verifyNativeEpubPerformance();
   verifyNativeComicSheets();
+  verifyNativeLocalLibrary();
   testWidgets('Android export rejects files outside app-private storage', (
     tester,
   ) async {
@@ -412,10 +415,26 @@ void main() {
       await tester.tap(find.text('Text Settings').last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(
-        tester.widgetList<Slider>(find.byType(Slider)).map((s) => s.value),
-        containsAll([76.0, .5, 1.0]),
-      );
+      for (final (key, expected) in [
+        ('fontSize', 76.0),
+        ('lineHeight', .5),
+        ('letterSpacing', 1.0),
+      ]) {
+        final row = find.byKey(ValueKey('epub-$key'));
+        await tester.scrollUntilVisible(
+          row,
+          150,
+          scrollable: find.byType(Scrollable).last,
+        );
+        expect(
+          tester
+              .widget<Slider>(
+                find.descendant(of: row, matching: find.byType(Slider)),
+              )
+              .value,
+          expected,
+        );
+      }
       expect(repository.pendingCount, 0);
     } finally {
       await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));

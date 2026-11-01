@@ -225,7 +225,12 @@ void verifyNativeEpubPerformance() {
           true,
           reason: 'Locator updates must retain the native WebView widget',
         );
-        // Hiding controls must move the existing surface, never dispose it.
+        // Chrome overlays must retain both the native surface and its bounds.
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        final viewportBeforeChrome = await js(
+          'return [innerWidth,innerHeight];',
+        );
         final retainedController = controller();
         var readingAnchor = await js('return reader.position().start.cfi;');
         for (var i = 0; i < 2; i++) {
@@ -278,6 +283,10 @@ void verifyNativeEpubPerformance() {
             await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
           }
           expect(identical(controller(), retainedController), true);
+          expect(
+            await js('return [innerWidth,innerHeight];'),
+            viewportBeforeChrome,
+          );
           await visibleText();
           await js(
             "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
@@ -285,7 +294,13 @@ void verifyNativeEpubPerformance() {
           await waitFor(
             () => find.byTooltip('Next Page').evaluate().isNotEmpty,
           );
-          await tester.tap(find.byTooltip('Full Screen'));
+          if (Platform.isWindows) {
+            await tester.tap(find.byTooltip('Full Screen'));
+          } else {
+            await tester.tap(find.byType(PopupMenuButton<String>).first);
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Full Screen').last);
+          }
           await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
           if (Platform.isWindows) {
             expect(

@@ -1,3 +1,5 @@
+import '../local/local_library_page.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -332,6 +334,17 @@ class WelcomePage extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          LocalLibraryPage(app: app, standalone: true),
+                    ),
+                  ),
+                  icon: const Icon(Icons.folder_open),
+                  label: Text(tr(context, 'Local Books')),
                 ),
                 const SizedBox(height: 40),
               ],

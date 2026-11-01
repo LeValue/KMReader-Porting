@@ -243,7 +243,9 @@ void main() {
       expect(find.text('2 / 3'), findsOneWidget);
       expect(repo.pendingCount, 1);
       expect(repo.overlay(book).page, 2);
-      await tester.tap(find.byTooltip('Full Screen'));
+      await tester.tap(find.byTooltip('Reader Settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Full Screen'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Close'), findsNothing);
       expect(tester.getSize(find.byType(ReaderViewport)), const Size(400, 700));

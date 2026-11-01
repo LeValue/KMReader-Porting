@@ -1,3 +1,5 @@
+import '../../test/support/comic_spread_check.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/page_transition.dart';
 
 void verifyNativeComicSheets() {
+  verifyComicSpread();
   testWidgets(
     'native comic curl leaves letterbox pixels outside the paper mesh',
     (tester) async {

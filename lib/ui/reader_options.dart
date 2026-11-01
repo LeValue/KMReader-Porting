@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../core/page_motion.dart';
 import '../features/settings/settings_style.dart';
@@ -18,45 +19,88 @@ class ReaderOptionsPanel extends StatelessWidget {
   final String title;
   final List<Widget> children;
   @override
-  Widget build(BuildContext context) => Theme(
-    data: settingsTheme(Theme.of(context)),
-    child: ColoredBox(
-      color: settingsTheme(Theme.of(context)).scaffoldBackgroundColor,
-      child: SizedBox(
-        height: math.min(820, MediaQuery.sizeOf(context).height * .88),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 12, 12, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      tr(context, title),
-                      style: Theme.of(context).textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w600),
+  Widget build(BuildContext context) {
+    // Each control is a separate sliver child. A long text section must not
+    // build, lay out and repaint as one enormous card on Android.
+    final rows = <Widget>[];
+    for (final child in children) {
+      if (child is! ReaderOptionGroup) {
+        rows.add(child);
+        continue;
+      }
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Text(
+            tr(context, child.title),
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+      );
+      for (var i = 0; i < child.children.length; i++) {
+        rows.add(
+          Material(
+            color: settingsTheme(Theme.of(context)).cardColor,
+            borderRadius: BorderRadius.vertical(
+              top: i == 0 ? const Radius.circular(16) : Radius.zero,
+              bottom: i == child.children.length - 1
+                  ? const Radius.circular(16)
+                  : Radius.zero,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (i > 0) const Divider(height: 1, indent: 18, endIndent: 18),
+                child.children[i],
+              ],
+            ),
+          ),
+        );
+      }
+      rows.add(const SizedBox(height: 22));
+    }
+    return Theme(
+      data: settingsTheme(Theme.of(context)),
+      child: ColoredBox(
+        color: settingsTheme(Theme.of(context)).scaffoldBackgroundColor,
+        child: SizedBox(
+          height: math.min(820, MediaQuery.sizeOf(context).height * .88),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 12, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        tr(context, title),
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: tr(context, 'Close'),
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+                    IconButton(
+                      tooltip: tr(context, 'Close'),
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-                children: children,
-              ).withWheelScrolling(),
-            ),
-          ],
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(120),
+                  itemCount: rows.length,
+                  itemBuilder: (_, index) => rows[index],
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                ).withWheelScrolling(),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class ReaderOptionGroup extends StatelessWidget {
@@ -264,36 +308,6 @@ class _ReaderMotionOptionsState extends State<ReaderMotionOptions> {
         label: '${draft.duration} ms',
         onChanged: (v) =>
             setState(() => draft = draft.copy(duration: v.round())),
-        onChangeEnd: (_) => commit(),
-      ),
-      ReaderOptionSlider(
-        title: 'motion.tint',
-        value: draft.tint,
-        min: 0,
-        max: .25,
-        divisions: 25,
-        label: '${(draft.tint * 100).round()}%',
-        onChanged: (v) => setState(() => draft = draft.copy(tint: v)),
-        onChangeEnd: (_) => commit(),
-      ),
-      ReaderOptionSlider(
-        title: 'motion.curlReach',
-        value: draft.curlReach,
-        min: .08,
-        max: .55,
-        divisions: 47,
-        label: '${(draft.curlReach * 100).round()}%',
-        onChanged: (v) => setState(() => draft = draft.copy(curlReach: v)),
-        onChangeEnd: (_) => commit(),
-      ),
-      ReaderOptionSlider(
-        title: 'motion.corners',
-        value: draft.cornerRadius,
-        min: 0,
-        max: 32,
-        divisions: 32,
-        label: '${draft.cornerRadius.round()} px',
-        onChanged: (v) => setState(() => draft = draft.copy(cornerRadius: v)),
         onChangeEnd: (_) => commit(),
       ),
     ],

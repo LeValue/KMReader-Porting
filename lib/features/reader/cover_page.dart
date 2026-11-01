@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../core/page_motion.dart';
@@ -39,59 +37,14 @@ class CoverPage extends StatelessWidget {
             w = constraints.maxWidth;
         final moving = page % 1 > .001 && page % 1 < .999;
         final lower = cover ? offset >= 0 : offset < 0;
-        final phase =
-            (cover
-                    ? offset.abs()
-                    : lower
-                    ? 1 + offset
-                    : offset)
-                .clamp(0.0, 1.0);
-        final radius = moving
-            ? motion.cornerRadius * math.min(1, phase * 12)
-            : 0.0;
-        final tint = moving && background.computeLuminance() < .1 && !lower
-            ? motion.tint.clamp(0, .12) *
-                  math.pow(math.max(0, (phase - .25) / .75), 2.4)
-            : 0.0;
-        final dim = moving && lower && !cover
-            ? .12 * math.pow((-offset).clamp(0.0, 1.0), 1.6)
-            : 0.0;
-        Widget sheet = ColorFiltered(
-          colorFilter: ColorFilter.matrix([
-            (1 - tint) * (1 - dim),
+        Widget sheet = ClipPath(
+          clipper: _UnderSheetClipper(
+            offset,
             0,
-            0,
-            0,
-            tint * 128,
-            0,
-            (1 - tint) * (1 - dim),
-            0,
-            0,
-            tint * 128,
-            0,
-            0,
-            (1 - tint) * (1 - dim),
-            0,
-            tint * 128,
-            0,
-            0,
-            0,
-            1,
-            0,
-          ]),
-          child: child!,
-        );
-        sheet = ClipRRect(
-          borderRadius: BorderRadius.circular(!lower ? radius : 0),
-          child: ClipPath(
-            clipper: _UnderSheetClipper(
-              offset,
-              radius,
-              reverse,
-              moving && lower && !cover,
-            ),
-            child: sheet,
+            reverse,
+            moving && lower && !cover,
           ),
+          child: child!,
         );
         return Transform.translate(
           offset: Offset(

@@ -11,7 +11,7 @@
 
 namespace flutter_inappwebview_plugin
 {
-  const int kNumBuffers = 1;
+  const int kNumBuffers = 3;
 
   TextureBridge::TextureBridge(GraphicsContext* graphics_context,
     ABI::Windows::UI::Composition::IVisual* visual)
@@ -121,6 +121,12 @@ namespace flutter_inappwebview_plugin
       frame;
     auto hr = frame_pool_->TryGetNextFrame(frame.put());
     if (SUCCEEDED(hr) && frame) {
+      // Present the newest queued capture instead of accumulating latency.
+      for (int i = 1; i < kNumBuffers; ++i) {
+        winrt::com_ptr<ABI::Windows::Graphics::Capture::IDirect3D11CaptureFrame> next;
+        if (FAILED(frame_pool_->TryGetNextFrame(next.put())) || !next) break;
+        frame = std::move(next);
+      }
       winrt::com_ptr<
         ABI::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface>
         frame_surface;
@@ -157,8 +163,7 @@ namespace flutter_inappwebview_plugin
 
     bool should_drop_frame = false;
     if (last_frame_timestamp_.has_value()) {
-      auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now - last_frame_timestamp_.value());
+      auto diff = now - last_frame_timestamp_.value();
       should_drop_frame = diff < frame_duration_.value();
     }
 

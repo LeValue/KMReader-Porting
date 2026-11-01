@@ -297,7 +297,7 @@ void main() {
         const Duration(seconds: 10),
       );
       expect(find.text('1 / 3'), findsOneWidget);
-      await tester.tap(find.byIcon(CupertinoIcons.chevron_right));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pumpAndSettle(
         const Duration(milliseconds: 100),
         EnginePhase.sendSemanticsUpdate,

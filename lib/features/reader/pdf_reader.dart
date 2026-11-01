@@ -37,6 +37,12 @@ class PdfReader extends StatefulWidget {
 
 class _PdfReaderState extends State<PdfReader> {
   final _controller = PdfViewerController();
+  Book get _progressBook => !_controller.isReady
+      ? widget.book
+      : Book({
+          ...widget.book.json,
+          'media': {...widget.book.media, 'pagesCount': _controller.pageCount},
+        });
   PdfTextSearcher? _searcher;
   PdfDocument? _searchDocument;
   PdfPageTextRange? _lastSearchMatch;
@@ -179,7 +185,7 @@ class _PdfReaderState extends State<PdfReader> {
       if (!mounted) return;
       setState(() => _page = page);
       if (record && !widget.incognito && _progressGate.allows(page)) {
-        widget.repository.setProgress(widget.book, page);
+        widget.repository.setProgress(_progressBook, page);
       }
     } finally {
       _navigating = false;
@@ -349,7 +355,10 @@ class _PdfReaderState extends State<PdfReader> {
         widget.repository.store.setting<bool>('autoFullscreenOnOpen') != true;
     _page = widget.book.completed
         ? 1
-        : widget.book.page.clamp(1, widget.book.pages.clamp(1, 1000000));
+        : widget.book.page.clamp(
+            1,
+            (widget.book.pages > 0 ? widget.book.pages : 1000000),
+          );
     _focusedPage = _page;
     final cached = widget.repository.store.cached(
       widget.repository.profile.id,
@@ -631,7 +640,7 @@ class _PdfReaderState extends State<PdfReader> {
                           setState(() => _page = page);
                           _focusedPage = page;
                           if (!widget.incognito && _progressGate.allows(page)) {
-                            widget.repository.setProgress(widget.book, page);
+                            widget.repository.setProgress(_progressBook, page);
                           }
                         },
                       ),

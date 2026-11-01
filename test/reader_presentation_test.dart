@@ -37,20 +37,54 @@ void main() {
       final epub = EpubPreferences.fromJson(motion.toJson());
       expect(comic.toJson(), containsPair('animationDuration', 600));
       expect(epub.toJson(), containsPair('followGesture', false));
-      expect(comic.motion.tint, .18);
-      expect(epub.motion.cornerRadius, 26);
-      expect(epub.motion.curlReach, .32);
-      expect(comic.motion.curlReach, .32);
+      expect(
+        comic.motion.toJson().keys,
+        unorderedEquals(['animationDuration', 'followGesture']),
+      );
+      expect(epub.motion.toJson(), comic.motion.toJson());
       final corrupt = PageMotion.fromJson({
         'animationDuration': double.nan,
         'pageTint': double.infinity,
         'pageCornerRadius': -9,
       });
       expect(corrupt.duration, 380);
-      expect(corrupt.tint, .1);
-      expect(corrupt.cornerRadius, 0);
+      expect(corrupt.toJson(), isNot(contains('pageTint')));
     },
   );
+  testWidgets('long option groups build and paint only the visible rows', (
+    tester,
+  ) async {
+    var builds = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReaderOptionsPanel(
+            title: 'Text Settings',
+            children: [
+              ReaderOptionGroup(
+                title: 'Typography',
+                children: [
+                  for (var i = 0; i < 100; i++)
+                    Builder(
+                      builder: (_) {
+                        builds++;
+                        return SizedBox(height: 90, child: Text('Option $i'));
+                      },
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(builds, lessThan(15));
+    expect(find.text('Option 99'), findsNothing);
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(builds, lessThan(30));
+    expect(tester.takeException(), isNull);
+  });
   for (final width in [320.0, 1200.0]) {
     testWidgets('settings titles and reader options remain bounded at $width', (
       tester,

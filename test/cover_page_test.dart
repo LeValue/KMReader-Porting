@@ -102,7 +102,7 @@ void main() {
                   itemBuilder: (_, index) => CoverPage(
                     controller: pages,
                     cover: cover,
-                    motion: const PageMotion(tint: 0, cornerRadius: 0),
+                    motion: const PageMotion(),
                     index: index,
                     reverse: rtl,
                     background: Colors.white,
