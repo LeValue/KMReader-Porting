@@ -1,3 +1,5 @@
+import 'package:kmreader/features/reader/raster_pages.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -19,6 +21,14 @@ import 'package:kmreader/ui/strings.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'widget_test.dart' show FixtureRepository;
+
+class _LocalPages implements RasterPages {
+  @override
+  List<Json> get dimensions => const [];
+  @override
+  Future<Uint8List> page(int number, {bool refresh = false}) async =>
+      FixtureRepository.bytes;
+}
 
 void main() {
   setUpAll(Strings.initialize);
@@ -360,6 +370,28 @@ void main() {
             const Rect.fromLTWH(0, 0, 400, 600),
           );
         }
+        store.setSetting('offlineFirstReading', true);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ReaderPage(
+              key: UniqueKey(),
+              repository: repository,
+              rasterPages: _LocalPages(),
+              book: Book({
+                'id': 'owned-local-file',
+                'media': {'pagesCount': 1},
+              }),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(
+          find.byType(ReaderPageTransition),
+          findsOneWidget,
+          reason:
+              'An owned raster source must never wait for a server download',
+        );
+        expect(store.downloads(profile.id), isEmpty);
       } finally {
         await tester.pumpWidget(const SizedBox());
         repository.dispose();
