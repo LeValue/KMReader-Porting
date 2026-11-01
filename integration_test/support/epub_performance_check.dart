@@ -409,6 +409,17 @@ void verifyNativeEpubPerformance() {
           await flight;automatic.stop();window.matchMedia=nativeMedia;
           await reader.previous();return true;
         """);
+        // The native GPU probe can exceed the normal five-second chrome idle
+        // timeout on a software renderer. Restore controls before selecting,
+        // using the same book keyboard action as a reader with hidden chrome.
+        if (find.byType(PopupMenuButton<String>).evaluate().isEmpty) {
+          await js(
+            "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
+          );
+          await waitFor(
+            () => find.byType(PopupMenuButton<String>).evaluate().isNotEmpty,
+          );
+        }
         // The action must retain its selected passage even if native focus
         // clears the DOM selection while the toolbar popup is open.
         final selected = await js("""
