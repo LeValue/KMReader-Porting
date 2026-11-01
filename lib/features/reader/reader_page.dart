@@ -936,7 +936,8 @@ class _ReaderPageState extends State<ReaderPage> {
     _hintTimer = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _openingHints = false);
     });
-    if (!widget.incognito &&
+    if (widget.rasterPages == null &&
+        !widget.incognito &&
         widget.repository.store.setting<bool>('offlineFirstReading') == true) {
       _preparing = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {

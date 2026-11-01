@@ -23,7 +23,8 @@ void verifyNativeLocalLibrary() {
       'native-local-library-',
     );
     final store = LocalStore(sqlite3.open('${directory.path}/local.sqlite'))
-      ..setSetting('showKeyboardHelpOverlay', false);
+      ..setSetting('showKeyboardHelpOverlay', false)
+      ..setSetting('offlineFirstReading', true);
     final app = AppController(
       store: store,
       directory: directory,
@@ -62,8 +63,20 @@ void verifyNativeLocalLibrary() {
       final viewport = tester.getSize(find.byType(ReaderPageTransition));
       await tester.pump(const Duration(seconds: 6));
       expect(find.byTooltip('Close'), findsNothing);
-      await tester.tapAt(tester.getCenter(find.byType(ReaderPageTransition)));
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tapAt(
+        tester.getCenter(find.byType(ReaderPageTransition)),
+        kind: ui.PointerDeviceKind.touch,
+      );
+      // Single-tap confirmation waits for double-tap arbitration. Observe the
+      // delivered controls frame instead of assuming a native frame deadline.
+      for (
+        var attempt = 0;
+        attempt < 20 && find.byTooltip('Close').evaluate().isEmpty;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
       expect(find.byTooltip('Close'), findsOneWidget);
       expect(tester.getSize(find.byType(ReaderPageTransition)), viewport);
       for (var i = 0; i < 3; i++) {
@@ -78,6 +91,7 @@ void verifyNativeLocalLibrary() {
         );
       }
       expect(store.pendingCount(LocalLibrary.scope), 0);
+      expect(store.downloads(LocalLibrary.scope), isEmpty);
       expect(original.existsSync(), true);
       expect(store.servers, isEmpty);
       expect(tester.takeException(), isNull);
