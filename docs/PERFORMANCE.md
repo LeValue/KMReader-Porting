@@ -1,4 +1,41 @@
-# Projected shadows, joined spreads and live typography in 0.8.8
+# Continuous shadow receivers and automatic motion in 0.8.9
+
+The EPUB curl's flat front now receives the same screen-space projected shadow
+as the background. Previously the mesh repainted that half without receiving
+the mask, producing a visible cutoff at the spine. The receiver attenuates as
+the paper lifts away. Shadow density rises to 36% at full lift and the blur has
+a broader penumbra, following the supplied Apple Books reference.
+
+White-stock GPU probes compare the receiving background and flat front at the
+same point. A control disables only the front receiver and must reproduce the
+old discontinuity. The probes also measure density and the edge's transition
+width. The same probes run in Chromium and native Android/Windows WebViews.
+
+EPUB slide/cover automatic motion uses Web Animations on the view-transition
+snapshots. Transform and shade keyframes run on the browser compositor, with a
+paced JavaScript fallback when pseudo-element animation is unavailable. The
+upper page casts a soft edge shadow and the lower page darkens gradually;
+both return to their original colors at the endpoints. Comic slide/cover adds
+a spatial gradient directly over the retained lower artwork subtree.
+
+Automatic curl and comic motion use a quintic easing curve with zero initial
+and final velocity. Released curls use a monotone Hermite curve matching the
+release velocity where possible. Comic PageView release retains its native
+spring. These paths accumulate at most 32ms per delivered render frame, rather
+than making one large wall-clock catch-up jump after a stall. This may lengthen
+a turn on a busy device. Contact interrupts programmatic motion and settles the
+nearest complete page if no drag follows. EPUB idle preparation now warms the
+actual offscreen shader passes and framebuffers, reuses canvas dimensions, and
+avoids uploading an unchanged source texture twice at the start of a turn.
+
+Regression checks inject delayed first frames and mid-flight stalls, check
+monotone movement and endpoint velocity, exercise contact during automatic
+comic turns, and verify shade gradients and unchanged endpoint artwork. These
+checks do not establish a fixed frame rate on every physical device.
+
+The following sections describe earlier versions and historical behavior.
+
+## Projected shadows, joined spreads and live typography in 0.8.8
 
 EPUB curl projects the same curved GPU mesh into a depth-tested half-resolution
 shadow mask, then applies two separable blur passes. The mask and framebuffer

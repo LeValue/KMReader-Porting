@@ -61,7 +61,8 @@ class KMReaderCurlSurface {
         }
       }`;
     const meshFragment=`precision highp float;${uniforms}${samples}
-      varying vec2 source;varying float normalZ;varying float sheetAngle;
+      uniform sampler2D castShadow;uniform vec2 rasterSize;
+      varying vec2 source;varying float normalZ;varying float sheetAngle;varying float depth;
       void main(){
         float w=size.x/(1.+spread),hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
         if(source.x<0.||source.x>w||source.y<0.||source.y>size.y)discard;
@@ -74,14 +75,18 @@ class KMReaderCurlSurface {
         // Lighting belongs to the sheet normal, independent of slide tint.
         float shade=1.-.30*pow(max(0.,sin(sheetAngle)),1.4);
         shade-=.09*exp(-pow((sheetAngle-.5)/.35,2.))*smoothstep(0.,.15,sheetAngle);
-        gl_FragColor=vec4(color.rgb*shade,1.);
+        // Flat paper is another receiver on the same plane as the stationary
+        // page. Sample the same screen-space shadow across the spine instead
+        // of repainting this half without a shadow.
+        float received=texture2D(castShadow,gl_FragCoord.xy/rasterSize).r*(1.-smoothstep(0.,2.,depth));
+        gl_FragColor=vec4(color.rgb*shade*(1.-received),1.);
       }`;
     const shadowFragment=`precision highp float;${uniforms}
       varying vec2 source;varying float depth;
       void main(){
         float w=size.x/(1.+spread);
         if(source.x<0.||source.x>w||source.y<0.||source.y>size.y)discard;
-        float opacity=.24*sqrt(max(0.,sin(3.14159265*progress)))*smoothstep(0.,3.,depth);
+        float opacity=.36*sqrt(max(0.,sin(3.14159265*progress)))*smoothstep(0.,3.,depth);
         gl_FragColor=vec4(vec3(opacity),1.);
       }`;
     const blurFragment=`precision highp float;varying vec2 v;uniform sampler2D castShadow;uniform vec2 blurStep;
@@ -96,7 +101,7 @@ class KMReaderCurlSurface {
       const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource),p=gl.createProgram();
       gl.attachShader(p,vertex);gl.attachShader(p,fragment);gl.linkProgram(p);gl.deleteShader(vertex);gl.deleteShader(fragment);
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
-      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep'])u[name]=gl.getUniformLocation(p,name);
+      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep','rasterSize'])u[name]=gl.getUniformLocation(p,name);
       return {p,u,a:gl.getAttribLocation(p,'a')};
     };
     this.background=program(quadVertex,background);this.sheet=program(meshVertex,meshFragment);
@@ -112,14 +117,26 @@ class KMReaderCurlSurface {
   }
   upload(before,after,width,height) {
     const gl=this.gl,dpr=Math.min(2,devicePixelRatio||1);this.width=width;this.height=height;
-    this.canvas.width=Math.round(width*dpr);this.canvas.height=Math.round(height*dpr);gl.viewport(0,0,this.canvas.width,this.canvas.height);
-    [before,after].forEach((image,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,this.textures[i]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);});
+    const pixelWidth=Math.round(width*dpr),pixelHeight=Math.round(height*dpr);
+    if(this.canvas.width!==pixelWidth)this.canvas.width=pixelWidth;
+    if(this.canvas.height!==pixelHeight)this.canvas.height=pixelHeight;
+    gl.viewport(0,0,pixelWidth,pixelHeight);
+    this.sources??=[];
+    [before,after].forEach((image,i)=>{
+      gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,this.textures[i]);
+      if(this.sources[i]!==image){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);this.sources[i]=image;}
+    });
     if(gl.getError()!==gl.NO_ERROR)throw Error('Page texture unavailable');
   }
   render(progress,spread,sign,slope,y,reach=.18){
     const g=this.gl;
     const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform1f(u.curlReach,reach);};
     const width=this.canvas.width,height=this.canvas.height;
+    if(progress<.0001||progress>.9999){
+      g.bindFramebuffer(g.FRAMEBUFFER,null);g.viewport(0,0,width,height);g.disable(g.DEPTH_TEST);g.disable(g.BLEND);
+      g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,this.shadowTargets?.[0].texture||this.textures[0]);
+      bind(this.background,this.quad);g.uniform1i(this.background.u.castShadow,2);g.drawArrays(g.TRIANGLE_STRIP,0,4);return;
+    }
     if(!this.shadowTargets||this.shadowWidth!==width||this.shadowHeight!==height){
       for(const target of this.shadowTargets||[]){g.deleteFramebuffer(target.fbo);g.deleteTexture(target.texture);if(target.depth)g.deleteRenderbuffer(target.depth);}
       this.shadowWidth=width;this.shadowHeight=height;
@@ -147,7 +164,7 @@ class KMReaderCurlSurface {
       g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);
     }
     g.disable(g.DEPTH_TEST);
-    const radius=(2+Math.sin(Math.PI*progress)*this.width/(spread?2:1)*.007)*(width/this.width)/2;
+    const radius=(3+Math.sin(Math.PI*progress)*this.width/(spread?2:1)*.018)*(width/this.width)/2;
     for(const [target,source,dx,dy] of [[temporary,mask,radius/this.maskWidth,0],[mask,temporary,0,radius/this.maskHeight]]){
       g.bindFramebuffer(g.FRAMEBUFFER,target.fbo);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,source.texture);
       bind(this.blur,this.quad);g.uniform1i(this.blur.u.castShadow,2);g.uniform2f(this.blur.u.blurStep,dx,dy);g.drawArrays(g.TRIANGLE_STRIP,0,4);
@@ -158,7 +175,7 @@ class KMReaderCurlSurface {
     g.drawArrays(g.TRIANGLE_STRIP,0,4);
     if(progress<.0001||progress>.9999)return;
     g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);g.frontFace(sign>0?g.CW:g.CCW);
-    bind(this.sheet,this.mesh);g.uniform1f(this.sheet.u.shadowPass,0);g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);g.disable(g.DEPTH_TEST);
+    bind(this.sheet,this.mesh);g.uniform1f(this.sheet.u.shadowPass,0);g.uniform1i(this.sheet.u.castShadow,2);g.uniform2f(this.sheet.u.rasterSize,width,height);g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);g.disable(g.DEPTH_TEST);
   }
 }
 class KMReaderSheetEffect {
@@ -184,7 +201,7 @@ class KMReaderSheetEffect {
     this.sheet=document.createElement('style');this.sheet.dataset.pageMotion=this.id;
     this.sheet.textContent=`::view-transition{pointer-events:none}:root{view-transition-name:none}#viewer{view-transition-name:km-reader-page}
       ::view-transition-group(km-reader-page){animation:none}
-      ::view-transition-old(km-reader-page),::view-transition-new(km-reader-page){animation:km-sheet-hold 30s linear both paused;mix-blend-mode:normal;transform-origin:center;object-fit:fill;overflow:hidden}
+      ::view-transition-old(km-reader-page),::view-transition-new(km-reader-page){animation:km-sheet-hold 30s linear both paused;mix-blend-mode:normal;transform-origin:center;object-fit:fill;overflow:visible;will-change:transform,filter}
       @keyframes km-sheet-hold{from{opacity:1}to{opacity:1}}`;
     this.frames=document.createElement('style');this.frames.dataset.pageMotionFrame=this.id;document.head.append(this.sheet,this.frames);
     let moved=false;
@@ -198,23 +215,79 @@ class KMReaderSheetEffect {
     if(this.style==='curl'){
       if(this.surface)this.surface.render(p,this.spread,this.sign,this.slope*Math.sin(Math.PI*p),this.y, .18);return;
     }
-    const upperOld=this.style==='slide'?!this.reverse:false;
-    const travel=this.style==='cover'?this.sign*(1-p)*100:upperOld?-this.sign*p*100:this.sign*(1-p)*100;
-    const parallax=this.style==='cover'?0:upperOld?this.sign*(1-p)*10:-this.sign*p*10;
-    const phase=upperOld?p:1-p;
+    const frames=this.sheetFrames(p);
     if(!this.styles){
       this.frames.textContent='::view-transition-old(km-reader-page){}::view-transition-new(km-reader-page){}';
       this.styles=[...this.frames.sheet.cssRules].map(rule=>rule.style);
     }
-    this.styles[0].transform=`translateX(${upperOld?travel:parallax}%)`;
-    this.styles[0].zIndex=upperOld?'2':'1';
-    this.styles[1].transform=`translateX(${upperOld?parallax:travel}%)`;
-    this.styles[1].zIndex=upperOld?'1':'2';
-
+    for(let i=0;i<2;i++)Object.assign(this.styles[i],frames[i]);
   }
+  sheetFrames(p){
+    const upperOld=this.style==='slide'?!this.reverse:false;
+    const travel=this.style==='cover'?this.sign*(1-p)*100:upperOld?-this.sign*p*100:this.sign*(1-p)*100;
+    const parallax=this.style==='cover'?0:upperOld?this.sign*(1-p)*10:-this.sign*p*10;
+    const wave=Math.sin(Math.PI*p),edge=this.style==='cover'?-this.sign:upperOld?this.sign:-this.sign;
+    return [0,1].map(i=>{
+      const upper=(i===0)===upperOld;
+      return {transform:`translate3d(${(i===0?upperOld:!upperOld)?travel:parallax}%,0,0)`,zIndex:upper?'2':'1',
+        filter:upper?`drop-shadow(${edge*10}px 0 24px rgba(0,0,0,${.20*wave}))`:`brightness(${1-.10*wave})`};
+    });
+  }
+  get progress(){
+    const animation=this.compositor?.animations[0];
+    const fraction=animation?.effect.getComputedTiming().progress;
+    return fraction==null?this._progress:this.compositor.from+(this.compositor.target-this.compositor.from)*fraction;
+  }
+  set progress(value){this._progress=value;}
+
   track(value,point){this.pendingPoint=[value,point];if(this.tracking)return;this.tracking=requestAnimationFrame(()=>{this.tracking=0;const args=this.pendingPoint;this.pendingPoint=null;if(args)this.update(...args);});}
-  animateTo(target,duration){cancelAnimationFrame(this.tracking);this.tracking=0;this.pendingPoint=null;if(this.stopped)return Promise.resolve();this.finishAnimation?.();cancelAnimationFrame(this.frame);return new Promise(resolve=>{this.finishAnimation=resolve;const from=this.progress,start=performance.now();const frame=now=>{if(this.stopped){resolve();return;}const t=Math.min(1,(now-start)/Math.max(1,duration));const eased=1-Math.pow(1-t,4);this.update(from+(target-from)*eased);if(t<1)this.frame=requestAnimationFrame(frame);else{this.finishAnimation=null;resolve();}};this.frame=requestAnimationFrame(frame);});}
-  stop(){if(this.stopped)return;this.stopped=true;cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
+  animateTo(target,duration,{automatic=false,velocity=0}={}){
+    // Flush the last pointer sample before taking over its position/velocity.
+    const pending=this.pendingPoint;cancelAnimationFrame(this.tracking);this.tracking=0;this.pendingPoint=null;
+    if(pending)this.update(...pending);
+    if(this.stopped)return Promise.resolve();
+    this.finishAnimation?.();cancelAnimationFrame(this.frame);
+    const from=this.progress,delta=target-from;
+    const tangent=delta===0?0:Math.max(0,Math.min(3,velocity*duration/delta));
+    if(this.style!=='curl'&&this.transition&&typeof document.documentElement.animate==='function'){
+      const animations=[];
+      try{
+        for(const i of [0,1]){
+          const pseudoElement=i===0?'::view-transition-old(km-reader-page)':'::view-transition-new(km-reader-page)';
+          const animation=document.documentElement.animate(
+          Array.from({length:17},(_,j)=>{const f=j/16,frame=this.sheetFrames(from+delta*f)[i];return {offset:f,transform:frame.transform,filter:frame.filter};}),
+          {duration,easing:automatic?'cubic-bezier(.45,0,.25,1)':`cubic-bezier(.333333,${tangent/3},.666667,1)`,
+            fill:'both',pseudoElement});
+          animations.push(animation);
+          if(animation.effect.pseudoElement!==pseudoElement)throw Error('Snapshot compositor animation unavailable');
+        }
+        this.compositor={animations,from,target};
+        return new Promise(resolve=>{
+          this.finishAnimation=resolve;
+          Promise.all(animations.map(a=>a.finished)).then(()=>{
+            if(this.stopped)return;
+            this.compositor=null;this.update(target);for(const animation of animations)animation.cancel();
+            this.finishAnimation=null;resolve();
+          },()=>resolve());
+        });
+      }catch(_){for(const animation of animations)animation.cancel();this.compositor=null;}
+    }
+    return new Promise(resolve=>{
+      this.finishAnimation=resolve;let last=null,elapsed=0;
+      const frame=now=>{
+        if(this.stopped){resolve();return;}
+        if(last!==null)elapsed+=Math.min(32,Math.max(0,now-last));
+        last=now;
+        const t=Math.min(1,elapsed/Math.max(1,duration));
+        const eased=automatic?t*t*t*(10+t*(-15+6*t)):(-2*t*t*t+3*t*t)+tangent*(t*t*t-2*t*t+t);
+        this.update(from+delta*eased);
+        if(t<1)this.frame=requestAnimationFrame(frame);else{this.finishAnimation=null;resolve();}
+      };
+      this.frame=requestAnimationFrame(frame);
+    });
+  }
+
+  stop(){if(this.stopped)return;this._progress=this.progress;for(const animation of this.compositor?.animations||[])animation.cancel();this.compositor=null;this.stopped=true;cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
 }
 
 
@@ -794,11 +867,17 @@ class KMReaderSheetEffect {
     const prepare=async()=>{
       if(disposed||inputSuspended||gesture||sheetEffect)return;
       try {
-        await captureSheet();
+        const idleImage=await captureSheet();
         if(disposed||inputSuspended||gesture||sheetEffect||rendition?.manager?.settings.axis!=='horizontal')return;
         // Compile the retained GPU programs while idle, rather than on the
-        // first finger movement. No texture upload or frame draw is needed.
-        KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
+        // first finger movement, including driver pipeline and framebuffer setup.
+        const surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
+        const warmKey=`${innerWidth}:${innerHeight}:${Math.min(2,devicePixelRatio||1)}`;
+        if(surface.warmKey!==warmKey){
+          surface.upload(idleImage,idleImage,innerWidth,innerHeight);
+          surface.render(.5,rendition.manager?.layout?.divisor===2,1,0,.5);
+          surface.render(0,false,1,0,.5);surface.gl.flush();surface.warmKey=warmKey;
+        }
         const frames=[...document.querySelectorAll('#viewer iframe')];
         if(frames.length!==1)return;
         const bounds=frames[0].getBoundingClientRect();
@@ -873,7 +952,7 @@ class KMReaderSheetEffect {
           (commit ? 1 - state.progress : state.progress)));
         if (!disposed) {
           state.effect?.update(state.progress,state.point);
-          await state.effect?.animateTo(commit ? 1 : 0, duration);
+          await state.effect?.animateTo(commit ? 1 : 0, duration, {velocity:velocity/(innerWidth/(rendition.manager?.layout?.divisor===2?2:1))});
         }
         commit = commit && !state.invalidated;
         if (!disposed && !commit && saved) {
@@ -941,7 +1020,7 @@ class KMReaderSheetEffect {
     // Navigation is already committed. Cosmetic motion never owns the input
     // queue, and the next input can replace this compositor transition.
     const duration = Math.max(150, Math.min(900, Number(preferences.animationDuration) || 380));
-    effect.animateTo(1, duration).then(() => {
+    effect.animateTo(1, duration, {automatic:true}).then(() => {
       effect.stop(); if (sheetEffect === effect) sheetEffect = undefined; warmCurl();
     });
   }

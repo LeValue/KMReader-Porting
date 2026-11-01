@@ -71,7 +71,7 @@ with sync_playwright() as pw:
       KMReaderSheetEffect.prototype.start=async function(move){window.effect=this;return start.call(this,move);};
       KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
     }''')
-    output = Path('artifacts/epub-motion-0.8.8')
+    output = Path('artifacts/epub-motion-0.8.9')
     output.mkdir(parents=True, exist_ok=True)
     for style in ['slide', 'cover', 'curl']:
         before = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
@@ -86,7 +86,7 @@ with sync_playwright() as pw:
         pixels = image.getdata()
         assert sum(max(p) < 120 for p in pixels) > 150, (style, 'Blank page')
         if style != 'curl':
-            assert page.evaluate('effect.styles.every(s=>s.filter === "" && s.borderRadius === "")'), style
+            assert page.evaluate('effect.styles.every(s=>s.borderRadius === "") && effect.styles.some(s=>s.filter.startsWith("brightness(")) && effect.styles.some(s=>s.filter.startsWith("drop-shadow("))'), style
         if style == 'curl':
             assert page.evaluate('effect.surface.canvas.width') == width
             assert page.evaluate('effect.surface.canvas.height') == height
@@ -167,6 +167,74 @@ with sync_playwright() as pw:
       const error=g.getError();surface.canvas.remove();return {exposed,error};
     }''')
     assert shadow['error']==0 and shadow['exposed']>50, ('Missing smooth projected paper shadow',shadow)
+    seam=page.evaluate('''() => {
+  const surface=effect.surface,g=surface.gl,stock=document.createElement('canvas');
+  stock.width=innerWidth;stock.height=innerHeight;
+  const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
+  surface.upload(stock,stock,innerWidth,innerHeight);
+  const width=surface.canvas.width,height=surface.canvas.height;
+  const black=g.createTexture();g.activeTexture(g.TEXTURE3);g.bindTexture(g.TEXTURE_2D,black);
+  g.texImage2D(g.TEXTURE_2D,0,g.RGBA,1,1,0,g.RGBA,g.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.NEAREST);
+  const bind=(program,buffer)=>{g.useProgram(program.p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(program.a);g.vertexAttribPointer(program.a,2,g.FLOAT,false,0,0);};
+  const sample=()=>{const out=new Uint8Array(4);g.readPixels(Math.floor(width/2)+2,Math.floor(height/2),1,1,g.RGBA,g.UNSIGNED_BYTE,out);return out[0];};
+  const results=[];
+  for(const p of [.5,.55,.6,.65]){
+    surface.render(p,true,1,0,.5);
+    const draw=receiver=>{
+      g.disable(g.DEPTH_TEST);bind(surface.background,surface.quad);g.drawArrays(g.TRIANGLE_STRIP,0,4);
+      const background=sample();
+      g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.enable(g.CULL_FACE);g.cullFace(g.BACK);
+      bind(surface.sheet,surface.mesh);g.uniform1i(surface.sheet.u.castShadow,receiver);
+      g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,surface.indices);g.drawElements(g.TRIANGLES,surface.count,g.UNSIGNED_SHORT,0);
+      const front=sample();g.disable(g.CULL_FACE);g.disable(g.DEPTH_TEST);return {background,front};
+    };
+    const fixed=draw(2),old=draw(3);
+    // Read the broad shadow edge on a plain receiving surface, excluding the
+    // folded sheet so paper geometry cannot hide the gradient's extent.
+    bind(surface.background,surface.quad);g.drawArrays(g.TRIANGLE_STRIP,0,4);
+    const row=new Uint8Array(width*4);g.readPixels(0,Math.floor(height/2),width,1,g.RGBA,g.UNSIGNED_BYTE,row);
+    const shade=Array.from({length:width},(_,x)=>255-row[x*4]),peak=Math.max(...shade);
+    const start=shade.findIndex(v=>v>=peak*.1),end=shade.findIndex(v=>v>=peak*.8);
+    results.push({p,fixed,old,peak,edgeWidth:(end-start)*innerWidth/width});
+  }
+  g.useProgram(surface.sheet.p);g.uniform1i(surface.sheet.u.castShadow,2);g.deleteTexture(black);
+  surface.render(0,true,1,0,.5);return {results,error:g.getError()};
+}
+''')
+    (output / f'{width}-shadow-probe.json').write_text(json.dumps(seam,indent=2))
+    assert seam['error']==0, seam
+    for sample in seam['results']:
+        assert abs(sample['fixed']['background']-sample['fixed']['front'])<=2, ('Shadow interrupted at flat receiver',sample)
+        assert sample['old']['front']-sample['old']['background']>60, ('Regression control cannot detect missing receiver',sample)
+        assert sample['peak']>=75 and sample['edgeWidth']>=10+width*.01, ('Shadow too faint or narrow',sample)
+    timing=page.evaluate('''async () => {
+  const original=requestAnimationFrame,cancel=cancelAnimationFrame;
+  const values=[],queue=[];
+  let count=0;
+  window.requestAnimationFrame=callback=>{queue.push(callback);return ++count;};
+  window.cancelAnimationFrame=()=>{};
+  try {
+    const sheet=Object.create(KMReaderSheetEffect.prototype);
+    sheet.style='curl';sheet.progress=0;sheet.update=p=>{sheet.progress=p;values.push(p);};
+    const finished=motionAnimate.call(sheet,1,380,{automatic:true});
+    let now=1000;
+    queue.shift()(now);queue.shift()(now+=16);queue.shift()(now+=200);
+    const delayed=values.at(-1);
+    while(queue.length&&values.length<100)queue.shift()(now+=16);
+    await finished;
+    sheet.progress=.4;const released=[];sheet.update=p=>{sheet.progress=p;released.push(p);};
+    const release=motionAnimate.call(sheet,1,240,{velocity:.0015});
+    while(queue.length&&released.length<100)queue.shift()(now+=16);
+    await release;
+    return {first:values[0],delayed,last:values.at(-1),monotone:values.every((v,i)=>!i||v>=values[i-1]),
+      releaseFirst:released[0],releaseDelta:released[1]-released[0],releaseLast:released.at(-1),
+      releaseMonotone:released.every((v,i)=>v<=1&&(!i||v>=released[i-1]))};
+  } finally {window.requestAnimationFrame=original;window.cancelAnimationFrame=cancel;}
+}
+''')
+    assert timing['first']==0 and timing['delayed']<.02 and timing['last']==1 and timing['monotone'], timing
+    assert timing['releaseFirst']==.4 and .02<timing['releaseDelta']<.04 and timing['releaseLast']==1 and timing['releaseMonotone'],timing
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
     # Actual automatic effects remain visible mid-flight, not just a retained
     # JS object after Chromium already removed its snapshot pseudo-elements.
@@ -174,6 +242,7 @@ with sync_playwright() as pw:
     page.wait_for_timeout(100)
     assert page.evaluate("document.getAnimations().some(a=>a.effect?.pseudoElement?.startsWith('::view-transition-'))"), 'Automatic effect vanished too early'
     assert page.evaluate('effect.progress') > 0
+    assert page.evaluate('effect.compositor?.animations.length===2'), 'Slide is not animated by the snapshot compositor'
     page.mouse.click(width*.5, 2)
     assert not page.evaluate('document.querySelector("style[data-page-motion]") || document.getElementById("page-curl-surface")'), 'Mouse input did not expose the live publication'
     page.evaluate("reader.turn({delta:1,style:'slide'})")
