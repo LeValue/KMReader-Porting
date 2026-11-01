@@ -236,6 +236,20 @@ with sync_playwright() as pw:
     assert timing['first']==0 and timing['delayed']<.02 and timing['last']==1 and timing['monotone'], timing
     assert timing['releaseFirst']==.4 and .02<timing['releaseDelta']<.04 and timing['releaseLast']==1 and timing['releaseMonotone'],timing
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
+    # Native-style no-op snapshot also exposes intermediate automatic frames.
+    # Sample delivered frames so a delayed timer cannot miss an entire turn.
+    automatic=page.evaluate('''async () => {
+      const sheet=new KMReaderSheetEffect('slide',1,{},.5,false,false);
+      if(!await sheet.start(async()=>{}))throw Error('Automatic snapshot unavailable');
+      const finished=sheet.animateTo(1,380,{automatic:true}),samples=[];
+      for(let frame=0;frame<120;frame++){
+        await new Promise(requestAnimationFrame);samples.push(sheet.progress);
+        if(sheet.progress>0&&sheet.progress<1)break;
+        if(sheet.stopped||sheet.progress>=1)break;
+      }
+      await finished;sheet.stop();return samples;
+    }''')
+    assert any(0<p<1 for p in automatic), automatic
     # Actual automatic effects remain visible mid-flight, not just a retained
     # JS object after Chromium already removed its snapshot pseudo-elements.
     page.evaluate("reader.turn({delta:1,style:'slide'})")

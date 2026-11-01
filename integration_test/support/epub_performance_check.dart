@@ -394,9 +394,18 @@ void verifyNativeEpubPerformance() {
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
           const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
           if(!await automatic.start(async()=>{}))throw Error('Native automatic slide unavailable');
-          const flight=automatic.animateTo(1,380,{automatic:true});
-          await new Promise(resolve=>setTimeout(resolve,90));
-          if(!(automatic.progress>0&&automatic.progress<1))throw Error('Native automatic slide skipped its intermediate frames');
+          // Use the supported maximum duration so the software renderer has
+          // more than one frame to expose the compositor's intermediate state.
+          const flight=automatic.animateTo(1,900,{automatic:true});
+          // Observe delivered render frames instead of assuming a 90ms wall
+          // timer runs before a software-rendered emulator finishes the turn.
+          const samples=[];
+          for(let frame=0;frame<120;frame++){
+            await new Promise(requestAnimationFrame);samples.push(automatic.progress);
+            if(automatic.progress>0&&automatic.progress<1)break;
+            if(automatic.stopped||automatic.progress>=1)break;
+          }
+          if(!samples.some(p=>p>0&&p<1))throw Error('Native automatic slide skipped its intermediate frames: '+JSON.stringify({samples,stopped:automatic.stopped,compositor:!!automatic.compositor}));
           await flight;automatic.stop();window.matchMedia=nativeMedia;
           await reader.previous();return true;
         """);
