@@ -1,5 +1,52 @@
 # Development validation
 
+## 0.8.7 preview — comic curl, minimal controls and local books
+
+Published [0.8.7](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.7-preview.1),
+runtime source `20641b8b95e4028587bedb5fdf60be99d655c392`. All three exact-source build/native jobs passed in
+[verification 41320852086](https://github.com/LeValue/KMReader-Porting/actions/runs/41320852086);
+[publisher 41322552160](https://github.com/LeValue/KMReader-Porting/actions/runs/41322552160)
+reused that Windows artifact and locally verified signed APKs.
+
+All **313 host tests** pass with Chromium/ONNX enabled; the live Komga test is
+separately exercised in CI. Formatting, static analysis and eight Python checks
+pass. New checks reject comic taps/drags at page boundaries before capture,
+require prepared turns to animate without screenshotting or early navigation,
+and rasterize spread back faces in both directions without black filled shadows.
+A long settings group builds only visible rows. Local-file checks cover
+concurrent deduplication, restart/resume, natural comic ordering, owned originals,
+EPUB/PDF recognition, invalid-file cleanup and exclusion from the Komga outbox.
+Browser motion checks also attempt to turn before the first and beyond the last
+page and require zero transition constructions and an unchanged CFI.
+
+Windows passes **22 native checks**, Android **21 native checks** plus both
+notch/rotation checks. The shared spread fixture runs on the native renderers.
+The added serverless route imports a local comic, opens it through the welcome
+screen, checks controls disappear/reappear without resizing the viewport, and
+rejects final-page overlays. EPUB checks retain the live native view and its
+bounds while controls toggle; typography checks scroll to lazy controls. Both
+release builds and isolated Windows startup pass.
+
+All five assets were downloaded and their SHA256SUMS and GitHub digests checked.
+APKs match the staged signed bytes, preview certificate, source/version/build 17,
+non-debuggable flags and architecture. Each 64-bit native library passes 16KiB
+ELF LOAD alignment. All **63 Windows files**, including
+**21 AMD64 PE files**, match the successful CI artifact.
+Windows remains unsigned. See [implementation and limits](PERFORMANCE.md).
+
+Supported local formats are EPUB, PDF and CBZ/ZIP; RAR/CBR is not implemented.
+Prepared comic frames cover normal contained, unrotated pages/spreads; other
+layouts retain snapshot fallbacks. Controlled checks establish rendering/state
+invariants, not a guaranteed physical frame rate on every device.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.7-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-android-arm64-preview.apk) | 77,633,278 | `68dfc0998f9db346f72d9f748c12cf2447ad5a95a57f2fb1e87aa2f91c72bd53` |
+| [KMReader-0.8.7-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-android-armv7-preview.apk) | 63,950,416 | `6b76c6543b226d10e46f5fb55ca3a03fb42d263f5442f36410c66a0aad6f4bc7` |
+| [KMReader-0.8.7-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-android-x64-preview.apk) | 83,869,123 | `77ecbd868670ce904b2a16145e239ba6c4e1c842e7c2070bf6257865abf1f611` |
+| [KMReader-0.8.7-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-windows-x64-preview.zip) | 34,430,825 | `293f94a8d4f71a01dab68d3389b755e1a2699a30ce6285e1a0c6d15d1b8b8a47` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/SHA256SUMS.txt) | 424 | `c12f11fbb0c32d10e9f730895c779178373fbab0791d5d4b4d43cdbfcb01a6ef` |
+
 ## 0.8.6 preview — atomic rollback, localized curl and retained comic artwork
 
 Published [0.8.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.6-preview.1),
