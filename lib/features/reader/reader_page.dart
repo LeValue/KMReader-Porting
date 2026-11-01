@@ -1,3 +1,4 @@
+import 'motion_timing.dart';
 import 'comic_spread.dart';
 import 'comic_frames.dart';
 import '../../ui/reader_chrome.dart';
@@ -67,7 +68,64 @@ class ReaderPage extends StatefulWidget {
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends State<ReaderPage> {
+class _ReaderPageState extends State<ReaderPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pageFlight = AnimationController.unbounded(
+    vsync: this,
+  )..addListener(_advancePageFlight);
+  bool _pageFlightActive = false;
+  int _pageFlightGeneration = 0;
+  void _advancePageFlight() {
+    if (_pageFlightActive &&
+        _pages.hasClients &&
+        (_pages.position.pixels - _pageFlight.value).abs() > .001) {
+      _pages.jumpTo(_pageFlight.value);
+    }
+  }
+
+  void _stopPageFlight({bool synchronize = false}) {
+    final active = _pageFlightActive;
+    _pageFlightGeneration++;
+    _pageFlightActive = false;
+    _pageFlight.stop();
+    if (active && synchronize && _pages.hasClients) {
+      final index = (_pages.page ?? 0).round().clamp(0, _viewCount - 1);
+      setState(() {
+        _partIndex = index;
+        _session.go(_split ? _parts[index].page : _session.firstPage(index));
+      });
+      // A tap without a drag still settles onto a complete page.
+      _pages.jumpTo(_pages.position.pixels);
+    }
+  }
+
+  void _animatePage(int index) {
+    _stopPageFlight();
+    final generation = _pageFlightGeneration;
+    _pageFlightActive = true;
+    _pageFlight.value = _pages.position.pixels;
+    unawaited(() async {
+      try {
+        await _pageFlight
+            .animateWith(
+              ReaderMotionSimulation(
+                _pageFlight.value,
+                index * _pages.position.viewportDimension,
+                Duration(milliseconds: _session.preferences.motion.duration),
+              ),
+            )
+            .orCancel;
+      } on TickerCanceled {
+        /* Contact or another command owns the position. */
+      } finally {
+        if (mounted && generation == _pageFlightGeneration) {
+          _pageFlightActive = false;
+          _settled();
+        }
+      }
+    }());
+  }
+
   final _curl = GlobalKey<ReaderPageTransitionState>();
   final _pageBoundary = GlobalKey();
   Future<ui.Image?> _capturePageImage() async {
@@ -219,6 +277,7 @@ class _ReaderPageState extends State<ReaderPage> {
 
   bool _previewing = false;
   Drag? _pageDrag(DragStartDetails details) {
+    _stopPageFlight();
     if (!_pages.hasClients) return null;
     final p = _session.preferences;
     final reverse = p.direction == ReadingDirection.rtl;
@@ -453,10 +512,22 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _settled() {
-    if (_previewing || _scrolling || _interacting || !mounted) return;
+    if (_pageFlightActive ||
+        _previewing ||
+        _scrolling ||
+        _interacting ||
+        !mounted) {
+      return;
+    }
     _settleTimer?.cancel();
     _settleTimer = Timer(const Duration(milliseconds: 40), () {
-      if (!mounted || _previewing || _scrolling || _interacting) return;
+      if (!mounted ||
+          _pageFlightActive ||
+          _previewing ||
+          _scrolling ||
+          _interacting) {
+        return;
+      }
       _rememberPart();
       _commitIfReady();
       _preload();
@@ -773,11 +844,7 @@ class _ReaderPageState extends State<ReaderPage> {
     if (_session.preferences.animate &&
         !MediaQuery.disableAnimationsOf(context) &&
         _session.preferences.transition != 'curl') {
-      _pages.animateToPage(
-        index,
-        duration: Duration(milliseconds: _session.preferences.motion.duration),
-        curve: Curves.easeInOutCubic,
-      );
+      _animatePage(index);
     } else {
       _pages.jumpToPage(index);
     }
@@ -858,7 +925,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _commitIfReady() {
-    if (_previewing || _scrolling || _interacting) return;
+    if (_pageFlightActive || _previewing || _scrolling || _interacting) return;
     if (['auto', 'ltr', 'rtl'].contains(_session.preferences.splitWide) &&
         !_dimensionsLoaded) {
       return;
@@ -972,6 +1039,7 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   void dispose() {
+    _pageFlight.dispose();
     _chromeTimer?.cancel();
     _frames.close();
     _documentLease?.close();
@@ -1018,11 +1086,7 @@ class _ReaderPageState extends State<ReaderPage> {
         _settled();
         return;
       }
-      _pages.animateToPage(
-        _viewIndex,
-        duration: Duration(milliseconds: _session.preferences.motion.duration),
-        curve: Curves.easeInOutCubic,
-      );
+      _animatePage(_viewIndex);
     } else if (_scroll.isAttached) {
       _scroll.scrollTo(
         index: _session.page - 1,
@@ -1034,6 +1098,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _configure(ReaderPreferences preferences) {
+    _stopPageFlight();
     _curl.currentState?.cancelGesture();
     preferences = seriesReaderPreferences(preferences, _seriesMetadata);
     final old = _pages;
@@ -1710,10 +1775,12 @@ class _ReaderPageState extends State<ReaderPage> {
                                     doubleTapZoom: settings.doubleTapEnabled
                                         ? settings.doubleTapZoom
                                         : 1,
-                                    onContact: () =>
-                                        _gesturePage = _pages.hasClients
-                                        ? (_pages.page ?? 0).round()
-                                        : _viewIndex,
+                                    onContact: () {
+                                      _stopPageFlight(synchronize: true);
+                                      _gesturePage = _pages.hasClients
+                                          ? (_pages.page ?? 0).round()
+                                          : _viewIndex;
+                                    },
                                     onPinch: () {
                                       if (_pages.hasClients) {
                                         _pages.jumpToPage(_gesturePage);
@@ -1726,15 +1793,21 @@ class _ReaderPageState extends State<ReaderPage> {
                                     onTap: (point) =>
                                         _tap(point, constraints.biggest),
                                     onWheel: (delta) {
-                                      if (!_scrolling && delta != 0) {
+                                      if (!_scrolling &&
+                                          !_pageFlightActive &&
+                                          delta != 0) {
                                         _turn(delta.sign.toInt());
                                       }
                                     },
                                     child: PageView.builder(
                                       key: ValueKey(modeKey),
                                       controller: _pages,
-                                      physics:
-                                          const NeverScrollableScrollPhysics(),
+                                      pageSnapping: false,
+                                      physics: ReaderPagePhysics(
+                                        parent:
+                                            const NeverScrollableScrollPhysics(),
+                                        isAnimating: () => _pageFlightActive,
+                                      ),
                                       allowImplicitScrolling: true,
                                       reverse:
                                           settings.direction ==

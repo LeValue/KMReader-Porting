@@ -1,3 +1,5 @@
+import 'motion_timing.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -123,7 +125,15 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         });
         _animation.duration = Duration(milliseconds: widget.motion.duration);
         try {
-          await _animation.animateTo(1, curve: Curves.easeInOutCubic).orCancel;
+          await _animation
+              .animateWith(
+                ReaderMotionSimulation(
+                  _animation.value,
+                  1,
+                  Duration(milliseconds: widget.motion.duration),
+                ),
+              )
+              .orCancel;
         } on TickerCanceled {
           if (!mounted) return;
         }
@@ -158,7 +168,15 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
       setState(() => _after = after);
       if (_interrupt) return;
       _animation.duration = Duration(milliseconds: widget.motion.duration);
-      await _animation.animateTo(1, curve: Curves.easeInOutCubic).orCancel;
+      await _animation
+          .animateWith(
+            ReaderMotionSimulation(
+              _animation.value,
+              1,
+              Duration(milliseconds: widget.motion.duration),
+            ),
+          )
+          .orCancel;
     } on TickerCanceled {
       // Closing a reader cancels its overlay, preserving the last committed page.
     } finally {
@@ -244,16 +262,20 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
       if (!mounted) return;
       if (!drag.canceled) {
         await _animation
-            .animateTo(
-              commit ? 1 : 0,
-              duration: Duration(
-                milliseconds:
-                    (widget.motion.duration *
-                            (commit ? 1 - drag.progress : drag.progress))
-                        .round()
-                        .clamp(70, 300),
+            .animateWith(
+              ReaderMotionSimulation(
+                _animation.value,
+                commit ? 1 : 0,
+                Duration(
+                  milliseconds:
+                      (widget.motion.duration *
+                              (commit ? 1 - drag.progress : drag.progress))
+                          .round()
+                          .clamp(100, 380),
+                ),
+                automatic: false,
+                velocity: drag.velocity,
               ),
-              curve: Curves.easeOutCubic,
             )
             .orCancel;
       }
@@ -655,7 +677,7 @@ class _CurlDrag implements Drag {
   final Future<bool> Function(int) preview;
   final Future<void> Function(int, bool) finish;
   final decision = Completer<bool>();
-  double distance = 0, progress = 0, slope = 0;
+  double distance = 0, progress = 0, slope = 0, velocity = 0;
   Offset? origin;
   int physical = 0;
   bool canceled = false;
@@ -682,6 +704,7 @@ class _CurlDrag implements Drag {
 
   @override
   void end(DragEndDetails details) {
+    velocity = -details.velocity.pixelsPerSecond.dx * physical / width;
     if (!decision.isCompleted) {
       decision.complete(
         progress > .28 ||

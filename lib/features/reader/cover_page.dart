@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/page_motion.dart';
@@ -44,7 +46,15 @@ class CoverPage extends StatelessWidget {
             reverse,
             moving && lower && !cover,
           ),
-          child: child!,
+          child: CustomPaint(
+            foregroundPainter: _PageShade(
+              offset,
+              reverse,
+              cover,
+              moving && lower,
+            ),
+            child: child!,
+          ),
         );
         return Transform.translate(
           offset: Offset(
@@ -90,5 +100,54 @@ class _UnderSheetClipper extends CustomClipper<Path> {
       offset != old.offset ||
       radius != old.radius ||
       reverse != old.reverse ||
+      active != old.active;
+}
+
+class _PageShade extends CustomPainter {
+  const _PageShade(this.offset, this.reverse, this.cover, this.active);
+  final double offset;
+  final bool reverse, cover, active;
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!active) return;
+    final p = (cover ? offset : 1 + offset).clamp(0.0, 1.0);
+    final wave = math.sin(math.pi * p);
+    final edge = cover ? (1 - p) * size.width : -.9 * offset * size.width;
+    final seam = reverse ? size.width - edge : edge;
+    final direction = (cover ? -1.0 : 1.0) * (reverse ? -1 : 1);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Colors.black.withValues(alpha: .08 * wave),
+    );
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader =
+            LinearGradient(
+              colors: direction > 0
+                  ? [
+                      Colors.black.withValues(alpha: .10 * wave),
+                      Colors.transparent,
+                    ]
+                  : [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: .10 * wave),
+                    ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ).createShader(
+              Rect.fromPoints(
+                Offset(seam, 0),
+                Offset(seam + direction * size.width * .45, size.height),
+              ),
+            ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PageShade old) =>
+      offset != old.offset ||
+      reverse != old.reverse ||
+      cover != old.cover ||
       active != old.active;
 }

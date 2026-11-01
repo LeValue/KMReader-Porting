@@ -349,8 +349,55 @@ void verifyNativeEpubPerformance() {
         );
         await visibleText();
         await js("""
-          nativeCurl.stop();window.matchMedia=nativeMedia;KMReaderSheetEffect.prototype.start=nativeStart;
+          // Check both receiving planes on actual native GPU pixels. Removing
+          // the flat front's receiver in the control must recreate the seam.
+          const receiverProbe=(() => {
+  const surface=nativeCurl.surface,g=surface.gl,stock=document.createElement('canvas');
+  stock.width=innerWidth;stock.height=innerHeight;
+  const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
+  surface.upload(stock,stock,innerWidth,innerHeight);
+  const width=surface.canvas.width,height=surface.canvas.height;
+  const black=g.createTexture();g.activeTexture(g.TEXTURE3);g.bindTexture(g.TEXTURE_2D,black);
+  g.texImage2D(g.TEXTURE_2D,0,g.RGBA,1,1,0,g.RGBA,g.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.NEAREST);
+  const bind=(program,buffer)=>{g.useProgram(program.p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(program.a);g.vertexAttribPointer(program.a,2,g.FLOAT,false,0,0);};
+  const sample=()=>{const out=new Uint8Array(4);g.readPixels(Math.floor(width/2)+2,Math.floor(height/2),1,1,g.RGBA,g.UNSIGNED_BYTE,out);return out[0];};
+  const results=[];
+  for(const p of [.5,.55,.6,.65]){
+    surface.render(p,true,1,0,.5);
+    const draw=receiver=>{
+      g.disable(g.DEPTH_TEST);bind(surface.background,surface.quad);g.drawArrays(g.TRIANGLE_STRIP,0,4);
+      const background=sample();
+      g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.enable(g.CULL_FACE);g.cullFace(g.BACK);
+      bind(surface.sheet,surface.mesh);g.uniform1i(surface.sheet.u.castShadow,receiver);
+      g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,surface.indices);g.drawElements(g.TRIANGLES,surface.count,g.UNSIGNED_SHORT,0);
+      const front=sample();g.disable(g.CULL_FACE);g.disable(g.DEPTH_TEST);return {background,front};
+    };
+    const fixed=draw(2),old=draw(3);
+    // Read the broad shadow edge on a plain receiving surface, excluding the
+    // folded sheet so paper geometry cannot hide the gradient's extent.
+    bind(surface.background,surface.quad);g.drawArrays(g.TRIANGLE_STRIP,0,4);
+    const row=new Uint8Array(width*4);g.readPixels(0,Math.floor(height/2),width,1,g.RGBA,g.UNSIGNED_BYTE,row);
+    const shade=Array.from({length:width},(_,x)=>255-row[x*4]),peak=Math.max(...shade);
+    const start=shade.findIndex(v=>v>=peak*.1),end=shade.findIndex(v=>v>=peak*.8);
+    results.push({p,fixed,old,peak,edgeWidth:(end-start)*innerWidth/width});
+  }
+  g.useProgram(surface.sheet.p);g.uniform1i(surface.sheet.u.castShadow,2);g.deleteTexture(black);
+  surface.render(0,true,1,0,.5);return {results,error:g.getError()};
+}
+)();
+          if(receiverProbe.error!==0||!receiverProbe.results.every(s=>
+            Math.abs(s.fixed.background-s.fixed.front)<=2 &&
+            s.old.front-s.old.background>60 && s.peak>=75 && s.edgeWidth>=10+innerWidth*.01))
+            throw Error('Native curl shadow receiver: '+JSON.stringify(receiverProbe));
+          nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
+          const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
+          if(!await automatic.start(async()=>{}))throw Error('Native automatic slide unavailable');
+          const flight=automatic.animateTo(1,380,{automatic:true});
+          await new Promise(resolve=>setTimeout(resolve,90));
+          if(!(automatic.progress>0&&automatic.progress<1))throw Error('Native automatic slide skipped its intermediate frames');
+          await flight;automatic.stop();window.matchMedia=nativeMedia;
           await reader.previous();return true;
         """);
         // The action must retain its selected passage even if native focus

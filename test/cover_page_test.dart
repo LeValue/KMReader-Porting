@@ -140,15 +140,25 @@ void main() {
               }))!;
           pages.position.jumpTo(50);
           await tester.pumpAndSettle();
-          expect(
-            await pixel(rtl ? 125 : 75),
-            cover
-                ? (rtl ? [76, 175, 80, 255] : [244, 67, 54, 255])
-                : (rtl ? [244, 67, 54, 255] : [76, 175, 80, 255]),
-          );
+          final old = await pixel(rtl ? 125 : 75);
+          final stock = cover
+              ? (rtl ? [76, 175, 80, 255] : [244, 67, 54, 255])
+              : (rtl ? [244, 67, 54, 255] : [76, 175, 80, 255]);
+          for (var channel = 0; channel < 3; channel++) {
+            expect(
+              old[channel],
+              cover ? closeTo(stock[channel] * .935, 2) : stock[channel],
+            );
+          }
           final lower = await pixel(rtl ? 15 : 185);
-          expect(lower[2], inInclusiveRange(220, 243));
+          expect(lower[2], inInclusiveRange(210, 243));
           expect(lower[0], lessThan(40));
+          // Shade changes in space as well as time, without tinting the upper
+          // page. The covered page darkens towards the moving paper edge.
+          if (!cover) {
+            final near = await pixel(rtl ? 45 : 155);
+            expect(near[2], lessThan(lower[2] - 3));
+          }
           pages.jumpToPage(1);
           await tester.pumpAndSettle();
           expect(await pixel(100), [33, 150, 243, 255]);

@@ -504,6 +504,97 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
+  for (final style in ['slide', 'cover']) {
+    testWidgets(
+      'automatic $style handles late frames and contact during flight',
+      (tester) async {
+        final directory = Directory.systemTemp.createTempSync('page-flight-');
+        final store = LocalStore(sqlite3.openInMemory());
+        const profile = ServerProfile(
+          id: 'flight',
+          name: 'Fixture',
+          url: 'https://example.invalid',
+          email: '',
+          authentication: Authentication.apiKey,
+        );
+        final repository = FixtureRepository(
+          profile: profile,
+          store: store,
+          directory: directory,
+          api: KomgaApi(
+            Uri.parse(profile.url),
+            authentication: profile.authentication,
+            credential: '',
+          ),
+        )..setOffline(true);
+        try {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: ReaderPage(
+                repository: repository,
+                rasterPages: _LocalPages(),
+                initialPreferences: ReaderPreferences(
+                  transition: style,
+                  useSeriesDirection: false,
+                ),
+                book: Book({
+                  'id': 'flight',
+                  'name': 'Page flight',
+                  'media': {'pagesCount': 5},
+                }),
+              ),
+            ),
+          );
+          await tester.runAsync(
+            () => precacheImage(
+              MemoryImage(FixtureRepository.bytes),
+              tester.element(find.byType(ReaderPage)),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final controller = tester
+              .widget<PageView>(find.byType(PageView))
+              .controller!;
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 16));
+          final before = controller.page!;
+          await tester.pump(const Duration(milliseconds: 200));
+          expect(
+            controller.page! - before,
+            inExclusiveRange(0, .1),
+            reason: 'One delayed render must not catch up most of the turn',
+          );
+          await tester.pumpAndSettle();
+          expect(controller.page, closeTo(1, .001));
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          await tester.pump();
+          for (var i = 0; i < 12; i++) {
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          final interrupted = controller.page!;
+          expect(interrupted, inExclusiveRange(1, 2));
+          final touch = await tester.startGesture(
+            tester.getCenter(find.byType(ReaderViewport).first),
+          );
+          await touch.up();
+          await tester.pumpAndSettle();
+          expect(
+            controller.page,
+            closeTo(interrupted.roundToDouble(), .001),
+            reason:
+                'A simple contact must settle rather than leave a half page',
+          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+          repository.dispose();
+          store.close();
+          directory.deleteSync(recursive: true);
+        }
+      },
+    );
+  }
   testWidgets(
     'rapid curl commands interrupt cosmetic duration instead of queuing waits',
     (tester) async {
