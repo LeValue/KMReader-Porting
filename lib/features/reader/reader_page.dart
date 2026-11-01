@@ -84,11 +84,6 @@ class _ReaderPageState extends State<ReaderPage> {
   Rect _sheetBounds(Size size, int direction, [int? view]) {
     final index = view ?? _viewIndex;
     final p = _session.preferences;
-    if (p.fit != 'contain' ||
-        p.borderCrop != 'disabled' ||
-        _zoom.value.getMaxScaleOnAxis() > 1.01) {
-      return Offset.zero & size;
-    }
     final first = _split ? _parts[index].page : _session.firstPage(index);
     final count = _split ? 1 : _session.visiblePages(index);
     final cellWidth = size.width / count;
@@ -97,11 +92,17 @@ class _ReaderPageState extends State<ReaderPage> {
         : direction > 0
         ? count - 1
         : 0;
+    final cell = Rect.fromLTWH(physical * cellWidth, 0, cellWidth, size.height);
+    if (p.fit != 'contain' ||
+        p.borderCrop != 'disabled' ||
+        _zoom.value.getMaxScaleOnAxis() > 1.01) {
+      return cell;
+    }
     final logical = p.direction == ReadingDirection.rtl
         ? count - 1 - physical
         : physical;
     var aspect = _split ? _parts[index].aspect : _aspects[first + logical];
-    if (aspect == null || aspect <= 0) return Offset.zero & size;
+    if (aspect == null || aspect <= 0) return cell;
     if (p.rotation.isOdd && !_split) aspect = 1 / aspect;
     final fitted = applyBoxFit(
       BoxFit.contain,
