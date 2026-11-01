@@ -311,6 +311,55 @@ void main() {
         expect(bounds.width, 390);
         expect(bounds.height, 585);
         expect(bounds.top, 107.5);
+        for (final preferences in [
+          const ReaderPreferences(
+            spread: true,
+            pageLayout: 'dual-forced',
+            fit: 'cover',
+            transition: 'curl',
+            useSeriesDirection: false,
+          ),
+          const ReaderPreferences(
+            spread: true,
+            pageLayout: 'dual-forced',
+            fit: 'fitWidth',
+            transition: 'curl',
+            useSeriesDirection: false,
+          ),
+          const ReaderPreferences(
+            spread: true,
+            pageLayout: 'dual-forced',
+            borderCrop: 'conservative',
+            transition: 'curl',
+            useSeriesDirection: false,
+          ),
+        ]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: ReaderPage(
+                key: UniqueKey(),
+                repository: repository,
+                initialPreferences: preferences,
+                book: Book({
+                  'id': 'spread-bounds',
+                  'media': {'pagesCount': 4},
+                }),
+              ),
+            ),
+          );
+          await tester.pump();
+          final spread = tester.widget<ReaderPageTransition>(
+            find.byType(ReaderPageTransition),
+          );
+          expect(
+            spread.sheetBounds!(const Size(800, 600), 1),
+            const Rect.fromLTWH(400, 0, 400, 600),
+          );
+          expect(
+            spread.sheetBounds!(const Size(800, 600), -1),
+            const Rect.fromLTWH(0, 0, 400, 600),
+          );
+        }
       } finally {
         await tester.pumpWidget(const SizedBox());
         repository.dispose();

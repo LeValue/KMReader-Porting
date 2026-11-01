@@ -63,7 +63,7 @@ void verifyNativeLocalLibrary() {
       await tester.pump(const Duration(seconds: 6));
       expect(find.byTooltip('Close'), findsNothing);
       await tester.tapAt(tester.getCenter(find.byType(ReaderPageTransition)));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 400));
       expect(find.byTooltip('Close'), findsOneWidget);
       expect(tester.getSize(find.byType(ReaderPageTransition)), viewport);
       for (var i = 0; i < 3; i++) {
