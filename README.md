@@ -11,17 +11,25 @@ network, translation and appearance preferences to their implementations and
 explicit remaining differences.
 
 The Android development APK is available in the
-[v0.8.6-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.6-preview.1).
+[v0.8.7-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.7-preview.1).
 Sign into a GitHub account with access to this private repository before downloading.
-In the release's **Assets**, select `KMReader-0.8.6-android-arm64-preview.apk`.
+In the release's **Assets**, select `KMReader-0.8.7-android-arm64-preview.apk`.
 ARMv7 and x86_64 APKs are also available for older devices and emulators. Each APK
 is a complete application for its architecture; install only one.
 This optimized build installs as **KMReader Preview** alongside the original
 debug preview, and updates earlier Preview builds while retaining their local data.
-The same release includes `KMReader-0.8.6-windows-x64-preview.zip`: extract the
+The same release includes `KMReader-0.8.7-windows-x64-preview.zip`: extract the
 whole folder and run `KMReader/kmreader.exe` on Windows 10/11 x64. The MSVC runtime
 is bundled; the portable Windows build is not Authenticode signed. See [performance changes](docs/PERFORMANCE.md) for cache behavior,
 test evidence and device-validation limits.
+
+## Local books
+
+Open **Local Books / Libri locali** from navigation or the welcome screen, then
+choose **Import Files**. EPUB, PDF and CBZ/ZIP files are copied into the app and
+can be read without an account or network connection. Reading progress stays
+on the device. Removing an imported copy preserves the original selected file.
+RAR/CBR is not supported yet.
 
 ## Development
 
