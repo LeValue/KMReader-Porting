@@ -343,7 +343,7 @@ void verifyNativeEpubPerformance() {
           if(!window.nativeCurl)throw Error('GPU effect did not start: supported='+KMReaderSheetEffect.supported('curl')+', reduced='+matchMedia('(prefers-reduced-motion: reduce)').matches);
           if(!nativeCurl.surface||!document.getElementById('page-curl-surface'))throw Error('Native GPU curl unavailable');
           nativeCurl.update(.5,{x:innerWidth*.5,y:innerHeight*.25});
-          return nativeCurl.surface.canvas.width>=innerWidth;
+          return nativeCurl.surface.canvas.width>=innerWidth && nativeCurl.surface.shadowTargets.length===2 && nativeCurl.surface.gl.getError()===0;
         """),
           true,
         );

@@ -359,11 +359,14 @@ class PageTurnPainter extends CustomPainter {
     ui.Image source,
     Size size, [
     Offset offset = Offset.zero,
+    double opacity = 1,
   ]) => canvas.drawImageRect(
     source,
     Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
     offset & size,
-    Paint()..filterQuality = FilterQuality.high,
+    Paint()
+      ..filterQuality = FilterQuality.high
+      ..color = Colors.white.withValues(alpha: opacity),
   );
   @override
   void paint(Canvas canvas, Size size) {
@@ -417,10 +420,21 @@ class PageTurnPainter extends CustomPainter {
       canvas.save();
       canvas.clipRect(
         direction > 0
-            ? Rect.fromLTWH(0, 0, size.width / 2, size.height)
-            : Rect.fromLTWH(size.width / 2, 0, size.width / 2, size.height),
+            ? Rect.fromLTWH(0, 0, bounds.left, size.height)
+            : Rect.fromLTWH(
+                bounds.right,
+                0,
+                size.width - bounds.right,
+                size.height,
+              ),
       );
-      image(canvas, before, size);
+      image(
+        canvas,
+        before,
+        size,
+        Offset.zero,
+        1 - Curves.easeInOut.transform(((p - .72) / .28).clamp(0, 1)),
+      );
       canvas.restore();
     }
     const columns = 96, rows = 16, count = (columns + 1) * (rows + 1);
@@ -431,8 +445,17 @@ class PageTurnPainter extends CustomPainter {
     final normals = Float32List(count);
     final depths = Float32List(count);
     final frontIndices = <int>[], backIndices = <int>[];
-    final nx = 1 / math.sqrt(1 + foldSlope * foldSlope),
-        ny = foldSlope / math.sqrt(1 + foldSlope * foldSlope);
+    final wave = math.sin(math.pi * p);
+    final slope = foldSlope * wave;
+    final nx = 1 / math.sqrt(1 + slope * slope),
+        ny = slope / math.sqrt(1 + slope * slope);
+    final settle = Curves.easeInOut.transform(((p - .72) / .28).clamp(0, 1));
+    final exit = backBounds == null
+        ? settle *
+              (direction > 0
+                  ? bounds.left + 16
+                  : size.width - bounds.right + 16)
+        : 0.0;
     final originY = height * grabY;
     final hinge = direction > 0 ? bounds.left : bounds.right;
     final cone = ((.5 - grabY) * .65 + foldSlope * .35).clamp(-.45, .45);
@@ -452,8 +475,18 @@ class PageTurnPainter extends CustomPainter {
         final y = ny * point.x + nx * v;
         final scale = width * 3 / (width * 3 - point.z);
         final i = col * (rows + 1) + row, j = i * 2;
-        positions[j] = hinge + direction * x * scale;
+        positions[j] = hinge + direction * (x * scale - exit);
         positions[j + 1] = bounds.top + originY + y * scale;
+        final landing = backBounds;
+        if (landing != null && settle > 0) {
+          final targetX =
+              landing.left +
+              landing.width *
+                  (direction > 0 ? 1 - col / columns : col / columns);
+          final targetY = landing.top + landing.height * row / rows;
+          positions[j] += (targetX - positions[j]) * settle;
+          positions[j + 1] += (targetY - positions[j + 1]) * settle;
+        }
         textures[j] =
             (bounds.left + (direction > 0 ? sx : width - sx)) *
             before.width /
@@ -474,8 +507,12 @@ class PageTurnPainter extends CustomPainter {
                   size.height;
         normals[i] = math.cos(point.angle);
         depths[i] = point.z;
+        final rawShade = 1 - .28 * math.pow(math.sin(point.angle).abs(), 1.4);
         final shade =
-            ((1 - .28 * math.pow(math.sin(point.angle).abs(), 1.4)) * 255)
+            ((backBounds == null
+                        ? rawShade
+                        : rawShade * (1 - settle) + settle) *
+                    255)
                 .round();
         colors[i] = 0xff000000 | shade << 16 | shade << 8 | shade;
       }
@@ -500,7 +537,7 @@ class PageTurnPainter extends CustomPainter {
     // A folded outline crosses itself. Filling it as a shadow made a black
     // diagonal curtain; only cast a soft stroke from the raised free edges.
     final shadow = Paint()
-      ..color = const Color(0x55000000)
+      ..color = Colors.black.withValues(alpha: .26 * wave)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
@@ -542,7 +579,12 @@ class PageTurnPainter extends CustomPainter {
           TileMode.clamp,
           Matrix4.identity().storage,
         )
-        ..filterQuality = FilterQuality.medium;
+        ..filterQuality = FilterQuality.medium
+        ..color = Colors.white.withValues(
+          alpha: back
+              ? 1
+              : 1 - Curves.easeInOut.transform(((p - .96) / .04).clamp(0, 1)),
+        );
       if (back && backBounds == null) {
         // Paper transmits a faint mirrored impression on a single leaf.
         paint.colorFilter = const ColorFilter.matrix([

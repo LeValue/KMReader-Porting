@@ -1,3 +1,4 @@
+import '../../ui/reader_preview.dart';
 import '../../ui/reader_chrome.dart';
 
 import 'dart:async';
@@ -687,6 +688,18 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     _chromeTimer?.cancel();
     await _call('suspendInput', true);
     var draft = _session!.preferences.toJson();
+    final preview = ReaderPreview<EpubPreferences>(
+      (next) async {
+        if (!mounted) return;
+        final session = _session!;
+        session.setPreferences(next);
+        await session.prepareFont();
+        if (mounted) await _call('preferences', session.browserPreferences);
+      },
+      onError: (error) {
+        if (mounted) showError(context, error);
+      },
+    );
     if (!mounted) return;
     try {
       await showModalBottomSheet<void>(
@@ -714,8 +727,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   'advancedLayout': true,
               });
               draft = next.toJson();
-              session.setPreferences(next);
+              preview.schedule(next);
               update(() {});
+              await preview.flush();
             }
 
             Widget slider(
@@ -732,7 +746,20 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               min: min,
               max: max,
               divisions: divisions,
-              onChanged: (v) => draft[key] = v,
+              onChanged: (v) {
+                draft[key] = v;
+                if (const {
+                  'fontSize',
+                  'lineHeight',
+                  'paragraphSpacing',
+                  'indent',
+                  'letterSpacing',
+                  'wordSpacing',
+                }.contains(key)) {
+                  draft['advancedLayout'] = true;
+                }
+                preview.schedule(EpubPreferences.fromJson(draft));
+              },
               onChangeEnd: (v) => apply(key, v),
             );
             Widget picker(
@@ -922,12 +949,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         motion: p.motion,
                         onChanged: (motion) {
                           draft = {...draft, ...motion.toJson()};
-                          session.setPreferences(
-                            EpubPreferences.fromJson(draft),
-                          );
-                          unawaited(
-                            _call('preferences', session.browserPreferences),
-                          );
+                          preview.schedule(EpubPreferences.fromJson(draft));
+                          unawaited(preview.flush());
                           update(() {});
                         },
                       ),
@@ -975,8 +998,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         ),
       );
     } finally {
-      await _session?.prepareFont();
-      if (mounted) await _call('preferences', _session!.browserPreferences);
+      await preview.flush();
       _settingsOpen = false;
       await _call('suspendInput', false);
       _scheduleControlsHide();
@@ -1170,6 +1192,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       final background = Color(
         int.parse(session.themeColors.$1.substring(1), radix: 16) | 0xff000000,
       );
+      final foreground = Color(
+        int.parse(session.themeColors.$2.substring(1), radix: 16) | 0xff000000,
+      );
       final brightness = session.dark ? Brightness.dark : Brightness.light;
       if (_readerTheme == null || _readerBrightness != brightness) {
         _readerBrightness = brightness;
@@ -1235,6 +1260,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                               child: Row(
                                 children: [
                                   ReaderCapsule(
+                                    background: background,
+                                    foreground: foreground,
                                     child: IconButton(
                                       tooltip: tr(context, 'Close'),
                                       onPressed: () => Navigator.pop(context),
@@ -1246,6 +1273,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                     child: Align(
                                       alignment: Alignment.center,
                                       child: ReaderCapsule(
+                                        background: background,
+                                        foreground: foreground,
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 14,
@@ -1266,6 +1295,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                   ),
                                   const SizedBox(width: 10),
                                   ReaderCapsule(
+                                    background: background,
+                                    foreground: foreground,
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -1378,6 +1409,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                     maxWidth: 360,
                                   ),
                                   child: ReaderCapsule(
+                                    background: background,
+                                    foreground: foreground,
                                     child: Row(
                                       children: [
                                         IconButton(

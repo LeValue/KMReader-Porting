@@ -1,3 +1,4 @@
+import 'comic_spread.dart';
 import 'comic_frames.dart';
 import '../../ui/reader_chrome.dart';
 
@@ -98,23 +99,30 @@ class _ReaderPageState extends State<ReaderPage> {
         _zoom.value.getMaxScaleOnAxis() > 1.01) {
       return cell;
     }
-    final logical = p.direction == ReadingDirection.rtl
-        ? count - 1 - physical
-        : physical;
-    var aspect = _split ? _parts[index].aspect : _aspects[first + logical];
-    if (aspect == null || aspect <= 0) return cell;
-    if (p.rotation.isOdd && !_split) aspect = 1 / aspect;
-    final fitted = applyBoxFit(
-      BoxFit.contain,
-      Size(aspect, 1),
-      Size(cellWidth, size.height),
-    ).destination;
-    return Rect.fromLTWH(
-      physical * cellWidth + (cellWidth - fitted.width) / 2,
-      (size.height - fitted.height) / 2,
-      fitted.width,
-      fitted.height,
+    final aspects = [
+      for (var i = 0; i < count; i++)
+        _split
+            ? _parts[index].aspect
+            : _aspects[first + i] ?? _aspects[first] ?? 1.0,
+    ];
+    if (p.rotation.isOdd && !_split) {
+      for (var i = 0; i < aspects.length; i++) {
+        aspects[i] = 1 / aspects[i];
+      }
+    }
+    final bounds = comicLeafBounds(
+      size,
+      p.direction == ReadingDirection.rtl ? aspects.reversed.toList() : aspects,
     );
+    return bounds[physical];
+  }
+
+  void _reportAspect(int page, double aspect) {
+    if (_aspects[page] == aspect) return;
+    _aspects[page] = aspect;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _waitVisibleArtwork([int? target]) async {
@@ -232,7 +240,9 @@ class _ReaderPageState extends State<ReaderPage> {
           : _sheetBounds(
               boundary.size,
               boundary.globalToLocal(details.globalPosition).dx >=
-                      boundary.size.width / 2
+                      (_session.visiblePages(_viewIndex) == 2
+                          ? _sheetBounds(boundary.size, 1).left
+                          : boundary.size.width / 2)
                   ? 1
                   : -1,
             ).width,
@@ -1782,67 +1792,79 @@ class _ReaderPageState extends State<ReaderPage> {
                                                     );
                                             i++
                                           )
-                                            Expanded(
-                                              child: i > widget.book.pages
-                                                  ? const SizedBox.expand()
-                                                  : _PageImage(
-                                                      onTapKind: (kind) =>
-                                                          _inputKind = kind,
-                                                      rasterPages:
-                                                          widget.rasterPages,
-                                                      repository:
-                                                          widget.repository,
-                                                      book: widget.book,
-                                                      page: i,
-                                                      onAspect: (aspect) =>
-                                                          _aspects[i] = aspect,
-                                                      pageAspect:
-                                                          _aspects[i] ?? 1,
-                                                      initialPan: _panFraction(
-                                                        i,
-                                                      ),
-                                                      onPanSettled:
-                                                          (fraction) =>
-                                                              _savePan(
-                                                                i,
-                                                                fraction,
-                                                              ),
-                                                      active:
-                                                          index == _viewIndex,
-                                                      startPageScroll:
-                                                          (details) =>
-                                                              _pages.hasClients
-                                                              ? _pages.position
-                                                                    .drag(
-                                                                      details,
-                                                                      () {},
-                                                                    )
-                                                              : null,
-                                                      onWideTap: _tap,
-                                                      onControls:
-                                                          _toggleControlsFromTap,
-                                                      decodeZoom:
-                                                          index == _viewIndex
-                                                          ? _decodeZoom
-                                                          : 1,
-                                                      preferences: settings,
-                                                      onReady: () {
-                                                        _readyPages.add(i);
-                                                        _commitIfReady();
-                                                      },
-                                                    ),
-                                            ),
+                                            i > widget.book.pages
+                                                ? const SizedBox.expand()
+                                                : _PageImage(
+                                                    onTapKind: (kind) =>
+                                                        _inputKind = kind,
+                                                    rasterPages:
+                                                        widget.rasterPages,
+                                                    repository:
+                                                        widget.repository,
+                                                    book: widget.book,
+                                                    page: i,
+                                                    onAspect: (aspect) =>
+                                                        _reportAspect(
+                                                          i,
+                                                          aspect,
+                                                        ),
+                                                    pageAspect:
+                                                        _aspects[i] ?? 1,
+                                                    initialPan: _panFraction(i),
+                                                    onPanSettled: (fraction) =>
+                                                        _savePan(i, fraction),
+                                                    active: index == _viewIndex,
+                                                    startPageScroll:
+                                                        (details) =>
+                                                            _pages.hasClients
+                                                            ? _pages.position
+                                                                  .drag(
+                                                                    details,
+                                                                    () {},
+                                                                  )
+                                                            : null,
+                                                    onWideTap: _tap,
+                                                    onControls:
+                                                        _toggleControlsFromTap,
+                                                    decodeZoom:
+                                                        index == _viewIndex
+                                                        ? _decodeZoom
+                                                        : 1,
+                                                    preferences: settings,
+                                                    onReady: () {
+                                                      _readyPages.add(i);
+                                                      _commitIfReady();
+                                                    },
+                                                  ),
                                         ];
                                         return _motion(
                                           index,
-                                          Row(
-                                            textDirection:
-                                                settings.direction ==
-                                                    ReadingDirection.rtl
-                                                ? TextDirection.rtl
-                                                : TextDirection.ltr,
-                                            children: children,
-                                          ),
+                                          children.length == 1
+                                              ? children.single
+                                              : ComicSpread(
+                                                  rtl:
+                                                      settings.direction ==
+                                                      ReadingDirection.rtl,
+                                                  fit: settings.fit,
+                                                  aspects: [
+                                                    for (
+                                                      var i = page;
+                                                      i <
+                                                          page +
+                                                              children.length;
+                                                      i++
+                                                    )
+                                                      settings.rotation.isOdd
+                                                          ? 1 /
+                                                                (_aspects[i] ??
+                                                                    _aspects[page] ??
+                                                                    1)
+                                                          : (_aspects[i] ??
+                                                                _aspects[page] ??
+                                                                1),
+                                                  ],
+                                                  children: children,
+                                                ),
                                           background,
                                         );
                                       },
@@ -1912,10 +1934,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     child: IgnorePointer(
                       child: Text(
                         '${_session.page} / ${widget.book.pages}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          shadows: [Shadow(blurRadius: 4, color: Colors.black)],
-                        ),
+                        style: TextStyle(color: readerInk(background)),
                       ),
                     ),
                   ),
@@ -1951,7 +1970,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     child: Row(
                       children: [
                         ReaderCapsule(
-                          dark: true,
+                          background: background,
                           child: IconButton(
                             tooltip: tr(context, 'Close'),
                             onPressed: () => Navigator.pop(context),
@@ -1963,7 +1982,7 @@ class _ReaderPageState extends State<ReaderPage> {
                           child: Align(
                             alignment: Alignment.center,
                             child: ReaderCapsule(
-                              dark: true,
+                              background: background,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -1981,7 +2000,7 @@ class _ReaderPageState extends State<ReaderPage> {
                         const SizedBox(width: 10),
                         if (defaultTargetPlatform == TargetPlatform.windows)
                           ReaderCapsule(
-                            dark: true,
+                            background: background,
                             child: IconButton(
                               tooltip: tr(
                                 context,
@@ -1996,7 +2015,7 @@ class _ReaderPageState extends State<ReaderPage> {
                             ),
                           ),
                         ReaderCapsule(
-                          dark: true,
+                          background: background,
                           child: PopupMenuButton<String>(
                             tooltip: tr(context, 'Reader Settings'),
                             icon: const Icon(Icons.more_horiz),
@@ -2052,7 +2071,7 @@ class _ReaderPageState extends State<ReaderPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         ReaderCapsule(
-                          dark: true,
+                          background: background,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 14,
@@ -2309,7 +2328,8 @@ class _PageImageState extends State<_PageImage>
                 final decoded = child is Semantics ? child.child : child;
                 if (decoded is RawImage && decoded.image != null) {
                   widget.onAspect?.call(
-                    decoded.image!.width / decoded.image!.height,
+                    crop?.aspect ??
+                        decoded.image!.width / decoded.image!.height,
                   );
                 }
                 WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -71,7 +71,7 @@ with sync_playwright() as pw:
       KMReaderSheetEffect.prototype.start=async function(move){window.effect=this;return start.call(this,move);};
       KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
     }''')
-    output = Path('artifacts/epub-motion-0.8.5')
+    output = Path('artifacts/epub-motion-0.8.8')
     output.mkdir(parents=True, exist_ok=True)
     for style in ['slide', 'cover', 'curl']:
         before = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
@@ -139,6 +139,12 @@ with sync_playwright() as pw:
     page.evaluate('effect.stop()')
     reverse_live=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
     assert max(ImageStat.Stat(ImageChops.difference(reverse_end,reverse_live)).mean)<6
+    page.evaluate('(p)=>reader.preferences({...p,backgroundColor:"#382E25",textColor:"#E3D5C1"})',config['preferences'])
+    page.evaluate("reader.turn({delta:1,style:'curl'})")
+    page.evaluate('(p)=>effect.update(.52,{x:innerWidth*.48,y:innerHeight*.73})')
+    page.screenshot(path=str(output / f'{width}-{config.get("direction", "ltr")}-curl-sepia.png'))
+    page.evaluate('effect.stop()')
+    page.evaluate('(p)=>reader.preferences(p)',config['preferences'])
     # A raised free paper edge must cast its own shadow, away from the roll
     # ridge. White textures isolate actual lighting from text/ink differences.
     shadow=page.evaluate('''() => {
@@ -147,13 +153,20 @@ with sync_playwright() as pw:
       const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
       surface.upload(stock,stock,innerWidth,innerHeight);document.body.append(surface.canvas);
       surface.render(.68,true,-1,-.1,.5,.18);
-      const edge=g.getUniform(surface.background.p,surface.background.u.edge0);
-      const x=(edge[0]+edge[2])/2,y=(edge[1]+edge[3])/2,dpr=surface.canvas.width/innerWidth;
-      const pixel=new Uint8Array(4);
-      g.readPixels(Math.round(x*dpr),surface.canvas.height-1-Math.round(y*dpr),1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
-      surface.canvas.remove();return [...pixel];
+      const width=surface.canvas.width,height=surface.canvas.height;
+      const pixels=new Uint8Array(width*height*4);g.readPixels(0,0,width,height,g.RGBA,g.UNSIGNED_BYTE,pixels);
+      const mask=surface.shadowTargets[0];g.bindFramebuffer(g.FRAMEBUFFER,mask.fbo);
+      const shadows=new Uint8Array(surface.maskWidth*surface.maskHeight*4);
+      g.readPixels(0,0,surface.maskWidth,surface.maskHeight,g.RGBA,g.UNSIGNED_BYTE,shadows);g.bindFramebuffer(g.FRAMEBUFFER,null);
+      let exposed=0;
+      for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+        const i=(y*width+x)*4,m=(Math.min(surface.maskHeight-1,Math.floor(y/2))*surface.maskWidth+Math.min(surface.maskWidth-1,Math.floor(x/2)))*4;
+        const value=pixels[i],shadow=shadows[m];
+        if(shadow>5&&value>180&&value<250&&Math.abs(value-(255-shadow))<4&&Math.max(...pixels.slice(i,i+3))-Math.min(...pixels.slice(i,i+3))<=1)exposed++;
+      }
+      const error=g.getError();surface.canvas.remove();return {exposed,error};
     }''')
-    assert 180<shadow[0]<250 and max(shadow[:3])-min(shadow[:3])<=1, ('Missing free-edge cast shadow',shadow)
+    assert shadow['error']==0 and shadow['exposed']>50, ('Missing smooth projected paper shadow',shadow)
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
     # Actual automatic effects remain visible mid-flight, not just a retained
     # JS object after Chromium already removed its snapshot pseudo-elements.
@@ -182,6 +195,13 @@ with sync_playwright() as pw:
     progress = page.evaluate('effect.progress')
     assert (.60 < progress < 1 if width>800 else .30 < progress < .55), progress
     assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Gesture preview wrote progress'
+    if width == 390 and not rtl:
+        for step in range(22):
+            page.wait_for_timeout(500)
+            page.mouse.move(xcoord(width * (.55 + .015 * (step % 2))), height * (.55 + .008 * (step % 3)))
+            assert page.evaluate('!!document.getElementById("page-gesture") && !effect.stopped'), 'A held active gesture expired'
+        assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Held fold committed before release'
+
     page.mouse.move(xcoord(width * .35), height * .52, steps=4)
     assert page.evaluate('effect.progress') > progress
     page.mouse.up()

@@ -65,7 +65,16 @@ class EpubReadingOverlay extends StatelessWidget {
                       : i == 1
                       ? TextAlign.center
                       : TextAlign.end,
-                  style: const TextStyle(fontSize: 11),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(
+                      int.parse(
+                            session.themeColors.$2.substring(1),
+                            radix: 16,
+                          ) |
+                          0xff000000,
+                    ),
+                  ),
                 ),
               ),
           ],

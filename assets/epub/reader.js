@@ -16,26 +16,17 @@ class KMReaderCurlSurface {
       vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}`;
     const quadVertex=`attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,(1.-a.y)*.5);gl_Position=vec4(a,0.,1.);}`;
     const background=`precision highp float;varying vec2 v;${uniforms}${samples}
-      uniform vec4 shadowLine,edge0,edge1,edge2;uniform vec3 edgeWidth;uniform float shadowWidth,shadowStrength;
-      float edgeShadow(vec2 q,vec4 edge,float width){
-        vec2 line=edge.zw-edge.xy;
-        float along=clamp(dot(q-edge.xy,line)/max(1.,dot(line,line)),0.,1.);
-        vec2 d=q-mix(edge.xy,edge.zw,along);
-        return shadowStrength*.8*(1.-smoothstep(0.,width*width,dot(d,d)));
-      }
+      uniform sampler2D castShadow;
       void main(){vec2 q=v*size;float hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
         if(progress<.0001){gl_FragColor=oldAt(q);return;}
         if(progress>.9999){gl_FragColor=newAt(q);return;}
         vec4 color=spread>.5&&(q.x-hinge)*sign<0.?oldAt(q):newAt(q);
-        vec2 line=shadowLine.zw-shadowLine.xy;
-        float along=clamp(dot(q-shadowLine.xy,line)/max(1.,dot(line,line)),0.,1.);
-        vec2 delta=q-mix(shadowLine.xy,shadowLine.zw,along);
-        float shadow=shadowStrength*exp(-dot(delta,delta)/(shadowWidth*shadowWidth));
-        shadow=max(shadow,max(edgeShadow(q,edge0,edgeWidth.x),max(edgeShadow(q,edge1,edgeWidth.y),edgeShadow(q,edge2,edgeWidth.z))));
+        float shadow=texture2D(castShadow,vec2(v.x,1.-v.y)).r;
         gl_FragColor=vec4(color.rgb*(1.-shadow),1.);
       }`;
     const meshVertex=`precision highp float;attribute vec2 a;${uniforms}
-      varying vec2 source;varying float normalZ;varying float sheetAngle;
+      uniform float shadowPass;
+      varying vec2 source;varying float normalZ;varying float sheetAngle;varying float depth;
       void main(){
         float pi=3.14159265,w=size.x/(1.+spread),h=size.y;
         vec2 n=normalize(vec2(1.,slope)),t=vec2(-n.y,n.x),origin=vec2(0.,grabY*h);
@@ -58,12 +49,16 @@ class KMReaderCurlSurface {
         else if(u<=f){x=start+frontR*sin(theta);z=2.*frontR*pow(sin(theta*.5),2.);}
         else if(u<=end){theta=alpha+(u-f)/r;x=xf+r*(sin(theta)-sin(alpha));z=zf+r*(cos(alpha)-cos(theta));}
         else{theta=pi;x=xf-r*sin(alpha)-(u-end);z=zf+r*(1.+cos(alpha));}
-        normalZ=cos(theta);sheetAngle=theta;
+        normalZ=cos(theta);sheetAngle=theta;depth=z;
         vec2 world=origin+n*x+t*v;
         float hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x),camera=w*3.,perspective=(camera-z)/camera;
         vec2 center=vec2(hinge,grabY*h),screen=vec2(hinge+world.x*sign,world.y);
         gl_Position=vec4((2.*center.x/size.x-1.)*perspective+2.*(screen.x-center.x)/size.x,
           (1.-2.*center.y/h)*perspective-2.*(screen.y-center.y)/h,-z/camera,perspective);
+        if(shadowPass>.5){
+          vec2 projected=center+(screen-center)/perspective+vec2(.08,.06)*z/perspective;
+          gl_Position=vec4(2.*projected.x/size.x-1.,1.-2.*projected.y/h,-z/camera,1.);
+        }
       }`;
     const meshFragment=`precision highp float;${uniforms}${samples}
       varying vec2 source;varying float normalZ;varying float sheetAngle;
@@ -81,14 +76,31 @@ class KMReaderCurlSurface {
         shade-=.09*exp(-pow((sheetAngle-.5)/.35,2.))*smoothstep(0.,.15,sheetAngle);
         gl_FragColor=vec4(color.rgb*shade,1.);
       }`;
+    const shadowFragment=`precision highp float;${uniforms}
+      varying vec2 source;varying float depth;
+      void main(){
+        float w=size.x/(1.+spread);
+        if(source.x<0.||source.x>w||source.y<0.||source.y>size.y)discard;
+        float opacity=.24*sqrt(max(0.,sin(3.14159265*progress)))*smoothstep(0.,3.,depth);
+        gl_FragColor=vec4(vec3(opacity),1.);
+      }`;
+    const blurFragment=`precision highp float;varying vec2 v;uniform sampler2D castShadow;uniform vec2 blurStep;
+      void main(){
+        vec2 uv=vec2(v.x,1.-v.y);
+        vec4 color=texture2D(castShadow,uv)*.227027;
+        color+=(texture2D(castShadow,uv+blurStep*1.384615)+texture2D(castShadow,uv-blurStep*1.384615))*.316216;
+        color+=(texture2D(castShadow,uv+blurStep*3.230769)+texture2D(castShadow,uv-blurStep*3.230769))*.070270;
+        gl_FragColor=color;
+      }`;
     const program=(vertexSource,fragmentSource)=>{
       const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource),p=gl.createProgram();
       gl.attachShader(p,vertex);gl.attachShader(p,fragment);gl.linkProgram(p);gl.deleteShader(vertex);gl.deleteShader(fragment);
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
-      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowLine','shadowWidth','shadowStrength','edge0','edge1','edge2','edgeWidth'])u[name]=gl.getUniformLocation(p,name);
+      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep'])u[name]=gl.getUniformLocation(p,name);
       return {p,u,a:gl.getAttribLocation(p,'a')};
     };
     this.background=program(quadVertex,background);this.sheet=program(meshVertex,meshFragment);
+    this.cast=program(meshVertex,shadowFragment);this.blur=program(quadVertex,blurFragment);
     this.quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
     const vertices=[],indices=[],columns=144,rows=24;
     for(let col=0;col<=columns;col++)for(let row=0;row<=rows;row++)vertices.push(3*col/columns,row/rows);
@@ -107,49 +119,46 @@ class KMReaderCurlSurface {
   render(progress,spread,sign,slope,y,reach=.18){
     const g=this.gl;
     const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform1f(u.curlReach,reach);};
-    g.disable(g.DEPTH_TEST);bind(this.background,this.quad);
-    // Project the two ends of the raised ridge once per frame. The full-screen
-    // background shader only evaluates a soft distance shadow, not sheet trig.
-    const w=this.width/(spread?2:1),h=this.height,wave=Math.sin(Math.PI*progress),norm=Math.hypot(1,slope),nx=1/norm,ny=slope/norm;
-    const hinge=spread?this.width/2:sign>0?0:this.width,cone=Math.max(-.45,Math.min(.45,(.5-y)*.65+slope*.35));
-    const ridge=v=>{
-      const factor=Math.max(.65,Math.min(1.35,1+cone*v/h)),r=Math.max(.001,w*.075*wave*factor),alpha=.75*wave*factor;
-      const f=Math.max(.001,w*(1-progress)-r*(Math.PI-alpha)/2),frontReach=Math.min(f,w*reach),frontR=frontReach/Math.max(.00001,alpha);
-      const depth=2*frontR*Math.sin(alpha/2)**2+r*Math.cos(alpha),x=f-frontReach+frontR*Math.sin(alpha)+r*(1-Math.sin(alpha))+depth*.08*sign,scale=3*w/(3*w-depth);
-      return [hinge+(nx*x-ny*v)*scale*sign,y*h+(ny*x+nx*v)*scale,depth];
-    };
-    const start=ridge(Math.min(0,-ny*w)-nx*y*h),end=ridge(Math.max(0,-ny*w)+nx*(1-y)*h),u=this.background.u;
-    g.uniform4f(u.shadowLine,start[0],start[1],end[0],end[1]);g.uniform1f(u.shadowWidth,8+(start[2]+end[2])*.11);g.uniform1f(u.shadowStrength,.22*wave);
-    // Cast shadows from the free back edge and the two exposed paper edges,
-    // in addition to the roll ridge. Evaluate material geometry on the CPU at
-    // a few boundary points, never read back a texture or rebuild a mesh.
-    const boundary=(sx,sy)=>{
-      const material=nx*sx+ny*(sy-y*h),v=-ny*sx+nx*(sy-y*h);
-      const factor=Math.max(.65,Math.min(1.35,1+cone*v/h)),r=Math.max(.001,w*.075*wave*factor),alpha=.75*wave*factor;
-      const f=Math.max(.001,w*(1-progress)-r*(Math.PI-alpha)/2),arc=Math.min(f,w*reach),flat=f-arc,end=f+r*(Math.PI-alpha);
-      const frontR=arc/Math.max(.00001,alpha),xf=flat+frontR*Math.sin(alpha),zf=2*frontR*Math.sin(alpha/2)**2;
-      let x,z;
-      if(material<flat){x=material;z=0;}
-      else if(material<=f){const angle=alpha*(material-flat)/Math.max(.001,arc);x=flat+frontR*Math.sin(angle);z=2*frontR*Math.sin(angle/2)**2;}
-      else if(material<=end){const angle=alpha+(material-f)/r;x=xf+r*(Math.sin(angle)-Math.sin(alpha));z=zf+r*(Math.cos(alpha)-Math.cos(angle));}
-      else{x=xf-r*Math.sin(alpha)-(material-end);z=zf+r*(1+Math.cos(alpha));}
-      const scale=3*w/(3*w-z);
-      return {x:hinge+(nx*x-ny*v)*scale*sign+z*.06*scale,y:y*h+(ny*x+nx*v+z*.04)*scale,z,back:material-end};
-    };
-    const backStart=sy=>{
-      if(boundary(w,sy).back<0)return boundary(w,sy);
-      let lo=0,hi=w;
-      for(let i=0;i<8;i++){const middle=(lo+hi)/2;if(boundary(middle,sy).back<0)lo=middle;else hi=middle;}
-      return boundary((lo+hi)/2,sy);
-    };
-    const top=boundary(w,0),bottom=boundary(w,h),topStart=backStart(0),bottomStart=backStart(h);
-    const edges=[[top,bottom],[topStart,top],[bottomStart,bottom]];
-    for(let i=0;i<3;i++){const [a,b]=edges[i];g.uniform4f(u['edge'+i],a.x,a.y,b.x,b.y);}
-    g.uniform3f(u.edgeWidth,...edges.map(([a,b])=>4+(a.z+b.z)*.06));
+    const width=this.canvas.width,height=this.canvas.height;
+    if(!this.shadowTargets||this.shadowWidth!==width||this.shadowHeight!==height){
+      for(const target of this.shadowTargets||[]){g.deleteFramebuffer(target.fbo);g.deleteTexture(target.texture);if(target.depth)g.deleteRenderbuffer(target.depth);}
+      this.shadowWidth=width;this.shadowHeight=height;
+      this.maskWidth=Math.max(1,Math.ceil(width/2));this.maskHeight=Math.max(1,Math.ceil(height/2));
+      this.shadowTargets=[0,1].map(i=>{
+        const texture=g.createTexture();g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,texture);
+        g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+        g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+        g.texImage2D(g.TEXTURE_2D,0,g.RGBA,this.maskWidth,this.maskHeight,0,g.RGBA,g.UNSIGNED_BYTE,null);
+        const fbo=g.createFramebuffer();g.bindFramebuffer(g.FRAMEBUFFER,fbo);g.framebufferTexture2D(g.FRAMEBUFFER,g.COLOR_ATTACHMENT0,g.TEXTURE_2D,texture,0);
+        let depth;
+        if(i===0){depth=g.createRenderbuffer();g.bindRenderbuffer(g.RENDERBUFFER,depth);g.renderbufferStorage(g.RENDERBUFFER,g.DEPTH_COMPONENT16,this.maskWidth,this.maskHeight);g.framebufferRenderbuffer(g.FRAMEBUFFER,g.DEPTH_ATTACHMENT,g.RENDERBUFFER,depth);}
+        if(g.checkFramebufferStatus(g.FRAMEBUFFER)!==g.FRAMEBUFFER_COMPLETE)throw Error('Curl shadow framebuffer unavailable');
+        return {texture,fbo,depth};
+      });
+    }
+    const [mask,temporary]=this.shadowTargets;
+    // Project the actual curved sheet onto the page. A depth-tested mask and
+    // separable blur follow every free edge, without straight segment seams or
+    // disconnected endpoint blobs on dark/sepia stock.
+    g.bindFramebuffer(g.FRAMEBUFFER,mask.fbo);g.viewport(0,0,this.maskWidth,this.maskHeight);
+    g.clearColor(0,0,0,1);g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);g.disable(g.BLEND);
+    if(progress>.0001&&progress<.9999){
+      g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);bind(this.cast,this.mesh);g.uniform1f(this.cast.u.shadowPass,1);
+      g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);
+    }
+    g.disable(g.DEPTH_TEST);
+    const radius=(2+Math.sin(Math.PI*progress)*this.width/(spread?2:1)*.007)*(width/this.width)/2;
+    for(const [target,source,dx,dy] of [[temporary,mask,radius/this.maskWidth,0],[mask,temporary,0,radius/this.maskHeight]]){
+      g.bindFramebuffer(g.FRAMEBUFFER,target.fbo);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,source.texture);
+      bind(this.blur,this.quad);g.uniform1i(this.blur.u.castShadow,2);g.uniform2f(this.blur.u.blurStep,dx,dy);g.drawArrays(g.TRIANGLE_STRIP,0,4);
+    }
+    g.bindFramebuffer(g.FRAMEBUFFER,null);g.viewport(0,0,width,height);
+    g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,mask.texture);
+    bind(this.background,this.quad);g.uniform1i(this.background.u.castShadow,2);
     g.drawArrays(g.TRIANGLE_STRIP,0,4);
     if(progress<.0001||progress>.9999)return;
     g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);g.frontFace(sign>0?g.CW:g.CCW);
-    bind(this.sheet,this.mesh);g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);g.disable(g.DEPTH_TEST);
+    bind(this.sheet,this.mesh);g.uniform1f(this.sheet.u.shadowPass,0);g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);g.disable(g.DEPTH_TEST);
   }
 }
 class KMReaderSheetEffect {
@@ -851,7 +860,6 @@ class KMReaderSheetEffect {
     shield.addEventListener('pointerdown', event => { if (event.pointerId !== pointer) state.finish(false); });
     // Keep input in its original document. Moving capture between a book iframe
     // and the top document can deadlock Chromium's input router during capture.
-    const safety = setTimeout(() => state.finish(false), 10000);
     enqueue(async () => {
       const saved = anchor || location?.start?.cfi;
       const originalManager=rendition.manager,originalDocuments=rendition.getContents().map(c=>c.document);
@@ -885,7 +893,7 @@ class KMReaderSheetEffect {
         state.effect?.stop();
         if (sheetEffect === state.effect) sheetEffect = undefined;
         interactiveNavigation = false;
-        clearTimeout(safety); shield.remove();
+        shield.remove();
         if (gesture === state) gesture = undefined;
         suppressClickUntil = Date.now() + 500;
       }
