@@ -11,6 +11,7 @@ import 'package:sqlite3/sqlite3.dart';
 export 'credentials.dart';
 
 import 'api.dart';
+import 'local_library.dart';
 import 'network_preferences.dart';
 import 'reader_defaults.dart';
 import 'credentials.dart';
@@ -32,6 +33,10 @@ class AppController extends ChangeNotifier {
     directory,
   );
   late final DeviceLock deviceLock = DeviceLock(store, SystemAuthenticator());
+  late final LocalLibrary localLibrary = LocalLibrary(
+    store: store,
+    directory: directory,
+  );
   final LocalStore store;
   final Directory directory;
   final CredentialVault vault;

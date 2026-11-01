@@ -187,21 +187,21 @@ class KMReaderSheetEffect {
     const p=this.progress=Math.max(0,Math.min(1,value));
     if(point){const dx=Math.max(this.width*.15,p*this.width);this.slope=Math.max(-.65,Math.min(.65,-(point.y-this.y*this.height)/dx));}
     if(this.style==='curl'){
-      if(this.surface)this.surface.render(p,this.spread,this.sign,this.slope*Math.sin(Math.PI*p),this.y,this.preferences.curlReach);return;
+      if(this.surface)this.surface.render(p,this.spread,this.sign,this.slope*Math.sin(Math.PI*p),this.y, .18);return;
     }
     const upperOld=this.style==='slide'?!this.reverse:false;
     const travel=this.style==='cover'?this.sign*(1-p)*100:upperOld?-this.sign*p*100:this.sign*(1-p)*100;
     const parallax=this.style==='cover'?0:upperOld?this.sign*(1-p)*10:-this.sign*p*10;
     const phase=upperOld?p:1-p;
-    const dark=(this.preferences.backgroundColor||'').match(/^#([0-9a-f]{6})$/i)?.[1];
-    const isDark=this.preferences.theme==='black'||dark&&parseInt(dark.slice(0,2),16)<90;
-    const tint=isDark?Math.min(.12,Math.max(0,Number(this.preferences.pageTint)||0))*Math.pow(Math.max(0,(phase-.25)/.75),2.4):0;
-    const dim=.12*Math.pow(upperOld?1-p:p,1.6);
-    const radius=(Number(this.preferences.pageCornerRadius)||0)*Math.min(1,phase*12);
-    const lift=`contrast(${1-tint}) brightness(${1+tint*.5})`;
-    const under=`brightness(${1-dim})`;
-    this.frames.textContent=`::view-transition-old(km-reader-page){transform:translateX(${upperOld?travel:parallax}%);z-index:${upperOld?2:1};filter:${upperOld?lift:under};border-radius:${upperOld?radius:0}px}
-      ::view-transition-new(km-reader-page){transform:translateX(${upperOld?parallax:travel}%);z-index:${upperOld?1:2};filter:${upperOld?under:lift};border-radius:${upperOld?0:radius}px}`;
+    if(!this.styles){
+      this.frames.textContent='::view-transition-old(km-reader-page){}::view-transition-new(km-reader-page){}';
+      this.styles=[...this.frames.sheet.cssRules].map(rule=>rule.style);
+    }
+    this.styles[0].transform=`translateX(${upperOld?travel:parallax}%)`;
+    this.styles[0].zIndex=upperOld?'2':'1';
+    this.styles[1].transform=`translateX(${upperOld?parallax:travel}%)`;
+    this.styles[1].zIndex=upperOld?'1':'2';
+
   }
   track(value,point){this.pendingPoint=[value,point];if(this.tracking)return;this.tracking=requestAnimationFrame(()=>{this.tracking=0;const args=this.pendingPoint;this.pendingPoint=null;if(args)this.update(...args);});}
   animateTo(target,duration){cancelAnimationFrame(this.tracking);this.tracking=0;this.pendingPoint=null;if(this.stopped)return Promise.resolve();this.finishAnimation?.();cancelAnimationFrame(this.frame);return new Promise(resolve=>{this.finishAnimation=resolve;const from=this.progress,start=performance.now();const frame=now=>{if(this.stopped){resolve();return;}const t=Math.min(1,(now-start)/Math.max(1,duration));const eased=1-Math.pow(1-t,4);this.update(from+(target-from)*eased);if(t<1)this.frame=requestAnimationFrame(frame);else{this.finishAnimation=null;resolve();}};this.frame=requestAnimationFrame(frame);});}
@@ -911,6 +911,7 @@ class KMReaderSheetEffect {
     }
   }
   async function transitionMove(delta, style, y) {
+    if(delta>0 && atReadingEnd() || delta<0 && location?.atStart)return null;
     const move = () => delta > 0 ? next() : previous();
     if (!motionAllowed(style) || !KMReaderSheetEffect.supported(style) || (delta > 0 && atReadingEnd())) {
       await move(); return null;

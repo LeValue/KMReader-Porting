@@ -24,6 +24,15 @@ with sync_playwright() as pw:
     assert page.evaluate('reader.selectedText()') == selected, 'Toolbar focus destroyed the selected passage'
     page.evaluate('reader.clearSelection()')
     assert page.evaluate('reader.selectedText()') == ''
+    page.evaluate("""() => {
+      window.boundaryStarts=0;
+      const start=KMReaderSheetEffect.prototype.start;
+      KMReaderSheetEffect.prototype.start=function(...args){boundaryStarts++;return start.apply(this,args);};
+    }""")
+    first_cfi=page.evaluate('reader.position().start.cfi')
+    page.evaluate("reader.turn({delta:-1,style:'curl'})")
+    assert page.evaluate('boundaryStarts') == 0, 'First page started a reverse animation'
+    assert page.evaluate('reader.position().start.cfi') == first_cfi
     before_selection = page.evaluate('reader.position().start.cfi')
     # A genuine drag on text near the page edge selects words, not a page.
     page.evaluate('() => new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))')
@@ -77,8 +86,7 @@ with sync_playwright() as pw:
         pixels = image.getdata()
         assert sum(max(p) < 120 for p in pixels) > 150, (style, 'Blank page')
         if style != 'curl':
-            # A moving black page gains a visible gray paper background.
-            assert sum(15 < min(p) and max(p) < 80 for p in pixels) > width * height * .05, style
+            assert page.evaluate('effect.styles.every(s=>s.filter === "" && s.borderRadius === "")'), style
         if style == 'curl':
             assert page.evaluate('effect.surface.canvas.width') == width
             assert page.evaluate('effect.surface.canvas.height') == height
@@ -252,6 +260,23 @@ with sync_playwright() as pw:
     old = page.evaluate('reader.position().start.cfi')
     page.evaluate("reader.turn({delta:1,style:'curl'})")
     assert page.evaluate('reader.position().start.cfi') != old
+    # Neither direct commands nor gestures may construct a sheet beyond the end.
+    page.evaluate("""async () => {
+      await reader.display('two.xhtml');
+      const doc=document.querySelector('#viewer iframe').contentDocument;
+      const range=doc.createRange();range.selectNodeContents(doc.body.lastElementChild);range.collapse(false);
+      const base=reader.position().start.cfi.slice(8).split('!')[0];
+      await reader.display(new ePub.CFI(range,base).toString());
+    }""")
+    for _ in range(8):
+        if page.evaluate('reader.position().atEnd'): break
+        page.evaluate('reader.next()')
+    assert page.evaluate('reader.position().atEnd'), 'End fixture was not reached: '+json.dumps(page.evaluate('reader.position()'))
+    page.evaluate('boundaryStarts=0')
+    end_cfi=page.evaluate('reader.position().start.cfi')
+    page.evaluate("reader.turn({delta:1,style:'curl'})")
+    assert page.evaluate('boundaryStarts') == 0, 'Last page started another animation'
+    assert page.evaluate('reader.position().start.cfi') == end_cfi
     assert not errors, errors
     page.evaluate('reader.destroy()')
     assert page.evaluate('document.querySelectorAll("style[data-page-motion],#page-gesture").length') == 0

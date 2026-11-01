@@ -1,3 +1,5 @@
+import '../features/local/local_library_page.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -59,6 +61,7 @@ class _AppShellState extends State<AppShell> {
     'Library',
     'Lists',
     'Search',
+    'Local Books',
     'Settings',
   ];
   static const _icons = [
@@ -66,6 +69,7 @@ class _AppShellState extends State<AppShell> {
     CupertinoIcons.book,
     CupertinoIcons.rectangle_stack,
     CupertinoIcons.search,
+    CupertinoIcons.folder,
     CupertinoIcons.gear,
   ];
   @override
@@ -81,13 +85,14 @@ class _AppShellState extends State<AppShell> {
         1 => _LibraryBrowser(repository: repository),
         2 => _ListsPage(repository: repository),
         3 => _SearchPage(repository: repository),
+        4 => LocalLibraryPage(app: widget.app),
         _ => SettingsPage(app: widget.app, repository: repository),
       },
     );
     final content = IndexedStack(
       index: _index,
       children: [
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 6; i++)
           TickerMode(
             enabled: i == _index,
             child: _visited[i] ?? const SizedBox.shrink(),
@@ -95,7 +100,7 @@ class _AppShellState extends State<AppShell> {
       ],
     );
     return Scaffold(
-      appBar: wide || _index == 4
+      appBar: wide || _index == 5
           ? null
           : AppBar(
               title: Text(tr(context, _labels[_index])),
@@ -198,7 +203,7 @@ class _AppShellState extends State<AppShell> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          onTap: () => setState(() => _index = 4),
+                          onTap: () => setState(() => _index = 5),
                         ),
                       ),
                     ],
@@ -208,7 +213,7 @@ class _AppShellState extends State<AppShell> {
             Expanded(
               child: Column(
                 children: [
-                  if (wide && _index != 4)
+                  if (wide && _index != 5)
                     SizedBox(
                       height: 64,
                       child: Padding(

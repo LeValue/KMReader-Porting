@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -10,21 +11,34 @@ import 'curl_sheet.dart';
 
 import 'package:flutter/services.dart';
 
+class PreparedPageTurn {
+  PreparedPageTurn(this.before, this.after, this.bounds, this.backBounds);
+  final ui.Image before, after;
+  final Rect bounds;
+  final Rect? backBounds;
+}
+
 /// Raster overlays keep native browser views stationary while Flutter paints
 /// transitions. Images are released after the overlay's final frame.
 class ReaderPageTransition extends StatefulWidget {
   const ReaderPageTransition({
     super.key,
     required this.child,
+    this.prepare,
+    this.canTurn,
     this.capture,
     this.captureImage,
     this.sheetBounds,
+    this.backBounds,
     this.motion = const PageMotion(),
   });
+  final PreparedPageTurn? Function(int direction)? prepare;
+  final bool Function(int direction)? canTurn;
   final Widget child;
   final Future<Uint8List?> Function()? capture;
   final Future<ui.Image?> Function()? captureImage;
   final Rect Function(Size size, int direction)? sheetBounds;
+  final Rect? Function(Size size, int direction)? backBounds;
   final PageMotion motion;
   @override
   State<ReaderPageTransition> createState() => ReaderPageTransitionState();
@@ -37,7 +51,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
     duration: Duration(milliseconds: widget.motion.duration),
   );
   ui.Image? _before, _after;
-  Rect? _sheetBounds;
+  Rect? _sheetBounds, _backBounds;
   String _style = 'none';
   int _direction = 1;
   bool _running = false, _interrupt = false, _previewReady = true;
@@ -85,6 +99,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
       }
       return;
     }
+    if (widget.canTurn?.call(direction) == false) return;
     _running = true;
     _interrupt = _queue.isNotEmpty;
     ui.Image? before, after;
@@ -93,9 +108,34 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         await move();
         return;
       }
+      final prepared = widget.prepare?.call(direction);
+      if (prepared != null) {
+        before = prepared.before;
+        after = prepared.after;
+        setState(() {
+          _before = before;
+          _after = after;
+          _sheetBounds = prepared.bounds;
+          _backBounds = prepared.backBounds;
+          _style = style;
+          _direction = direction;
+          _animation.value = 0;
+        });
+        _animation.duration = Duration(milliseconds: widget.motion.duration);
+        try {
+          await _animation.animateTo(1, curve: Curves.easeInOutCubic).orCancel;
+        } on TickerCanceled {
+          if (!mounted) return;
+        }
+        if (mounted) await move();
+        return;
+      }
       final box = context.findRenderObject();
       _sheetBounds = box is RenderBox
           ? widget.sheetBounds?.call(box.size, direction)
+          : null;
+      _backBounds = box is RenderBox
+          ? widget.backBounds?.call(box.size, direction)
           : null;
       before = await _capture();
       if (!mounted) return;
@@ -147,40 +187,59 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
   }) => _CurlDrag(this, reverse, width, preview, finish);
 
   Future<void> _interactive(_CurlDrag drag) async {
-    if (_running) return;
+    if (_running || widget.canTurn?.call(drag.physical) == false) return;
     _activeDrag = drag;
     _running = true;
     _previewReady = false;
     ui.Image? before, after;
     var previewed = false;
     try {
-      final box = context.findRenderObject();
-      _sheetBounds = box is RenderBox
-          ? widget.sheetBounds?.call(box.size, drag.physical)
-          : null;
-      before = await _capture();
-      if (!mounted || drag.canceled) return;
-      if (before == null) {
-        if (await drag.decision.future) await drag.finish(drag.delta, true);
-        return;
+      final prepared = widget.prepare?.call(drag.physical);
+      if (prepared != null) {
+        before = prepared.before;
+        after = prepared.after;
+        _sheetBounds = prepared.bounds;
+        _backBounds = prepared.backBounds;
+        setState(() {
+          _before = before;
+          _after = after;
+          _style = 'curl';
+          _direction = drag.physical;
+          _previewReady = true;
+          _animation.value = drag.progress;
+        });
+      } else {
+        final box = context.findRenderObject();
+        _sheetBounds = box is RenderBox
+            ? widget.sheetBounds?.call(box.size, drag.physical)
+            : null;
+        _backBounds = box is RenderBox
+            ? widget.backBounds?.call(box.size, drag.physical)
+            : null;
+        before = await _capture();
+        if (!mounted || drag.canceled) return;
+        if (before == null) {
+          if (await drag.decision.future) await drag.finish(drag.delta, true);
+          return;
+        }
+        setState(() {
+          _before = before;
+          _after = null;
+          _style = 'curl';
+          _direction = drag.physical;
+          _animation.value = 0;
+        });
+        await WidgetsBinding.instance.endOfFrame;
+        previewed = await drag.preview(drag.delta);
+        if (!previewed) return;
+        after = await _capture();
+        if (!mounted) return;
+        setState(() {
+          _after = after;
+          _previewReady = true;
+          _animation.value = drag.progress;
+        });
       }
-      setState(() {
-        _before = before;
-        _after = null;
-        _style = 'curl';
-        _direction = drag.physical;
-        _animation.value = 0;
-      });
-      await WidgetsBinding.instance.endOfFrame;
-      previewed = await drag.preview(drag.delta);
-      if (!previewed) return;
-      after = await _capture();
-      if (!mounted) return;
-      setState(() {
-        _after = after;
-        _previewReady = true;
-        _animation.value = drag.progress;
-      });
       final commit = await drag.decision.future && !drag.canceled;
       if (!mounted) return;
       if (!drag.canceled) {
@@ -236,7 +295,11 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
     final origin = _activeDrag?.origin;
     final box = context.findRenderObject();
     if (origin == null || box is! RenderBox || box.size.height <= 0) return .5;
-    return (box.globalToLocal(origin).dy / box.size.height).clamp(0, 1);
+    final bounds = _sheetBounds ?? Offset.zero & box.size;
+    return ((box.globalToLocal(origin).dy - bounds.top) / bounds.height).clamp(
+      0,
+      1,
+    );
   }
 
   @override
@@ -260,6 +323,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
                   foldSlope: _activeDrag?.slope ?? 0,
                   grabY: _grabY,
                   sheetBounds: _sheetBounds,
+                  backBounds: _backBounds,
                 ),
               ),
             ),
@@ -280,9 +344,10 @@ class PageTurnPainter extends CustomPainter {
     this.foldSlope = 0,
     this.grabY = .5,
     this.sheetBounds,
+    this.backBounds,
   });
   final double foldSlope, grabY;
-  final Rect? sheetBounds;
+  final Rect? sheetBounds, backBounds;
   final ui.Image before;
   final ui.Image? after;
   final double progress;
@@ -344,94 +409,171 @@ class PageTurnPainter extends CustomPainter {
 
   void _curl(Canvas canvas, Size size, double p) {
     final bounds = sheetBounds ?? Offset.zero & size;
+    if (bounds.isEmpty) return;
     final width = bounds.width, height = bounds.height;
-    const columns = 120, rows = 20;
-    final positions = <Offset>[],
-        textures = <Offset>[],
-        colors = <Color>[],
-        indices = <int>[];
-    final sections = List.generate(rows + 1, (row) {
-      final cone =
-          1 + ((.5 - grabY) * .65 + foldSlope * .35) * (row / rows - grabY);
-      return CurlSheet(
-        width,
-        p,
-        cone: cone.clamp(.65, 1.35),
-        reach: motion.curlReach,
+    // In a spread, the stationary leaf stays in the old spread. The back of
+    // the turning leaf is the opposite leaf of the incoming spread.
+    if (backBounds != null) {
+      canvas.save();
+      canvas.clipRect(
+        direction > 0
+            ? Rect.fromLTWH(0, 0, size.width / 2, size.height)
+            : Rect.fromLTWH(size.width / 2, 0, size.width / 2, size.height),
       );
-    });
+      image(canvas, before, size);
+      canvas.restore();
+    }
+    const columns = 96, rows = 16, count = (columns + 1) * (rows + 1);
+    final positions = Float32List(count * 2);
+    final textures = Float32List(count * 2);
+    final backTextures = Float32List(count * 2);
+    final colors = Int32List(count);
+    final normals = Float32List(count);
+    final depths = Float32List(count);
+    final frontIndices = <int>[], backIndices = <int>[];
+    final nx = 1 / math.sqrt(1 + foldSlope * foldSlope),
+        ny = foldSlope / math.sqrt(1 + foldSlope * foldSlope);
+    final originY = height * grabY;
+    final hinge = direction > 0 ? bounds.left : bounds.right;
+    final cone = ((.5 - grabY) * .65 + foldSlope * .35).clamp(-.45, .45);
     for (var col = 0; col <= columns; col++) {
-      final u = width * col / columns;
+      final sx = width * col / columns;
       for (var row = 0; row <= rows; row++) {
-        final y = height * row / rows;
-        final sheet = sections[row];
-        final tilt =
-            foldSlope * height * math.sin(math.pi * p) * (row / rows - grabY);
-        final point = sheet.point(u - tilt);
-        final x = point.x + tilt, z = point.z;
-        final scale = width * 3 / (width * 3 - z);
-        final projected = x * scale;
-        positions.add(
-          Offset(
-            bounds.left + (direction > 0 ? projected : width - projected),
-            bounds.top + (y - height * grabY) * scale + height * grabY,
-          ),
+        final sy = height * row / rows;
+        final u = nx * sx + ny * (sy - originY);
+        final v = -ny * sx + nx * (sy - originY);
+        final sheet = CurlSheet(
+          width,
+          p,
+          cone: (1 + cone * v / height).clamp(.65, 1.35),
         );
-        textures.add(
-          Offset(
-            (bounds.left +
-                    width *
-                        (direction > 0 ? col / columns : 1 - col / columns)) *
-                before.width /
-                size.width,
-            (bounds.top + height * row / rows) * before.height / size.height,
-          ),
-        );
-        final shade = 1 - .30 * math.pow(math.sin(point.angle).abs(), 1.4);
-        colors.add(
-          Color.fromRGBO(
-            (shade * 255).round(),
-            (shade * 255).round(),
-            (shade * 255).round(),
-            1,
-          ),
-        );
-        if (col < columns && row < rows) {
-          final a = col * (rows + 1) + row, b = a + rows + 1;
-          indices.addAll([a, b, a + 1, a + 1, b, b + 1]);
-        }
+        final point = sheet.point(u);
+        final x = nx * point.x - ny * v;
+        final y = ny * point.x + nx * v;
+        final scale = width * 3 / (width * 3 - point.z);
+        final i = col * (rows + 1) + row, j = i * 2;
+        positions[j] = hinge + direction * x * scale;
+        positions[j + 1] = bounds.top + originY + y * scale;
+        textures[j] =
+            (bounds.left + (direction > 0 ? sx : width - sx)) *
+            before.width /
+            size.width;
+        textures[j + 1] = (bounds.top + sy) * before.height / size.height;
+        final back = after == null ? null : backBounds;
+        backTextures[j] = back == null
+            ? textures[j]
+            : (back.left +
+                      back.width *
+                          (direction > 0 ? 1 - col / columns : col / columns)) *
+                  after!.width /
+                  size.width;
+        backTextures[j + 1] = back == null
+            ? textures[j + 1]
+            : (back.top + back.height * row / rows) *
+                  after!.height /
+                  size.height;
+        normals[i] = math.cos(point.angle);
+        depths[i] = point.z;
+        final shade =
+            ((1 - .28 * math.pow(math.sin(point.angle).abs(), 1.4)) * 255)
+                .round();
+        colors[i] = 0xff000000 | shade << 16 | shade << 8 | shade;
       }
     }
-    final outline = Path()..moveTo(positions.first.dx, positions.first.dy);
-    for (var col = 1; col <= columns; col++) {
-      outline.lineTo(
-        positions[col * (rows + 1)].dx,
-        positions[col * (rows + 1)].dy,
+    for (var col = 0; col < columns; col++) {
+      for (var row = 0; row < rows; row++) {
+        final a = col * (rows + 1) + row, b = a + rows + 1;
+        final first = normals[a] + normals[b] + normals[a + 1] >= 0
+            ? frontIndices
+            : backIndices;
+        first.add(a);
+        first.add(b);
+        first.add(a + 1);
+        final second = normals[a + 1] + normals[b] + normals[b + 1] >= 0
+            ? frontIndices
+            : backIndices;
+        second.add(a + 1);
+        second.add(b);
+        second.add(b + 1);
+      }
+    }
+    // A folded outline crosses itself. Filling it as a shadow made a black
+    // diagonal curtain; only cast a soft stroke from the raised free edges.
+    final shadow = Paint()
+      ..color = const Color(0x55000000)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    for (final row in [0, rows]) {
+      final edge = Path();
+      var started = false;
+      for (var col = 0; col <= columns; col++) {
+        final i = col * (rows + 1) + row;
+        if (depths[i] < 1) {
+          started = false;
+          continue;
+        }
+        final x = positions[i * 2] + 3, y = positions[i * 2 + 1] + 5;
+        if (started) {
+          edge.lineTo(x, y);
+        } else {
+          edge.moveTo(x, y);
+          started = true;
+        }
+      }
+      canvas.drawPath(edge, shadow);
+    }
+    void draw(List<int> indices, bool back) {
+      if (indices.isEmpty) return;
+      final source = back && backBounds != null && after != null
+          ? after!
+          : before;
+      final mesh = ui.Vertices.raw(
+        ui.VertexMode.triangles,
+        positions,
+        textureCoordinates: back ? backTextures : textures,
+        colors: colors,
+        indices: Uint16List.fromList(indices),
       );
+      final paint = Paint()
+        ..shader = ImageShader(
+          source,
+          TileMode.clamp,
+          TileMode.clamp,
+          Matrix4.identity().storage,
+        )
+        ..filterQuality = FilterQuality.medium;
+      if (back && backBounds == null) {
+        // Paper transmits a faint mirrored impression on a single leaf.
+        paint.colorFilter = const ColorFilter.matrix([
+          .45,
+          0,
+          0,
+          0,
+          140,
+          0,
+          .45,
+          0,
+          0,
+          140,
+          0,
+          0,
+          .45,
+          0,
+          140,
+          0,
+          0,
+          0,
+          1,
+          0,
+        ]);
+      }
+      canvas.drawVertices(mesh, BlendMode.modulate, paint);
+      mesh.dispose();
     }
-    for (var col = columns; col >= 0; col--) {
-      final point = positions[col * (rows + 1) + rows];
-      outline.lineTo(point.dx, point.dy);
-    }
-    outline.close();
-    canvas.drawShadow(outline, Colors.black.withValues(alpha: .35), 12, false);
-    final mesh = ui.Vertices(
-      ui.VertexMode.triangles,
-      positions,
-      textureCoordinates: textures,
-      colors: colors,
-      indices: indices,
-    );
-    final paint = Paint()
-      ..shader = ImageShader(
-        before,
-        TileMode.clamp,
-        TileMode.clamp,
-        Matrix4.identity().storage,
-      )
-      ..filterQuality = FilterQuality.high;
-    canvas.drawVertices(mesh, BlendMode.modulate, paint);
-    mesh.dispose();
+
+    draw(frontIndices, false);
+    draw(backIndices, true);
   }
 
   void _shadow(Canvas canvas, Size size, double edge) {
@@ -455,6 +597,7 @@ class PageTurnPainter extends CustomPainter {
       old.foldSlope != foldSlope ||
       old.grabY != grabY ||
       old.sheetBounds != sheetBounds ||
+      old.backBounds != backBounds ||
       old.motion != motion ||
       old.before != before ||
       old.after != after ||

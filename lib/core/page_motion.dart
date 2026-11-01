@@ -1,47 +1,24 @@
-/// Shared persisted presentation for comic and EPUB page turns.
+/// Persisted input and timing for comic and EPUB page turns.
+/// Legacy cosmetic overrides are deliberately ignored during migration.
 class PageMotion {
-  const PageMotion({
-    this.duration = 380,
-    this.followGesture = true,
-    this.tint = .10,
-    this.cornerRadius = 18,
-    this.curlReach = .18,
-  });
+  const PageMotion({this.duration = 380, this.followGesture = true});
   final int duration;
   final bool followGesture;
-  final double tint, cornerRadius, curlReach;
   factory PageMotion.fromJson(Map<String, dynamic> data) {
-    double value(String key, double fallback, double min, double max) {
-      final v = data[key];
-      return v is num && v.isFinite ? v.toDouble().clamp(min, max) : fallback;
-    }
-
+    final value = data['animationDuration'];
     return PageMotion(
-      duration: value('animationDuration', 380, 150, 900).round(),
+      duration: value is num && value.isFinite
+          ? value.round().clamp(150, 900)
+          : 380,
       followGesture: data['followGesture'] != false,
-      tint: value('pageTint', .10, 0, .25),
-      cornerRadius: value('pageCornerRadius', 18, 0, 32),
-      curlReach: value('curlReach', .18, .08, .55),
     );
   }
   Map<String, dynamic> toJson() => {
     'animationDuration': duration,
     'followGesture': followGesture,
-    'pageTint': tint,
-    'pageCornerRadius': cornerRadius,
-    'curlReach': curlReach,
   };
-  PageMotion copy({
-    int? duration,
-    bool? followGesture,
-    double? tint,
-    double? cornerRadius,
-    double? curlReach,
-  }) => PageMotion(
+  PageMotion copy({int? duration, bool? followGesture}) => PageMotion(
     duration: duration ?? this.duration,
     followGesture: followGesture ?? this.followGesture,
-    tint: tint ?? this.tint,
-    cornerRadius: cornerRadius ?? this.cornerRadius,
-    curlReach: curlReach ?? this.curlReach,
   );
 }

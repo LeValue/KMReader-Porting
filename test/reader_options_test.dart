@@ -1,9 +1,9 @@
+import 'package:flutter/services.dart';
+
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -323,7 +323,7 @@ void main() {
           reason:
               'The left half must be centered and fill its own aspect ratio.',
         );
-        await tester.tap(find.byIcon(CupertinoIcons.chevron_right));
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pumpAndSettle();
         expect(find.textContaining('· Right'), findsOneWidget);
         expect(find.text('Next Book'), findsOneWidget);

@@ -1,4 +1,44 @@
-# Gesture rollback, localized curl and retained comic artwork in 0.8.6
+# Comic frames, minimal chrome and local reading in 0.8.7
+
+Comic curl now uses a fold-aligned material basis and typed mesh buffers.
+Front-facing triangles sample the outgoing leaf. In a spread, back-facing
+triangles sample the opposite incoming leaf, with its readable orientation;
+the other outgoing leaf remains stationary. A folded polygon can intersect
+itself, so cast shadows use strokes along raised edges instead of filling
+that polygon. This removes the large black diagonal artifact. Odd final
+spreads keep a blank cell.
+
+A 48 MiB / four-frame cache composes the current and adjacent comic views at
+idle (maximum 2048 pixels on the long edge). Warm turns borrow image clones
+without a GPU screen readback, next-page jump, or target loading at gesture
+start. The live PageView changes only on commit, while the final overlay is
+still present. Unsupported layouts (crop, rotation, split, zoom, upscaling)
+retain the snapshot path. Both paths reject boundary navigation before capture.
+
+Both readers use floating capsules with a five-second idle timeout. Their
+appearance does not change page dimensions. Mouse hover near an edge reveals
+Windows controls; touch control zones and Escape remain available. EPUB
+settings create lazy rows and defer browser typography reflow until closing;
+local slider state and durable preferences still update in the panel. This
+reduces main-isolate layout and browser work during Android scrolling.
+
+EPUB slide/cover change CSSOM transforms and stacking directly, without
+replacing a stylesheet or applying brightness/corner masks every frame.
+The Windows capture bridge has three buffers, drains stale captures, and
+retains fractional frame-limit timing. Callback threading and disposal ownership
+are unchanged. These are concrete work/latency reductions, not a claim of a
+fixed physical frame rate on every PC or phone.
+
+Local Books owns content-addressed copies of EPUB, PDF and CBZ/ZIP originals,
+independent of accounts and server downloads. Import streams to disk, hashes
+the content and indexes ZIP/EPUB off the UI isolate. Comic pages inflate on
+demand off that isolate, with a 32 MiB encoded-page cache. Progress is local
+and never enters a Komga outbox; removing a copy preserves the selected source.
+RAR/CBR is outside the initial supported formats.
+
+The following sections describe earlier versions and their historical options.
+
+## Gesture rollback, localized curl and retained comic artwork in 0.8.6
 
 A canceled EPUB gesture now keeps its presentation snapshot until the original
 live viewport has been restored and delivered. Same-document rollback restores
