@@ -1,3 +1,5 @@
+import 'comic_spread.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -47,14 +49,7 @@ class ComicFrames {
           try {
             for (var physical = 0; physical < count; physical++) {
               final page = first + (rtl ? count - 1 - physical : physical);
-              final cell = Rect.fromLTWH(
-                physical * size.width / count,
-                0,
-                size.width / count,
-                size.height,
-              );
               if (page > pageCount) {
-                leaves.add(cell);
                 continue;
               }
               final bytes = await load(page);
@@ -70,13 +65,29 @@ class ComicFrames {
                 codec.dispose();
               }
               decoded.add(image);
-              final fitted = applyBoxFit(
-                BoxFit.contain,
-                Size(image.width.toDouble(), image.height.toDouble()),
-                cell.size,
-              ).destination;
-              final rect = Alignment.center.inscribe(fitted, cell);
-              leaves.add(rect);
+            }
+            final aspects = <double>[];
+            var decodedIndex = 0;
+            for (var physical = 0; physical < count; physical++) {
+              final page = first + (rtl ? count - 1 - physical : physical);
+              if (page > pageCount) {
+                aspects.add(
+                  decoded.isNotEmpty
+                      ? decoded.first.width / decoded.first.height
+                      : 1,
+                );
+              } else {
+                final image = decoded[decodedIndex++];
+                aspects.add(image.width / image.height);
+              }
+            }
+            leaves.clear();
+            leaves.addAll(comicLeafBounds(size, aspects));
+            decodedIndex = 0;
+            for (var physical = 0; physical < count; physical++) {
+              final page = first + (rtl ? count - 1 - physical : physical);
+              if (page > pageCount) continue;
+              final image = decoded[decodedIndex++];
               canvas.drawImageRect(
                 image,
                 Rect.fromLTWH(
@@ -85,7 +96,7 @@ class ComicFrames {
                   image.width.toDouble(),
                   image.height.toDouble(),
                 ),
-                rect,
+                leaves[physical],
                 Paint()..filterQuality = FilterQuality.medium,
               );
             }

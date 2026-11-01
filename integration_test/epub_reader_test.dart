@@ -291,6 +291,23 @@ void main() {
               object(store.cached(profile.id, 'epub:${book.id}'))['fontSize'],
               isNot(19),
             );
+            final liveFont = await browser.callAsyncJavaScript(
+              functionBody: "return parseFloat(getComputedStyle(document.querySelector('#viewer iframe').contentDocument.body).fontSize);",
+            );
+            expect(liveFont?.error, isNull);
+            expect(liveFont?.value, isA<num>());
+            expect(
+              liveFont?.value,
+              closeTo(
+                (object(store.cached(profile.id, 'epub:${book.id}'))['fontSize']
+                        as num)
+                    .toDouble(),
+                .1,
+              ),
+              reason: 'Typography must update while the settings sheet is still open',
+            );
+            expect(find.text('Text Settings'), findsWidgets);
+
             expect(
               object(
                 store.cached(profile.id, 'epub:${book.id}'),

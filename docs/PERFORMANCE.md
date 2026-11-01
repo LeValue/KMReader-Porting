@@ -1,4 +1,38 @@
-# Comic frames, minimal chrome and local reading in 0.8.7
+# Projected shadows, joined spreads and live typography in 0.8.8
+
+EPUB curl projects the same curved GPU mesh into a depth-tested half-resolution
+shadow mask, then applies two separable blur passes. The mask and framebuffer
+resources are reused across frames and recreated only when viewport dimensions
+change. It follows complete free edges without piecewise straight-line shadow
+caps or endpoint seams. No pixel readback or per-frame bitmap encoding is used.
+Both white stock and dark-sepia frames are exercised in the browser fixture.
+
+The fixed ten-second gesture timer was removed. Held curl previews remain active
+until release/cancellation, resize, input suspension or reader destruction. The
+browser regression moves an actual held pointer for eleven seconds and checks
+that the fold remains visible and progress is not committed before release.
+
+Comic pages use shared spread geometry: a common height, adjacent physical
+leaves and letterboxing outside the pair. The live widget, composed frame cache
+and turning leaf bounds use that calculation. The native curl normal straightens
+as the turn finishes; centered single sheets exit through the margin, while
+spread backs interpolate to the actual incoming leaf and flatten their lighting.
+A shared host/native pixel check compares the last folded and final frames.
+
+Controls use page colors and explicitly resolve IconButton/TextButton themes,
+including a contrast fallback. This avoids inherited application button colors
+becoming unreadable on dark-sepia or gray stock.
+
+Typography previews are live again. Visible slider state remains local to its
+row; a bounded coalescer holds one running layout and one latest pending value.
+After 80ms a preview updates the retained WebView, and releasing a slider or
+selecting an option flushes it. Closing flushes any remaining update rather than
+being required to apply settings. Native checks inspect actual computed font
+size while the panel is open and require the saved character anchor to remain.
+
+The following sections describe earlier versions and historical behavior.
+
+## Comic frames, minimal chrome and local reading in 0.8.7
 
 Comic curl now uses a fold-aligned material basis and typed mesh buffers.
 Front-facing triangles sample the outgoing leaf. In a spread, back-facing

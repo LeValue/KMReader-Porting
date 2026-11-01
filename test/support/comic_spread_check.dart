@@ -7,6 +7,84 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/page_transition.dart';
 
 void verifyComicSpread() {
+  testWidgets(
+    'centered comic leaf exits or lands continuously at the end of a curl',
+    (tester) async {
+      Future<ui.Image> bitmap(Color color) async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawColor(color, BlendMode.src);
+        final picture = recorder.endRecording();
+        try {
+          return await picture.toImage(500, 300);
+        } finally {
+          picture.dispose();
+        }
+      }
+
+      final before = (await tester.runAsync(() => bitmap(Colors.red)))!;
+      final after = (await tester.runAsync(() => bitmap(Colors.green)))!;
+      try {
+        for (final direction in [-1, 1]) {
+          for (final spread in [false, true]) {
+            final images = <List<int>>[];
+            for (final p in [.9999, 1.0]) {
+              final key = GlobalKey();
+              await tester.pumpWidget(
+                MaterialApp(
+                  home: Center(
+                    child: RepaintBoundary(
+                      key: key,
+                      child: SizedBox(
+                        width: 500,
+                        height: 300,
+                        child: CustomPaint(
+                          painter: PageTurnPainter(
+                            before,
+                            after,
+                            p,
+                            'curl',
+                            direction,
+                            foldSlope: .6,
+                            sheetBounds: const Rect.fromLTWH(200, 40, 100, 220),
+                            backBounds: spread
+                                ? const Rect.fromLTWH(100, 25, 150, 250)
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              final boundary =
+                  key.currentContext!.findRenderObject()
+                      as RenderRepaintBoundary;
+              final image = (await tester.runAsync(() => boundary.toImage()))!;
+              final pixels = (await tester.runAsync(
+                () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+              ))!;
+              images.add(pixels.buffer.asUint8List().toList());
+              image.dispose();
+            }
+            var changed = 0;
+            for (var i = 0; i < images.first.length; i++) {
+              if ((images[0][i] - images[1][i]).abs() > 2) changed++;
+            }
+            expect(
+              changed,
+              lessThan(100),
+              reason:
+                  'Releasing the final overlay cannot remove a visible sheet; spread=$spread direction=$direction',
+            );
+          }
+        }
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        before.dispose();
+        after.dispose();
+      }
+    },
+  );
   testWidgets('double-page curl shows the incoming opposite leaf on its back', (
     tester,
   ) async {
