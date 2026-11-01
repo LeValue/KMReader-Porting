@@ -30,6 +30,8 @@ selecting an option flushes it. Closing flushes any remaining update rather than
 being required to apply settings. Native checks inspect actual computed font
 size while the panel is open and require the saved character anchor to remain.
 
+Review frame on dark-sepia stock: [projected curl shadow](images/epub-curl-sepia-0.8.8.png).
+
 The following sections describe earlier versions and historical behavior.
 
 ## Comic frames, minimal chrome and local reading in 0.8.7

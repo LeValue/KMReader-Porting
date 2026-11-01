@@ -1,5 +1,53 @@
 # Development validation
 
+## 0.8.8 preview — projected shadows, joined comic spreads and live text settings
+
+Published [0.8.8](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.8-preview.1),
+runtime source `82881fda76ecc653e7dc027cced65114d23af040`. All three exact-source build/native jobs passed in
+[verification 41342039422](https://github.com/LeValue/KMReader-Porting/actions/runs/41342039422);
+[publisher 41343757993](https://github.com/LeValue/KMReader-Porting/actions/runs/41343757993)
+reused the verified Windows artifact and locally verified signed APKs.
+
+All **321 host tests** pass with Chromium/ONNX enabled, plus formatting, static
+analysis and eight Python checks. CI separately exercises the real Komga client.
+A real pointer stays down and moves for eleven seconds without the EPUB fold
+expiring or committing progress. White-stock GPU pixels require an exposed,
+neutral cast shadow from the projected curved mesh; dark-sepia text frames are
+saved for review. Reader-button tests require at least 4.5:1 contrast on white,
+black, gray and dark-brown paper even with incompatible application icon colors.
+
+Unequal comic leaves share a height and meet at the spine in both directions.
+The same layout feeds live widgets, composed frames and curl bounds. A new
+shared pixel regression compares progress .9999 against the final frame for
+centered single pages and spreads, in both turn directions: releasing the
+overlay cannot remove a visible page. Live-preview tests require one running
+layout and one latest pending preference, applied before the panel closes.
+
+Windows passes **23 native checks**, Android **22 native checks** plus both
+notch/rotation checks. The endpoint pixel regression runs on native renderers.
+Native WebViews require successful shadow framebuffer allocation with no GL
+error. Typography checks inspect actual computed font size while Text Settings
+remains open, require it to match persisted preferences and retain the saved CFI.
+Both release builds and isolated Windows startup pass.
+
+All five assets were downloaded and their SHA256SUMS and GitHub digests checked.
+APKs match staged signed bytes, source/version/build 18, the preview certificate,
+non-debuggable flags, architecture and 16KiB native-library alignment. All
+**63 Windows files**, including **21 AMD64 PE files**,
+match the successful CI artifact. Windows remains unsigned.
+See [implementation and visual review](PERFORMANCE.md).
+
+These checks establish state, geometry and rendering invariants; they do not
+establish a fixed frame rate on every physical device or exact Apple Books parity.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.8-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-android-arm64-preview.apk) | 77,633,114 | `ff02d581a7431b50df323df72d39c49b7cdb7381a0ea8d6b5508095aa5ee3542` |
+| [KMReader-0.8.8-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-android-armv7-preview.apk) | 63,983,020 | `dcc9283e297c409a90c935820f2f884a9208d0490b29d81f3cde27f3f856c0c2` |
+| [KMReader-0.8.8-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-android-x64-preview.apk) | 83,868,959 | `aeef69619396043f754028e9a758dcf889c3bfd5924d4f30d370af81fd6be728` |
+| [KMReader-0.8.8-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-windows-x64-preview.zip) | 34,435,889 | `5a2a087495521aa8b77909fb4adc43c094b0a3c845646c2490285206ea36abe8` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/SHA256SUMS.txt) | 424 | `7ea37005ce2eb1d5905b334eb17d8547ccbdc9947d4def5559e10e77a6665a6e` |
+
 ## 0.8.7 preview — comic curl, minimal controls and local books
 
 Published [0.8.7](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.7-preview.1),
