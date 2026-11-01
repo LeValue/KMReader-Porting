@@ -85,7 +85,7 @@ The original Waifu2x weights are converted to portable ONNX; independent source
 network probes agree within 1.3e-6 and output packing within one byte. Enhancement
 runs in a worker isolate with bounded tiles/memory while original artwork stays visible.
 
-The current published release is [0.8.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.5-preview.1), runtime source `0628968e2ad2dc80856ae017caf307fa2bdbca7e`. Its Android/Windows
+The current published release is [0.8.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.6-preview.1), runtime source `3d04cd82715a768f0b05c4ec328b46cfd1a24a6b`. Its Android/Windows
 artifacts were downloaded and verified after publication, including their embedded
 source/version records. All three exact-source verification jobs passed. The remaining
 functional gaps are listed above; five user-supplied iPad screens now provide a partial reference; exact visual parity remains unverified. See [the comparison](IPAD_REFERENCE.md).

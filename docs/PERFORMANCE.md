@@ -33,6 +33,9 @@ checks for image lifetime, bounds, cancellation, and geometry continuity.
 These checks establish rendering/state invariants. Physical-device frame times
 and subjective comparison with Apple Books remain device acceptance work.
 
+Reviewable intermediate Chromium frames: [forward, single page](images/epub-curl-forward-0.8.6.png) and
+[backward, spread](images/epub-curl-backward-0.8.6.png), using the same publication and theme.
+
 The notes below describe earlier versions.
 
 # Reader input, opening and GPU sheets in 0.8.5

@@ -1,5 +1,55 @@
 # Development validation
 
+## 0.8.6 preview — atomic rollback, localized curl and retained comic artwork
+
+Published [0.8.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.6-preview.1),
+runtime source `3d04cd82715a768f0b05c4ec328b46cfd1a24a6b`. All three exact-source build/native jobs passed in
+[verification 41206163826](https://github.com/LeValue/KMReader-Porting/actions/runs/41206163826);
+[publisher 41262587609](https://github.com/LeValue/KMReader-Porting/actions/runs/41262587609)
+reused that verified Windows artifact and the locally verified signed APKs.
+
+All **306 host tests** pass with Chromium/ONNX enabled. Formatting, static
+analysis and eight Python checks pass. Browser checks verify rollback **at
+snapshot removal** for slide and curl, not only the eventual locator. Backward
+spread curl must retain the stationary opposite leaf; texture endpoints match
+the live publication in both directions. A white-stock GPU fixture samples a
+raised free edge and requires a visible neutral cast shadow. Existing rapid-turn,
+CJK, fixed-layout,
+selection, resize, reduced-motion and renderer recovery checks remain.
+
+New host regressions assert decoded artwork retains its widget state through
+both animation endpoints, letterbox pixels stay outside the paper mesh, and
+actual decoded image dimensions determine offline curl bounds. The deformation
+reach survives comic/EPUB preference copies and global defaults. Geometry checks
+cover straight/local-arc/roll joins, position/tangent continuity and local arc length.
+
+Windows passes **20 native checks**, Android **19 native checks** plus both
+notch/rotation checks. The added native comic fixture rasterizes forward and
+backward folds at four progress positions and samples margin pixels to catch
+black letterboxing entering the sheet. Native EPUB checks retain actual glyph
+captures, fullscreen round-trips, arrows, selection actions, rapid turns and
+WebView2 renderer recreation. Both release builds and isolated Windows startup pass.
+
+All five released assets were downloaded and their SHA256SUMS/GitHub digests
+checked. The APKs match the staged signed bytes, retained preview certificate,
+source/version/build 16, non-debuggable flags, architecture and 16KiB alignment.
+All nine libraries in each 64-bit APK pass 16KiB ELF LOAD alignment.
+All **63 Windows files**, including 21 AMD64 PE files, match the
+successful CI artifact. The release executable omits the debug wheel hook.
+Windows remains unsigned. See [implementation and limits](PERFORMANCE.md).
+
+Controlled fixtures do not establish physical-device frame rates or exact Apple
+Books equivalence. Remaining porting differences stay explicit in [parity](PARITY.md).
+Historical validation sections below describe their respective builds.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.6-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-android-arm64-preview.apk) | 77,567,362 | `2a0fc2d5422f583afa0f16c056f85e04adcea40299eea8f9d6a9e20701c08b55` |
+| [KMReader-0.8.6-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-android-armv7-preview.apk) | 63,900,884 | `fe28aacaae55c7b1b6ef82df67eef7f378643939d3a2d13af571bc6799b26acc` |
+| [KMReader-0.8.6-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-android-x64-preview.apk) | 83,868,743 | `157bfec8ab449e769ffdc5bb89c43d8b9bd3eaa964b992e17969b2ce520e1cbf` |
+| [KMReader-0.8.6-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-windows-x64-preview.zip) | 34,404,220 | `7d710e5af060a6902c38078344ea2733d838229377a310fb74eb0df02c38f43b` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/SHA256SUMS.txt) | 424 | `00cad39f2267d2c8e56c0aa23ece323e01a13844afd09323e166aa46ad7cf7cf` |
+
 ## 0.8.5 preview — desktop input, faster opening and GPU curls
 
 Published [0.8.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.5-preview.1), runtime source `0628968e2ad2dc80856ae017caf307fa2bdbca7e`.
