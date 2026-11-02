@@ -28,6 +28,11 @@ nearest complete page if no drag follows. EPUB idle preparation now warms the
 actual offscreen shader passes and framebuffers, reuses canvas dimensions, and
 avoids uploading an unchanged source texture twice at the start of a turn.
 
+Flutter page captures and shared pixel probes use eager raster-thread snapshots.
+The former asynchronous worker capture could fail to bind an EGL context still
+owned by another thread on Android. The same pixel comparisons and native
+renderer remain; the capture no longer competes for a worker GL context.
+
 Regression checks inject delayed first frames and mid-flight stalls, check
 monotone movement and endpoint velocity, exercise contact during automatic
 comic turns, and verify shade gradients and unchanged endpoint artwork. These

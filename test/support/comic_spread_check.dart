@@ -59,7 +59,9 @@ void verifyComicSpread() {
               final boundary =
                   key.currentContext!.findRenderObject()
                       as RenderRepaintBoundary;
-              final image = (await tester.runAsync(() => boundary.toImage()))!;
+              // Queue the snapshot on the raster thread. The asynchronous capture
+              // path can bind a worker EGL context still held by another thread.
+              final image = boundary.toImageSync();
               final pixels = (await tester.runAsync(
                 () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
               ))!;
@@ -154,7 +156,7 @@ void verifyComicSpread() {
       );
       final boundary =
           key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final image = (await tester.runAsync(() => boundary.toImage()))!;
+      final image = boundary.toImageSync();
       final data = (await tester.runAsync(
         () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
       ))!;
