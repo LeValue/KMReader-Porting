@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/pdf_preferences.dart';
 import 'package:kmreader/features/reader/pdf_reader.dart';
 import 'package:kmreader/features/reader/pdf_raster_pages.dart';
+import 'package:kmreader/features/reader/pdf_runtime.dart';
 import 'package:kmreader/features/reader/pdf_raster_reader.dart';
 import 'package:kmreader/features/reader/reader_page.dart';
 import 'package:kmreader/features/settings/pdf_reader_settings.dart';
@@ -95,6 +97,31 @@ void main() {
       } finally {
         await source.close();
       }
+    },
+  );
+
+  test(
+    'PDF runtime preserves format errors without asking for a password',
+    () async {
+      await initializePdfRuntime();
+      var passwordRequests = 0;
+      await expectLater(
+        PdfDocument.openData(
+          Uint8List.fromList('Invalid PDF fixture'.codeUnits),
+          passwordProvider: () async {
+            passwordRequests++;
+            return null;
+          },
+        ),
+        throwsA(
+          isA<PdfException>().having(
+            (error) => error is PdfPasswordException,
+            'password error',
+            false,
+          ),
+        ),
+      );
+      expect(passwordRequests, 0);
     },
   );
 

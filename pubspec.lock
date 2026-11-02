@@ -682,7 +682,7 @@ packages:
     source: hosted
     version: "2.3.0"
   pdfium_dart:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: pdfium_dart
       sha256: e9f712166563540228e9ce7b8a515fcbd42ebd9d7c0925baa42c6b981f7e7900
@@ -706,7 +706,7 @@ packages:
     source: hosted
     version: "2.10.1"
   pdfrx_engine:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: pdfrx_engine
       sha256: "70b8074111c08b44b9349b6500d8e2bca4a7f898c3c21b21d79370ae9447ef97"
