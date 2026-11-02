@@ -36,11 +36,13 @@ import 'support/comic_sheet_check.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // Keep native GPU readback probes in the initial renderer, before fixtures
+  // that create/terminate WebView and background-engine graphics contexts.
+  verifyNativeComicSheets();
   verifyNativeBackgroundDownloads();
   verifyNativeScrolling(binding);
   verifyNativeWindowsWheel();
   verifyNativeEpubPerformance();
-  verifyNativeComicSheets();
   verifyNativeLocalLibrary();
   testWidgets('Android export rejects files outside app-private storage', (
     tester,
