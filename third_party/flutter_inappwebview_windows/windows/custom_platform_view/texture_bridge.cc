@@ -106,6 +106,26 @@ namespace flutter_inappwebview_plugin
       return false;
     }
 
+#if defined(____x_ABI_CWindows_CGraphics_CCapture_CIGraphicsCaptureSession5_INTERFACE_DEFINED__)
+    // Newer Windows versions expose the capture session's minimum interval.
+    // Let the compositor deliver changes at the display cadence; an inherited
+    // minimum interval can quantize delivery to several high-refresh vsyncs.
+    // Older systems/SDKs retain their existing capture behavior.
+    if (auto interval_session = capture_session_.try_as<
+      ABI::Windows::Graphics::Capture::IGraphicsCaptureSession5>()) {
+      rendering_stats_.capture_interval_supported = true;
+      ABI::Windows::Foundation::TimeSpan interval{};
+      if (SUCCEEDED(interval_session->get_MinUpdateInterval(&interval))) {
+        rendering_stats_.capture_interval_before_100ns = interval.Duration;
+      }
+      rendering_stats_.capture_interval_result =
+        interval_session->put_MinUpdateInterval(ABI::Windows::Foundation::TimeSpan{0});
+      if (SUCCEEDED(interval_session->get_MinUpdateInterval(&interval))) {
+        rendering_stats_.capture_interval_100ns = interval.Duration;
+      }
+    }
+#endif
+
     const auto started = capture_session_->StartCapture();
     rendering_stats_.start_result = started;
     if (SUCCEEDED(started)) {
