@@ -221,7 +221,7 @@ class KMReaderSheetEffect {
         const before=await this.capture();
         if(this.stopped)return false;
         this.surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
-        this.surface.upload(before,before,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
+        this.surface.upload(before,null,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
         moved=true;await move();
         const after=await this.capture();if(this.stopped)return false;
         this.surface.upload(before,after,this.width,this.height);this.update(0);return true;

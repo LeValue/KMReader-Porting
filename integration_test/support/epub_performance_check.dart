@@ -76,6 +76,25 @@ void verifyNativeEpubPerformance() {
       return result?.value;
     }
 
+    Future<dynamic> jsWhilePresenting(String source) async {
+      var finished = false;
+      final reply = controller()!
+          .callAsyncJavaScript(functionBody: source)
+          .timeout(const Duration(seconds: 60))
+          .whenComplete(() => finished = true);
+      // The live test binding only draws requested frames. Keep the real
+      // platform texture consumer active while the browser animates, then
+      // assert outside any guarded pump.
+      final deadline = Stopwatch()..start();
+      while (!finished && deadline.elapsed < const Duration(seconds: 65)) {
+        await tester.pump(const Duration(milliseconds: 16));
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+      final result = await reply;
+      expect(result?.error, isNull);
+      return result?.value;
+    }
+
     Future<void> visibleText() async {
       // Native bounds, DOM repagination and raster delivery are independent.
       // Wait for the actual surface size and layout instead of assuming a
@@ -370,6 +389,29 @@ void verifyNativeEpubPerformance() {
         true,
       );
       await visibleText();
+      // Observe automatic playback before the synchronous GPU readback probes
+      // below can saturate a software emulator's render queue.
+      await jsWhilePresenting("""
+          nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
+          KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
+          const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
+          if(!await automatic.start(async()=>{}))throw Error('Native automatic slide unavailable');
+          // Use the supported maximum duration so the software renderer has
+          // more than one frame to expose the compositor's intermediate state.
+          const started=performance.now(),flight=automatic.animateTo(1,900,{automatic:true});
+          const initialCompositor=!!automatic.compositor;
+          // Observe delivered render frames instead of assuming a 90ms wall
+          // timer runs before a software-rendered emulator finishes the turn.
+          const samples=[];
+          for(let frame=0;frame<120;frame++){
+            await new Promise(requestAnimationFrame);samples.push(automatic.progress);
+            if(automatic.progress>0&&automatic.progress<1)break;
+            if(automatic.stopped||automatic.progress>=1)break;
+          }
+          if(!samples.some(p=>p>0&&p<1))throw Error('Native automatic slide skipped its intermediate frames: '+JSON.stringify({samples,stopped:automatic.stopped,compositor:!!automatic.compositor}));
+          await flight;automatic.stop();window.matchMedia=nativeMedia;
+          await reader.previous();return true;
+      """);
       await js("""
           // Check both receiving planes on actual native GPU pixels. Removing
           // the flat front's receiver in the control must recreate the seam.
@@ -428,26 +470,24 @@ void verifyNativeEpubPerformance() {
     surface.render(0,true,1,0,.5);
     const pixel=new Uint8Array(4);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
     if(pixel[2]<250||pixel[0]>2)throw Error('Texture rotation selected the wrong front: '+pixel);
+    // Exercise the complete production start, not only the texture cache API.
+    // Its initial frame reads the front only; mirroring it into the back would
+    // upload that same page again immediately before loading the new back.
+    const savedEffect=window.effect,savedNative=window.nativeCurl,queue=[pages[3],pages[0]];
+    const real=new KMReaderSheetEffect('curl',1,{},.5,false,true,async()=>queue.shift());
+    uploads=0;
+    try {
+      if(!await real.start(async()=>{}))throw Error('Real curl start unavailable');
+      if(uploads!==1)throw Error('Real curl start reuploaded a retained front: '+uploads);
+      real.update(0);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+      if(pixel[0]<250||pixel[1]<250||pixel[2]<250)throw Error('Real curl start selected the wrong front');
+      real.update(1);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+      if(pixel[0]<250||pixel[1]>2||pixel[2]>2)throw Error('Real curl start selected the wrong back');
+    } finally {real.stop();window.effect=savedEffect;window.nativeCurl=savedNative;}
+
   } finally {g.texImage2D=originalUpload;}
 }
-          nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
-          KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
-          const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
-          if(!await automatic.start(async()=>{}))throw Error('Native automatic slide unavailable');
-          // Use the supported maximum duration so the software renderer has
-          // more than one frame to expose the compositor's intermediate state.
-          const flight=automatic.animateTo(1,900,{automatic:true});
-          // Observe delivered render frames instead of assuming a 90ms wall
-          // timer runs before a software-rendered emulator finishes the turn.
-          const samples=[];
-          for(let frame=0;frame<120;frame++){
-            await new Promise(requestAnimationFrame);samples.push(automatic.progress);
-            if(automatic.progress>0&&automatic.progress<1)break;
-            if(automatic.stopped||automatic.progress>=1)break;
-          }
-          if(!samples.some(p=>p>0&&p<1))throw Error('Native automatic slide skipped its intermediate frames: '+JSON.stringify({samples,stopped:automatic.stopped,compositor:!!automatic.compositor}));
-          await flight;automatic.stop();window.matchMedia=nativeMedia;
-          await reader.previous();return true;
+          return true;
         """);
       // The action must retain its selected passage even if native focus
       // clears the DOM selection while the toolbar popup is open.

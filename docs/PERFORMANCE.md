@@ -14,7 +14,11 @@ to 185×128 (about one eighth of the pixels); text texture resolution is unchang
 Curl now swaps retained GPU texture roles when the incoming page becomes the
 next front. A native/browser GL probe requires uploads of 2, 1, 0, 1 for initial
 pages, the next turn, idle preparation and a further turn. Endpoint pixels must
-still identify the correct front. Idle preparation uploads the actual current
+still identify the correct front. A second probe runs the full production start:
+it must upload only the new page and retain the right front/back endpoint pixels.
+The first frame preserves the unused retained back allocation instead of
+mirroring the front into it immediately before replacing it with a new page.
+Idle preparation uploads the actual current
 page, so decoded SVG artwork is ready before input. Unsupported vertical-axis
 curl preparation is rejected before capture.
 
@@ -26,7 +30,10 @@ accelerated. A native query inspects the attached WebView's actual parents,
 layer type and acceleration state; the integration gate requires the texture
 wrapper, default layer and enabled hardware acceleration. The normal selection,
 settings, live typography, notch/rotation and pixel checks remain. Native
-scrolling probes run on both Android and Windows. Android debug PixelCopy reads
+scrolling probes run on both Android and Windows. The native automatic-slide
+probe runs before synchronous GPU readbacks and keeps Flutter presenting while
+it observes browser playback; the intermediate-progress assertion remains.
+Android debug PixelCopy reads
 FlutterSurfaceView for texture composition and the window for image-view hybrid
 composition, without switching the production renderer. Both dark glyphs and
 light paper are required, so a black window backdrop cannot pass as content.
