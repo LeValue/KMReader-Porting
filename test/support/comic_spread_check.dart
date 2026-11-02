@@ -58,11 +58,9 @@ void verifyComicSpread() {
           home: ColoredBox(color: Colors.black),
         ),
       );
-      if (Platform.isAndroid) {
-        await tester.binding.waitUntilFirstFrameRasterized.timeout(
-          const Duration(seconds: 10),
-        );
-      }
+      // Fence a frame submitted by this test. The binding's startup future can
+      // belong to the pre-test placeholder, rather than this native surface.
+      await _finishNativeRaster(tester);
       Future<ui.Image> bitmap(Color color) async {
         final recorder = ui.PictureRecorder();
         Canvas(recorder).drawColor(color, BlendMode.src);
