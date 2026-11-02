@@ -238,10 +238,50 @@ namespace flutter_inappwebview_plugin
 
   TextureBridge::RenderingStats TextureBridge::GetRenderingStats()
   {
-    const std::lock_guard<std::mutex> lock(mutex_);
-    auto stats = rendering_stats_;
-    stats.running = is_running_;
+    RenderingStats stats;
+    winrt::com_ptr<ABI::Windows::Graphics::Capture::IGraphicsCaptureSession> session;
+    {
+      const std::lock_guard<std::mutex> lock(mutex_);
+      stats = rendering_stats_;
+      stats.running = is_running_;
+      session = capture_session_;
+    }
+#if defined(____x_ABI_CWindows_CGraphics_CCapture_CIGraphicsCaptureSession5_INTERFACE_DEFINED__)
+    if (session) {
+      if (auto interval_session = session.try_as<
+        ABI::Windows::Graphics::Capture::IGraphicsCaptureSession5>()) {
+        ABI::Windows::Foundation::TimeSpan interval{};
+        if (SUCCEEDED(interval_session->get_MinUpdateInterval(&interval))) {
+          stats.capture_interval_100ns = interval.Duration;
+        }
+      }
+    }
+#endif
     return stats;
+  }
+
+  HRESULT TextureBridge::SetCaptureMinUpdateInterval(int64_t ticks)
+  {
+    if (ticks < 0 || ticks > 10000000) return E_INVALIDARG;
+    winrt::com_ptr<ABI::Windows::Graphics::Capture::IGraphicsCaptureSession> session;
+    {
+      const std::lock_guard<std::mutex> lock(mutex_);
+      session = capture_session_;
+    }
+    if (!session) return E_ILLEGAL_METHOD_CALL;
+    HRESULT result = E_NOTIMPL;
+#if defined(____x_ABI_CWindows_CGraphics_CCapture_CIGraphicsCaptureSession5_INTERFACE_DEFINED__)
+    if (auto interval_session = session.try_as<
+      ABI::Windows::Graphics::Capture::IGraphicsCaptureSession5>()) {
+      result = interval_session->put_MinUpdateInterval(
+        ABI::Windows::Foundation::TimeSpan{ticks});
+    }
+#endif
+    {
+      const std::lock_guard<std::mutex> lock(mutex_);
+      rendering_stats_.capture_interval_result = result;
+    }
+    return result;
   }
 
   void TextureBridge::NotifySurfaceSizeChanged()
