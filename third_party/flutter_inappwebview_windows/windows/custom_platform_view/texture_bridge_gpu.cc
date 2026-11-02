@@ -16,7 +16,7 @@ namespace flutter_inappwebview_plugin
       kFlutterDesktopPixelFormatNone;  // no format required for DXGI surfaces
   }
 
-  void TextureBridgeGpu::ProcessFrame(
+  bool TextureBridgeGpu::ProcessFrame(
     winrt::com_ptr<ID3D11Texture2D> src_texture)
   {
     D3D11_TEXTURE2D_DESC desc;
@@ -26,11 +26,13 @@ namespace flutter_inappwebview_plugin
     const auto height = desc.Height;
 
     EnsureSurface(width, height);
+    if (!surface_) return false;
 
     auto device_context = graphics_context_->d3d_device_context();
 
     device_context->CopyResource(surface_.get(), src_texture.get());
     device_context->Flush();
+    return true;
   }
 
   void TextureBridgeGpu::EnsureSurface(uint32_t width, uint32_t height)
@@ -85,8 +87,11 @@ namespace flutter_inappwebview_plugin
       return nullptr;
     }
 
-    if (last_frame_) {
-      ProcessFrame(last_frame_);
+    ++rendering_stats_.surface_requests;
+    if (last_frame_ && ProcessFrame(last_frame_)) {
+      ++rendering_stats_.gpu_copies;
+      last_frame_ = nullptr;
+      capture_frame_ = nullptr;
     }
 
     if (surface_) {
@@ -94,7 +99,7 @@ namespace flutter_inappwebview_plugin
       surface_->AddRef();
     }
 
-    return &surface_descriptor_;
+    return surface_ ? &surface_descriptor_ : nullptr;
   }
 
   void TextureBridgeGpu::StopInternal()

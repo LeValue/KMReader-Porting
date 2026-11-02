@@ -90,18 +90,23 @@ class KMReaderCurlSurface {
         gl_FragColor=vec4(vec3(opacity),1.);
       }`;
     const blurFragment=`precision highp float;varying vec2 v;uniform sampler2D castShadow;uniform vec2 blurStep;
+      uniform float blurWeights[13];
       void main(){
         vec2 uv=vec2(v.x,1.-v.y);
-        vec4 color=texture2D(castShadow,uv)*.227027;
-        color+=(texture2D(castShadow,uv+blurStep*1.384615)+texture2D(castShadow,uv-blurStep*1.384615))*.316216;
-        color+=(texture2D(castShadow,uv+blurStep*3.230769)+texture2D(castShadow,uv-blurStep*3.230769))*.070270;
+        vec4 color=texture2D(castShadow,uv)*blurWeights[0];
+        // Contiguous texels are essential. Scaling a five-tap bilinear kernel
+        // spreads its lobes apart and produces repeated silhouettes of the leaf.
+        for(int i=1;i<13;i++){
+          vec2 offset=blurStep*float(i);
+          color+=(texture2D(castShadow,uv+offset)+texture2D(castShadow,uv-offset))*blurWeights[i];
+        }
         gl_FragColor=color;
       }`;
     const program=(vertexSource,fragmentSource)=>{
       const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource),p=gl.createProgram();
       gl.attachShader(p,vertex);gl.attachShader(p,fragment);gl.linkProgram(p);gl.deleteShader(vertex);gl.deleteShader(fragment);
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
-      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep','rasterSize'])u[name]=gl.getUniformLocation(p,name);
+      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep','rasterSize','blurWeights[0]'])u[name]=gl.getUniformLocation(p,name);
       return {p,u,a:gl.getAttribLocation(p,'a')};
     };
     this.background=program(quadVertex,background);this.sheet=program(meshVertex,meshFragment);
@@ -122,6 +127,13 @@ class KMReaderCurlSurface {
     if(this.canvas.height!==pixelHeight)this.canvas.height=pixelHeight;
     gl.viewport(0,0,pixelWidth,pixelHeight);
     this.sources??=[];
+    // The incoming page normally becomes the next turn's front. Keep that GPU
+    // allocation and swap its role instead of rasterizing/uploading it again.
+    if(this.sources[1]===before&&this.sources[0]!==before){
+      [this.sources[0],this.sources[1]]=[this.sources[1],this.sources[0]];
+      [this.textures[0],this.textures[1]]=[this.textures[1],this.textures[0]];
+    }
+    after??=this.sources[1]||before;
     [before,after].forEach((image,i)=>{
       gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,this.textures[i]);
       if(this.sources[i]!==image){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);this.sources[i]=image;}
@@ -137,10 +149,13 @@ class KMReaderCurlSurface {
       g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,this.shadowTargets?.[0].texture||this.textures[0]);
       bind(this.background,this.quad);g.uniform1i(this.background.u.castShadow,2);g.drawArrays(g.TRIANGLE_STRIP,0,4);return;
     }
-    if(!this.shadowTargets||this.shadowWidth!==width||this.shadowHeight!==height){
+    if(!this.shadowTargets||this.shadowWidth!==width||this.shadowHeight!==height||this.shadowSpread!==spread){
       for(const target of this.shadowTargets||[]){g.deleteFramebuffer(target.fbo);g.deleteTexture(target.texture);if(target.depth)g.deleteRenderbuffer(target.depth);}
-      this.shadowWidth=width;this.shadowHeight=height;
-      this.maskWidth=Math.max(1,Math.ceil(width/2));this.maskHeight=Math.max(1,Math.ceil(height/2));
+      this.shadowWidth=width;this.shadowHeight=height;this.shadowSpread=spread;
+      // The penumbra, rather than the text, determines mask resolution. Keep
+      // its largest sigma at 3.5 texels so a dense finite kernel covers it.
+      const texel=Math.max(1,(3+this.width/(spread?2:1)*.018)*1.6/3.5);
+      this.maskWidth=Math.max(1,Math.ceil(this.width/texel));this.maskHeight=Math.max(1,Math.ceil(this.height/texel));
       this.shadowTargets=[0,1].map(i=>{
         const texture=g.createTexture();g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,texture);
         g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
@@ -164,11 +179,8 @@ class KMReaderCurlSurface {
       g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);
     }
     g.disable(g.DEPTH_TEST);
-    const radius=(3+Math.sin(Math.PI*progress)*this.width/(spread?2:1)*.018)*(width/this.width)/2;
-    for(const [target,source,dx,dy] of [[temporary,mask,radius/this.maskWidth,0],[mask,temporary,0,radius/this.maskHeight]]){
-      g.bindFramebuffer(g.FRAMEBUFFER,target.fbo);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,source.texture);
-      bind(this.blur,this.quad);g.uniform1i(this.blur.u.castShadow,2);g.uniform2f(this.blur.u.blurStep,dx,dy);g.drawArrays(g.TRIANGLE_STRIP,0,4);
-    }
+    const sigma=(3+Math.sin(Math.PI*progress)*this.width/(spread?2:1)*.018)*1.6;
+    this.blurShadow(sigma);
     g.bindFramebuffer(g.FRAMEBUFFER,null);g.viewport(0,0,width,height);
     g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,mask.texture);
     bind(this.background,this.quad);g.uniform1i(this.background.u.castShadow,2);
@@ -177,6 +189,23 @@ class KMReaderCurlSurface {
     g.clear(g.DEPTH_BUFFER_BIT);g.enable(g.DEPTH_TEST);g.depthFunc(g.LEQUAL);g.frontFace(sign>0?g.CW:g.CCW);
     bind(this.sheet,this.mesh);g.uniform1f(this.sheet.u.shadowPass,0);g.uniform1i(this.sheet.u.castShadow,2);g.uniform2f(this.sheet.u.rasterSize,width,height);g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,this.indices);g.drawElements(g.TRIANGLES,this.count,g.UNSIGNED_SHORT,0);g.disable(g.DEPTH_TEST);
   }
+  blurShadow(sigma) {
+    const g=this.gl,program=this.blur,[mask,temporary]=this.shadowTargets;
+    g.disable(g.DEPTH_TEST);g.disable(g.BLEND);g.viewport(0,0,this.maskWidth,this.maskHeight);
+    g.useProgram(program.p);g.bindBuffer(g.ARRAY_BUFFER,this.quad);g.enableVertexAttribArray(program.a);g.vertexAttribPointer(program.a,2,g.FLOAT,false,0,0);
+    g.uniform1i(program.u.castShadow,2);
+    for(const [target,source,dx,dy,scale] of [
+      [temporary,mask,1/this.maskWidth,0,this.maskWidth/this.width],
+      [mask,temporary,0,1/this.maskHeight,this.maskHeight/this.height]]){
+      const weights=new Float32Array(13),pixels=Math.max(.25,sigma*scale);
+      let total=0;
+      for(let i=0;i<weights.length;i++){weights[i]=Math.exp(-.5*(i/pixels)**2);total+=weights[i]*(i?2:1);}
+      for(let i=0;i<weights.length;i++)weights[i]/=total;
+      g.bindFramebuffer(g.FRAMEBUFFER,target.fbo);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,source.texture);
+      g.uniform1fv(program.u['blurWeights[0]'],weights);g.uniform2f(program.u.blurStep,dx,dy);g.drawArrays(g.TRIANGLE_STRIP,0,4);
+    }
+  }
+
 }
 class KMReaderSheetEffect {
   static serial=0;
@@ -880,7 +909,7 @@ class KMReaderSheetEffect {
   }
   function warmCurl(){
     clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);
-    if(inputSuspended||preferences.transition!=='curl'||!motionAllowed('curl'))return;
+    if(inputSuspended||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
     const prepare=async()=>{
       if(disposed||inputSuspended||gesture||sheetEffect)return;
       try {
@@ -890,8 +919,10 @@ class KMReaderSheetEffect {
         // first finger movement, including driver pipeline and framebuffer setup.
         const surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
         const warmKey=`${innerWidth}:${innerHeight}:${Math.min(2,devicePixelRatio||1)}`;
+        // Prepare the actual front texture on every idle page, not just the
+        // first viewport. A null back preserves the other retained allocation.
+        surface.upload(idleImage,null,innerWidth,innerHeight);
         if(surface.warmKey!==warmKey){
-          surface.upload(idleImage,idleImage,innerWidth,innerHeight);
           surface.render(.5,rendition.manager?.layout?.divisor===2,1,0,.5);
           surface.render(0,false,1,0,.5);surface.gl.flush();surface.warmKey=warmKey;
         }

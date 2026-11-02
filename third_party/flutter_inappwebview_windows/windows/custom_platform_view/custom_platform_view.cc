@@ -200,6 +200,8 @@ namespace flutter_inappwebview_plugin
   {
     debugLog("dealloc CustomPlatformView");
     event_sink_ = nullptr;
+    // Stop and fence capture notifications before invalidating the texture ID.
+    texture_bridge_->Stop();
     texture_registrar_->UnregisterTexture(texture_id_, nullptr);
   }
 
@@ -232,6 +234,18 @@ namespace flutter_inappwebview_plugin
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
   {
     const auto& method_name = method_call.method_name();
+
+    if (method_name == "getRenderingStats") {
+      const auto stats = texture_bridge_->GetRenderingStats();
+      return result->Success(flutter::EncodableValue(flutter::EncodableMap{
+        {flutter::EncodableValue("freeThreaded"), flutter::EncodableValue(stats.free_threaded)},
+        {flutter::EncodableValue("captures"), flutter::EncodableValue(stats.captures)},
+        {flutter::EncodableValue("notifications"), flutter::EncodableValue(stats.notifications)},
+        {flutter::EncodableValue("surfaceRequests"), flutter::EncodableValue(stats.surface_requests)},
+        {flutter::EncodableValue("gpuCopies"), flutter::EncodableValue(stats.gpu_copies)},
+        {flutter::EncodableValue("uiThreadCaptures"), flutter::EncodableValue(stats.ui_thread_captures)}
+      }));
+    }
 
     // setCursorPos: [double x, double y]
     if (method_name.compare(kMethodSetCursorPos) == 0) {

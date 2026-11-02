@@ -10,6 +10,8 @@ import android.view.PixelCopy
 import java.io.ByteArrayOutputStream
 import android.os.Build
 import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -85,6 +87,23 @@ class MainActivity : FlutterFragmentActivity() {
                     ownsKeepAwake = false
                 }
                 result.success(null)
+            } else if (call.method == "getWebViewRenderingStats") {
+                fun findWebView(view: View): WebView? {
+                    if (view is WebView) return view
+                    if (view is ViewGroup) for (index in 0 until view.childCount) {
+                        findWebView(view.getChildAt(index))?.let { return it }
+                    }
+                    return null
+                }
+                val webView = findWebView(window.decorView)
+                result.success(webView?.let { view ->
+                    val parents = mutableListOf<String>()
+                    var parent = view.parent
+                    while (parent != null) { parents.add(parent.javaClass.simpleName); parent = parent.parent }
+                    mapOf("hardwareAccelerated" to view.isHardwareAccelerated,
+                        "layerType" to view.layerType, "parents" to parents,
+                        "width" to view.width, "height" to view.height)
+                })
             } else if (call.method == "captureScreenshot" &&
                 (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
