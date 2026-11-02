@@ -40,6 +40,7 @@ namespace flutter_inappwebview_plugin
       int32_t capture_interval_result = E_NOTIMPL;
     };
     RenderingStats GetRenderingStats();
+    HRESULT SetCaptureMinUpdateInterval(int64_t ticks);
 
     bool Start();
     void Stop();

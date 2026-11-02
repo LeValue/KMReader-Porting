@@ -235,6 +235,20 @@ namespace flutter_inappwebview_plugin
   {
     const auto& method_name = method_call.method_name();
 
+    if (method_name == "setCaptureMinUpdateInterval") {
+      const auto* args = method_call.arguments();
+      std::optional<int64_t> ticks;
+      if (args) {
+        if (const auto* value = std::get_if<int32_t>(args)) ticks = *value;
+        else if (const auto* value = std::get_if<int64_t>(args)) ticks = *value;
+      }
+      if (!ticks || *ticks < 0 || *ticks > 10000000) {
+        return result->Error(kErrorInvalidArgs);
+      }
+      return result->Success(flutter::EncodableValue(SUCCEEDED(
+        texture_bridge_->SetCaptureMinUpdateInterval(*ticks))));
+    }
+
     if (method_name == "getRenderingStats") {
       const auto stats = texture_bridge_->GetRenderingStats();
       return result->Success(flutter::EncodableValue(flutter::EncodableMap{

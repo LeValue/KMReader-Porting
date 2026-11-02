@@ -291,7 +291,7 @@ void main() {
         await js(
           'await reader.preferences({...$preferences,flow:"scrolled"});await reader.whenIdle();return true;',
         );
-        await measure('verticalScroll', () async {
+        Future<void> verticalScroll() async {
           final moved = await js('''
             const viewport=document.querySelector('.epub-container'),base=viewport.scrollTop;
             let first=null,min=base,max=base;
@@ -305,7 +305,29 @@ void main() {
             });return max-min;
           ''');
           expect(moved as num, greaterThan(100));
-        });
+        }
+
+        await measure('verticalScroll', verticalScroll);
+        if ((await captureStats())['captureIntervalSupported'] == true) {
+          final channel = MethodChannel(
+            'com.pichillilorenzo/custom_platform_view_${controller().getViewId()}',
+          );
+          for (final entry in {
+            'verticalScrollLiveZero': 0,
+            'verticalScroll100ms': 1000000,
+            'verticalScrollRestoredZero': 0,
+          }.entries) {
+            expect(
+              await channel.invokeMethod<bool>(
+                'setCaptureMinUpdateInterval',
+                entry.value,
+              ),
+              true,
+            );
+            expect((await captureStats())['captureInterval100ns'], entry.value);
+            await measure(entry.key, verticalScroll);
+          }
+        }
         await measure('readerSettings', () async {
           for (var i = 0; i < 3; i++) {
             // Reveal normal controls, then invoke the real settings menu action.
