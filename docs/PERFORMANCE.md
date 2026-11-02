@@ -56,6 +56,8 @@ these changes address delivery contention and redundant work.
 These are rendering/work reductions and regression checks. They do not prove
 a fixed frame rate on a Huawei Mate 20 Pro or 144 Hz on an RTX 2060 Super.
 
+Review frame on dark-sepia stock: [dense curl shadow](images/epub-curl-sepia-0.8.10.png).
+
 ## Continuous shadow receivers and automatic motion in 0.8.9
 
 The EPUB curl's flat front now receives the same screen-space projected shadow

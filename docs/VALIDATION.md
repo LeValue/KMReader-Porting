@@ -1,5 +1,56 @@
 # Development validation
 
+## 0.8.10 preview — smooth shadow filtering and EPUB presentation costs
+
+Published [0.8.10](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.10-preview.1),
+runtime source `22b3d13541257da7b91952267494e58664e6427d`. All three exact-source build/native jobs passed in
+[verification 41482311843](https://github.com/LeValue/KMReader-Porting/actions/runs/41482311843);
+[publisher 41519063739](https://github.com/LeValue/KMReader-Porting/actions/runs/41519063739)
+reused that Windows artifact and locally verified signed APKs.
+
+All **327 host tests** pass with Chromium/ONNX enabled, plus formatting, static
+analysis and eight Python checks. CI separately exercises the real Komga client.
+The white-stock shadow regression keeps the existing receiver-continuity,
+density and extent controls and rejects long flat bands in the gradient.
+A 1044×720 control produces a 13-pixel plateau with the old sparse kernel and
+at most one quantized pixel with the dense Gaussian replacement. Its shadow
+mask drops from 522×360 to 185×128; publication texture resolution is unchanged.
+GL probes require texture upload counts of **2, 1, 0, 1** across initial pages,
+a sequential turn, idle preparation and a further turn. Endpoint pixels must
+still identify the right page. A second probe runs the full production curl
+start and requires exactly one upload plus correct front/back endpoint pixels.
+These checks run in real native WebViews too.
+
+Windows passes **23 native checks**, Android **22 native checks** plus both
+notch/rotation checks. Android's attached WebView must have hardware acceleration,
+the default layer and a real texture-composition parent. The existing selection,
+menu, live typography, visible-pixel and renderer checks remain. Both platforms
+exercise vertical scrolling with Flutter presentation active. Windows counters
+must show worker-thread capture, advancing captures/copies and at most one GPU
+copy per captured frame. Real renderer termination/recreation and isolated
+Windows release startup also pass. Callback lifetime, capture leases and shutdown
+are preserved across the free-threaded Windows capture path.
+
+No 60 FPS cap was active in the preceding version. The checks establish reduced
+rendering and presentation work; they do not measure physical Mate 20 Pro FPS
+or establish 144 Hz on an RTX 2060 Super. See [implementation details](PERFORMANCE.md).
+
+
+All five published assets were downloaded and checked against SHA256SUMS and
+GitHub digests. APKs match staged signed bytes, source/version/build 20, the
+preview certificate, non-debuggable flags, architecture and 16KiB native-library
+alignment. All **63 Windows files**, including
+**21 AMD64 PE files**, match the successful CI artifact.
+Windows remains unsigned.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.10-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-android-arm64-preview.apk) | 77,635,170 | `00a6b6a71d558a143466032da3070a538290021d32c037c647cda0679d8dd29e` |
+| [KMReader-0.8.10-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-android-armv7-preview.apk) | 64,001,460 | `245996ca68eaaa18d288259bb44b0e7c9d107d8040a5b53fc1041be06c106087` |
+| [KMReader-0.8.10-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-android-x64-preview.apk) | 83,936,551 | `d78ee0753ee090ff8127db22243d00c884449878e604594a5b5ac2b0203afd8d` |
+| [KMReader-0.8.10-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-windows-x64-preview.zip) | 34,448,821 | `20e6cd7c9480b4e9abd8cfa6225b2bd2e9b084ab3ca1e2737ab7e9e73f6f4f87` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/SHA256SUMS.txt) | 428 | `ce2ae0e42a4719cd4d16442d3d8d451a688a62d10d68bc7c0993697cea69ebbb` |
+
 ## 0.8.9 preview — continuous curl shadows and automatic page motion
 
 Published [0.8.9](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.9-preview.1),
