@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -13,6 +14,7 @@ import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/epub_reader.dart';
+import 'package:kmreader/features/reader/epub_session.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
 import 'package:kmreader/ui/strings.dart';
 import 'package:kmreader/ui/theme.dart';
@@ -21,316 +23,325 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../test/support/epub_fixture.dart';
 
 void verifyNativeEpubPerformance() {
-  testWidgets(
-    'native default EPUB survives rapid turns and renderer interruption',
-    (tester) async {
-      await Strings.initialize();
-      final directory = await Directory.systemTemp.createTemp('epub-stress-');
-      final store = LocalStore(sqlite3.openInMemory());
-      const profile = ServerProfile(
-        id: 'epub-stress',
-        name: 'Fixture',
-        url: 'https://example.invalid',
-        email: '',
-        authentication: Authentication.apiKey,
-      );
-      final repository = Repository(
-        profile: profile,
-        api: KomgaApi(
-          Uri.parse(profile.url),
-          authentication: profile.authentication,
-          credential: '',
-        ),
-        store: store,
-        directory: directory,
-      )..setOffline(true);
-      final book = Book({
-        'id': 'stress',
-        'name': 'Long chapter',
-        'media': {'mediaProfile': 'EPUB'},
-      });
-      Future<void> waitFor(bool Function() ready) async {
-        for (var i = 0; i < 180; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-          if (ready()) return;
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        }
-        fail(
-          'Default EPUB did not settle: ${find.byType(Text).evaluate().map((e) => (e.widget as Text).data).join(' | ')}',
-        );
-      }
-
-      InAppWebViewController? controller() {
-        // Public diagnostic getter avoids replacing the production native view.
-        final dynamic state = tester.state(find.byType(BrowserEpubReader));
-        return state.browserController as InAppWebViewController?;
-      }
-
-      Future<dynamic> js(String source) async {
-        final result = await controller()!
-            .callAsyncJavaScript(functionBody: source)
-            .timeout(const Duration(seconds: 20));
-        expect(result?.error, isNull);
-        return result?.value;
-      }
-
-      Future<void> visibleText() async {
-        // Native bounds, DOM repagination and raster delivery are independent.
-        // Wait for the actual surface size and layout instead of assuming a
-        // fixed 300ms is sufficient on a software-rendered emulator.
-        var settled = false;
-        for (var attempt = 0; attempt < 60; attempt++) {
-          final expected = tester.getSize(find.byType(InAppWebView));
-          final geometry = object(
-            await js(
-              'return {width:innerWidth,height:innerHeight,ready:reader.layoutReady()};',
-            ),
-          );
-          if (geometry['ready'] == true &&
-              ((geometry['width'] as num).toDouble() - expected.width).abs() <
-                  2 &&
-              ((geometry['height'] as num).toDouble() - expected.height).abs() <
-                  2) {
-            settled = true;
-            break;
-          }
-          await tester.pump(const Duration(milliseconds: 100));
-          await Future<void>.delayed(const Duration(milliseconds: 50));
-        }
-        expect(
-          settled,
-          true,
-          reason: 'Native WebView bounds and EPUB layout must settle',
-        );
-        await js('await reader.whenIdle();return true;');
+  testWidgets('native default EPUB survives rapid turns and renderer interruption', (
+    tester,
+  ) async {
+    await Strings.initialize();
+    final directory = await Directory.systemTemp.createTemp('epub-stress-');
+    final store = LocalStore(sqlite3.openInMemory());
+    const profile = ServerProfile(
+      id: 'epub-stress',
+      name: 'Fixture',
+      url: 'https://example.invalid',
+      email: '',
+      authentication: Authentication.apiKey,
+    );
+    final repository = Repository(
+      profile: profile,
+      api: KomgaApi(
+        Uri.parse(profile.url),
+        authentication: profile.authentication,
+        credential: '',
+      ),
+      store: store,
+      directory: directory,
+    )..setOffline(true);
+    final book = Book({
+      'id': 'stress',
+      'name': 'Long chapter',
+      'media': {'mediaProfile': 'EPUB'},
+    });
+    Future<void> waitFor(bool Function() ready) async {
+      for (var i = 0; i < 180; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (ready()) return;
         await Future<void>.delayed(const Duration(milliseconds: 100));
-        for (final view in tester.binding.renderViews) {
-          view.markNeedsPaint();
+      }
+      fail(
+        'Default EPUB did not settle: ${find.byType(Text).evaluate().map((e) => (e.widget as Text).data).join(' | ')}',
+      );
+    }
+
+    InAppWebViewController? controller() {
+      // Public diagnostic getter avoids replacing the production native view.
+      final dynamic state = tester.state(find.byType(BrowserEpubReader));
+      return state.browserController as InAppWebViewController?;
+    }
+
+    Future<dynamic> js(String source) async {
+      final result = await controller()!
+          .callAsyncJavaScript(functionBody: source)
+          .timeout(const Duration(seconds: 20));
+      expect(result?.error, isNull);
+      return result?.value;
+    }
+
+    Future<void> visibleText() async {
+      // Native bounds, DOM repagination and raster delivery are independent.
+      // Wait for the actual surface size and layout instead of assuming a
+      // fixed 300ms is sufficient on a software-rendered emulator.
+      var settled = false;
+      for (var attempt = 0; attempt < 60; attempt++) {
+        final expected = tester.getSize(find.byType(InAppWebView));
+        final geometry = object(
+          await js(
+            'return {width:innerWidth,height:innerHeight,ready:reader.layoutReady()};',
+          ),
+        );
+        if (geometry['ready'] == true &&
+            ((geometry['width'] as num).toDouble() - expected.width).abs() <
+                2 &&
+            ((geometry['height'] as num).toDouble() - expected.height).abs() <
+                2) {
+          settled = true;
+          break;
         }
         await tester.pump(const Duration(milliseconds: 100));
-        ui.Image image;
-        if (Platform.isAndroid) {
-          Uint8List? bytes;
-          for (var attempt = 0; attempt < 5; attempt++) {
-            try {
-              bytes = await ReaderDisplay.channel.invokeMethod<Uint8List>(
-                'captureScreenshot',
-              );
-              break;
-            } on PlatformException catch (error) {
-              if (error.code != 'Could not copy the pixels' ||
-                  error.message != 'result was 3' ||
-                  attempt == 4) {
-                rethrow;
-              }
-              for (final view in tester.binding.renderViews) {
-                view.markNeedsPaint();
-              }
-              await tester.pump(const Duration(milliseconds: 250));
-            }
-          }
-          expect(bytes, isNotEmpty);
-          final codec = await ui.instantiateImageCodec(bytes!);
-          image = (await codec.getNextFrame()).image;
-          codec.dispose();
-        } else {
-          final boundary = tester.renderObject<RenderRepaintBoundary>(
-            find
-                .ancestor(
-                  of: find.byType(InAppWebView),
-                  matching: find.byType(RepaintBoundary),
-                )
-                .first,
-          );
-          image = await boundary.toImage();
-        }
-        try {
-          final data = (await image.toByteData(
-            format: ui.ImageByteFormat.rawRgba,
-          ))!;
-          var dark = 0;
-          // Ignore window controls/bars; the center must contain actual glyphs.
-          for (var y = image.height ~/ 4; y < image.height * 3 ~/ 4; y++) {
-            for (var x = image.width ~/ 4; x < image.width * 3 ~/ 4; x++) {
-              final index = (y * image.width + x) * 4;
-              if (data.getUint8(index) < 120 &&
-                  data.getUint8(index + 1) < 120 &&
-                  data.getUint8(index + 2) < 120) {
-                dark++;
-              }
-            }
-          }
-          expect(
-            dark,
-            greaterThan(150),
-            reason: 'The native reader surface must render text, not only report a DOM locator',
-          );
-        } finally {
-          image.dispose();
-        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-
+      expect(
+        settled,
+        true,
+        reason: 'Native WebView bounds and EPUB layout must settle',
+      );
+      await js('await reader.whenIdle();return true;');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      for (final view in tester.binding.renderViews) {
+        view.markNeedsPaint();
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+      ui.Image image;
+      if (Platform.isAndroid) {
+        Uint8List? bytes;
+        for (var attempt = 0; attempt < 5; attempt++) {
+          try {
+            bytes = await ReaderDisplay.channel.invokeMethod<Uint8List>(
+              'captureScreenshot',
+            );
+            break;
+          } on PlatformException catch (error) {
+            if (error.code != 'Could not copy the pixels' ||
+                error.message != 'result was 3' ||
+                attempt == 4) {
+              rethrow;
+            }
+            for (final view in tester.binding.renderViews) {
+              view.markNeedsPaint();
+            }
+            await tester.pump(const Duration(milliseconds: 250));
+          }
+        }
+        expect(bytes, isNotEmpty);
+        final codec = await ui.instantiateImageCodec(bytes!);
+        image = (await codec.getNextFrame()).image;
+        codec.dispose();
+      } else {
+        final boundary = tester.renderObject<RenderRepaintBoundary>(
+          find
+              .ancestor(
+                of: find.byType(InAppWebView),
+                matching: find.byType(RepaintBoundary),
+              )
+              .first,
+        );
+        image = await boundary.toImage();
+      }
       try {
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: appTheme(Brightness.light),
-            home: ReaderDisplay(
-              child: BrowserEpubReader(
-                file: fixture(directory, paragraphCount: 1400),
-                repository: repository,
-                book: book,
-              ),
+        final data = (await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        ))!;
+        var dark = 0;
+        // Ignore window controls/bars; the center must contain actual glyphs.
+        for (var y = image.height ~/ 4; y < image.height * 3 ~/ 4; y++) {
+          for (var x = image.width ~/ 4; x < image.width * 3 ~/ 4; x++) {
+            final index = (y * image.width + x) * 4;
+            if (data.getUint8(index) < 120 &&
+                data.getUint8(index + 1) < 120 &&
+                data.getUint8(index + 2) < 120) {
+              dark++;
+            }
+          }
+        }
+        expect(
+          dark,
+          greaterThan(150),
+          reason: 'The native reader surface must render text, not only report a DOM locator',
+        );
+      } finally {
+        image.dispose();
+      }
+    }
+
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: appTheme(Brightness.light),
+          home: ReaderDisplay(
+            child: BrowserEpubReader(
+              file: fixture(directory, paragraphCount: 1400),
+              repository: repository,
+              book: book,
             ),
           ),
+        ),
+      );
+      await waitFor(
+        () =>
+            find.byType(CircularProgressIndicator).evaluate().isEmpty &&
+            controller() != null,
+      );
+      final view = tester.widget<InAppWebView>(find.byType(InAppWebView));
+      if (Platform.isAndroid) {
+        final rendering = object(
+          await ReaderDisplay.channel.invokeMapMethod<String, dynamic>(
+            'getWebViewRenderingStats',
+          ),
         );
-        await waitFor(
-          () =>
-              find.byType(CircularProgressIndicator).evaluate().isEmpty &&
-              controller() != null,
+        expect(rendering['hardwareAccelerated'], true);
+        expect(
+          rendering['layerType'],
+          0,
+          reason: 'Keep the default hardware-accelerated view, without a forced offscreen layer',
         );
-        final view = tester.widget<InAppWebView>(find.byType(InAppWebView));
-        final initial = await js('return reader.position().start.cfi;');
-        await js(
-          '''window.turnArguments=[]; window.completedTurns=0; const turn=reader.turn;
+        expect(
+          (rendering['parents'] as List).any(
+            (p) => p.toString().contains('PlatformViewWrapper'),
+          ),
+          true,
+          reason: 'The EPUB must use the real texture composition path',
+        );
+        debugPrint('Native Android WebView composition: $rendering');
+      }
+
+      final initial = await js('return reader.position().start.cfi;');
+      await js(
+        '''window.turnArguments=[]; window.completedTurns=0; const turn=reader.turn;
         reader.turn=async value=>{turnArguments.push(value); await turn(value); completedTurns++; return true;}; return true;''',
+      );
+      for (var i = 0; i < 6; i++) {
+        await tester.tap(find.byTooltip('Next Page'));
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await waitFor(
+        () =>
+            object(store.cached(profile.id, 'epub:${book.id}'))['cfi'] != null,
+      );
+      expect(await js('return reader.position().start.cfi;'), isNot(initial));
+      for (var i = 0; i < 100; i++) {
+        if (await js('return completedTurns;') == 6) break;
+        await tester.pump(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      expect(await js('return completedTurns;'), 6);
+      expect(await js('return turnArguments.length;'), 6);
+      expect(
+        await js(
+          'return turnArguments.every(v=>!Object.hasOwn(v,"snapshot"));',
+        ),
+        true,
+      );
+      expect(
+        identical(view, tester.widget<InAppWebView>(find.byType(InAppWebView))),
+        true,
+        reason: 'Locator updates must retain the native WebView widget',
+      );
+      // Chrome overlays must retain both the native surface and its bounds.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      final viewportBeforeChrome = await js('return [innerWidth,innerHeight];');
+      final retainedController = controller();
+      var readingAnchor = await js('return reader.position().start.cfi;');
+      for (var i = 0; i < 2; i++) {
+        await js(
+          "const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();doc.body.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:innerWidth/2-b.left,clientY:innerHeight/2-b.top}));return true;",
         );
-        for (var i = 0; i < 6; i++) {
-          await tester.tap(find.byTooltip('Next Page'));
-          await tester.pump(const Duration(milliseconds: 10));
-        }
-        await waitFor(
-          () =>
-              object(store.cached(profile.id, 'epub:${book.id}'))['cfi'] !=
-              null,
-        );
-        expect(await js('return reader.position().start.cfi;'), isNot(initial));
-        for (var i = 0; i < 100; i++) {
-          if (await js('return completedTurns;') == 6) break;
-          await tester.pump(const Duration(milliseconds: 100));
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        }
-        expect(await js('return completedTurns;'), 6);
-        expect(await js('return turnArguments.length;'), 6);
-        expect(
-          await js(
-            'return turnArguments.every(v=>!Object.hasOwn(v,"snapshot"));',
-          ),
-          true,
-        );
-        expect(
-          identical(
-            view,
-            tester.widget<InAppWebView>(find.byType(InAppWebView)),
-          ),
-          true,
-          reason: 'Locator updates must retain the native WebView widget',
-        );
-        // Chrome overlays must retain both the native surface and its bounds.
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await tester.pump();
-        final viewportBeforeChrome = await js(
-          'return [innerWidth,innerHeight];',
-        );
-        final retainedController = controller();
-        var readingAnchor = await js('return reader.position().start.cfi;');
-        for (var i = 0; i < 2; i++) {
-          await js(
-            "const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();doc.body.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:innerWidth/2-b.left,clientY:innerHeight/2-b.top}));return true;",
+        if (Platform.isWindows) {
+          await tester.tapAt(
+            tester.getCenter(find.byType(InAppWebView)),
+            kind: PointerDeviceKind.mouse,
           );
-          if (Platform.isWindows) {
-            await tester.tapAt(
-              tester.getCenter(find.byType(InAppWebView)),
-              kind: PointerDeviceKind.mouse,
-            );
-            await tester.pump(const Duration(milliseconds: 200));
-            expect(find.byTooltip('Next Page'), findsOneWidget);
-            expect(
-              await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
-              false,
-            );
-            expect(
-              await js(
-                "return document.querySelector('#viewer iframe').contentDocument.getSelection().isCollapsed;",
-              ),
-              true,
-            );
-            final beforeArrow = await js('return reader.position().start.cfi;');
-            final beforeCount = (await js('return completedTurns;') as num)
-                .toInt();
-            await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-            for (var attempt = 0; attempt < 30; attempt++) {
-              await tester.pump(const Duration(milliseconds: 100));
-              if (await js('return reader.position().start.cfi;') !=
-                  beforeArrow) {
-                break;
-              }
-              await Future<void>.delayed(const Duration(milliseconds: 50));
-            }
-            expect(
-              await js('return reader.position().start.cfi;'),
-              isNot(beforeArrow),
-            );
-            await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-            for (var attempt = 0; attempt < 50; attempt++) {
-              await tester.pump(const Duration(milliseconds: 100));
-              if (await js('return completedTurns;') == beforeCount + 2) break;
-              await Future<void>.delayed(const Duration(milliseconds: 50));
-            }
-            expect(await js('return completedTurns;'), beforeCount + 2);
-            await js('await reader.whenIdle();return true;');
-            readingAnchor = await js('return reader.position().start.cfi;');
-          } else {
-            await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
-          }
-          expect(identical(controller(), retainedController), true);
+          await tester.pump(const Duration(milliseconds: 200));
+          expect(find.byTooltip('Next Page'), findsOneWidget);
           expect(
-            await js('return [innerWidth,innerHeight];'),
-            viewportBeforeChrome,
+            await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+            false,
           );
-          await visibleText();
-          await js(
-            "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
+          expect(
+            await js(
+              "return document.querySelector('#viewer iframe').contentDocument.getSelection().isCollapsed;",
+            ),
+            true,
           );
-          await waitFor(
-            () => find.byTooltip('Next Page').evaluate().isNotEmpty,
-          );
-          if (Platform.isWindows) {
-            await tester.tap(find.byTooltip('Full Screen'));
-          } else {
-            await tester.tap(find.byType(PopupMenuButton<String>).first);
-            await tester.pumpAndSettle();
-            await tester.tap(find.text('Full Screen').last);
+          final beforeArrow = await js('return reader.position().start.cfi;');
+          final beforeCount = (await js('return completedTurns;') as num)
+              .toInt();
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          for (var attempt = 0; attempt < 30; attempt++) {
+            await tester.pump(const Duration(milliseconds: 100));
+            if (await js('return reader.position().start.cfi;') !=
+                beforeArrow) {
+              break;
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 50));
           }
-          await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
-          if (Platform.isWindows) {
-            expect(
-              await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
-              true,
-            );
-          }
-          expect(identical(controller(), retainedController), true);
-          await visibleText();
-          await js(
-            "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
-          );
-          await waitFor(
-            () => find.byTooltip('Next Page').evaluate().isNotEmpty,
-          );
-          if (Platform.isWindows) {
-            expect(
-              await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
-              false,
-            );
-          }
-          await visibleText();
           expect(
             await js('return reader.position().start.cfi;'),
-            readingAnchor,
+            isNot(beforeArrow),
+          );
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+          for (var attempt = 0; attempt < 50; attempt++) {
+            await tester.pump(const Duration(milliseconds: 100));
+            if (await js('return completedTurns;') == beforeCount + 2) break;
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+          }
+          expect(await js('return completedTurns;'), beforeCount + 2);
+          await js('await reader.whenIdle();return true;');
+          readingAnchor = await js('return reader.position().start.cfi;');
+        } else {
+          await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
+        }
+        expect(identical(controller(), retainedController), true);
+        expect(
+          await js('return [innerWidth,innerHeight];'),
+          viewportBeforeChrome,
+        );
+        await visibleText();
+        await js(
+          "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
+        );
+        await waitFor(() => find.byTooltip('Next Page').evaluate().isNotEmpty);
+        if (Platform.isWindows) {
+          await tester.tap(find.byTooltip('Full Screen'));
+        } else {
+          await tester.tap(find.byType(PopupMenuButton<String>).first);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Full Screen').last);
+        }
+        await waitFor(() => find.byTooltip('Next Page').evaluate().isEmpty);
+        if (Platform.isWindows) {
+          expect(
+            await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+            true,
           );
         }
-        // Exercise the real WebView GPU/texture path, not only headless Chrome.
-        expect(
-          await js("""
+        expect(identical(controller(), retainedController), true);
+        await visibleText();
+        await js(
+          "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
+        );
+        await waitFor(() => find.byTooltip('Next Page').evaluate().isNotEmpty);
+        if (Platform.isWindows) {
+          expect(
+            await ReaderDisplay.channel.invokeMethod<bool>('getFullscreen'),
+            false,
+          );
+        }
+        await visibleText();
+        expect(await js('return reader.position().start.cfi;'), readingAnchor);
+      }
+      // Exercise the real WebView GPU/texture path, not only headless Chrome.
+      expect(
+        await js("""
           // Emulator accessibility disables animation. Exercise actual GPU
           // pixels in this scoped branch, then restore the media query.
           window.nativeMedia=window.matchMedia;
@@ -345,10 +356,10 @@ void verifyNativeEpubPerformance() {
           nativeCurl.update(.5,{x:innerWidth*.5,y:innerHeight*.25});
           return nativeCurl.surface.canvas.width>=innerWidth && nativeCurl.surface.shadowTargets.length===2 && nativeCurl.surface.gl.getError()===0;
         """),
-          true,
-        );
-        await visibleText();
-        await js("""
+        true,
+      );
+      await visibleText();
+      await js("""
           // Check both receiving planes on actual native GPU pixels. Removing
           // the flat front's receiver in the control must recreate the seam.
           const receiverProbe=(() => {
@@ -380,7 +391,9 @@ void verifyNativeEpubPerformance() {
     const row=new Uint8Array(width*4);g.readPixels(0,Math.floor(height/2),width,1,g.RGBA,g.UNSIGNED_BYTE,row);
     const shade=Array.from({length:width},(_,x)=>255-row[x*4]),peak=Math.max(...shade);
     const start=shade.findIndex(v=>v>=peak*.1),end=shade.findIndex(v=>v>=peak*.8);
-    results.push({p,fixed,old,peak,edgeWidth:(end-start)*innerWidth/width});
+    let run=0,plateau=0;
+    for(let x=start+1;x<=end;x++){run=shade[x]===shade[x-1]?run+1:0;plateau=Math.max(plateau,run);}
+    results.push({p,fixed,old,peak,plateau,edgePixels:end-start,edgeWidth:(end-start)*innerWidth/width});
   }
   g.useProgram(surface.sheet.p);g.uniform1i(surface.sheet.u.castShadow,2);g.deleteTexture(black);
   surface.render(0,true,1,0,.5);return {results,error:g.getError()};
@@ -388,8 +401,24 @@ void verifyNativeEpubPerformance() {
 )();
           if(receiverProbe.error!==0||!receiverProbe.results.every(s=>
             Math.abs(s.fixed.background-s.fixed.front)<=2 &&
-            s.old.front-s.old.background>60 && s.peak>=75 && s.edgeWidth>=10+innerWidth*.01))
+            s.old.front-s.old.background>60 && s.peak>=75 && s.edgeWidth>=10+innerWidth*.01 &&
+            s.plateau<=Math.max(2,s.edgePixels*.08)))
             throw Error('Native curl shadow receiver: '+JSON.stringify(receiverProbe));
+  {const surface=nativeCurl.surface,g=surface.gl;
+  const originalUpload=g.texImage2D;let uploads=0;
+  g.texImage2D=function(...args){uploads++;return originalUpload.apply(this,args);};
+  try {
+    const pages=Array.from({length:4},(_,i)=>{const page=document.createElement('canvas');page.width=64;page.height=64;const c=page.getContext('2d');c.fillStyle=['red','green','blue','white'][i];c.fillRect(0,0,64,64);return page;});
+    const counts=[];
+    for(const [front,back] of [[pages[0],pages[1]],[pages[1],pages[2]],[pages[2],null],[pages[2],pages[3]]]){
+      uploads=0;surface.upload(front,back,innerWidth,innerHeight);counts.push(uploads);
+    }
+    if(counts.join(',')!=='2,1,0,1')throw Error('Sequential page textures uploaded again: '+counts);
+    surface.render(0,true,1,0,.5);
+    const pixel=new Uint8Array(4);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+    if(pixel[2]<250||pixel[0]>2)throw Error('Texture rotation selected the wrong front: '+pixel);
+  } finally {g.texImage2D=originalUpload;}
+}
           nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
           const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
@@ -409,112 +438,173 @@ void verifyNativeEpubPerformance() {
           await flight;automatic.stop();window.matchMedia=nativeMedia;
           await reader.previous();return true;
         """);
-        // The action must retain its selected passage even if native focus
-        // clears the DOM selection while the toolbar popup is open.
-        final selected = await js("""
+      // The action must retain its selected passage even if native focus
+      // clears the DOM selection while the toolbar popup is open.
+      final selected = await js("""
           const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();
           const paragraph=[...doc.querySelectorAll('p')].find(p=>[...p.getClientRects()].some(r=>r.right+b.left>0&&r.left+b.left<innerWidth&&r.bottom+b.top>0&&r.top+b.top<innerHeight));
           window.selectionParagraph=paragraph;doc.getSelection().selectAllChildren(paragraph);return paragraph.textContent;
         """);
-        final dynamic selectionState = tester.state(
+      final dynamic selectionState = tester.state(
+        find.byType(BrowserEpubReader),
+      );
+      await waitFor(() => selectionState.selectedText == selected);
+      if (Platform.isWindows) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await waitFor(() => selectionState.selectedText == '');
+        expect(
           find.byType(BrowserEpubReader),
+          findsOneWidget,
+          reason: 'Escape clears text selection before leaving a book',
+        );
+        await js(
+          'selectionParagraph.ownerDocument.getSelection().selectAllChildren(selectionParagraph);return true;',
         );
         await waitFor(() => selectionState.selectedText == selected);
-        if (Platform.isWindows) {
-          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-          await waitFor(() => selectionState.selectedText == '');
-          expect(
-            find.byType(BrowserEpubReader),
-            findsOneWidget,
-            reason: 'Escape clears text selection before leaving a book',
-          );
-          await js(
-            'selectionParagraph.ownerDocument.getSelection().selectAllChildren(selectionParagraph);return true;',
-          );
-          await waitFor(() => selectionState.selectedText == selected);
-        }
-        // Reveal/reset idle chrome immediately before opening the action.
-        // Hovering the book's top edge preserves the selected passage; an
-        // Escape key would clear it. Earlier GPU work may consume five seconds.
-        // A live desktop already owns mouse device 1. Keep this test mouse
-        // separate, and use the same device for hover, press and release.
-        final pointer = TestGesture(
-          dispatcher: tester.sendEventToBinding,
-          pointer: 424242,
-          device: 424242,
-          kind: PointerDeviceKind.mouse,
+      }
+      // Reveal/reset idle chrome immediately before opening the action.
+      // Hovering the book's top edge preserves the selected passage; an
+      // Escape key would clear it. Earlier GPU work may consume five seconds.
+      // A live desktop already owns mouse device 1. Keep this test mouse
+      // separate, and use the same device for hover, press and release.
+      final pointer = TestGesture(
+        dispatcher: tester.sendEventToBinding,
+        pointer: 424242,
+        device: 424242,
+        kind: PointerDeviceKind.mouse,
+      );
+      try {
+        await pointer.addPointer();
+        await pointer.moveTo(
+          tester.getTopLeft(find.byType(BrowserEpubReader)) +
+              const Offset(8, 8),
         );
-        try {
-          await pointer.addPointer();
-          await pointer.moveTo(
-            tester.getTopLeft(find.byType(BrowserEpubReader)) +
-                const Offset(8, 8),
-          );
-          await waitFor(
-            () => find.byType(PopupMenuButton<String>).evaluate().isNotEmpty,
-          );
-          await pointer.down(
-            tester.getCenter(find.byType(PopupMenuButton<String>).first),
-          );
-          await pointer.up();
-        } finally {
-          await pointer.removePointer();
-        }
-        await tester.pumpAndSettle();
-        expect(find.text('Translate Selected Text'), findsOneWidget);
-        await js(
-          "document.querySelector('#viewer iframe').contentDocument.getSelection().removeAllRanges();return true;",
+        await waitFor(
+          () => find.byType(PopupMenuButton<String>).evaluate().isNotEmpty,
         );
-        await waitFor(() => selectionState.selectedText == '');
-        await tester.tap(find.text('Translate Selected Text'));
-        await tester.pumpAndSettle();
-        expect(find.text(selected as String), findsOneWidget);
-        await tester.tap(find.byType(BackButton).last);
-        await tester.pumpAndSettle();
-        await visibleText();
-        final result = object(
-          await js('''const times=[];
+        await pointer.down(
+          tester.getCenter(find.byType(PopupMenuButton<String>).first),
+        );
+        await pointer.up();
+      } finally {
+        await pointer.removePointer();
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Translate Selected Text'), findsOneWidget);
+      await js(
+        "document.querySelector('#viewer iframe').contentDocument.getSelection().removeAllRanges();return true;",
+      );
+      await waitFor(() => selectionState.selectedText == '');
+      await tester.tap(find.text('Translate Selected Text'));
+      await tester.pumpAndSettle();
+      expect(find.text(selected as String), findsOneWidget);
+      await tester.tap(find.byType(BackButton).last);
+      await tester.pumpAndSettle();
+      await visibleText();
+      final result = object(
+        await js('''const times=[];
         for(let i=0;i<48;i++) { const old=reader.position().start.cfi, at=performance.now();
           await reader.turn({delta:1,style:'slide'}); times.push(performance.now()-at);
           if(reader.position().start.cfi===old) throw new Error('Page did not advance '+i);
         } times.sort((a,b)=>a-b); return {median:times[24],max:times[47]};'''),
+      );
+      debugPrint(
+        'Native EPUB command latency (debug engine, not device FPS): $result',
+      );
+      await visibleText();
+      {
+        final channel = MethodChannel(
+          'com.pichillilorenzo/custom_platform_view_${controller()!.getViewId()}',
         );
-        debugPrint(
-          'Native EPUB command latency (debug engine, not device FPS): $result',
+        Future<Json> captureStats() async => object(
+          await channel.invokeMapMethod<String, dynamic>('getRenderingStats'),
+        );
+        final preferences = jsonEncode(const EpubPreferences().toJson());
+        await js(
+          'await reader.preferences({...$preferences,flow:"scrolled"});await reader.whenIdle();return true;',
         );
         await visibleText();
-        if (Platform.isWindows) {
-          await Future<void>.delayed(const Duration(milliseconds: 600));
-          await tester.pump();
-          final saved = object(
-            store.cached(profile.id, 'epub:${book.id}'),
-          )['cfi'];
-          final oldController = controller();
-          // Exercise a real WebView2 renderer exit, not a simulated Dart event.
-          unawaited(
-            oldController!
-                .callDevToolsProtocolMethod(methodName: 'Page.crash')
-                .timeout(const Duration(seconds: 3))
-                .then<void>((_) {}, onError: (Object _) {}),
-          );
-          await waitFor(
-            () =>
-                controller() != null &&
-                !identical(oldController, controller()) &&
-                find.byType(CircularProgressIndicator).evaluate().isEmpty,
-          );
-          expect(await js('return reader.position().start.cfi;'), saved);
-          await visibleText();
+        final beforeCapture = Platform.isWindows ? await captureStats() : null;
+        var finished = false;
+        final scrolling = js("""
+            const viewport=document.querySelector('.epub-container');
+            const start=performance.now(),base=viewport.scrollTop,positions=[];
+            await new Promise(resolve=>{
+              const frame=now=>{
+                viewport.scrollTop=base+30*(positions.length%5);
+                positions.push(viewport.scrollTop);
+                if(positions.length<12)requestAnimationFrame(frame);else resolve();
+              };requestAnimationFrame(frame);
+            });
+            return {frames:positions.length,elapsed:performance.now()-start,
+              distance:Math.max(...positions)-Math.min(...positions)};
+          """).whenComplete(() => finished = true);
+        // Keep Flutter presenting while the real WebView scrolls, as it does
+        // in the application. The test binding otherwise only draws on pump.
+        for (var frame = 0; frame < 300 && !finished; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          await Future<void>.delayed(const Duration(milliseconds: 16));
         }
-        expect(tester.takeException(), isNull);
-      } finally {
-        await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
-        await Future<void>.delayed(const Duration(seconds: 1));
-        await tester.pump();
-        repository.dispose();
-        store.close();
-        await directory.delete(recursive: true);
+        expect(finished, true, reason: 'Native scrolling must complete');
+        final scrollingResult = object(await scrolling);
+        await visibleText();
+        expect(scrollingResult['distance'], greaterThan(5));
+        if (Platform.isWindows) {
+          final afterCapture = await captureStats();
+          expect(afterCapture['freeThreaded'], true);
+          expect(afterCapture['uiThreadCaptures'], 0);
+          expect(
+            afterCapture['captures'],
+            greaterThan(beforeCapture!['captures'] as num),
+          );
+          expect(
+            afterCapture['gpuCopies'],
+            greaterThan(beforeCapture['gpuCopies'] as num),
+          );
+          expect(
+            afterCapture['gpuCopies'],
+            lessThanOrEqualTo(afterCapture['captures'] as num),
+          );
+          debugPrint(
+            'Native Windows vertical scrolling, debug CI renderer (not physical display FPS): $scrollingResult; capture before=$beforeCapture after=$afterCapture',
+          );
+        }
+        await js(
+          'await reader.preferences($preferences);await reader.whenIdle();return true;',
+        );
+        await visibleText();
       }
-    },
-  );
+      if (Platform.isWindows) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        await tester.pump();
+        final saved = object(
+          store.cached(profile.id, 'epub:${book.id}'),
+        )['cfi'];
+        final oldController = controller();
+        // Exercise a real WebView2 renderer exit, not a simulated Dart event.
+        unawaited(
+          oldController!
+              .callDevToolsProtocolMethod(methodName: 'Page.crash')
+              .timeout(const Duration(seconds: 3))
+              .then<void>((_) {}, onError: (Object _) {}),
+        );
+        await waitFor(
+          () =>
+              controller() != null &&
+              !identical(oldController, controller()) &&
+              find.byType(CircularProgressIndicator).evaluate().isEmpty,
+        );
+        expect(await js('return reader.position().start.cfi;'), saved);
+        await visibleText();
+      }
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      await Future<void>.delayed(const Duration(seconds: 1));
+      await tester.pump();
+      repository.dispose();
+      store.close();
+      await directory.delete(recursive: true);
+    }
+  });
 }

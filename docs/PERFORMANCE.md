@@ -1,4 +1,48 @@
-# Continuous shadow receivers and automatic motion in 0.8.9
+# EPUB shadow filtering and native presentation in 0.8.10
+
+The old five-tap optimized Gaussian kernel was scaled far beyond adjacent
+bilinear texels. Its taps sampled separate silhouettes instead of a continuous
+penumbra. At 1044×720, a white-stock regression shows a 13-pixel flat segment
+between abrupt brightness jumps; the dense replacement has at most a one-pixel
+quantization plateau in that same edge. The existing receiver, opacity and
+extent controls remain, and new plateau checks run in Chromium and native
+WebViews. A contiguous 25-tap separable kernel uses CPU-precomputed weights.
+The mask resolution keeps the maximum sigma at 3.5 texels, covering the full
+kernel without sparse lobes. That case changes mask dimensions from 522×360
+to 185×128 (about one eighth of the pixels); text texture resolution is unchanged.
+
+Curl now swaps retained GPU texture roles when the incoming page becomes the
+next front. A native/browser GL probe requires uploads of 2, 1, 0, 1 for initial
+pages, the next turn, idle preparation and a further turn. Endpoint pixels must
+still identify the correct front. Idle preparation uploads the actual current
+page, so decoded SVG artwork is ready before input. Unsupported vertical-axis
+curl preparation is rejected before capture.
+
+Android EPUB chooses SurfaceAndroidView texture composition with Flutter's
+native fallback, instead of forcing initExpensiveAndroidView. This avoids
+merging reader UI work into the legacy hybrid composition path and avoids the
+plugin's forced offscreen hardware layer. The Activity remains hardware
+accelerated. A native query inspects the attached WebView's actual parents,
+layer type and acceleration state; the integration gate requires the texture
+wrapper, default layer and enabled hardware acceleration. The normal selection,
+settings, live typography, notch/rotation and pixel checks remain. Native
+scrolling probes run on both Android and Windows.
+
+Windows uses CreateFreeThreadedCaptureFramePool where supported, with the
+original pool as a compatibility fallback. Callback lifetime is guarded by a
+weak state and a destruction fence. Closing the capture session occurs outside
+the callback mutex, and capture stops before texture unregistration. The pooled
+frame remains leased until GPU copying, and a pending frame is consumed once
+rather than copied again for unrelated Flutter repaints. Counters expose actual
+capture-thread ownership and capture/copy counts. Native scrolling requires
+worker callbacks and advancing texture deliveries, followed by real renderer
+crash/recreation and release startup checks. No 60 FPS cap was active in 0.8.9;
+these changes address delivery contention and redundant work.
+
+These are rendering/work reductions and regression checks. They do not prove
+a fixed frame rate on a Huawei Mate 20 Pro or 144 Hz on an RTX 2060 Super.
+
+## Continuous shadow receivers and automatic motion in 0.8.9
 
 The EPUB curl's flat front now receives the same screen-space projected shadow
 as the background. Previously the mesh repainted that half without receiving

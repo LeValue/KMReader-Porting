@@ -3,7 +3,9 @@
 #include <windows.graphics.capture.h>
 #include <wrl.h>
 
+#include <atomic>
 #include <chrono>
+#include <memory>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -28,6 +30,13 @@ namespace flutter_inappwebview_plugin
       ABI::Windows::UI::Composition::IVisual* visual);
     virtual ~TextureBridge();
 
+    struct RenderingStats {
+      bool free_threaded = false;
+      int64_t captures = 0, notifications = 0, surface_requests = 0, gpu_copies = 0;
+      int64_t ui_thread_captures = 0;
+    };
+    RenderingStats GetRenderingStats();
+
     bool Start();
     void Stop();
 
@@ -45,6 +54,13 @@ namespace flutter_inappwebview_plugin
     void SetFpsLimit(std::optional<int> max_fps);
 
   protected:
+    struct CallbackState {
+      std::mutex gate;
+      TextureBridge* owner = nullptr;
+    };
+    std::shared_ptr<CallbackState> callback_state_ = std::make_shared<CallbackState>();
+    RenderingStats rendering_stats_;
+    DWORD capture_owner_thread_ = 0;
     bool is_running_ = false;
 
     const GraphicsContext* graphics_context_;
@@ -55,6 +71,8 @@ namespace flutter_inappwebview_plugin
     SurfaceSizeChangedCallback surface_size_changed_;
     std::atomic<bool> needs_update_ = false;
     winrt::com_ptr<ID3D11Texture2D> last_frame_;
+    // Keep the pooled capture leased until its texture has been copied.
+    winrt::com_ptr<ABI::Windows::Graphics::Capture::IDirect3D11CaptureFrame> capture_frame_;
     std::optional<std::chrono::high_resolution_clock::time_point>
       last_frame_timestamp_;
 

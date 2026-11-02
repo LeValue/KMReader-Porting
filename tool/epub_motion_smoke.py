@@ -71,7 +71,7 @@ with sync_playwright() as pw:
       KMReaderSheetEffect.prototype.start=async function(move){window.effect=this;return start.call(this,move);};
       KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
     }''')
-    output = Path('artifacts/epub-motion-0.8.9')
+    output = Path('artifacts/epub-motion-0.8.10')
     output.mkdir(parents=True, exist_ok=True)
     for style in ['slide', 'cover', 'curl']:
         before = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
@@ -160,7 +160,7 @@ with sync_playwright() as pw:
       g.readPixels(0,0,surface.maskWidth,surface.maskHeight,g.RGBA,g.UNSIGNED_BYTE,shadows);g.bindFramebuffer(g.FRAMEBUFFER,null);
       let exposed=0;
       for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-        const i=(y*width+x)*4,m=(Math.min(surface.maskHeight-1,Math.floor(y/2))*surface.maskWidth+Math.min(surface.maskWidth-1,Math.floor(x/2)))*4;
+        const i=(y*width+x)*4,m=(Math.min(surface.maskHeight-1,Math.floor(y*surface.maskHeight/height))*surface.maskWidth+Math.min(surface.maskWidth-1,Math.floor(x*surface.maskWidth/width)))*4;
         const value=pixels[i],shadow=shadows[m];
         if(shadow>5&&value>180&&value<250&&Math.abs(value-(255-shadow))<4&&Math.max(...pixels.slice(i,i+3))-Math.min(...pixels.slice(i,i+3))<=1)exposed++;
       }
@@ -196,7 +196,9 @@ with sync_playwright() as pw:
     const row=new Uint8Array(width*4);g.readPixels(0,Math.floor(height/2),width,1,g.RGBA,g.UNSIGNED_BYTE,row);
     const shade=Array.from({length:width},(_,x)=>255-row[x*4]),peak=Math.max(...shade);
     const start=shade.findIndex(v=>v>=peak*.1),end=shade.findIndex(v=>v>=peak*.8);
-    results.push({p,fixed,old,peak,edgeWidth:(end-start)*innerWidth/width});
+    let run=0,plateau=0;
+    for(let x=start+1;x<=end;x++){run=shade[x]===shade[x-1]?run+1:0;plateau=Math.max(plateau,run);}
+    results.push({p,fixed,old,peak,plateau,edgePixels:end-start,edgeWidth:(end-start)*innerWidth/width});
   }
   g.useProgram(surface.sheet.p);g.uniform1i(surface.sheet.u.castShadow,2);g.deleteTexture(black);
   surface.render(0,true,1,0,.5);return {results,error:g.getError()};
@@ -208,6 +210,22 @@ with sync_playwright() as pw:
         assert abs(sample['fixed']['background']-sample['fixed']['front'])<=2, ('Shadow interrupted at flat receiver',sample)
         assert sample['old']['front']-sample['old']['background']>60, ('Regression control cannot detect missing receiver',sample)
         assert sample['peak']>=75 and sample['edgeWidth']>=10+width*.01, ('Shadow too faint or narrow',sample)
+        assert sample['plateau']<=max(2, sample['edgePixels']*.08), ('Shadow has repeated bands',sample)
+    page.evaluate('''() => {const surface=effect.surface,g=surface.gl;
+  const originalUpload=g.texImage2D;let uploads=0;
+  g.texImage2D=function(...args){uploads++;return originalUpload.apply(this,args);};
+  try {
+    const pages=Array.from({length:4},(_,i)=>{const page=document.createElement('canvas');page.width=64;page.height=64;const c=page.getContext('2d');c.fillStyle=['red','green','blue','white'][i];c.fillRect(0,0,64,64);return page;});
+    const counts=[];
+    for(const [front,back] of [[pages[0],pages[1]],[pages[1],pages[2]],[pages[2],null],[pages[2],pages[3]]]){
+      uploads=0;surface.upload(front,back,innerWidth,innerHeight);counts.push(uploads);
+    }
+    if(counts.join(',')!=='2,1,0,1')throw Error('Sequential page textures uploaded again: '+counts);
+    surface.render(0,true,1,0,.5);
+    const pixel=new Uint8Array(4);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+    if(pixel[2]<250||pixel[0]>2)throw Error('Texture rotation selected the wrong front: '+pixel);
+  } finally {g.texImage2D=originalUpload;}
+}''')
     timing=page.evaluate('''async () => {
   const original=requestAnimationFrame,cancel=cancelAnimationFrame;
   const values=[],queue=[];

@@ -17,6 +17,8 @@ namespace flutter_inappwebview_plugin
     ABI::Windows::UI::Composition::IVisual* visual)
     : graphics_context_(graphics_context)
   {
+    callback_state_->owner = this;
+    capture_owner_thread_ = GetCurrentThreadId();
     capture_item_ =
       graphics_context_->CreateGraphicsCaptureItemFromVisual(visual);
     assert(capture_item_);
@@ -37,8 +39,13 @@ namespace flutter_inappwebview_plugin
 
   TextureBridge::~TextureBridge()
   {
-    const std::lock_guard<std::mutex> lock(mutex_);
-    StopInternal();
+    // A free-threaded callback can already be in flight after unsubscription.
+    // Fence it before destroying fields; subsequent callbacks see no owner.
+    {
+      const std::lock_guard<std::mutex> lock(callback_state_->gate);
+      callback_state_->owner = nullptr;
+    }
+    Stop();
     if (capture_item_) {
       capture_item_->remove_Closed(on_closed_token_);
     }
@@ -54,22 +61,33 @@ namespace flutter_inappwebview_plugin
     ABI::Windows::Graphics::SizeInt32 size;
     capture_item_->get_Size(&size);
 
-    frame_pool_ = graphics_context_->CreateCaptureFramePool(
+    frame_pool_ = graphics_context_->CreateFreeThreadedCaptureFramePool(
       graphics_context_->device(),
       static_cast<ABI::Windows::Graphics::DirectX::DirectXPixelFormat>(
         kPixelFormat),
       kNumBuffers, size);
-    assert(frame_pool_);
+    rendering_stats_.free_threaded = static_cast<bool>(frame_pool_);
+    if (!frame_pool_) {
+      frame_pool_ = graphics_context_->CreateCaptureFramePool(
+        graphics_context_->device(),
+        static_cast<ABI::Windows::Graphics::DirectX::DirectXPixelFormat>(kPixelFormat),
+        kNumBuffers, size);
+    }
+    if (!frame_pool_) return false;
 
+    const std::weak_ptr<CallbackState> weak_state = callback_state_;
     frame_pool_->add_FrameArrived(
       Microsoft::WRL::Callback<ABI::Windows::Foundation::ITypedEventHandler<
       ABI::Windows::Graphics::Capture::Direct3D11CaptureFramePool*,
       IInspectable*>>(
-        [this](ABI::Windows::Graphics::Capture::IDirect3D11CaptureFramePool*
+        [weak_state](ABI::Windows::Graphics::Capture::IDirect3D11CaptureFramePool*
           pool,
           IInspectable* args) -> HRESULT
         {
-          OnFrameArrived();
+          if (auto state = weak_state.lock()) {
+            const std::lock_guard<std::mutex> lock(state->gate);
+            if (state->owner) state->owner->OnFrameArrived();
+          }
           return S_OK;
         })
       .Get(),
@@ -91,8 +109,19 @@ namespace flutter_inappwebview_plugin
 
   void TextureBridge::Stop()
   {
-    const std::lock_guard<std::mutex> lock(mutex_);
-    StopInternal();
+    winrt::com_ptr<ABI::Windows::Graphics::Capture::IGraphicsCaptureSession> session;
+    {
+      const std::lock_guard<std::mutex> lock(mutex_);
+      session = capture_session_;
+      StopInternal();
+    }
+    // Close may wait for a capture callback. Never hold the callback's mutex
+    // while doing so: a worker could be waiting to observe is_running_ == false.
+    if (session) {
+      if (auto closable = session.try_as<ABI::Windows::Foundation::IClosable>()) {
+        closable->Close();
+      }
+    }
   }
 
   void TextureBridge::StopInternal()
@@ -100,11 +129,9 @@ namespace flutter_inappwebview_plugin
     if (is_running_) {
       is_running_ = false;
       frame_pool_->remove_FrameArrived(on_frame_arrived_token_);
-      auto closable =
-        capture_session_.try_as<ABI::Windows::Foundation::IClosable>();
-      assert(closable);
-      closable->Close();
       capture_session_ = nullptr;
+      last_frame_ = nullptr;
+      capture_frame_ = nullptr;
     }
   }
 
@@ -134,7 +161,10 @@ namespace flutter_inappwebview_plugin
       if (SUCCEEDED(frame->get_Surface(frame_surface.put()))) {
         last_frame_ =
           TryGetDXGIInterfaceFromObject<ID3D11Texture2D>(frame_surface);
-        has_frame = !ShouldDropFrame();
+        capture_frame_ = std::move(frame);
+        ++rendering_stats_.captures;
+        if (GetCurrentThreadId() == capture_owner_thread_) ++rendering_stats_.ui_thread_captures;
+        has_frame = last_frame_ && !ShouldDropFrame();
       }
     }
 
@@ -150,6 +180,7 @@ namespace flutter_inappwebview_plugin
     }
 
     if (has_frame && frame_available_) {
+      ++rendering_stats_.notifications;
       frame_available_();
     }
   }
@@ -171,6 +202,12 @@ namespace flutter_inappwebview_plugin
       last_frame_timestamp_ = now;
     }
     return should_drop_frame;
+  }
+
+  TextureBridge::RenderingStats TextureBridge::GetRenderingStats()
+  {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    return rendering_stats_;
   }
 
   void TextureBridge::NotifySurfaceSizeChanged()
