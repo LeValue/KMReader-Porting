@@ -120,11 +120,12 @@ void verifyNativeEpubPerformance() {
             );
             break;
           } on PlatformException catch (error) {
-            if (error.code != 'Could not copy the pixels' ||
-                error.message != 'result was 3' ||
-                attempt == 4) {
-              rethrow;
-            }
+            final noFrameYet =
+                error.code == 'capture_failed' &&
+                    error.message == 'PixelCopy failed: 3' ||
+                error.code == 'Could not copy the pixels' &&
+                    error.message == 'result was 3';
+            if (!noFrameYet || attempt == 4) rethrow;
             for (final view in tester.binding.renderViews) {
               view.markNeedsPaint();
             }

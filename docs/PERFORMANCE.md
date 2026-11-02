@@ -26,7 +26,12 @@ accelerated. A native query inspects the attached WebView's actual parents,
 layer type and acceleration state; the integration gate requires the texture
 wrapper, default layer and enabled hardware acceleration. The normal selection,
 settings, live typography, notch/rotation and pixel checks remain. Native
-scrolling probes run on both Android and Windows.
+scrolling probes run on both Android and Windows. Android debug PixelCopy reads
+FlutterSurfaceView for texture composition and the window for image-view hybrid
+composition, without switching the production renderer. Both dark glyphs and
+light paper are required, so a black window backdrop cannot pass as content.
+The native emulator has 3GiB of guest RAM; the old 1.5GiB guest exhausted memory
+during Google APIs boot services, before EPUB startup.
 
 Windows uses CreateFreeThreadedCaptureFramePool where supported, with the
 original pool as a compatibility fallback. The WRL callback explicitly aggregates

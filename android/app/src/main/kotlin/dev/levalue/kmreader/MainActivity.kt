@@ -17,6 +17,8 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.view.ViewTreeObserver
 import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.android.FlutterSurfaceView
+import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -107,10 +109,29 @@ class MainActivity : FlutterFragmentActivity() {
             } else if (call.method == "captureScreenshot" &&
                 (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // PixelCopy captures WebView hybrid composition without replacing
-                // Flutter's rendering surface (which can stall test screenshots).
-                val bitmap = Bitmap.createBitmap(window.decorView.width, window.decorView.height, Bitmap.Config.ARGB_8888)
-                PixelCopy.request(window, bitmap, { status ->
+                fun findFlutterView(view: View): FlutterView? {
+                    if (view is FlutterView) return view
+                    if (view is ViewGroup) for (index in 0 until view.childCount) {
+                        findFlutterView(view.getChildAt(index))?.let { return it }
+                    }
+                    return null
+                }
+                val flutterView = findFlutterView(window.decorView)
+                // Texture composition renders into Flutter's SurfaceView, which
+                // Window PixelCopy excludes. Legacy hybrid composition renders
+                // through FlutterImageView in the window instead. Sample the
+                // active production surface without converting the renderer.
+                val surface = if (flutterView?.currentImageSurface == null) {
+                    flutterView?.let { view ->
+                        (0 until view.childCount).map { view.getChildAt(it) }
+                            .filterIsInstance<FlutterSurfaceView>()
+                            .firstOrNull { it.holder.surface.isValid }
+                    }
+                } else null
+                val width = surface?.width ?: window.decorView.width
+                val height = surface?.height ?: window.decorView.height
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val complete = PixelCopy.OnPixelCopyFinishedListener { status ->
                     try {
                         if (status != PixelCopy.SUCCESS) result.error("capture_failed", "PixelCopy failed: $status", null)
                         else ByteArrayOutputStream().use { output ->
@@ -118,7 +139,10 @@ class MainActivity : FlutterFragmentActivity() {
                             result.success(output.toByteArray())
                         }
                     } finally { bitmap.recycle() }
-                }, Handler(Looper.getMainLooper()))
+                }
+                val handler = Handler(Looper.getMainLooper())
+                if (surface != null) PixelCopy.request(surface, bitmap, complete, handler)
+                else PixelCopy.request(window, bitmap, complete, handler)
             } else if (call.method == "setReaderStatusBarVisible" && call.arguments is Boolean) {
                 readerStatusBarVisible = call.arguments as Boolean
                 if (readerActive) setReaderMode(true)
