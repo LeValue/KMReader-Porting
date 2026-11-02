@@ -1,0 +1,31 @@
+name: Local Windows diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kmreader-local-windows
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, kmreader-local]
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect graphics session and build prerequisites
+        run: ./tool/windows_local_diagnostics.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-windows-diagnostics
+          path: artifacts/local-windows/environment.json
+          retention-days: 7
