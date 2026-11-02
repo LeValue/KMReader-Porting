@@ -247,7 +247,11 @@ namespace flutter_inappwebview_plugin
         {flutter::EncodableValue("callbacks"), flutter::EncodableValue(stats.callbacks)},
         {flutter::EncodableValue("lastFrameResult"), flutter::EncodableValue(stats.last_frame_result)},
         {flutter::EncodableValue("running"), flutter::EncodableValue(stats.running)},
-        {flutter::EncodableValue("startResult"), flutter::EncodableValue(stats.start_result)}
+        {flutter::EncodableValue("startResult"), flutter::EncodableValue(stats.start_result)},
+        {flutter::EncodableValue("captureIntervalSupported"), flutter::EncodableValue(stats.capture_interval_supported)},
+        {flutter::EncodableValue("captureIntervalBefore100ns"), flutter::EncodableValue(stats.capture_interval_before_100ns)},
+        {flutter::EncodableValue("captureInterval100ns"), flutter::EncodableValue(stats.capture_interval_100ns)},
+        {flutter::EncodableValue("captureIntervalResult"), flutter::EncodableValue(stats.capture_interval_result)}
       }));
     }
 

@@ -32,9 +32,12 @@ namespace flutter_inappwebview_plugin
 
     struct RenderingStats {
       bool free_threaded = false, running = false;
+      bool capture_interval_supported = false;
       int64_t captures = 0, notifications = 0, surface_requests = 0, gpu_copies = 0;
       int64_t ui_thread_captures = 0, callbacks = 0;
       int32_t last_frame_result = 0, start_result = 0;
+      int64_t capture_interval_before_100ns = -1, capture_interval_100ns = -1;
+      int32_t capture_interval_result = E_NOTIMPL;
     };
     RenderingStats GetRenderingStats();
 

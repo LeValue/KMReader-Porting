@@ -186,6 +186,14 @@ void main() {
           after!['captures'],
           greaterThanOrEqualTo(before!['captures'] as num),
         );
+        if (after['captureIntervalSupported'] == true) {
+          expect(after['captureIntervalResult'], 0);
+          expect(after['captureInterval100ns'], 10000);
+        }
+        if (['slide', 'curl', 'verticalScroll'].contains(name)) {
+          expect(after['captures'], greaterThan(before['captures'] as num));
+          expect(after['gpuCopies'], greaterThan(before['gpuCopies'] as num));
+        }
       }
     }
 
