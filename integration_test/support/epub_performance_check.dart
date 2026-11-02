@@ -616,6 +616,14 @@ void verifyNativeEpubPerformance() {
           );
 
           expect(afterCapture['freeThreaded'], true);
+          if (afterCapture['captureIntervalSupported'] == true) {
+            expect(afterCapture['captureIntervalResult'], 0);
+            expect(
+              afterCapture['captureInterval100ns'],
+              10000,
+              reason: 'Read back the live positive 1ms capture interval; zero alone can retain Windows default pacing.',
+            );
+          }
           expect(afterCapture['uiThreadCaptures'], 0);
           expect(
             afterCapture['captures'],

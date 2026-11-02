@@ -106,6 +106,24 @@ namespace flutter_inappwebview_plugin
       return false;
     }
 
+#if defined(____x_ABI_CWindows_CGraphics_CCapture_CIGraphicsCaptureSession5_INTERFACE_DEFINED__)
+    // Windows 11's default capture interval is 16ms. At 144Hz this can deliver
+    // only every third display frame. Zero alone is not reliably honored on
+    // affected Windows builds; an explicit positive 1ms interval avoids that
+    // bug while allowing normal display-paced rendering. Unchanged visuals
+    // still produce no captures. Older systems retain their existing path.
+    if (auto interval_session = capture_session_.try_as<
+      ABI::Windows::Graphics::Capture::IGraphicsCaptureSession5>()) {
+      rendering_stats_.capture_interval_supported = true;
+      ABI::Windows::Foundation::TimeSpan interval{};
+      if (SUCCEEDED(interval_session->get_MinUpdateInterval(&interval))) {
+        rendering_stats_.capture_interval_before_100ns = interval.Duration;
+      }
+      rendering_stats_.capture_interval_result =
+        interval_session->put_MinUpdateInterval(ABI::Windows::Foundation::TimeSpan{10000});
+    }
+#endif
+
     const auto started = capture_session_->StartCapture();
     rendering_stats_.start_result = started;
     if (SUCCEEDED(started)) {
@@ -218,9 +236,25 @@ namespace flutter_inappwebview_plugin
 
   TextureBridge::RenderingStats TextureBridge::GetRenderingStats()
   {
-    const std::lock_guard<std::mutex> lock(mutex_);
-    auto stats = rendering_stats_;
-    stats.running = is_running_;
+    RenderingStats stats;
+    winrt::com_ptr<ABI::Windows::Graphics::Capture::IGraphicsCaptureSession> session;
+    {
+      const std::lock_guard<std::mutex> lock(mutex_);
+      stats = rendering_stats_;
+      stats.running = is_running_;
+      session = capture_session_;
+    }
+#if defined(____x_ABI_CWindows_CGraphics_CCapture_CIGraphicsCaptureSession5_INTERFACE_DEFINED__)
+    if (session) {
+      if (auto interval_session = session.try_as<
+        ABI::Windows::Graphics::Capture::IGraphicsCaptureSession5>()) {
+        ABI::Windows::Foundation::TimeSpan interval{};
+        if (SUCCEEDED(interval_session->get_MinUpdateInterval(&interval))) {
+          stats.capture_interval_100ns = interval.Duration;
+        }
+      }
+    }
+#endif
     return stats;
   }
 
