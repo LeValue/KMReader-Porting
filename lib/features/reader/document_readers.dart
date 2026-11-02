@@ -12,6 +12,7 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'epub_document.dart';
 import 'pdf_reader.dart';
+import 'pdf_runtime.dart';
 import 'pdf_raster_reader.dart';
 import 'reader_display.dart';
 import 'epub_reader.dart';
@@ -42,7 +43,13 @@ class _DocumentReaderState extends State<DocumentReader> {
   @override
   void initState() {
     super.initState();
-    _file = widget.load();
+    _file = _load();
+  }
+
+  Future<File> _load() async {
+    final file = await widget.load();
+    if (widget.book.format == 'pdf') await initializePdfRuntime();
+    return file;
   }
 
   @override
@@ -54,7 +61,7 @@ class _DocumentReaderState extends State<DocumentReader> {
           appBar: AppBar(title: Text(widget.book.title)),
           body: FailureView(
             error: snapshot.error!,
-            retry: () => setState(() => _file = widget.load()),
+            retry: () => setState(() => _file = _load()),
           ),
         );
       }

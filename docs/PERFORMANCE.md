@@ -38,6 +38,14 @@ monotone movement and endpoint velocity, exercise contact during automatic
 comic turns, and verify shade gradients and unchanged endpoint artwork. These
 checks do not establish a fixed frame rate on every physical device.
 
+Windows PDF initialization also prewarms a leaf `FPDF_GetLastError` binding on
+the existing PDFium worker. This pure native query must preserve the Win32 TLS
+error set by a failed load; lazy resolution and a normal FFI transition can
+otherwise lose the password error. The adapter uses the pinned engine/bindings
+versions and retains the same parser and binary. Existing password retry and
+non-persistence checks remain; a negative case requires a corrupt PDF to fail
+without prompting for a password.
+
 The following sections describe earlier versions and historical behavior.
 
 ## Projected shadows, joined spreads and live typography in 0.8.8

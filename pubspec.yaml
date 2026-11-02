@@ -43,6 +43,9 @@ dependencies:
   flutter_widget_from_html_core: ^0.17.4
   archive: ^4.5.2
   pdfrx: ^2.10.1
+  # pdf_runtime.dart adapts the Windows last-error binding of these versions.
+  pdfrx_engine: 0.8.0
+  pdfium_dart: 0.4.0
   intl: ^0.20.3
   flutter_localizations:
     sdk: flutter
