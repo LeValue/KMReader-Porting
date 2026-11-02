@@ -207,7 +207,9 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disk-size: 2048M
-          ram-size: 1536M
+          # Google APIs boot services exhausted 1.5GiB before reader startup.
+          # Gradle is already stopped; the 16GiB host can retain a 3GiB guest.
+          ram-size: 3072M
           heap-size: 256M
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
