@@ -211,7 +211,7 @@ with sync_playwright() as pw:
         assert sample['old']['front']-sample['old']['background']>60, ('Regression control cannot detect missing receiver',sample)
         assert sample['peak']>=75 and sample['edgeWidth']>=10+width*.01, ('Shadow too faint or narrow',sample)
         assert sample['plateau']<=max(2, sample['edgePixels']*.08), ('Shadow has repeated bands',sample)
-    page.evaluate('''() => {const surface=effect.surface,g=surface.gl;
+    page.evaluate('''async () => {const surface=effect.surface,g=surface.gl;
   const originalUpload=g.texImage2D;let uploads=0;
   g.texImage2D=function(...args){uploads++;return originalUpload.apply(this,args);};
   try {
@@ -224,6 +224,21 @@ with sync_playwright() as pw:
     surface.render(0,true,1,0,.5);
     const pixel=new Uint8Array(4);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
     if(pixel[2]<250||pixel[0]>2)throw Error('Texture rotation selected the wrong front: '+pixel);
+    // Exercise the complete production start, not only the texture cache API.
+    // Its initial frame reads the front only; mirroring it into the back would
+    // upload that same page again immediately before loading the new back.
+    const savedEffect=window.effect,savedNative=window.nativeCurl,queue=[pages[3],pages[0]];
+    const real=new KMReaderSheetEffect('curl',1,{},.5,false,true,async()=>queue.shift());
+    uploads=0;
+    try {
+      if(!await real.start(async()=>{}))throw Error('Real curl start unavailable');
+      if(uploads!==1)throw Error('Real curl start reuploaded a retained front: '+uploads);
+      real.update(0);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+      if(pixel[0]<250||pixel[1]<250||pixel[2]<250)throw Error('Real curl start selected the wrong front');
+      real.update(1);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+      if(pixel[0]<250||pixel[1]>2||pixel[2]>2)throw Error('Real curl start selected the wrong back');
+    } finally {real.stop();window.effect=savedEffect;window.nativeCurl=savedNative;}
+
   } finally {g.texImage2D=originalUpload;}
 }''')
     timing=page.evaluate('''async () => {
