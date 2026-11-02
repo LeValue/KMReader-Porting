@@ -29,14 +29,16 @@ settings, live typography, notch/rotation and pixel checks remain. Native
 scrolling probes run on both Android and Windows.
 
 Windows uses CreateFreeThreadedCaptureFramePool where supported, with the
-original pool as a compatibility fallback. Callback lifetime is guarded by a
-weak state and a destruction fence. Closing the capture session occurs outside
+original pool as a compatibility fallback. The WRL callback explicitly aggregates
+the free-threaded marshaler so its apartment cannot stall worker delivery.
+Callback lifetime is guarded by a weak state and a destruction fence. Closing the capture session occurs outside
 the callback mutex, and capture stops before texture unregistration. The pooled
 frame remains leased until GPU copying, and a pending frame is consumed once
 rather than copied again for unrelated Flutter repaints. Counters expose actual
 capture-thread ownership and capture/copy counts. Native scrolling requires
 worker callbacks and advancing texture deliveries, followed by real renderer
-crash/recreation and release startup checks. No 60 FPS cap was active in 0.8.9;
+crash/recreation and release startup checks. Pixel checks require both dark
+glyphs and light paper, rejecting a missing all-black external texture. No 60 FPS cap was active in 0.8.9;
 these changes address delivery contention and redundant work.
 
 These are rendering/work reductions and regression checks. They do not prove

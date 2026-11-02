@@ -150,7 +150,7 @@ void verifyNativeEpubPerformance() {
         final data = (await image.toByteData(
           format: ui.ImageByteFormat.rawRgba,
         ))!;
-        var dark = 0;
+        var dark = 0, light = 0;
         // Ignore window controls/bars; the center must contain actual glyphs.
         for (var y = image.height ~/ 4; y < image.height * 3 ~/ 4; y++) {
           for (var x = image.width ~/ 4; x < image.width * 3 ~/ 4; x++) {
@@ -160,12 +160,22 @@ void verifyNativeEpubPerformance() {
                 data.getUint8(index + 2) < 120) {
               dark++;
             }
+            if (data.getUint8(index) > 180 &&
+                data.getUint8(index + 1) > 180 &&
+                data.getUint8(index + 2) > 160) {
+              light++;
+            }
           }
         }
         expect(
           dark,
           greaterThan(150),
           reason: 'The native reader surface must render text, not only report a DOM locator',
+        );
+        expect(
+          light,
+          greaterThan(150),
+          reason: 'A missing black texture must not count as rendered glyphs',
         );
       } finally {
         image.dispose();
@@ -560,6 +570,10 @@ void verifyNativeEpubPerformance() {
         expect(scrollingResult['distance'], greaterThan(5));
         if (Platform.isWindows) {
           final afterCapture = await captureStats();
+          debugPrint(
+            'Native Windows vertical scrolling, debug CI renderer (not physical display FPS): $scrollingResult; capture before=$beforeCapture after=$afterCapture',
+          );
+
           expect(afterCapture['freeThreaded'], true);
           expect(afterCapture['uiThreadCaptures'], 0);
           expect(
@@ -573,9 +587,6 @@ void verifyNativeEpubPerformance() {
           expect(
             afterCapture['gpuCopies'],
             lessThanOrEqualTo(afterCapture['captures'] as num),
-          );
-          debugPrint(
-            'Native Windows vertical scrolling, debug CI renderer (not physical display FPS): $scrollingResult; capture before=$beforeCapture after=$afterCapture',
           );
         }
         await js(
