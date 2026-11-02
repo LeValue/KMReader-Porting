@@ -6,7 +6,7 @@ $root = Join-Path $env:RUNNER_TOOL_CACHE "kmreader-flutter/$Version"
 $ready = Join-Path $root '.kmreader-sdk-ready'
 $flutter = Join-Path $root 'flutter/bin/flutter.bat'
 if (-not (Test-Path $ready) -or -not (Test-Path $flutter)) {
-    $metadata = Invoke-RestMethod -Uri 'https://storage.googleapis.com/flutter_infra_release/flutter/releases/releases_windows.json'
+    $metadata = Invoke-RestMethod -Uri 'https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json'
     $release = @($metadata.releases | Where-Object {
         $_.version -eq $Version -and $_.channel -eq 'stable' -and $_.dart_sdk_arch -eq 'x64'
     }) | Select-Object -First 1

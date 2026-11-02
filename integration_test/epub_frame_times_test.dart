@@ -251,13 +251,14 @@ void main() {
           );
           // Warm the real capture/compositor path before recording four turns.
           await js(
-            'await reader.turn({delta:1,style:"$style"});await kmMeasuredFlight;return true;',
+            'window.kmMeasuredEffect=null;window.kmMeasuredFlight=null;await reader.turn({delta:1,style:"$style"});if(!kmMeasuredFlight)throw Error("Motion warmup unavailable");await kmMeasuredFlight;return true;',
           );
           await measure(style, () async {
             await js('''
               let changed=0;
               for(let i=0;i<4;i++){
                 const before=reader.position().start.cfi;
+                window.kmMeasuredEffect=null;window.kmMeasuredFlight=null;
                 await reader.turn({delta:1,style:'$style'});
                 if(!window.kmMeasuredEffect||kmMeasuredEffect.style!=='$style')throw Error('Motion path unavailable');
                 await kmMeasuredFlight;
@@ -268,6 +269,12 @@ void main() {
               return true;
             ''');
           });
+          if (style == 'curl') {
+            results['webGlRenderer'] = await js('''
+              const gl=KMReaderCurlSurface.shared.gl,extension=gl.getExtension('WEBGL_debug_renderer_info');
+              return {renderer:gl.getParameter(gl.RENDERER),unmasked:extension?gl.getParameter(extension.UNMASKED_RENDERER_WEBGL):null};
+            ''');
+          }
         }
         await js(
           'await reader.preferences({...$preferences,flow:"scrolled"});await reader.whenIdle();return true;',
