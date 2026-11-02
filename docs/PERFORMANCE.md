@@ -59,9 +59,13 @@ Native comic pixel probes execute in the initial Flutter renderer before the
 fixtures that create and terminate WebView/background-engine contexts. This
 isolates the offscreen readback invariant from the emulator's EGL ownership
 race during renderer teardown. Before CPU readback, the Android probes also wait
-for an explicitly numbered subsequent frame to finish rasterizing; a Dart pump
-alone does not complete a deferred GPU snapshot. All pixel thresholds and native
-rendering checks remain in place.
+for an explicitly numbered subsequent frame to finish rasterizing. They keep
+requesting frames until the engine delivers its timing report, allowing for
+initial surface availability and batched reports. A Dart pump alone does not
+complete a deferred GPU snapshot. All pixel thresholds and native rendering
+checks remain in place.
+
+Review frame on dark-sepia stock: [continuous curl shadow](images/epub-curl-sepia-0.8.9.png).
 
 The following sections describe earlier versions and historical behavior.
 

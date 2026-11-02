@@ -1,5 +1,72 @@
 # Development validation
 
+## 0.8.9 preview — continuous curl shadows and automatic page motion
+
+Published [0.8.9](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.9-preview.1),
+runtime source `bc785e1f6b1f541473f2ea8b1deda1fd6f7856e5`. All three exact-source build/native jobs passed in
+[verification 41434072296](https://github.com/LeValue/KMReader-Porting/actions/runs/41434072296);
+[publisher 41436828880](https://github.com/LeValue/KMReader-Porting/actions/runs/41436828880)
+reused the verified Windows artifact and locally verified signed APKs.
+
+All **327 host tests** pass with Chromium/ONNX enabled, plus formatting, static
+analysis and eight Python checks. CI separately exercises the real Komga client.
+White-stock GPU probes require matching shadow intensity on the background and
+the flat front of the curled sheet. A control disables the front receiver and
+must reproduce the old discontinuity. Density and penumbra width are checked
+on the real native WebViews as well as Chromium. Dark-sepia frames are saved
+for review.
+
+Automatic EPUB slide/cover uses browser compositor snapshot animations with
+a paced fallback. The browser gate requires two real pseudo-element animations.
+Native checks require visible intermediate automatic slide progress. Gradual
+shade returns to the lower sheet and soft shadows to its moving edge; comic
+pixel checks require a spatial gradient and original colors at the endpoints,
+while decoded artwork remains mounted.
+
+Flutter page captures and pixel probes queue eager raster-thread snapshots to
+avoid the Android worker snapshot conflict. Native Android pixel probes wait
+for an explicitly numbered subsequent rasterized frame before CPU readback,
+requesting frames until the engine delivers its timing report. They run before
+renderer-lifecycle fixtures; all pixel assertions remain unchanged.
+Timing tests inject late first frames and stalls, require monotone movement,
+velocity-aware release and zero final velocity. The native comic snap retains
+its spring through delayed frames. Actual reader widget tests cover automatic
+slide/cover commands, a delayed frame and contact during the turn: it must
+settle onto the nearest complete page after contact without a drag.
+
+Windows passes **23 native checks**, Android **22 native checks** plus both
+notch/rotation checks. Native WebViews exercise the same shadow-receiver control,
+shadow density and extent, and automatic slide. The previous held-gesture,
+centered-page endpoint, joined spread, theme and live-font checks remain.
+Windows PDF setup prewarms a leaf last-error query on the existing PDFium worker,
+preserving password errors across the Windows FFI boundary. Engine and binding
+versions remain pinned; the parser and binary remain the same. The encrypted
+PDF regression requires password prompting, wrong-password retry and no stored
+credentials; a corrupt-file control must fail without asking for a password.
+Fixed-layout probes suppress usable initial viewport locators and force a no-op
+first manager turn. The single authored page must still expose a real canonical
+spine CFI, advance exactly once and preserve publisher styling. Native selection
+actions use a dedicated test mouse, separate from the live desktop device.
+Both release builds and isolated Windows startup pass.
+
+All five assets were downloaded and their SHA256SUMS and GitHub digests checked.
+APKs match staged signed bytes, source/version/build 19, the preview certificate,
+non-debuggable flags, architecture and 16KiB native-library alignment. All
+**63 Windows files**, including **21 AMD64 PE files**,
+match the successful CI artifact. Windows remains unsigned.
+See [implementation and visual review](PERFORMANCE.md).
+
+These checks establish state, geometry and rendering invariants; they do not
+establish a fixed frame rate on every physical device or exact Apple Books parity.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.9-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-android-arm64-preview.apk) | 77,634,570 | `2924478851e7732ff25f5785b5201a88cf0755c74be6aeb5d5a4807e7caf6694` |
+| [KMReader-0.8.9-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-android-armv7-preview.apk) | 63,984,476 | `2c182f038f2318836689f430749e30ca1da925424dace566a382c2146078f971` |
+| [KMReader-0.8.9-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-android-x64-preview.apk) | 83,870,415 | `03268afee2f743d7d184878b16adeadf9273d458f8d414ec0520a7672c2cb377` |
+| [KMReader-0.8.9-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-windows-x64-preview.zip) | 34,444,841 | `19039189c67ffb262231519a5a26a787ad3e8dd3849055a7dac823d69764e318` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/SHA256SUMS.txt) | 424 | `0382aafb470186166a4438ebdb16b587b3b0f9f2ddd2f7b4696019250c259714` |
+
 ## 0.8.8 preview — projected shadows, joined comic spreads and live text settings
 
 Published [0.8.8](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.8-preview.1),
