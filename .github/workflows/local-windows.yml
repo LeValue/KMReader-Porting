@@ -29,6 +29,16 @@ jobs:
           persist-credentials: false
       - name: Inspect graphics session and build prerequisites
         run: ./tool/windows_local_diagnostics.ps1
+      - name: Select native Git Bash for Flutter setup
+        if: inputs.mode == 'native'
+        run: |
+          $git = (Get-Command git -ErrorAction Stop).Source
+          $gitRoot = Split-Path (Split-Path $git)
+          $bashDirectory = Join-Path $gitRoot 'bin'
+          if (-not (Test-Path (Join-Path $bashDirectory 'bash.exe'))) {
+            throw 'Git for Windows with Git Bash is required for the Flutter setup action.'
+          }
+          $bashDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - uses: subosito/flutter-action@v2
         if: inputs.mode == 'native'
         with:
