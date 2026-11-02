@@ -526,7 +526,11 @@ void verifyNativeEpubPerformance() {
         await visibleText();
         final beforeCapture = Platform.isWindows ? await captureStats() : null;
         var finished = false;
-        final scrolling = js("""
+        // Collect the raw result here: the js() assertion must not run in
+        // parallel with a guarded tester.pump(). Assert after pumping finishes.
+        final scrolling = controller()!
+            .callAsyncJavaScript(
+              functionBody: """
             const viewport=document.querySelector('.epub-container');
             const start=performance.now(),base=viewport.scrollTop,positions=[];
             await new Promise(resolve=>{
@@ -538,7 +542,10 @@ void verifyNativeEpubPerformance() {
             });
             return {frames:positions.length,elapsed:performance.now()-start,
               distance:Math.max(...positions)-Math.min(...positions)};
-          """).whenComplete(() => finished = true);
+          """,
+            )
+            .timeout(const Duration(seconds: 20))
+            .whenComplete(() => finished = true);
         // Keep Flutter presenting while the real WebView scrolls, as it does
         // in the application. The test binding otherwise only draws on pump.
         for (var frame = 0; frame < 300 && !finished; frame++) {
@@ -546,7 +553,9 @@ void verifyNativeEpubPerformance() {
           await Future<void>.delayed(const Duration(milliseconds: 16));
         }
         expect(finished, true, reason: 'Native scrolling must complete');
-        final scrollingResult = object(await scrolling);
+        final scrollReply = await scrolling;
+        expect(scrollReply?.error, isNull);
+        final scrollingResult = object(scrollReply?.value);
         await visibleText();
         expect(scrollingResult['distance'], greaterThan(5));
         if (Platform.isWindows) {

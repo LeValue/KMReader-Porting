@@ -432,6 +432,18 @@ void main() {
       await tester.tap(find.byType(PopupMenuButton<String>).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Text Settings').last);
+      // Opening the sheet awaits a WebView command. Flutter animation settling
+      // alone does not wait for that asynchronous native reply.
+      for (var attempt = 0; attempt < 100; attempt++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (find.byType(Scrollable).evaluate().isNotEmpty) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(
+        find.byType(Scrollable),
+        findsWidgets,
+        reason: 'Text Settings must finish opening',
+      );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       for (final (key, expected) in [
