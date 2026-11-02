@@ -133,7 +133,10 @@ class _ReaderPageState extends State<ReaderPage>
     if (boundary is! RenderRepaintBoundary || boundary.debugNeedsPaint) {
       return null;
     }
-    return boundary.toImage(
+    // Begin on the raster thread; a worker snapshot can conflict with an EGL
+    // context still owned by the native view on Android. The returned image
+    // retains its scene and is ready before the raster thread draws the overlay.
+    return boundary.toImageSync(
       pixelRatio: boundary.size.longestSide > 2048
           ? 2048 / boundary.size.longestSide
           : 1,
