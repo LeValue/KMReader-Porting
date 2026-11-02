@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   inspect:
-    runs-on: [self-hosted, Windows, X64, kmreader-local]
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 10
     defaults:
       run:
