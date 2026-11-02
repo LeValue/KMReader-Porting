@@ -243,7 +243,11 @@ namespace flutter_inappwebview_plugin
         {flutter::EncodableValue("notifications"), flutter::EncodableValue(stats.notifications)},
         {flutter::EncodableValue("surfaceRequests"), flutter::EncodableValue(stats.surface_requests)},
         {flutter::EncodableValue("gpuCopies"), flutter::EncodableValue(stats.gpu_copies)},
-        {flutter::EncodableValue("uiThreadCaptures"), flutter::EncodableValue(stats.ui_thread_captures)}
+        {flutter::EncodableValue("uiThreadCaptures"), flutter::EncodableValue(stats.ui_thread_captures)},
+        {flutter::EncodableValue("callbacks"), flutter::EncodableValue(stats.callbacks)},
+        {flutter::EncodableValue("lastFrameResult"), flutter::EncodableValue(stats.last_frame_result)},
+        {flutter::EncodableValue("running"), flutter::EncodableValue(stats.running)},
+        {flutter::EncodableValue("startResult"), flutter::EncodableValue(stats.start_result)}
       }));
     }
 

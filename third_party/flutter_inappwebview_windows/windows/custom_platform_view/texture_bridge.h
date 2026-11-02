@@ -31,9 +31,10 @@ namespace flutter_inappwebview_plugin
     virtual ~TextureBridge();
 
     struct RenderingStats {
-      bool free_threaded = false;
+      bool free_threaded = false, running = false;
       int64_t captures = 0, notifications = 0, surface_requests = 0, gpu_copies = 0;
-      int64_t ui_thread_captures = 0;
+      int64_t ui_thread_captures = 0, callbacks = 0;
+      int32_t last_frame_result = 0, start_result = 0;
     };
     RenderingStats GetRenderingStats();
 

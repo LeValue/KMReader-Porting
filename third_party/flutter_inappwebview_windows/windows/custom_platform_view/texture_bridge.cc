@@ -76,22 +76,29 @@ namespace flutter_inappwebview_plugin
     if (!frame_pool_) return false;
 
     const std::weak_ptr<CallbackState> weak_state = callback_state_;
-    frame_pool_->add_FrameArrived(
-      Microsoft::WRL::Callback<ABI::Windows::Foundation::ITypedEventHandler<
-      ABI::Windows::Graphics::Capture::Direct3D11CaptureFramePool*,
-      IInspectable*>>(
+    using FrameHandler = ABI::Windows::Foundation::ITypedEventHandler<
+      ABI::Windows::Graphics::Capture::Direct3D11CaptureFramePool*, IInspectable*>;
+    // CreateFreeThreaded invokes this delegate from its own worker. The default
+    // WRL delegate is apartment-bound; explicitly aggregate the free-threaded
+    // marshaler so delivery never waits for the platform apartment.
+    using AgileFrameHandler = Microsoft::WRL::Implements<
+      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
+      FrameHandler, Microsoft::WRL::FtmBase>;
+    const auto registered = frame_pool_->add_FrameArrived(
+      Microsoft::WRL::Callback<AgileFrameHandler>(
         [weak_state](ABI::Windows::Graphics::Capture::IDirect3D11CaptureFramePool*
-          pool,
-          IInspectable* args) -> HRESULT
+          pool, IInspectable* args) -> HRESULT
         {
           if (auto state = weak_state.lock()) {
             const std::lock_guard<std::mutex> lock(state->gate);
             if (state->owner) state->owner->OnFrameArrived();
           }
           return S_OK;
-        })
-      .Get(),
-          &on_frame_arrived_token_);
+        }).Get(), &on_frame_arrived_token_);
+    if (FAILED(registered)) {
+      std::cerr << "Registering capture callback failed: " << registered << std::endl;
+      return false;
+    }
 
     if (FAILED(frame_pool_->CreateCaptureSession(capture_item_.get(),
       capture_session_.put()))) {
@@ -99,11 +106,14 @@ namespace flutter_inappwebview_plugin
       return false;
     }
 
-    if (SUCCEEDED(capture_session_->StartCapture())) {
+    const auto started = capture_session_->StartCapture();
+    rendering_stats_.start_result = started;
+    if (SUCCEEDED(started)) {
       is_running_ = true;
       return true;
     }
 
+    std::cerr << "Starting capture failed: " << started << std::endl;
     return false;
   }
 
@@ -146,7 +156,9 @@ namespace flutter_inappwebview_plugin
 
     winrt::com_ptr<ABI::Windows::Graphics::Capture::IDirect3D11CaptureFrame>
       frame;
+    ++rendering_stats_.callbacks;
     auto hr = frame_pool_->TryGetNextFrame(frame.put());
+    rendering_stats_.last_frame_result = hr;
     if (SUCCEEDED(hr) && frame) {
       // Present the newest queued capture instead of accumulating latency.
       for (int i = 1; i < kNumBuffers; ++i) {
@@ -207,7 +219,9 @@ namespace flutter_inappwebview_plugin
   TextureBridge::RenderingStats TextureBridge::GetRenderingStats()
   {
     const std::lock_guard<std::mutex> lock(mutex_);
-    return rendering_stats_;
+    auto stats = rendering_stats_;
+    stats.running = is_running_;
+    return stats;
   }
 
   void TextureBridge::NotifySurfaceSizeChanged()
