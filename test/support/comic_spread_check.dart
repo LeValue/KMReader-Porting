@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -13,34 +12,36 @@ import 'package:kmreader/features/reader/page_transition.dart';
 Future<void> _finishNativeRaster(WidgetTester tester) async {
   if (!Platform.isAndroid) return;
   var target = -1;
-  final finished = Completer<void>();
+  var finished = false;
   final seen = <int>[];
   void completed(List<ui.FrameTiming> timings) {
     seen.addAll(timings.map((timing) => timing.frameNumber));
-    if (target >= 0 &&
-        !finished.isCompleted &&
-        seen.any((number) => number >= target)) {
-      finished.complete();
-    }
+    finished = target >= 0 && seen.any((number) => number >= target);
   }
 
   tester.binding.addTimingsCallback(completed);
   try {
-    for (final view in tester.binding.renderViews) {
-      view.markNeedsPaint();
+    final deadline = Stopwatch()..start();
+    do {
+      // The first surface can become available after the initial submission.
+      // Live test bindings only draw requested frames: keep requesting them
+      // until the engine reports completion instead of waiting on a dropped
+      // startup frame with no further repaint scheduled.
+      for (final view in tester.binding.renderViews) {
+        view.markNeedsPaint();
+      }
+      await tester.pump(const Duration(milliseconds: 16));
+      if (target < 0) {
+        target = ui.PlatformDispatcher.instance.frameData.frameNumber;
+        if (target < 0) {
+          throw StateError('Native raster frame number unavailable');
+        }
+      }
+      completed(const <ui.FrameTiming>[]);
+    } while (!finished && deadline.elapsed < const Duration(seconds: 10));
+    if (!finished) {
+      throw StateError('Native raster frame $target was not delivered: $seen');
     }
-    await tester.pump();
-    target = ui.PlatformDispatcher.instance.frameData.frameNumber;
-    if (target < 0) throw StateError('Native raster frame number unavailable');
-    completed(const <ui.FrameTiming>[]);
-    await finished.future.timeout(
-      const Duration(seconds: 10),
-      onTimeout: () {
-        throw StateError(
-          'Native raster frame $target was not delivered: $seen',
-        );
-      },
-    );
   } finally {
     tester.binding.removeTimingsCallback(completed);
   }
