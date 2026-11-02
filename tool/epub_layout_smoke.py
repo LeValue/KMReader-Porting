@@ -13,16 +13,18 @@ with sync_playwright() as playwright:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script("window.readerMessages=[]; addEventListener('readerEvent', event=>readerMessages.push(event.detail));")
     page.goto(url)
+    page.evaluate('(hold)=>window.holdFixedViewport=hold', config.get('kind') != 'vertical' and config['preferences']['flow'] == 'paged')
     if config.get('kind') != 'vertical' or config['preferences']['flow'] == 'paged':
         page.evaluate("""() => {
             const renderTo = ePub.Book.prototype.renderTo;
             ePub.Book.prototype.renderTo = function(...args) {
                 const rendition = renderTo.apply(this, args);
                 window.fixtureRendition = rendition;
-                const report = rendition.reportLocation;
+                const report = rendition.reportLocation, located = rendition.located;
+                rendition.located = function(...args){return window.holdFixedViewport ? {} : located.apply(this,args);};
                 const pending = [];
                 rendition.reportLocation = () => {pending.push(() => report.call(rendition)); return Promise.resolve();};
-                window.releaseInitialReports = () => {rendition.reportLocation = report; for (const job of pending) job();};
+                window.releaseInitialReports = () => {window.holdFixedViewport=false;rendition.located=located;rendition.reportLocation = report; for (const job of pending) job();};
                 return rendition;
             };
         }""")
@@ -159,10 +161,10 @@ with sync_playwright() as playwright:
         # view is being delivered, leaving the viewport unchanged. The reader
         # must advance exactly one spine item without requiring a second tap.
         start_index=page.evaluate('reader.position().start.index')
-        page.evaluate("() => {const m=fixtureRendition.manager;window.fixedNext=m.next;m.next=()=>Promise.resolve();}")
+        page.evaluate("() => {const m=fixtureRendition.manager;window.fixedNext=m.next;window.fixedLocate=fixtureRendition.located;m.next=()=>Promise.resolve();fixtureRendition.located=()=>({});}")
         page.evaluate('reader.next()')
         assert page.evaluate('reader.position().start.index')==start_index+1, 'Fixed native no-op consumed the page turn'
-        page.evaluate("() => {fixtureRendition.manager.next=fixedNext;}")
+        page.evaluate("() => {fixtureRendition.manager.next=fixedNext;fixtureRendition.located=fixedLocate;}")
         page.evaluate('reader.previous()')
         assert page.evaluate('reader.position().start.index')==start_index
         check_authored()

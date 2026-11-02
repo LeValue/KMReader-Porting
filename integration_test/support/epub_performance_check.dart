@@ -436,7 +436,12 @@ void verifyNativeEpubPerformance() {
         // Reveal/reset idle chrome immediately before opening the action.
         // Hovering the book's top edge preserves the selected passage; an
         // Escape key would clear it. Earlier GPU work may consume five seconds.
-        final pointer = await tester.createGesture(
+        // A live desktop already owns mouse device 1. Keep this test mouse
+        // separate, and use the same device for hover, press and release.
+        final pointer = TestGesture(
+          dispatcher: tester.sendEventToBinding,
+          pointer: 424242,
+          device: 424242,
           kind: PointerDeviceKind.mouse,
         );
         try {
@@ -448,10 +453,10 @@ void verifyNativeEpubPerformance() {
           await waitFor(
             () => find.byType(PopupMenuButton<String>).evaluate().isNotEmpty,
           );
-          await tester.tap(
-            find.byType(PopupMenuButton<String>).first,
-            kind: PointerDeviceKind.mouse,
+          await pointer.down(
+            tester.getCenter(find.byType(PopupMenuButton<String>).first),
           );
+          await pointer.up();
         } finally {
           await pointer.removePointer();
         }
