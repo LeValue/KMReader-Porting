@@ -683,17 +683,34 @@ class KMReaderSheetEffect {
       resizePublication(window.innerWidth, window.innerHeight);
     });
   }
+  function fixedViewportLocation() {
+    // One authored fixed page is one spine item. A native view can deliver its
+    // contents before Epub.js exposes a viewport mapping; use that real page's
+    // canonical CFI instead of announcing readiness with no reading position.
+    if(!isFixedLayout()||preferences.flow!=='paged'||rendition.manager?.layout?.divisor!==1)return;
+    const contents=rendition.getContents();if(contents.length!==1)return;
+    const content=contents[0],section=book.spine.get(content.sectionIndex);
+    if(!section||!content.document?.body)return;
+    try{
+      const range=content.document.createRange();range.selectNodeContents(content.document.body);range.collapse(true);
+      const entry={index:section.index,href:section.href,cfi:content.cfiFromRange(range),displayed:{page:1,total:1}};
+      const linear=book.spine.spineItems.filter(item=>item.linear!==false&&item.linear!=='no');
+      return {start:entry,end:{...entry},atStart:section.index===linear[0]?.index,atEnd:section.index===linear.at(-1)?.index};
+    }catch(_){return;}
+  }
   function refreshViewportLocation() {
     // Reading the current location also synchronizes Epub.js layout with the
     // actual native viewport. A turn must not use cached geometry from before
     // the reader was shown or a settings sheet finished closing.
     const current = rendition.currentLocation();
-    if (current?.start) location = current;
+    if (current?.start?.cfi) location = current;
+    else {const fixed=fixedViewportLocation();if(fixed)location=fixed;}
   }
   async function advance(delta) {
     refreshViewportLocation();
     const beforeCfi=location?.start?.cfi;
-    const fixedTarget=delta>0?(location?.end?.index??location?.start?.index)+1:(location?.start?.index??0)-1;
+    const sectionIndex=location?.start?.index??rendition.getContents()[0]?.sectionIndex??0;
+    const fixedTarget=delta>0?(location?.end?.index??sectionIndex)+1:sectionIndex-1;
     const manager = rendition.manager;
     if (!isFixedLayout() && !manager.isPaginated && manager.settings.axis === 'horizontal') {
       const fraction = preferences.flow === 'scrolled' ? (Number(preferences.tapScroll) || 80) / 100 : 1;

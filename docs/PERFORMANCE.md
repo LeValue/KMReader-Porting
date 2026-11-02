@@ -46,6 +46,15 @@ versions and retains the same parser and binary. Existing password retry and
 non-persistence checks remain; a negative case requires a corrupt PDF to fail
 without prompting for a password.
 
+A single fixed-layout EPUB page can reach the native view before Epub.js exposes
+a viewport locator. Readiness and the first turn now use the real loaded spine
+item's canonical page CFI in that case. The adjacent-spine fallback also handles
+an absent initial index, avoiding a NaN target and a consumed first turn. Browser
+regressions suppress both initial locator reports and the current locator, then
+force a no-op manager turn; readiness, one-page advance and authored styling
+must still hold. Reflowable and multi-page spread mapping retain their normal
+viewport locators.
+
 The following sections describe earlier versions and historical behavior.
 
 ## Projected shadows, joined spreads and live typography in 0.8.8
