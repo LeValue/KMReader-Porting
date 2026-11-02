@@ -8,6 +8,11 @@ on:
         type: choice
         options: [inspect, native, profile]
         default: inspect
+      publication:
+        description: Profile fixture or the requested Alice download in KMReader
+        type: choice
+        options: [generated, cached-alice, alice-gutenberg]
+        default: generated
 
 permissions:
   contents: read
@@ -17,7 +22,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build_test:
+    if: inputs.mode != 'inspect'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build a separate diagnostic application
+        id: build
+        shell: pwsh
+        env:
+          DIAGNOSTIC_MODE: ${{ inputs.mode }}
+        run: |
+          # Keep the test WebView cache separate from the installed reader.
+          $resource = 'windows/runner/Runner.rc'
+          (Get-Content $resource -Raw).Replace('"ProductName", "KMReader"', '"ProductName", "KMReader Diagnostics"') | Set-Content $resource
+          if ($env:DIAGNOSTIC_MODE -eq 'profile') {
+            flutter build windows --profile --target=integration_test/epub_frame_times_test.dart --no-pub
+            $bundle = 'build/windows/x64/runner/Profile'
+          } else {
+            flutter build windows --debug --target=integration_test/epub_reader_test.dart --no-pub
+            $bundle = 'build/windows/x64/runner/Debug'
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "bundle=$bundle" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-windows-test-app
+          path: ${{ steps.build.outputs.bundle }}/
+          retention-days: 7
   inspect:
+    needs: build_test
+    if: ${{ !cancelled() && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 50
     defaults:
@@ -37,21 +80,40 @@ jobs:
         run: |
           flutter config --enable-windows-desktop
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter pub get --enforce-lockfile
+          # Only the Dart driver runs locally. Avoid Flutter's plugin-link
+          # generation, which requires changing Windows Developer Mode.
+          $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
+          dart pub get --enforce-lockfile
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/download-artifact@v4
+        if: inputs.mode != 'inspect'
+        with:
+          name: local-windows-test-app
+          path: .dart_tool/native-prebuilt
       - name: Run native reader regression tests
         if: inputs.mode == 'native'
         run: |
           $env:KMREADER_DATA_DIR = Join-Path $env:RUNNER_TEMP "kmreader-native-${{ github.run_id }}"
           $ErrorActionPreference = 'Continue'
-          flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/native-tests.log
+          flutter drive --use-application-binary=.dart_tool/native-prebuilt/kmreader.exe --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/native-tests.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Measure native EPUB frame timings in profile mode
         if: inputs.mode == 'profile'
+        env:
+          KMREADER_PROFILE_PUBLICATION: ${{ inputs.publication }}
         run: |
           $env:KMREADER_DATA_DIR = Join-Path $env:RUNNER_TEMP "kmreader-profile-${{ github.run_id }}"
+          if ($env:KMREADER_PROFILE_PUBLICATION -eq 'cached-alice') {
+            $env:KMREADER_PROFILE_EPUB = ./tool/find_cached_alice.ps1
+          }
+          if ($env:KMREADER_PROFILE_PUBLICATION -eq 'alice-gutenberg') {
+            $ProgressPreference = 'SilentlyContinue'
+            $alice = Join-Path $env:RUNNER_TEMP 'kmreader-alice-reference.epub'
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://www.gutenberg.org/ebooks/11.epub3.images' -OutFile $alice
+            $env:KMREADER_PROFILE_EPUB = $alice
+          }
           $ErrorActionPreference = 'Continue'
-          flutter drive --profile --driver=test_driver/epub_frame_times_driver.dart --target=integration_test/epub_frame_times_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/profile.log
+          flutter drive --profile --use-application-binary=.dart_tool/native-prebuilt/kmreader.exe --driver=test_driver/epub_frame_times_driver.dart --target=integration_test/epub_frame_times_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/profile.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()

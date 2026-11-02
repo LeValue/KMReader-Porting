@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -56,10 +57,21 @@ void main() {
     )..setOffline(true);
     final navigator = GlobalKey<NavigatorState>();
     final readerKey = GlobalKey();
+    final external = Platform.environment['KMREADER_PROFILE_EPUB'];
+    final publication = external == null
+        ? fixture(directory, paragraphCount: 1400)
+        : File(external);
+    final publicationBytes = await publication.readAsBytes();
     final results = <String, dynamic>{
       'schema': 1,
       'mode': 'profile',
-      'fixtureParagraphs': 1400,
+      'source': Platform.environment['GITHUB_SHA'],
+      'publication': {
+        'kind': external == null ? 'generated' : 'external',
+        'paragraphsPerChapter': external == null ? 1400 : null,
+        'bytes': publicationBytes.length,
+        'sha256': sha256.convert(publicationBytes).toString(),
+      },
       'notes':
           'WebView RAF, capture delivery and Flutter renderer timings; '
           'not physical monitor presentation FPS. No synthetic 16ms pumping.',
@@ -212,7 +224,7 @@ void main() {
             keepAwake: true,
             child: BrowserEpubReader(
               key: readerKey,
-              file: fixture(directory, paragraphCount: 1400),
+              file: publication,
               repository: repository,
               book: Book({
                 'id': 'frames',

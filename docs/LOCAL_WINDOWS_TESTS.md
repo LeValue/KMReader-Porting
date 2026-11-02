@@ -1,0 +1,69 @@
+# Tests on an interactive Windows PC
+
+[Local Windows diagnostics](https://github.com/LeValue/KMReader-Porting/actions/workflows/local-windows.yml)
+is a manual workflow for a registered self-hosted Windows x64 runner. Start the
+runner with `run.cmd` in the signed-in desktop session, rather than installing it
+as a service. Keep the desktop unlocked and the test application visible. The
+workflow uses the runner's default `self-hosted`, `Windows`, `X64` labels.
+
+Choose **Run workflow** and one of these modes:
+
+| Mode | Work performed |
+|---|---|
+| `inspect` | Read GPU/driver, current display mode, desktop-session and build-prerequisite information. |
+| `native` | Build on a GitHub-hosted Windows runner, then execute the existing reader regression suite locally in debug mode. |
+| `profile` | Build on a GitHub-hosted Windows runner, then measure EPUB locally in profile mode with natural native frame scheduling. |
+
+The first build downloads Flutter 3.47.8 into the runner tool cache and checks
+the archive against the official release manifest's SHA256. Pub dependencies
+also use a runner-specific cache. The local PC needs WebView2 Runtime. Compiling
+the test application on GitHub avoids requiring local C++ tools or enabling
+Windows Developer Mode for plugin symlinks. The local driver resolves Dart
+packages without generating plugin links, then launches the downloaded native
+application using `--use-application-binary`. The diagnostic executable has a
+separate Windows product identity and WebView cache. These jobs do not install
+system-wide toolchains or change Windows developer settings.
+
+Artifacts are retained for seven days. `local-windows-diagnostics` contains the
+environment report and command logs. Profile mode also writes
+`epub-frame-times.json`, including partial phase results when later phases fail.
+The fixture has two chapters of 1,400 generated paragraphs each. The database
+and publication live in test-owned memory/temporary storage; the benchmark does
+not import the user's library or upload books.
+
+For profile mode, `publication: alice-gutenberg` downloads Project Gutenberg's
+public EPUB of *Alice's Adventures in Wonderland* into the runner's temporary
+directory. Its byte count and SHA256 are recorded in the report. This is a
+reference edition and is not assumed to match a user's copy on Komga.
+
+`publication: cached-alice` instead locates the requested download in KMReader's
+standard application storage. It reads only EPUB ZIP metadata beneath the
+application's downloaded-book directories, with a bounded search. It requires
+exactly one matching title, opens that EPUB read-only and records only its size
+and hash. It does not read account databases or credentials. The publication
+stays on the PC; only diagnostics are uploaded. A missing or ambiguous download
+requires an explicit file path rather than silently substituting another book.
+
+## Reading the profile report
+
+The phases are a Flutter sheet baseline, idle EPUB, four automatic slide turns,
+four automatic curl turns, three seconds of vertical scrolling and three opens
+of the reader's actual text-settings sheet. Motion is warmed before measurement.
+The test rejects unavailable animation paths, hidden browser documents and
+unchanged navigation. Windows animation effects must be enabled.
+
+| Report field | Meaning |
+|---|---|
+| `webViewRaf.intervals` | Browser animation-callback intervals in milliseconds, including stalls. These callbacks do not establish physical monitor presentation FPS. |
+| `captureBefore` / `captureAfter` | Native WebView capture and GPU-copy counters surrounding the action. An unchanged idle page does not need new captures. |
+| `flutterBuildMs` / `flutterRasterMs` | Flutter build and raster duration for reported engine frames. Callbacks are batched; the collector also drains the tail after each action. |
+| `flutterVsyncMicros` | Engine frame timestamps, useful for locating gaps between rendered Flutter frames. |
+| `browser` / `webGlRenderer` | Actual viewport, pixel ratio, motion preference and GPU renderer used by the EPUB. |
+
+The test uses `fullyLive` scheduling and real asynchronous waits. It does not
+force frames through repeated synthetic 16 ms `pump` calls. These observations
+help separate browser work, capture delivery and Flutter rendering. They do not
+replace presentation traces or a reproduction with the particular book, window
+size and input that causes a problem. The baseline sheet and reader settings
+also have different contents, so their timing difference alone cannot establish
+that WebView is the cause.
