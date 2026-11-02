@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Read-only environment check or native reader tests
+        description: Environment, native regression tests, or profile frame timings
         type: choice
-        options: [inspect, native]
+        options: [inspect, native, profile]
         default: inspect
 
 permissions:
@@ -29,23 +29,11 @@ jobs:
           persist-credentials: false
       - name: Inspect graphics session and build prerequisites
         run: ./tool/windows_local_diagnostics.ps1
-      - name: Select native Git Bash for Flutter setup
-        if: inputs.mode == 'native'
-        run: |
-          $git = (Get-Command git -ErrorAction Stop).Source
-          $gitRoot = Split-Path (Split-Path $git)
-          $bashDirectory = Join-Path $gitRoot 'bin'
-          if (-not (Test-Path (Join-Path $bashDirectory 'bash.exe'))) {
-            throw 'Git for Windows with Git Bash is required for the Flutter setup action.'
-          }
-          $bashDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - uses: subosito/flutter-action@v2
-        if: inputs.mode == 'native'
-        with:
-          flutter-version: '3.47.8'
-          cache: true
+      - name: Set up the verified Flutter SDK in the runner tool cache
+        if: inputs.mode != 'inspect'
+        run: ./tool/setup_local_flutter.ps1
       - name: Resolve locked dependencies
-        if: inputs.mode == 'native'
+        if: inputs.mode != 'inspect'
         run: |
           flutter config --enable-windows-desktop
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -55,7 +43,15 @@ jobs:
         if: inputs.mode == 'native'
         run: |
           $env:KMREADER_DATA_DIR = Join-Path $env:RUNNER_TEMP "kmreader-native-${{ github.run_id }}"
+          $ErrorActionPreference = 'Continue'
           flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/native-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Measure native EPUB frame timings in profile mode
+        if: inputs.mode == 'profile'
+        run: |
+          $env:KMREADER_DATA_DIR = Join-Path $env:RUNNER_TEMP "kmreader-profile-${{ github.run_id }}"
+          $ErrorActionPreference = 'Continue'
+          flutter drive --profile --driver=test_driver/epub_frame_times_driver.dart --target=integration_test/epub_frame_times_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/profile.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
