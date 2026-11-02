@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -6,10 +7,62 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/page_transition.dart';
 
+// Native Android snapshots are deferred. A subsequent rasterized frame is a
+// fence before CPU readback; pumping the Dart build alone does not finish GPU
+// work. Frame numbers avoid accepting a previously batched timing report.
+Future<void> _finishNativeRaster(WidgetTester tester) async {
+  if (!Platform.isAndroid) return;
+  var target = -1;
+  final finished = Completer<void>();
+  final seen = <int>[];
+  void completed(List<ui.FrameTiming> timings) {
+    seen.addAll(timings.map((timing) => timing.frameNumber));
+    if (target >= 0 &&
+        !finished.isCompleted &&
+        seen.any((number) => number >= target)) {
+      finished.complete();
+    }
+  }
+
+  tester.binding.addTimingsCallback(completed);
+  try {
+    for (final view in tester.binding.renderViews) {
+      view.markNeedsPaint();
+    }
+    await tester.pump();
+    target = ui.PlatformDispatcher.instance.frameData.frameNumber;
+    if (target < 0) throw StateError('Native raster frame number unavailable');
+    completed(const <ui.FrameTiming>[]);
+    await finished.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        throw StateError(
+          'Native raster frame $target was not delivered: $seen',
+        );
+      },
+    );
+  } finally {
+    tester.binding.removeTimingsCallback(completed);
+  }
+}
+
 void verifyComicSpread() {
   testWidgets(
     'centered comic leaf exits or lands continuously at the end of a curl',
     (tester) async {
+      // These probes run before any other native fixture. Prime the surface
+      // before allocating offscreen images on a freshly launched Android app.
+      await tester.pumpWidget(
+        const MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: ColoredBox(color: Colors.black),
+        ),
+      );
+      if (Platform.isAndroid) {
+        await tester.binding.waitUntilFirstFrameRasterized.timeout(
+          const Duration(seconds: 10),
+        );
+      }
       Future<ui.Image> bitmap(Color color) async {
         final recorder = ui.PictureRecorder();
         Canvas(recorder).drawColor(color, BlendMode.src);
@@ -62,6 +115,7 @@ void verifyComicSpread() {
               // Queue the snapshot on the raster thread. The asynchronous capture
               // path can bind a worker EGL context still held by another thread.
               final image = boundary.toImageSync();
+              await _finishNativeRaster(tester);
               final pixels = (await tester.runAsync(
                 () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
               ))!;
@@ -157,6 +211,7 @@ void verifyComicSpread() {
       final boundary =
           key.currentContext!.findRenderObject() as RenderRepaintBoundary;
       final image = boundary.toImageSync();
+      await _finishNativeRaster(tester);
       final data = (await tester.runAsync(
         () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
       ))!;

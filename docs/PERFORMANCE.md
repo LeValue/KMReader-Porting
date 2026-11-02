@@ -55,6 +55,14 @@ force a no-op manager turn; readiness, one-page advance and authored styling
 must still hold. Reflowable and multi-page spread mapping retain their normal
 viewport locators.
 
+Native comic pixel probes execute in the initial Flutter renderer before the
+fixtures that create and terminate WebView/background-engine contexts. This
+isolates the offscreen readback invariant from the emulator's EGL ownership
+race during renderer teardown. Before CPU readback, the Android probes also wait
+for an explicitly numbered subsequent frame to finish rasterizing; a Dart pump
+alone does not complete a deferred GPU snapshot. All pixel thresholds and native
+rendering checks remain in place.
+
 The following sections describe earlier versions and historical behavior.
 
 ## Projected shadows, joined spreads and live typography in 0.8.8
