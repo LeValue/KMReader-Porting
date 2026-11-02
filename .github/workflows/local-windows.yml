@@ -2,6 +2,12 @@ name: Local Windows diagnostics
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Read-only environment check or native reader tests
+        type: choice
+        options: [inspect, native]
+        default: inspect
 
 permissions:
   contents: read
@@ -13,7 +19,7 @@ concurrency:
 jobs:
   inspect:
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 10
+    timeout-minutes: 50
     defaults:
       run:
         shell: powershell
@@ -23,9 +29,29 @@ jobs:
           persist-credentials: false
       - name: Inspect graphics session and build prerequisites
         run: ./tool/windows_local_diagnostics.ps1
+      - uses: subosito/flutter-action@v2
+        if: inputs.mode == 'native'
+        with:
+          flutter-version: '3.47.8'
+          cache: true
+      - name: Resolve locked dependencies
+        if: inputs.mode == 'native'
+        run: |
+          flutter config --enable-windows-desktop
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run native reader regression tests
+        if: inputs.mode == 'native'
+        run: |
+          $env:KMREADER_DATA_DIR = Join-Path $env:RUNNER_TEMP "kmreader-native-${{ github.run_id }}"
+          flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/native-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: local-windows-diagnostics
-          path: artifacts/local-windows/environment.json
+          path: |
+            artifacts/local-windows/
+            artifacts/native-epub/
           retention-days: 7
