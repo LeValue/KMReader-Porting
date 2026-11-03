@@ -67,6 +67,15 @@ until these checks have actually run.
   one live-Komga test was skipped in that local run. All 21 browser tests passed.
   The additional slide/cover/recovery-configuration fault cases also passed.
 - `flutter analyze --no-pub`, formatting and the eight Python tool tests passed.
+- Native CI run [41640810909](https://github.com/LeValue/KMReader-Porting/actions/runs/41640810909)
+  passed all 23 Android reader tests, including GPU-fault/context-loss recovery
+  and saved-CFI reader reopen, plus the two display/insets tests. Its native
+  Windows WebView2 test step also passed. These tests use the same application
+  and native-test source as the prepared candidate.
+- The separate Android release CI job stopped on an interrupted PDF transfer in
+  the live-Komga fixture. Repeating that real-server integration test locally
+  passed. The overall CI run must not be described as fully green on this
+  evidence.
 - The dedicated debug diagnostic APK compiled locally. Its manifest package is
   `dev.levalue.kmreader.epubdiagnostic`, debuggable is true, and its bundled
   `reader.js` exactly matches the candidate. Provenance identifies runtime commit
