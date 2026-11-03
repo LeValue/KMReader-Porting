@@ -1,0 +1,515 @@
+{
+  "baseline_run": 41540309994,
+  "fixed_run": 41547276034,
+  "source": "f4f0d806d83471c3cecf61cfdf9bb3f17132bb04",
+  "baseline": {
+    "source": "3eb49a9a75cdf9d5880fa205a07b4b38266b8837",
+    "mode": "profile",
+    "publication": {
+      "kind": "external",
+      "paragraphsPerChapter": null,
+      "bytes": 189851,
+      "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+    },
+    "browser": {
+      "dpr": 1,
+      "height": 681,
+      "reducedMotion": false,
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+      "width": 1264
+    },
+    "webGlRenderer": {
+      "renderer": "WebKit WebGL",
+      "unmasked": "ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 SUPER (0x00001F06) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    "phases": {
+      "flutterSheetBaseline": {
+        "actionElapsedMs": 2407.992,
+        "webViewRaf": {
+          "samples": 0
+        },
+        "flutterBuild": {
+          "samples": 519,
+          "medianMs": 0.148,
+          "p95Ms": 0.327,
+          "maxMs": 0.748,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 519,
+          "medianMs": 0.494,
+          "p95Ms": 0.695,
+          "maxMs": 1.251,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        }
+      },
+      "idle": {
+        "actionElapsedMs": 2002.072,
+        "webViewRaf": {
+          "samples": 287,
+          "medianMs": 6.9,
+          "p95Ms": 7.0,
+          "maxMs": 20.6,
+          "over16_7Ms": 1,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 142.99
+        },
+        "flutterBuild": {
+          "samples": 453,
+          "medianMs": 0.124,
+          "p95Ms": 0.177,
+          "maxMs": 0.542,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 453,
+          "medianMs": 0.571,
+          "p95Ms": 0.72,
+          "maxMs": 1.369,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 0,
+          "captures": 0,
+          "notifications": 0,
+          "surfaceRequests": 0,
+          "gpuCopies": 0,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 0.0
+      },
+      "slide": {
+        "actionElapsedMs": 1657.473,
+        "webViewRaf": {
+          "samples": 230,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 48.6,
+          "over16_7Ms": 2,
+          "over33_3Ms": 1,
+          "meanCallbackHz": 138.58
+        },
+        "flutterBuild": {
+          "samples": 412,
+          "medianMs": 0.12,
+          "p95Ms": 0.203,
+          "maxMs": 0.78,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 412,
+          "medianMs": 0.496,
+          "p95Ms": 0.783,
+          "maxMs": 1.202,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 78,
+          "captures": 78,
+          "notifications": 78,
+          "surfaceRequests": 77,
+          "gpuCopies": 77,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 46.46
+      },
+      "curl": {
+        "actionElapsedMs": 1696.348,
+        "webViewRaf": {
+          "samples": 241,
+          "medianMs": 6.9,
+          "p95Ms": 7.0,
+          "maxMs": 20.9,
+          "over16_7Ms": 2,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 141.66
+        },
+        "flutterBuild": {
+          "samples": 405,
+          "medianMs": 0.12,
+          "p95Ms": 0.196,
+          "maxMs": 1.103,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 405,
+          "medianMs": 0.499,
+          "p95Ms": 0.766,
+          "maxMs": 1.141,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 79,
+          "captures": 79,
+          "notifications": 79,
+          "surfaceRequests": 79,
+          "gpuCopies": 79,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 46.57
+      },
+      "verticalScroll": {
+        "actionElapsedMs": 3014.583,
+        "webViewRaf": {
+          "samples": 430,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 20.6,
+          "over16_7Ms": 2,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 142.38
+        },
+        "flutterBuild": {
+          "samples": 602,
+          "medianMs": 0.122,
+          "p95Ms": 0.159,
+          "maxMs": 0.558,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 602,
+          "medianMs": 0.526,
+          "p95Ms": 0.807,
+          "maxMs": 1.222,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 141,
+          "captures": 141,
+          "notifications": 141,
+          "surfaceRequests": 141,
+          "gpuCopies": 141,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 46.77
+      },
+      "readerSettings": {
+        "actionElapsedMs": 3665.966,
+        "webViewRaf": {
+          "samples": 524,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 20.7,
+          "over16_7Ms": 2,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 142.92
+        },
+        "flutterBuild": {
+          "samples": 678,
+          "medianMs": 0.145,
+          "p95Ms": 0.383,
+          "maxMs": 9.042,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 678,
+          "medianMs": 1.159,
+          "p95Ms": 1.857,
+          "maxMs": 2.413,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 0,
+          "captures": 0,
+          "notifications": 0,
+          "surfaceRequests": 0,
+          "gpuCopies": 0,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 0.0
+      }
+    }
+  },
+  "fixed": {
+    "source": "f4f0d806d83471c3cecf61cfdf9bb3f17132bb04",
+    "mode": "profile",
+    "publication": {
+      "kind": "external",
+      "paragraphsPerChapter": null,
+      "bytes": 189851,
+      "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+    },
+    "browser": {
+      "dpr": 1,
+      "height": 681,
+      "reducedMotion": false,
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+      "width": 1264
+    },
+    "webGlRenderer": {
+      "renderer": "WebKit WebGL",
+      "unmasked": "ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 SUPER (0x00001F06) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    "phases": {
+      "flutterSheetBaseline": {
+        "actionElapsedMs": 2408.844,
+        "webViewRaf": {
+          "samples": 0
+        },
+        "flutterBuild": {
+          "samples": 530,
+          "medianMs": 0.14,
+          "p95Ms": 0.332,
+          "maxMs": 0.779,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 530,
+          "medianMs": 0.452,
+          "p95Ms": 0.676,
+          "maxMs": 1.32,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        }
+      },
+      "idle": {
+        "actionElapsedMs": 2001.187,
+        "webViewRaf": {
+          "samples": 284,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 20.6,
+          "over16_7Ms": 2,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 142.02
+        },
+        "flutterBuild": {
+          "samples": 508,
+          "medianMs": 0.118,
+          "p95Ms": 0.172,
+          "maxMs": 0.374,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 508,
+          "medianMs": 0.556,
+          "p95Ms": 0.829,
+          "maxMs": 1.112,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 0,
+          "captures": 0,
+          "notifications": 0,
+          "surfaceRequests": 0,
+          "gpuCopies": 0,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 0.0
+      },
+      "slide": {
+        "actionElapsedMs": 1647.61,
+        "webViewRaf": {
+          "samples": 228,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 41.8,
+          "over16_7Ms": 3,
+          "over33_3Ms": 1,
+          "meanCallbackHz": 137.99
+        },
+        "flutterBuild": {
+          "samples": 462,
+          "medianMs": 0.116,
+          "p95Ms": 0.179,
+          "maxMs": 0.889,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 462,
+          "medianMs": 0.585,
+          "p95Ms": 0.889,
+          "maxMs": 1.285,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 222,
+          "captures": 222,
+          "notifications": 222,
+          "surfaceRequests": 207,
+          "gpuCopies": 193,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 117.14
+      },
+      "curl": {
+        "actionElapsedMs": 1696.229,
+        "webViewRaf": {
+          "samples": 242,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 20.5,
+          "over16_7Ms": 1,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 142.29
+        },
+        "flutterBuild": {
+          "samples": 445,
+          "medianMs": 0.116,
+          "p95Ms": 0.202,
+          "maxMs": 0.98,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 445,
+          "medianMs": 0.579,
+          "p95Ms": 0.854,
+          "maxMs": 1.316,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 227,
+          "captures": 227,
+          "notifications": 227,
+          "surfaceRequests": 198,
+          "gpuCopies": 192,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 113.19
+      },
+      "verticalScroll": {
+        "actionElapsedMs": 3014.18,
+        "webViewRaf": {
+          "samples": 428,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 20.6,
+          "over16_7Ms": 3,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 141.72
+        },
+        "flutterBuild": {
+          "samples": 704,
+          "medianMs": 0.114,
+          "p95Ms": 0.157,
+          "maxMs": 0.424,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 704,
+          "medianMs": 0.585,
+          "p95Ms": 0.877,
+          "maxMs": 1.361,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 406,
+          "captures": 406,
+          "notifications": 406,
+          "surfaceRequests": 382,
+          "gpuCopies": 376,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 124.74
+      },
+      "readerSettings": {
+        "actionElapsedMs": 3664.802,
+        "webViewRaf": {
+          "samples": 524,
+          "medianMs": 6.9,
+          "p95Ms": 7.1,
+          "maxMs": 20.6,
+          "over16_7Ms": 2,
+          "over33_3Ms": 0,
+          "meanCallbackHz": 142.92
+        },
+        "flutterBuild": {
+          "samples": 728,
+          "medianMs": 0.136,
+          "p95Ms": 0.387,
+          "maxMs": 6.779,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "flutterRaster": {
+          "samples": 728,
+          "medianMs": 0.97,
+          "p95Ms": 1.717,
+          "maxMs": 2.302,
+          "over16_7Ms": 0,
+          "over33_3Ms": 0
+        },
+        "captureDeltas": {
+          "callbacks": 0,
+          "captures": 0,
+          "notifications": 0,
+          "surfaceRequests": 0,
+          "gpuCopies": 0,
+          "uiThreadCaptures": 0
+        },
+        "captureMode": {
+          "freeThreaded": true,
+          "running": true,
+          "lastFrameResult": 0
+        },
+        "gpuCopiesPerActionSecond": 0.0
+      }
+    }
+  }
+}

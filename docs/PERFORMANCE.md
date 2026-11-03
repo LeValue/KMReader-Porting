@@ -1,4 +1,40 @@
-# EPUB shadow filtering and native presentation in 0.8.10
+# Reader rendering performance
+
+## Windows high-refresh capture interval in 0.8.11
+
+A physical RTX 2060 SUPER/144Hz run with the user's local Alice EPUB exposed
+~47 native texture deliveries/s while browser animation callbacks ran around
+140Hz. Flutter raster times were low. Windows reported a 16ms capture minimum,
+which can quantize updates to every third 144Hz vsync. The application's own FPS
+limiter remained unset. Zero alone was accepted by the API but left delivery
+unchanged. A live calibration through a nonzero interval and back to zero raised
+scroll delivery to 130.93 copies/s. The [capture API maintainer describes this
+zero-initialization issue](https://github.com/robmikh/Win32CaptureSample/issues/92).
+
+The final configuration requests a positive 1ms interval through Session5 when
+supported and reads it back from the running session. Older SDKs/Windows retain
+the compatible capture path. Capture lifetimes, worker delivery and frame leases
+remain. Idle unchanged pages still need no new capture copies. The existing
+native suite requires the live positive interval when available, alongside real
+scroll delivery, visible pixels, typography and renderer recovery.
+
+The six-phase profile probe uses natural presentation, the same publication hash
+and viewport, and separate RAF/capture/Flutter measurements. Its final-source
+[physical run](https://github.com/LeValue/KMReader-Porting/actions/runs/41547276034) reports:
+
+| Motion | 0.8.10 texture copies/s | Initial positive 1ms copies/s |
+|---|---:|---:|
+| Scorri / slide | 46.46 | 117.14 |
+| Curl | 46.57 | 113.19 |
+| Vertical scrolling | 46.77 | 124.74 |
+
+![Browser callbacks and native texture delivery](images/epub-windows-delivery-0.8.11.png)
+
+Native texture-copy rates describe pipeline delivery. Physical monitor presentation
+FPS and the Huawei Mate 20 Pro were not measured by this Windows probe.
+[Reproduction workflow](LOCAL_WINDOWS_TESTS.md) · [Timing summaries](benchmarks/epub-windows-0.8.11-rtx2060super.json)
+
+## EPUB shadow filtering and native presentation in 0.8.10
 
 The old five-tap optimized Gaussian kernel was scaled far beyond adjacent
 bilinear texels. Its taps sampled separate silhouettes instead of a continuous

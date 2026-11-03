@@ -1,5 +1,53 @@
 # Development validation
 
+## 0.8.11 preview — physical Windows capture pacing
+
+Published [0.8.11](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.11-preview.1), runtime source `f4f0d806d83471c3cecf61cfdf9bb3f17132bb04`.
+All exact-source verification jobs passed in [CI 41547276287](https://github.com/LeValue/KMReader-Porting/actions/runs/41547276287);
+[publisher 41549744571](https://github.com/LeValue/KMReader-Porting/actions/runs/41549744571) reused that verified Windows artifact and the locally signed, verified APKs.
+
+The user's interactive Windows 11 PC (RTX 2060 SUPER, nominal 144Hz display,
+WebView2 156) ran the six-phase profile probe against its existing downloaded
+Alice EPUB. The byte count, publication hash and 1264x681 viewport match the
+baseline. [Physical run 41547276034](https://github.com/LeValue/KMReader-Porting/actions/runs/41547276034)
+requires a successful live 1ms capture-interval readback and advancing native
+capture/copy counters during slide, curl and scrolling. Idle, normal Flutter
+sheets and the real reader settings are also exercised without synthetic 16ms
+pumping. The exact-source release/native jobs retain all visible-pixel checks.
+
+| Motion | 0.8.10 texture copies/s | Initial positive 1ms copies/s |
+|---|---:|---:|
+| Scorri / slide | 46.46 | 117.14 |
+| Curl | 46.57 | 113.19 |
+| Vertical scrolling | 46.77 | 124.74 |
+
+These are native texture-copy rates, separately recorded from browser RAF and
+Flutter engine timings. They do not measure physical monitor presentation FPS.
+A controlled calibration also measured 46.53 copies/s with zero alone, 9.29
+at 100ms, and 130.93 after switching from a nonzero interval back to zero.
+This reproduces the Windows capture API maintainer's documented zero-initialization
+bug; production requests a positive 1ms instead. See [details and graph](PERFORMANCE.md)
+and the [durable timing summaries](benchmarks/epub-windows-0.8.11-rtx2060super.json).
+
+All 327 host tests pass with browser/ONNX enabled, alongside static analysis,
+formatting and eight Python checks. Windows passes 23 native checks, Android
+22 plus both notch/rotation checks. Android rendering is unchanged from 0.8.10;
+physical Mate 20 Pro frame rates remain unmeasured.
+
+All five published assets were downloaded and checked against SHA256SUMS and
+GitHub digests. The APKs match staged signed bytes, source/version/build 21,
+preview certificate, non-debuggable flags, ABI and 16KiB library alignment.
+All 63 Windows files (21 AMD64 PE files)
+match the exact-source CI bundle.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.11-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-android-arm64-preview.apk) | 77,635,170 | `378462f3229195e92eb76e45eff26ea20feb2e22c79c9788657dfc87fea103b6` |
+| [KMReader-0.8.11-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-android-armv7-preview.apk) | 64,001,460 | `f4e0047c39312992c542ffb5ba26c6effb18a65cd4497967e4735530aa691796` |
+| [KMReader-0.8.11-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-android-x64-preview.apk) | 83,936,551 | `177c47f8649aa0261843b097d0c79d715ec1365e156dc23aef5b2ced3e94ecb2` |
+| [KMReader-0.8.11-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-windows-x64-preview.zip) | 34,449,588 | `ea0cedc07546bfdf879d9e3a9e45d95c44244610fb88b9b698c37f97b72b6ee7` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/SHA256SUMS.txt) | 428 | `0b5443c269f54e3328b334b3fb8d4790727c11411bfce1f30ec3fc3a4128a666` |
+
 ## 0.8.10 preview — smooth shadow filtering and EPUB presentation costs
 
 Published [0.8.10](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.10-preview.1),
