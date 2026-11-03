@@ -1,6 +1,7 @@
 # Read-only prerequisites for an interactive, self-hosted Windows runner.
 # Intentionally omit account names, host names, network details and serials.
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'windows_interactive_desktop.ps1')
 $outputDirectory = Join-Path $PSScriptRoot '../artifacts/local-windows'
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 
@@ -54,6 +55,7 @@ $report = [ordered]@{
     })
     workspaceFreeGB = [math]::Round($drive.Free / 1GB, 1)
     interactive = [Environment]::UserInteractive
+    inputDesktop = [KMReaderProbeDesktop]::InputDesktopName()
     sessionId = $sessionId
     powershell = $PSVersionTable.PSVersion.ToString()
     graphics = $graphics
@@ -67,3 +69,4 @@ Write-Output $json
 if ($sessionId -eq 0 -or -not [Environment]::UserInteractive) {
     throw 'Run the runner with .\run.cmd in an unlocked desktop session, rather than as a service.'
 }
+Assert-KmReaderInteractiveDesktop

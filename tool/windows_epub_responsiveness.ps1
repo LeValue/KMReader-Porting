@@ -5,6 +5,8 @@ param(
     [int]$TimeoutSeconds = 300
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'windows_interactive_desktop.ps1')
+Assert-KmReaderInteractiveDesktop
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $outputRoot = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $executablePath = (Resolve-Path -LiteralPath $Executable).Path
@@ -14,11 +16,17 @@ $samples = [System.Collections.Generic.List[object]]::new()
 $known = [System.Collections.Generic.HashSet[int]]::new()
 $root = $null
 $completed = $false
+$pinned = $false
 $watch = [System.Diagnostics.Stopwatch]::StartNew()
 try {
     $root = Start-Process -FilePath $executablePath -WorkingDirectory (Split-Path $executablePath) -PassThru -RedirectStandardOutput (Join-Path $outputRoot 'response-stdout.log') -RedirectStandardError (Join-Path $outputRoot 'response-stderr.log')
     [void]$known.Add($root.Id)
     while (-not $root.HasExited) {
+        Assert-KmReaderInteractiveDesktop
+        $root.Refresh()
+        if (-not $pinned -and $root.MainWindowHandle -ne [IntPtr]::Zero) {
+            $pinned = [KMReaderProbeDesktop]::Pin($root.MainWindowHandle, $true)
+        }
         if ($watch.Elapsed.TotalSeconds -gt $TimeoutSeconds) { throw 'Standalone reader probe timed out.' }
         # Only PIDs descended from this exact diagnostic launch. Do not record
         # process command lines, account names, paths or other applications.
@@ -62,11 +70,19 @@ try {
         $root.Refresh()
     }
     if (-not $completed) { throw "Reader probe exited before sealing its report (code $($root.ExitCode))." }
+    if (-not $pinned) { throw 'The diagnostic window could not be made visible.' }
     if (-not $report.success) { throw 'Reader diagnostic report did not pass.' }
+    foreach ($phaseName in @('slideFollowingTurns', 'curlFollowingTurns', 'verticalWheel')) {
+        $phase = $report.phases.$phaseName
+        if ($phase.captureAfter.gpuCopies -le $phase.captureBefore.gpuCopies) {
+            throw "No native texture delivery during $phaseName; keep the diagnostic window visible."
+        }
+    }
     Write-Output 'Reader responsiveness probe completed.'
 } finally {
     [System.IO.File]::WriteAllText((Join-Path $outputRoot 'process-samples.json'), (ConvertTo-Json -InputObject @($samples.ToArray()) -Depth 7))
     if ($null -ne $root -and -not $root.HasExited) {
+        if ($pinned) { [void][KMReaderProbeDesktop]::Pin($root.MainWindowHandle, $false) }
         # Stop only the diagnostic process tree created above.
         & taskkill /PID $root.Id /T /F | Out-Null
     }
