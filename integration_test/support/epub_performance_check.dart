@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
@@ -136,7 +137,8 @@ void verifyNativeEpubPerformance() {
         view.markNeedsPaint();
       }
       await tester.pump(const Duration(milliseconds: 100));
-      ui.Image image;
+      late ByteData data;
+      late int imageWidth, imageHeight;
       if (Platform.isAndroid) {
         Uint8List? bytes;
         for (var attempt = 0; attempt < 5; attempt++) {
@@ -159,9 +161,15 @@ void verifyNativeEpubPerformance() {
           }
         }
         expect(bytes, isNotEmpty);
-        final codec = await ui.instantiateImageCodec(bytes!);
-        image = (await codec.getNextFrame()).image;
-        codec.dispose();
+        // PixelCopy has already captured the actual app surface. A Flutter
+        // image decode/readback adds unrelated GPU allocations/blits before
+        // the animation probe, and crashed the physical Mate 20 IO thread.
+        final image = img.decodePng(bytes!)!;
+        imageWidth = image.width;
+        imageHeight = image.height;
+        data = ByteData.sublistView(
+          image.getBytes(order: img.ChannelOrder.rgba),
+        );
       } else {
         final boundary = tester.renderObject<RenderRepaintBoundary>(
           find
@@ -171,42 +179,42 @@ void verifyNativeEpubPerformance() {
               )
               .first,
         );
-        image = await boundary.toImage();
+        final image = await boundary.toImage();
+        try {
+          imageWidth = image.width;
+          imageHeight = image.height;
+          data = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+        } finally {
+          image.dispose();
+        }
       }
-      try {
-        final data = (await image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
-        ))!;
-        var dark = 0, light = 0;
-        // Ignore window controls/bars; the center must contain actual glyphs.
-        for (var y = image.height ~/ 4; y < image.height * 3 ~/ 4; y++) {
-          for (var x = image.width ~/ 4; x < image.width * 3 ~/ 4; x++) {
-            final index = (y * image.width + x) * 4;
-            if (data.getUint8(index) < 120 &&
-                data.getUint8(index + 1) < 120 &&
-                data.getUint8(index + 2) < 120) {
-              dark++;
-            }
-            if (data.getUint8(index) > 180 &&
-                data.getUint8(index + 1) > 180 &&
-                data.getUint8(index + 2) > 160) {
-              light++;
-            }
+      var dark = 0, light = 0;
+      // Ignore window controls/bars; the center must contain actual glyphs.
+      for (var y = imageHeight ~/ 4; y < imageHeight * 3 ~/ 4; y++) {
+        for (var x = imageWidth ~/ 4; x < imageWidth * 3 ~/ 4; x++) {
+          final index = (y * imageWidth + x) * 4;
+          if (data.getUint8(index) < 120 &&
+              data.getUint8(index + 1) < 120 &&
+              data.getUint8(index + 2) < 120) {
+            dark++;
+          }
+          if (data.getUint8(index) > 180 &&
+              data.getUint8(index + 1) > 180 &&
+              data.getUint8(index + 2) > 160) {
+            light++;
           }
         }
-        expect(
-          dark,
-          greaterThan(150),
-          reason: 'The native reader surface must render text, not only report a DOM locator',
-        );
-        expect(
-          light,
-          greaterThan(150),
-          reason: 'A missing black texture must not count as rendered glyphs',
-        );
-      } finally {
-        image.dispose();
       }
+      expect(
+        dark,
+        greaterThan(150),
+        reason: 'The native reader surface must render text, not only report a DOM locator',
+      );
+      expect(
+        light,
+        greaterThan(150),
+        reason: 'A missing black texture must not count as rendered glyphs',
+      );
     }
 
     try {
@@ -398,7 +406,7 @@ void verifyNativeEpubPerformance() {
       await visibleText();
       // Observe automatic playback before the synchronous GPU readback probes
       // below can saturate a software emulator's render queue.
-      await jsWhilePresenting("""
+      final automaticDelivery = await jsWhilePresenting("""
           nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
           const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
@@ -409,16 +417,20 @@ void verifyNativeEpubPerformance() {
           const initialCompositor=!!automatic.compositor;
           // Observe delivered render frames instead of assuming a 90ms wall
           // timer runs before a software-rendered emulator finishes the turn.
-          const samples=[];
+          const samples=[],deliveries=[];
           for(let frame=0;frame<120;frame++){
-            await new Promise(requestAnimationFrame);samples.push(automatic.progress);
+            const stamp=await new Promise(requestAnimationFrame),animation=automatic.compositor?.animations[0];
+            samples.push(automatic.progress);
+            deliveries.push({frame:stamp,wall:performance.now()-started,progress:automatic.progress,
+              animationTime:animation?.currentTime,pending:animation?.pending,state:animation?.playState});
             if(automatic.progress>0&&automatic.progress<1)break;
             if(automatic.stopped||automatic.progress>=1)break;
           }
-          if(!samples.some(p=>p>0&&p<1))throw Error('Native automatic slide skipped its intermediate frames: '+JSON.stringify({samples,stopped:automatic.stopped,compositor:!!automatic.compositor}));
+          if(!samples.some(p=>p>0&&p<1))throw Error('Native automatic slide skipped its intermediate frames: '+JSON.stringify({samples,deliveries,initialCompositor,stopped:automatic.stopped,compositor:!!automatic.compositor}));
           await flight;automatic.stop();window.matchMedia=nativeMedia;
-          await reader.previous();return true;
+          await reader.previous();return {initialCompositor,deliveries};
       """);
+      debugPrint('Native automatic slide delivery: $automaticDelivery');
       await js("""
           // Check both receiving planes on actual native GPU pixels. Removing
           // the flat front's receiver in the control must recreate the seam.

@@ -73,3 +73,11 @@ Native graphics recovery and its physical-test limits are recorded in
 packages must come from the checked source with native CI passing. The
 downloaded Alice EPUB and process-wide physical memory/FPS are not measured by
 the generated-fixture browser benchmark.
+
+The native emulator suite records and enables Android's three system animation
+scales before testing playback. Overriding a JavaScript media query alone does
+not enable the native animation clock. Android PixelCopy PNGs are classified on
+CPU, avoiding additional Flutter GPU image uploads/readbacks in the verification
+itself. Failed playback reports include delivered-frame wall times, animation
+times, pending/play state and initial compositor availability. These are test
+harness settings, not a software-rendering mode for the publication.

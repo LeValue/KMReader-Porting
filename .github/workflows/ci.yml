@@ -219,7 +219,10 @@ jobs:
           ram-size: 3072M
           heap-size: 256M
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
+          # Exercise WebView's real animation clock. Disabling the Android
+          # animator can collapse native playback even when JS overrides the
+          # prefers-reduced-motion media query inside a functional probe.
+          disable-animations: false
           script: bash tool/android_native_smoke.sh
       - name: Capture native runner resource diagnostics
         if: always()
