@@ -19,6 +19,9 @@ on:
       expected_runner:
         type: string
         default: ''
+      renderer:
+        type: string
+        default: default
 
 permissions:
   contents: read
@@ -128,7 +131,8 @@ jobs:
       - name: Run on the single connected authorized ARM64 phone
         env:
           DIAGNOSTIC_APK: ${{ steps.apk.outputs.file }}
-        run: ./tool/android_epub_recovery.ps1 -Apk $env:DIAGNOSTIC_APK
+          ANDROID_RENDERER: ${{ inputs.renderer }}
+        run: ./tool/android_epub_recovery.ps1 -Apk $env:DIAGNOSTIC_APK -DisableImpeller:($env:ANDROID_RENDERER -eq 'skia')
       - uses: actions/upload-artifact@v4
         if: always()
         with:

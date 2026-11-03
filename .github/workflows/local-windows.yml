@@ -26,6 +26,11 @@ on:
         description: Optional exact PC runner name for the Android USB test
         type: string
         default: ''
+      android_renderer:
+        description: Flutter renderer for the isolated Android diagnostic app
+        type: choice
+        options: [default, skia]
+        default: default
 
 permissions:
   contents: read
@@ -39,6 +44,7 @@ jobs:
       runner_label: ${{ inputs.runner_label }}
       prebuilt_run: ${{ inputs.prebuilt_run }}
       expected_runner: ${{ inputs.expected_runner }}
+      renderer: ${{ inputs.android_renderer }}
   build_test:
     if: inputs.mode != 'inspect' && inputs.mode != 'android-epub-recovery' && inputs.prebuilt_run == ''
     runs-on: windows-latest

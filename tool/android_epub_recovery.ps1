@@ -1,4 +1,4 @@
-param([string]$Apk = '.dart_tool/android-epub-recovery/app-debug.apk')
+param([string]$Apk = '.dart_tool/android-epub-recovery/app-debug.apk', [switch]$DisableImpeller)
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $Apk)) { throw "Diagnostic APK missing: $Apk" }
 $analyzerCommand = Get-Command apkanalyzer.bat -ErrorAction SilentlyContinue
@@ -42,7 +42,10 @@ try {
     & adb -s $device shell pm clear $package
     if ($LASTEXITCODE -ne 0) { throw 'Could not reset the diagnostic package.' }
     $ErrorActionPreference = 'Continue'
-    & flutter drive --use-application-binary=$Apk --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_recovery_test.dart -d $device --no-pub --no-dds 2>&1 |
+    $driveArguments = @('drive', "--use-application-binary=$Apk", '--driver=test_driver/native_reader_driver.dart', '--target=integration_test/epub_recovery_test.dart', '-d', $device, '--no-pub', '--no-dds')
+    if ($DisableImpeller) { $driveArguments += '--no-enable-impeller' }
+    Write-Output "Diagnostic Flutter renderer: $(if ($DisableImpeller) { 'Skia' } else { 'default' })"
+    & flutter @driveArguments 2>&1 |
         Tee-Object "$output/test.log"
     $driveExit = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
