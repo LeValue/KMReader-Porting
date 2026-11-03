@@ -227,6 +227,17 @@ with sync_playwright() as pw:
       if(reader.position().start.cfi!==cfi)throw Error('Dimension repair changed the reading locator');
     }''')
     readable()
+    page.evaluate('''async () => {
+      const raf=window.requestAnimationFrame;
+      let time=performance.now(),callbacks=0;
+      window.requestAnimationFrame=callback=>setTimeout(()=>{callbacks++;callback(time+=120);},0);
+      const effect=new KMReaderSheetEffect('curl',1,{});
+      effect.update=value=>effect.progress=value;
+      try{
+        await effect.animateTo(1,380,{automatic:true});
+        if(effect.progress!==1||callbacks>5)throw Error('Slow frames stretched the requested animation duration');
+      }finally{effect.stop();window.requestAnimationFrame=raf;}
+    }''')
     page.evaluate('''() => {
       const surface=KMReaderCurlSurface.shared;reader.destroy();
       if(surface&&(!surface.disposed||!surface.gl.isContextLost()))throw Error('Closed reader retained its GPU allocations');

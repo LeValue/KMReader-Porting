@@ -103,7 +103,11 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> Build.VERSION.SDK_INT == Build.VERSION_CODES.Q &&
                         Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true)
                 }
-                result.success(mapOf("hybridComposition" to hybrid))
+                result.success(mapOf("hybridComposition" to hybrid,
+                    "impellerRequested" to if (diagnostic && intent.hasExtra("enable-impeller"))
+                        intent.getBooleanExtra("enable-impeller", true) else null,
+                    "diagnosticOverride" to (diagnosticMode == "/kmreader-epub-diagnostic/texture" ||
+                        diagnosticMode == "/kmreader-epub-diagnostic/hybrid")))
             } else if (call.method == "getWebViewRenderingStats") {
                 fun findWebView(view: View): WebView? {
                     if (view is WebView) return view
