@@ -13,9 +13,15 @@ injects pointer draw errors, context loss, unfinished compilation/capture,
 cancellation, suspended animation callbacks and backgrounding. This is not
 evidence that a particular Android GPU/driver works.
 
+Slide/cover checks also reject cancelled compositor animations and stalled View
+Transition preparation, and verify cleanup when the final style update throws.
+Renderer-recovery configuration is checked against all three motion styles and
+idle warming.
+
 The native `integration_test/epub_recovery_test.dart` test starts a fresh Android
 WebView with saved curl preferences, injects a draw failure, checks actual screen
-pixels, navigates again, destroys the reader and reopens its saved CFI. The same
+pixels, navigates again, destroys the reader, reopens its saved CFI and exercises
+real WebGL context loss. The same
 test is included in the existing native Android CI suite. Reader reopen is
 tested; Android process death/force-stop and a particular user's EPUB still need
 the physical-device checks below.
@@ -24,7 +30,9 @@ the physical-device checks below.
 
 The manual **Android EPUB recovery diagnostics** workflow builds the diagnostic
 APK on GitHub, then runs it through MATEBOOK's `kmreader-laptop` runner. It is
-prepared for a later run; adding the workflow does not start it.
+prepared for a later run; adding the workflow does not start it. GitHub makes
+new manual workflows selectable after they reach the default branch; the
+candidate currently lives on `fix/android-epub-recovery`.
 
 1. Keep MATEBOOK signed in with its runner on `Listening for Jobs`.
 2. Connect the Mate 20 Pro by USB, enable USB debugging, authorize this PC and
@@ -50,3 +58,20 @@ must be retained. Repeat with slide and vertical scrolling. Record failures
 before changing reader preferences or clearing data; a data reset would hide a
 saved-position regression. No phone test or release performance claim is made
 until these checks have actually run.
+
+## Candidate validation (2026-11-03)
+
+- The new draw-failure regression failed on the unmodified reader: the opaque
+  canvas remained attached after a thrown animation-frame update.
+- After the fix, all 332 host tests passed with browser and ONNX checks enabled;
+  one live-Komga test was skipped in that local run. All 21 browser tests passed.
+  The additional slide/cover/recovery-configuration fault cases also passed.
+- `flutter analyze --no-pub`, formatting and the eight Python tool tests passed.
+- The dedicated debug diagnostic APK compiled locally. Its manifest package is
+  `dev.levalue.kmreader.epubdiagnostic`, debuggable is true, and its bundled
+  `reader.js` exactly matches the candidate. Provenance identifies runtime commit
+  `4dca7711ad87720e8e13ea420f53fd7fdce70c92`; SHA256 is
+  `d44f2791864500ab0864605d3f507aef9b8f91a6330a7283fc70ef3a5da67336`.
+
+This APK is a diagnostic probe, not a new public app release. The published
+0.8.12 release remains unchanged. Physical Mate 20 Pro testing is pending.

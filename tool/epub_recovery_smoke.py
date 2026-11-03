@@ -46,9 +46,10 @@ with sync_playwright() as pw:
         # Check delivered pixels rather than accepting a DOM position alone.
         image = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
         width, height = image.size
-        pixels = list(image.crop((width//4, height//4, width*3//4, height*3//4)).getdata())
-        assert sum(max(p) < 120 for p in pixels) > 150, 'Text is invisible after recovery'
-        assert sum(min(p) > 180 for p in pixels) > 150, 'Missing texture was mistaken for text'
+        crop = image.crop((width//4, height//4, width*3//4, height*3//4))
+        colors = crop.getcolors(crop.width * crop.height)
+        assert sum(n for n, p in colors if max(p) < 120) > 150, 'Text is invisible after recovery'
+        assert sum(n for n, p in colors if min(p) > 180) > 150, 'Missing texture was mistaken for text'
 
     readable()
     # A failed surface is retired for this reader, so idle warming / another
@@ -67,9 +68,9 @@ with sync_playwright() as pw:
 
     # Use tiny deterministic snapshots for driver/lifecycle faults, while the
     # real EPUB underneath still has to navigate and deliver readable pixels.
-    def fresh():
+    def fresh(**overrides):
         page.reload()
-        page.evaluate('(c)=>reader.open(c)', {**config, 'cfi': saved})
+        page.evaluate('(c)=>reader.open(c)', {**config, 'cfi': saved, **overrides})
         page.evaluate('''async () => {
           const canvas=document.createElement('canvas');canvas.width=64;canvas.height=64;
           canvas.getContext('2d').fillRect(0,0,64,64);
@@ -152,6 +153,57 @@ with sync_playwright() as pw:
         await reader.turn({delta:1,style:'curl'});
         window.dispatchEvent(new Event('pagehide'));
         if(!liveEffect.stopped)throw Error('Backgrounding retained an opaque animation');
+      }finally{KMReaderSheetEffect.prototype.start=start;}
+    }''')
+    readable()
+
+    for style in ['slide', 'cover']:
+        fresh()
+        page.evaluate('''async style => {
+          await reader.next();
+          const effect=new KMReaderSheetEffect(style,1,{});
+          if(!await effect.start(async()=>{}))throw Error('Compositor did not start');
+          // A thrown final style update must settle the flight and retire the
+          // browser snapshots just like a failed GPU frame.
+          effect.update=()=>{throw Error('Injected compositor style failure');};
+          await effect.animateTo(1,80);
+          if(!effect.stopped||!effect.failed)throw Error('Failed compositor was not retired');
+        }''', style)
+        readable()
+        fresh()
+        page.evaluate('''async style => {
+          await reader.next();
+          const effect=new KMReaderSheetEffect(style,1,{});
+          if(!await effect.start(async()=>{}))throw Error('Compositor did not start');
+          const flight=effect.animateTo(1,300);
+          if(!effect.compositor)throw Error('Compositor cancellation probe unavailable');
+          effect.compositor.animations[0].cancel();await flight;
+          if(!effect.stopped)throw Error('Rejected compositor retained its snapshots');
+        }''', style)
+        readable()
+
+    fresh()
+    page.evaluate('''async () => {
+      const start=document.startViewTransition;let moves=0;
+      document.startViewTransition=move=>({ready:new Promise(()=>{}),finished:new Promise(()=>{}),
+        updateCallbackDone:Promise.resolve().then(move),skipTransition(){}});
+      try{
+        const effect=new KMReaderSheetEffect('slide',1,{});
+        const animated=await effect.start(async()=>{moves++;await reader.next();});
+        if(animated||!effect.stopped||moves!==1)throw Error('Stalled transition duplicated or blocked navigation');
+      }finally{document.startViewTransition=start;}
+    }''')
+    readable()
+
+    fresh(disableMotion=True, preferences={**config['preferences'], 'transition': 'curl'})
+    page.evaluate('''async () => {
+      const start=KMReaderSheetEffect.prototype.start;
+      KMReaderSheetEffect.prototype.start=()=>{throw Error('Recovered renderer attempted graphics again');};
+      try{
+        for(const style of ['curl','slide','cover'])await reader.turn({delta:1,style});
+        await reader.preferences({...''' + json.dumps(config['preferences']) + ''',transition:'curl'});
+        await new Promise(resolve=>setTimeout(resolve,400));
+        if(KMReaderCurlSurface.shared)throw Error('Recovered renderer warmed GPU resources');
       }finally{KMReaderSheetEffect.prototype.start=start;}
     }''')
     readable()
