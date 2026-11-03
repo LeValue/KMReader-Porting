@@ -52,6 +52,26 @@ with sync_playwright() as pw:
         changed = sum(max(pixel) > 4 for pixel in ImageChops.difference(original, optimized).getdata())
         assert changed == 0, (fraction, config['viewport'], config['direction'], changed)
         assert result['glyphsAfter'] < result['glyphsBefore'] / 3, result['glyphsAfter']
+    if config['direction'] == 'ltr' and config['viewport']['width'] == 390:
+        overflow = page.evaluate('''async () => {
+          await reader.display('one.xhtml');
+          const doc=snapshotRendition.getContents()[0].document,p=doc.querySelector('p');
+          p.style.whiteSpace='nowrap';p.textContent+=' Overflowing authored text must remain visible. '.repeat(50);
+          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+          snapshotRendition.manager.scrollTo(innerWidth,0,true);
+          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+          const encode=image=>{
+            const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+            canvas.getContext('2d').drawImage(image,0,0);return canvas.toDataURL('image/png').split(',')[1];
+          };
+          KMReaderPageSnapshot.compact=()=>{};doc.body.dataset.snapshotTest='full';await Promise.resolve();
+          const original=encode(await pageCapture());
+          KMReaderPageSnapshot.compact=compactSnapshot;doc.body.dataset.snapshotTest='compact';await Promise.resolve();
+          return {original,optimized:encode(await pageCapture())};
+        }''')
+        original, optimized = [Image.open(io.BytesIO(base64.b64decode(overflow[k]))).convert('RGB')
+                               for k in ['original', 'optimized']]
+        assert not ImageChops.difference(original, optimized).getbbox(), 'Snapshot hid authored text overflowing into the next page'
     # Changing reading mode releases curl's retained GPU and image allocations.
     page.evaluate('(p)=>reader.preferences({...p,flow:"scrolled"})', preferences)
     assert page.evaluate('KMReaderCurlSurface.shared == null'), 'Vertical reading retained the curl GPU context'
