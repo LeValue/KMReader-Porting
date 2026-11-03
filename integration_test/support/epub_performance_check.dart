@@ -77,7 +77,7 @@ void verifyNativeEpubPerformance() {
     }
 
     Future<dynamic> jsWhilePresenting(String source) async {
-      final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
       final policy = binding.framePolicy;
       // Functional animation delivery needs the platform texture consumer to
       // honor native frame requests between explicit test pumps. This scoped
