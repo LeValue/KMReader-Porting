@@ -216,7 +216,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     if (_initialized || _session == null || _browser == null) return;
     _initialized = true;
     _session!.darkEnvironment = Theme.of(context).brightness == Brightness.dark;
-    await _call('open', _session!.configuration(_nonce));
+    await _call('open', {
+      ..._session!.configuration(_nonce),
+      // A renderer that has just died must restore the readable publication
+      // before attempting the same graphics path again. Keep saved preferences.
+      if (_recoveries > 0) 'disableMotion': true,
+    });
   }
 
   Future<void> _turn(int delta) async {

@@ -127,6 +127,13 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - name: Validate the deferred Android diagnostic launcher
+        shell: powershell
+        run: |
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tool/android_epub_recovery.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors) { throw ($parseErrors | Out-String) }
       - run: python3 tool/prepare_build_metadata.py
       - name: Reserve disk space for the emulator and Android build
         run: |

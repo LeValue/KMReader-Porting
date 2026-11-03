@@ -343,6 +343,38 @@ void main() {
       skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
     );
   }
+  test(
+    'EPUB animation failures recover visible text and saved-CFI reopen',
+    () async {
+      final file = fixture(directory, paragraphCount: 1400);
+      final document = EpubDocument.open(file.path);
+      final host = await EpubHost.open(document, filePath: file.path);
+      try {
+        final result = await Process.run('python3', [
+          'tool/epub_recovery_smoke.py',
+          host.reader.toString(),
+          jsonEncode({
+            'url': host.publication.toString(),
+            'preferences': EpubPreferences.fromJson({'theme': 'white'})
+                .toJson(),
+            'nonce': 'recovery',
+            'direction': 'ltr',
+            'href': 'one.xhtml',
+            'viewport': {'width': 390, 'height': 780},
+          }),
+        ]);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+      } finally {
+        await host.close();
+        document.close();
+      }
+    },
+    skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+  );
   test('shipped browser engine paginates, reflows, searches and restores footnotes', () async {
     final doc = EpubDocument.open(fixture(directory).path);
     final host = await EpubHost.open(
