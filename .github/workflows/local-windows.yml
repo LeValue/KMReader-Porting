@@ -11,7 +11,7 @@ on:
       mode:
         description: Environment, native regression tests, or profile frame timings
         type: choice
-        options: [inspect, native, profile]
+        options: [inspect, native, profile, responsiveness]
         default: inspect
       publication:
         description: Profile fixture or the requested Alice download in KMReader
@@ -49,7 +49,10 @@ jobs:
           # Keep the test WebView cache separate from the installed reader.
           $resource = 'windows/runner/Runner.rc'
           (Get-Content $resource -Raw).Replace('"ProductName", "KMReader"', '"ProductName", "KMReader Diagnostics"') | Set-Content $resource
-          if ($env:DIAGNOSTIC_MODE -eq 'profile') {
+          if ($env:DIAGNOSTIC_MODE -eq 'responsiveness') {
+            flutter build windows --release --target=tool/epub_responsiveness.dart --no-pub
+            $bundle = 'build/windows/x64/runner/Release'
+          } elseif ($env:DIAGNOSTIC_MODE -eq 'profile') {
             flutter build windows --profile --target=integration_test/epub_frame_times_test.dart --no-pub
             $bundle = 'build/windows/x64/runner/Profile'
           } else {
@@ -58,6 +61,16 @@ jobs:
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "bundle=$bundle" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Smoke test the standalone responsiveness probe
+        if: inputs.mode == 'responsiveness'
+        shell: pwsh
+        run: ./tool/windows_epub_responsiveness.ps1 -Executable build/windows/x64/runner/Release/kmreader.exe
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.mode == 'responsiveness'
+        with:
+          name: hosted-responsiveness-smoke
+          path: artifacts/local-windows/
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
           name: local-windows-test-app
@@ -78,10 +91,10 @@ jobs:
       - name: Inspect graphics session and build prerequisites
         run: ./tool/windows_local_diagnostics.ps1
       - name: Set up the verified Flutter SDK in the runner tool cache
-        if: inputs.mode != 'inspect'
+        if: inputs.mode == 'native' || inputs.mode == 'profile'
         run: ./tool/setup_local_flutter.ps1
       - name: Resolve locked dependencies
-        if: inputs.mode != 'inspect'
+        if: inputs.mode == 'native' || inputs.mode == 'profile'
         run: |
           flutter config --enable-windows-desktop
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -102,6 +115,21 @@ jobs:
           $ErrorActionPreference = 'Continue'
           flutter drive --use-application-binary=.dart_tool/native-prebuilt/kmreader.exe --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub 2>&1 | Tee-Object artifacts/local-windows/native-tests.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Measure real application responsiveness and process cost
+        if: inputs.mode == 'responsiveness'
+        env:
+          KMREADER_PROFILE_PUBLICATION: ${{ inputs.publication }}
+        run: |
+          if ($env:KMREADER_PROFILE_PUBLICATION -eq 'cached-alice') {
+            $env:KMREADER_PROFILE_EPUB = ./tool/find_cached_alice.ps1
+          }
+          if ($env:KMREADER_PROFILE_PUBLICATION -eq 'alice-gutenberg') {
+            $ProgressPreference = 'SilentlyContinue'
+            $alice = Join-Path $env:RUNNER_TEMP 'kmreader-alice-reference.epub'
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://www.gutenberg.org/ebooks/11.epub3.images' -OutFile $alice
+            $env:KMREADER_PROFILE_EPUB = $alice
+          }
+          ./tool/windows_epub_responsiveness.ps1
       - name: Measure native EPUB frame timings in profile mode
         if: inputs.mode == 'profile'
         env:

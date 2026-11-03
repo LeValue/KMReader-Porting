@@ -17,6 +17,7 @@ Choose **Run workflow** and one of these modes:
 | `inspect` | Read GPU/driver, current display mode, desktop-session and build-prerequisite information. |
 | `native` | Build on a GitHub-hosted Windows runner, then execute the existing reader regression suite locally in debug mode. |
 | `profile` | Build on a GitHub-hosted Windows runner, then measure EPUB locally in profile mode with natural native frame scheduling. |
+| `responsiveness` | Build a standalone release probe on GitHub, smoke test it there, then measure first/following input, idle, scrolling and settings on the selected PC. No local Flutter SDK is needed. |
 
 The first build downloads Flutter 3.47.8 into the runner tool cache and checks
 the archive against the official release manifest's SHA256. Pub dependencies
@@ -71,3 +72,15 @@ replace presentation traces or a reproduction with the particular book, window
 size and input that causes a problem. The baseline sheet and reader settings
 also have different contents, so their timing difference alone cannot establish
 that WebView is the cause.
+
+The `responsiveness` mode uses the application's normal `WidgetsFlutterBinding`.
+Unlike the `fullyLive` integration harness, it does not request frames while
+idle. It records actual reader button and settings callbacks, a first turn
+without an artificial warm-up, subsequent turns, vertical wheel input, browser
+task/layout/heap counters and capture delivery. Flutter timings are filtered by
+their wall-clock raster timestamp to exclude batched frames from earlier phases.
+The launcher samples CPU time and memory only for the diagnostic process and
+its WebView2 descendants. It records no process command lines or user-library
+content. `responsiveness.json` and `process-samples.json` share epoch timestamps
+for correlating input latency with CPU and memory use. The hosted smoke report
+is a harness check, not a substitute for measurements on the selected laptop.

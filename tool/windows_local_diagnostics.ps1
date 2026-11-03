@@ -44,7 +44,14 @@ $report = [ordered]@{
     os = $os.Caption
     osVersion = $os.Version
     logicalProcessors = $system.NumberOfLogicalProcessors
+    processors = @(Get-CimInstance Win32_Processor | ForEach-Object {
+        [ordered]@{ name = $_.Name; cores = $_.NumberOfCores; logical = $_.NumberOfLogicalProcessors }
+    })
     memoryGB = [math]::Round($system.TotalPhysicalMemory / 1GB, 1)
+    freeMemoryGB = [math]::Round($os.FreePhysicalMemory * 1KB / 1GB, 1)
+    batteries = @(Get-CimInstance Win32_Battery | ForEach-Object {
+        [ordered]@{ status = $_.BatteryStatus; percent = $_.EstimatedChargeRemaining }
+    })
     workspaceFreeGB = [math]::Round($drive.Free / 1GB, 1)
     interactive = [Environment]::UserInteractive
     sessionId = $sessionId
