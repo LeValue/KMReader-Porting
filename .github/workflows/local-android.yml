@@ -109,14 +109,26 @@ jobs:
           $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
           dart pub get --enforce-lockfile
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Locate the diagnostic APK in the runner cache
+        id: apk
+        env:
+          BUILD_RUN: ${{ inputs.prebuilt_run || github.run_id }}
+        run: |
+          $directory = Join-Path $env:RUNNER_TOOL_CACHE "kmreader-android-apks/$env:BUILD_RUN"
+          "directory=$directory" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "file=$(Join-Path $directory 'app-debug.apk')" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "present=$((Test-Path (Join-Path $directory 'app-debug.apk')).ToString().ToLowerInvariant())" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - uses: actions/download-artifact@v4
+        if: steps.apk.outputs.present != 'true'
         with:
           name: android-epub-recovery-apk
-          path: .dart_tool/android-epub-recovery
+          path: ${{ steps.apk.outputs.directory }}
           run-id: ${{ inputs.prebuilt_run || github.run_id }}
           github-token: ${{ github.token }}
       - name: Run on the single connected authorized ARM64 phone
-        run: ./tool/android_epub_recovery.ps1
+        env:
+          DIAGNOSTIC_APK: ${{ steps.apk.outputs.file }}
+        run: ./tool/android_epub_recovery.ps1 -Apk $env:DIAGNOSTIC_APK
       - uses: actions/upload-artifact@v4
         if: always()
         with:

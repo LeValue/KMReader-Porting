@@ -9,10 +9,20 @@ $actualPackage = (& $analyzer manifest application-id $Apk | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $actualPackage -ne $package) {
     throw 'Refusing to install an APK without the isolated EPUB diagnostic package identity.'
 }
-$devices = @(& adb devices | Select-String '^([^\s]+)\s+device$' | ForEach-Object { $_.Matches[0].Groups[1].Value })
-if ($LASTEXITCODE -ne 0 -or $devices.Count -ne 1) {
-    throw 'Connect exactly one unlocked Android phone and authorize USB debugging; adb devices must show device.'
-}
+$deviceDeadline = [DateTime]::UtcNow.AddSeconds(90)
+$previousState = ''
+do {
+    $deviceRows = @(& adb devices)
+    if ($LASTEXITCODE -ne 0) { throw 'ADB could not query connected devices.' }
+    $state = $deviceRows -join "`n"
+    if ($state -ne $previousState) { Write-Output $state; $previousState = $state }
+    $devices = @($deviceRows | Select-String '^([^\s]+)\s+device$' | ForEach-Object { $_.Matches[0].Groups[1].Value })
+    if ($devices.Count -eq 1) { break }
+    if ($devices.Count -gt 1) { throw 'More than one Android device is connected; select only the requested test phone.' }
+    Write-Output 'Waiting for the unlocked USB phone and its debugging authorization...'
+    Start-Sleep -Seconds 5
+} while ([DateTime]::UtcNow -lt $deviceDeadline)
+if ($devices.Count -ne 1) { throw 'No authorized Android phone appeared within 90 seconds; check the phone prompt, USB transfer mode and driver.' }
 $device = $devices[0]
 $abi = (& adb -s $device shell getprop ro.product.cpu.abi | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $abi -ne 'arm64-v8a') { throw "This diagnostic APK requires ARM64; device ABI: $abi" }
