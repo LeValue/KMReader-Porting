@@ -263,9 +263,12 @@ const _instrument = r'''
   reader.turn=function(value){
     const sample=window.kmLastTurn={style:value.style,receivedEpochMs:stamp()};
     const before=reader.position().start.cfi;
+    const viewport=document.querySelector('.epub-container'),x=viewport.scrollLeft,y=viewport.scrollTop;
     sample.navigation=turn(value).then(result=>{
-      sample.commandResolvedEpochMs=stamp();sample.changed=reader.position().start.cfi!==before;
-      if(!sample.changed)throw Error('Reader page did not advance');return result;
+      sample.commandResolvedEpochMs=stamp();sample.locatorChanged=reader.position().start.cfi!==before;
+      sample.scrollDeltaX=viewport.scrollLeft-x;sample.scrollDeltaY=viewport.scrollTop-y;
+      sample.changed=sample.locatorChanged||(window.kmAllowUnchangedLocator&&(Math.abs(sample.scrollDeltaX)>1||Math.abs(sample.scrollDeltaY)>1));
+      if(!sample.changed)throw {message:'Reader page did not advance',scrollDeltaX:sample.scrollDeltaX,scrollDeltaY:sample.scrollDeltaY,scrollHeight:viewport.scrollHeight,clientHeight:viewport.clientHeight};return result;
     });return sample.navigation;
   };return true;
 ''';
@@ -379,10 +382,12 @@ Future<void> main() async {
           ],
         },
       );
-      await _js(_instrument);
+      await _js(
+        'window.kmAllowUnchangedLocator=${style == 'vertical'};\n$_instrument',
+      );
       (_report['browser'] ??=
           <String, dynamic>{} as dynamic)[style] = await _js(
-        'return {width:innerWidth,height:innerHeight,dpr:devicePixelRatio,reducedMotion:matchMedia("(prefers-reduced-motion: reduce)").matches,timeOrigin:performance.timeOrigin};',
+        'return {width:innerWidth,height:innerHeight,dpr:devicePixelRatio,reducedMotion:matchMedia("(prefers-reduced-motion: reduce)").matches,timeOrigin:performance.timeOrigin,curlProgramsReady:!!KMReaderCurlSurface.shared?.initialized,parallelShaderCompilation:KMReaderCurlSurface.shared?.parallelCompilation??null};',
       );
       // No warm-up turn or idle delay before the first input.
       await _phase('${style}FirstTurn', _turn, settleBefore: false);
