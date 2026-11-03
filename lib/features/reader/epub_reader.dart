@@ -57,6 +57,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Completer<void> _browserClosed = Completer<void>();
   int _browserGeneration = 0, _recoveries = 0;
   bool _recovering = false, _recoveryFailed = false;
+  bool _androidHybridComposition = false;
   bool _initialized = false, _controls = true, _fullscreen = false;
   Timer? _chromeTimer;
   void _scheduleControlsHide() {
@@ -117,6 +118,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<void> _prepareEnvironment() async {
+    if (Platform.isAndroid) {
+      final configuration = await ReaderDisplay.channel
+          .invokeMapMethod<String, dynamic>('getEpubWebViewConfiguration');
+      _androidHybridComposition = configuration?['hybridComposition'] == true;
+    }
     if (Platform.isWindows) {
       if (await WebViewEnvironment.getAvailableVersion() == null) {
         throw StateError(
@@ -1025,12 +1031,13 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
-        // SurfaceAndroidView uses texture composition with native fallback.
-        // Avoid forcing legacy hybrid composition (and its hardware layer),
-        // which makes Flutter controls share the WebView's platform work.
-        useHybridComposition: const bool.fromEnvironment(
-          'KMREADER_EPUB_HYBRID_COMPOSITION',
-        ),
+        // Retain texture composition where supported. Huawei Android 10 needs
+        // hybrid composition to deliver visible frames; diagnostic builds can
+        // explicitly compare both paths without changing saved preferences.
+        useHybridComposition:
+            const bool.hasEnvironment('KMREADER_EPUB_HYBRID_COMPOSITION')
+            ? const bool.fromEnvironment('KMREADER_EPUB_HYBRID_COMPOSITION')
+            : _androidHybridComposition,
         useOnRenderProcessGone: true,
         allowFileAccess: false,
         allowContentAccess: false,
