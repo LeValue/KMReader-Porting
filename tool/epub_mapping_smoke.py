@@ -11,6 +11,17 @@ with sync_playwright() as playwright:
     page = browser.new_page(viewport=config['viewport'])
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
+    page.add_init_script('''
+      window.chapterObservers=new Set();
+      const NativeResizeObserver=ResizeObserver;
+      window.ResizeObserver=class extends NativeResizeObserver{
+        observe(target,options){
+          if(target.tagName==='BODY'){this.chapterBody=target;chapterObservers.add(this);}
+          return super.observe(target,options);
+        }
+        disconnect(){chapterObservers.delete(this);return super.disconnect();}
+      };
+    ''')
     page.goto(url)
     page.evaluate('''() => {
       const render=ePub.Book.prototype.renderTo;
@@ -64,6 +75,11 @@ with sync_playwright() as playwright:
         }finally{prototype.getBoundingClientRect=read;}
       }
       compare();
+      if(!chapterObservers.size)throw Error('The fixture did not exercise chapter geometry observers');
+      await reader.display('two.xhtml');await reader.whenIdle();
+      if([...chapterObservers].some(observer=>!observer.chapterBody.ownerDocument.defaultView?.frameElement?.isConnected)){
+        throw Error('A discarded chapter retained its resize observer');
+      }
       for(const change of [{fontSize:27,margin:31,columns:1},{flow:'scrolled'},{fontSize:16,flow:'paged',columns:2}]){
         await reader.preferences({...config.preferences,...change});await reader.whenIdle();compare();
       }
@@ -91,4 +107,5 @@ with sync_playwright() as playwright:
     assert not errors, errors
     print(json.dumps(result))
     page.evaluate('reader.destroy()')
+    assert page.evaluate('chapterObservers.size') == 0, 'Chapter observers survived reader destruction'
     browser.close()

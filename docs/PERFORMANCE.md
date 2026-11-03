@@ -12,8 +12,10 @@ flow changes continue through the normal layout paths. The mapper retains
 text-node bounds and eight recent CFI pairs per live document. DOM changes,
 intrinsic image/font loading, resizing and authored scrollports invalidate
 those records. Running publisher CSS animations use fresh geometry. The
-upstream word-range and CFI algorithms remain. Weak document keys permit
-discarded chapters to be collected.
+upstream word-range and CFI algorithms remain. Chapter destruction explicitly
+disconnects the cache's observers and listeners; weak keys alone cannot release
+a body retained by a host-window ResizeObserver. Tests navigate away from live
+chapters and require zero chapter observers after reader destruction.
 
 A differential Chromium test compares 544 positions against the original
 mapper at phone/desktop widths, LTR/RTL, changed typography, paged/continuous
