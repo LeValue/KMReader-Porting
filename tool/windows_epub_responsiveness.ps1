@@ -13,6 +13,7 @@ $env:KMREADER_DATA_DIR = Join-Path ([System.IO.Path]::GetTempPath()) ('kmreader-
 $samples = [System.Collections.Generic.List[object]]::new()
 $known = [System.Collections.Generic.HashSet[int]]::new()
 $root = $null
+$completed = $false
 $watch = [System.Diagnostics.Stopwatch]::StartNew()
 try {
     $root = Start-Process -FilePath $executablePath -WorkingDirectory (Split-Path $executablePath) -PassThru -RedirectStandardOutput (Join-Path $outputRoot 'response-stdout.log') -RedirectStandardError (Join-Path $outputRoot 'response-stderr.log')
@@ -47,12 +48,19 @@ try {
             elapsedMs = $watch.Elapsed.TotalMilliseconds
             processes = $processes
         })
+        if (Test-Path -LiteralPath $env:KMREADER_RESPONSE_OUTPUT) {
+            # Partial reports are written between phases. Only the final
+            # sealed report permits stopping this diagnostic application.
+            try {
+                $report = Get-Content -LiteralPath $env:KMREADER_RESPONSE_OUTPUT -Raw | ConvertFrom-Json
+                if ($report.complete) { $completed = $true; break }
+            } catch { # A write may be in progress; retry on the next sample.
+            }
+        }
         Start-Sleep -Milliseconds 1000
         $root.Refresh()
     }
-    $root.WaitForExit()
-    if ($root.ExitCode -ne 0) { throw "Reader probe failed with exit code $($root.ExitCode)." }
-    $report = Get-Content -LiteralPath $env:KMREADER_RESPONSE_OUTPUT -Raw | ConvertFrom-Json
+    if (-not $completed) { throw "Reader probe exited before sealing its report (code $($root.ExitCode))." }
     if (-not $report.success) { throw 'Reader diagnostic report did not pass.' }
     Write-Output 'Reader responsiveness probe completed.'
 } finally {

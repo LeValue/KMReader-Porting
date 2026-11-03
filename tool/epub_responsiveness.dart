@@ -29,6 +29,9 @@ final _frames = <ui.FrameTiming>[];
 final _report = <String, dynamic>{
   'schema': 1,
   'source': Platform.environment['GITHUB_SHA'],
+  'runtimeSource': const String.fromEnvironment(
+    'KMREADER_PROFILE_RUNTIME_SOURCE',
+  ),
   'binding': 'WidgetsFlutterBinding',
   'phases': <String, dynamic>{},
 };
@@ -295,7 +298,6 @@ Future<void> main() async {
     store: store,
     directory: directory,
   )..setOffline(true);
-  var status = 1;
   try {
     final external = Platform.environment['KMREADER_PROFILE_EPUB'];
     final publication = external == null
@@ -446,7 +448,6 @@ Future<void> main() async {
       throw StateError('Framework errors during probe.');
     }
     _report['success'] = true;
-    status = 0;
   } catch (error, stack) {
     _report['success'] = false;
     _report['error'] = '$error';
@@ -458,11 +459,10 @@ Future<void> main() async {
     repository.dispose();
     store.close();
     await directory.delete(recursive: true);
+    _report['complete'] = true;
+    await _save();
   }
-  // Dart exit() bypasses desktop engine teardown and can raise a native
-  // exception even after a successful report.
-  await ServicesBinding.instance.exitApplication(
-    ui.AppExitType.required,
-    status,
-  );
+  // The launcher owns this process, as in the native startup smoke test.
+  // Stay alive after sealing the report so it can stop this diagnostic tree
+  // without involving desktop engine shutdown in the performance measurement.
 }
