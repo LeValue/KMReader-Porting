@@ -461,12 +461,19 @@ class KMReaderSheetEffect {
       cache.observer.observe(doc, {subtree:true, childList:true, characterData:true, attributes:true});
       // Intrinsic image/font changes need not mutate the DOM. Scrolling an
       // authored nested scrollport also changes text's viewport geometry.
-      doc.addEventListener('load', () => invalidate(), true);
-      doc.addEventListener('scroll', () => invalidate(), true);
-      doc.fonts?.addEventListener('loadingdone', () => invalidate());
-      doc.defaultView.addEventListener('resize', () => invalidate());
-      const resize = new ResizeObserver(() => invalidate());
+      const changed = () => invalidate();
+      doc.addEventListener('load', changed, true);
+      doc.addEventListener('scroll', changed, true);
+      doc.fonts?.addEventListener('loadingdone', changed);
+      doc.defaultView.addEventListener('resize', changed);
+      const resize = new ResizeObserver(changed);
       resize.observe(root); cache.resize = resize;
+      cache.dispose=()=>{
+        cache.observer.disconnect();resize.disconnect();
+        doc.removeEventListener('load',changed,true);doc.removeEventListener('scroll',changed,true);
+        doc.fonts?.removeEventListener('loadingdone',changed);doc.defaultView?.removeEventListener('resize',changed);
+        cache.nodes=null;cache.pages.clear();mappingGeometry.delete(root);
+      };
       mappingGeometry.set(root, cache);
     }
     const records = cache.observer.takeRecords();
@@ -488,6 +495,13 @@ class KMReaderSheetEffect {
     }
     return cache;
   }
+  const destroyMappedContents=ePub.Contents.prototype.destroy;
+  ePub.Contents.prototype.destroy=function(...args){
+    // A ResizeObserver created in the host window can retain an observed
+    // iframe body after navigation. Weak map keys alone do not release it.
+    mappingGeometry.get(this.document?.body)?.dispose();
+    return destroyMappedContents.apply(this,args);
+  };
   function textBounds(cache, node) {
     let bounds = cache.bounds.get(node);
     if (!bounds) {
