@@ -225,6 +225,48 @@ void main() {
     );
   }
   for (final width in [390, 1044]) {
+    for (final direction in ['ltr', 'rtl']) {
+      test(
+        'retained EPUB geometry matches the original mapper after reflow at $width pixels ($direction)',
+        () async {
+          final file = fixture(
+            directory,
+            paragraphCount: 1400,
+            readingDirection: direction,
+          );
+          final document = EpubDocument.open(file.path);
+          final host = await EpubHost.open(document, filePath: file.path);
+          try {
+            final result = await Process.run('python3', [
+              'tool/epub_mapping_smoke.py',
+              host.reader.toString(),
+              jsonEncode({
+                'url': host.publication.toString(),
+                'preferences': const EpubPreferences().toJson(),
+                'nonce': 'mapping',
+                'direction': direction,
+                'href': 'one.xhtml',
+                'viewport': {
+                  'width': width,
+                  'height': width == 390 ? 780 : 720,
+                },
+              }),
+            ]);
+            // ignore: avoid_print
+            print(result.stdout);
+            expect(
+              result.exitCode,
+              0,
+              reason: '${result.stdout}\n${result.stderr}',
+            );
+          } finally {
+            await host.close();
+            document.close();
+          }
+        },
+        skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+      );
+    }
     test(
       'long default EPUB serializes rapid navigation and keeps visible text at $width pixels',
       () async {

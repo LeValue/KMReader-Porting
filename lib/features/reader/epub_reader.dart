@@ -686,10 +686,14 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     if (_settingsOpen) return;
     _settingsOpen = true;
     _chromeTimer?.cancel();
-    await _call('suspendInput', true);
+    // The native sheet can open while the browser finishes outstanding work.
+    // Keep suspension ordered before preference changes and resuming input,
+    // without making Flutter's controls wait for the JavaScript thread.
+    final suspended = _call('suspendInput', true);
     var draft = _session!.preferences.toJson();
     final preview = ReaderPreview<EpubPreferences>(
       (next) async {
+        await suspended;
         if (!mounted) return;
         final session = _session!;
         session.setPreferences(next);
@@ -998,6 +1002,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         ),
       );
     } finally {
+      await suspended;
       await preview.flush();
       _settingsOpen = false;
       await _call('suspendInput', false);

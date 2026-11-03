@@ -412,6 +412,114 @@ class KMReaderSheetEffect {
     for (const content of contents) settledDocuments.add(content.document || content);
   }
   const textIndexes = new WeakMap();
+  // Epub.js restarts its text walk at the beginning of the chapter for both
+  // ends of every location query. Keep its mapping rules and word ranges, but
+  // reuse text-node geometry until the publication actually changes.
+  const mappingGeometry = new WeakMap(), adaptedMapping = new WeakSet();
+  function geometryFor(root) {
+    const doc = root.ownerDocument;
+    let cache = mappingGeometry.get(root);
+    if (!cache) {
+      cache = {nodes:null, bounds:new WeakMap(), pages:new Map(), range:doc.createRange()};
+      const invalidate = records => {
+        cache.bounds = new WeakMap();
+        cache.pages.clear();
+        if (!records || records.some(r => r.type !== 'attributes')) cache.nodes = null;
+      };
+      cache.observer = new MutationObserver(records => invalidate(records));
+      cache.observer.observe(doc, {subtree:true, childList:true, characterData:true, attributes:true});
+      // Intrinsic image/font changes need not mutate the DOM. Scrolling an
+      // authored nested scrollport also changes text's viewport geometry.
+      doc.addEventListener('load', () => invalidate(), true);
+      doc.addEventListener('scroll', () => invalidate(), true);
+      doc.fonts?.addEventListener('loadingdone', () => invalidate());
+      doc.defaultView.addEventListener('resize', () => invalidate());
+      const resize = new ResizeObserver(() => invalidate());
+      resize.observe(root); cache.resize = resize;
+      mappingGeometry.set(root, cache);
+    }
+    const records = cache.observer.takeRecords();
+    if (records.length) {
+      cache.bounds = new WeakMap();
+      cache.pages.clear();
+      if (records.some(r => r.type !== 'attributes')) cache.nodes = null;
+    }
+    // Publisher CSS can animate layout without DOM mutations. Measure fresh
+    // bounds while those animations run.
+    if (doc.getAnimations?.().some(animation => animation.playState === 'running' || animation.pending)) {
+      cache.bounds = new WeakMap(); cache.pages.clear();
+    }
+    if (!cache.nodes) {
+      cache.nodes = [];
+      const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) if (node.data.trim()) cache.nodes.push(node);
+    }
+    return cache;
+  }
+  function textBounds(cache, node) {
+    let bounds = cache.bounds.get(node);
+    if (!bounds) {
+      cache.range.selectNodeContents(node);
+      bounds = cache.range.getBoundingClientRect(); cache.bounds.set(node, bounds);
+    }
+    return bounds;
+  }
+  function adaptLocationMapping(manager) {
+    if (!manager?.mapping || adaptedMapping.has(Object.getPrototypeOf(manager.mapping))) return;
+    const prototype = Object.getPrototypeOf(manager.mapping);
+    adaptedMapping.add(prototype);
+    const page = prototype.page;
+    prototype.page = function(contents, base, start, end) {
+      const root = contents?.document?.body;
+      if (!root || this._dev || typeof ResizeObserver === 'undefined') return page.call(this, contents, base, start, end);
+      const cache = geometryFor(root), key = JSON.stringify([this.horizontal, this.direction, base, start, end]);
+      if (cache.pages.has(key)) return cache.pages.get(key);
+      const result = page.call(this, contents, base, start, end);
+      cache.pages.set(key, result);
+      if (cache.pages.size > 8) cache.pages.delete(cache.pages.keys().next().value);
+      return result;
+    };
+    for (const end of [false, true]) {
+      const name = end ? 'findEnd' : 'findStart', original = prototype[name];
+      prototype[name] = function(root, start, finish) {
+        if (!root || root.nodeType === Node.TEXT_NODE || typeof ResizeObserver === 'undefined') return original.call(this, root, start, finish);
+        const cache = geometryFor(root);
+        let previous = root;
+        for (const node of cache.nodes) {
+          const bounds = textBounds(cache, node);
+          const low = this.horizontal ? bounds.left : bounds.top;
+          const high = this.horizontal ? bounds.right : bounds.bottom;
+          let found;
+          if (end) {
+            if (this.horizontal && this.direction === 'rtl') {
+              if (Math.round(high) < start && previous) found = previous;
+              else if (Math.round(low) < start) found = node;
+            } else {
+              if (Math.round(low) > finish && previous) found = previous;
+              else if (Math.round(high) > finish) found = node;
+            }
+          } else if (this.horizontal && this.direction === 'rtl') {
+            if (high <= finish && high >= start || low < finish) found = node;
+          } else if (low >= start && low <= finish || high > start) found = node;
+          if (found) return end ? this.findTextEndRange(found, start, finish) : this.findTextStartRange(found, start, finish);
+          previous = node;
+        }
+        return end ? this.findTextEndRange(previous, start, finish) : this.findTextStartRange(previous, start, finish);
+      };
+    }
+  }
+  function retainLocationLayout(manager) {
+    const original = manager.currentLocation;
+    manager.currentLocation = function() {
+      // A position read must not reformat every iframe. Actual resize, flow,
+      // font and spread changes already update layout through their own paths.
+      // Keep the upstream barrier when native viewport bounds have changed.
+      if (!this._stageSize || this._stageSize.width !== innerWidth || this._stageSize.height !== innerHeight) return original.call(this);
+      return this.location = this.isPaginated && this.settings.axis === 'horizontal'
+        ? this.paginatedLocation() : this.scrolledLocation();
+    };
+  }
   function textIndex(contents) {
     const doc = contents.document;
     if (textIndexes.has(doc)) return textIndexes.get(doc);
@@ -515,6 +623,7 @@ class KMReaderSheetEffect {
       atStart: !!location.atStart, atEnd: atReadingEnd(), changed});
   }
   function hook(contents) {
+    adaptLocationMapping(rendition.manager);
     const section = book.spine.get(contents.sectionIndex);
     const doc = contents.document;
     const active = () => doc.defaultView && doc.defaultView.frameElement && doc.defaultView.frameElement.isConnected;
@@ -1140,6 +1249,7 @@ class KMReaderSheetEffect {
       minSpreadWidth: 800, gap: isFixedLayout() ? 0 : preferences.margin * 2, direction: config.direction,
       allowScriptedContent: false, allowPopups: false});
     renditionSpineHooks = book.spine.hooks.content.list().filter(callback => !before.has(callback));
+    current.started.then(() => { if (rendition === current) retainLocationLayout(current.manager); });
     rendition.hooks.content.register(hook);
     rendition.on('relocated', value => {
       if (rendition !== current || disposed) return;
