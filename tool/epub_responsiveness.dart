@@ -397,6 +397,23 @@ Future<void> main() async {
         await Future<void>.delayed(const Duration(seconds: 3));
         return true;
       });
+      // Location mapping must also stay cheap deep inside a long chapter.
+      // Move the actual scrollport, then measure real inputs after settling.
+      await _js('''
+        const viewport=document.querySelector('.epub-container');
+        document.dispatchEvent(new WheelEvent('wheel',{bubbles:true,deltaY:1}));
+        if('$style'==='vertical')viewport.scrollTop=Math.floor((viewport.scrollHeight-viewport.clientHeight)/2/viewport.clientHeight)*viewport.clientHeight;
+        else viewport.scrollLeft=(getComputedStyle(viewport).direction==='rtl'?-1:1)*Math.floor((viewport.scrollWidth-viewport.clientWidth)/2/viewport.clientWidth)*viewport.clientWidth;
+        await new Promise(resolve=>setTimeout(resolve,400));
+        await reader.whenIdle();return true;
+      ''');
+      await _phase('${style}MiddleTurns', () async {
+        final turns = <dynamic>[];
+        for (var i = 0; i < 3; i++) {
+          turns.add(await _turn());
+        }
+        return turns;
+      });
       if (style == 'vertical') {
         await _phase('verticalWheel', () async {
           final before = await _js('return reader.position()?.start?.cfi;');
