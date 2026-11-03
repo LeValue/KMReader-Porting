@@ -34,8 +34,8 @@ on:
       android_composition:
         description: WebView composition for the isolated Android diagnostic app
         type: choice
-        options: [texture, hybrid]
-        default: texture
+        options: [auto, texture, hybrid]
+        default: auto
 
 permissions:
   contents: read

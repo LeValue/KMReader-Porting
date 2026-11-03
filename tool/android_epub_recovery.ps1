@@ -56,5 +56,14 @@ try {
         # phone's global logcat (it can contain unrelated app/user data).
         & adb -s $device shell am force-stop $package | Out-Null
         & adb -s $device uninstall $package | Out-File "$output/cleanup.txt"
+        if ($LASTEXITCODE -ne 0) {
+            # Some Huawei builds reject global deletion but permit removing
+            # the test package from the primary Android user.
+            & adb -s $device shell pm uninstall --user 0 $package | Out-File "$output/cleanup.txt" -Append
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'The phone refused diagnostic app removal; it can be removed manually. See cleanup.txt.' }
+        }
     }
 }
+# Cleanup is recorded separately; its exit status must not turn a successful
+# reader regression into a false test failure. Exceptions above still fail.
+exit 0

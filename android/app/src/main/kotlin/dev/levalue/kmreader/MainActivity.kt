@@ -89,6 +89,14 @@ class MainActivity : FlutterFragmentActivity() {
                     ownsKeepAwake = false
                 }
                 result.success(null)
+            } else if (call.method == "getEpubWebViewConfiguration") {
+                // Huawei's Android 10 graphics stack can reject the offscreen
+                // SurfaceProducer buffers while WebView's DOM remains healthy.
+                // Direct hybrid composition keeps hardware-accelerated text
+                // visible on the verified Mate 20 Pro configuration.
+                result.success(mapOf("hybridComposition" to
+                    (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q &&
+                        Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true))))
             } else if (call.method == "getWebViewRenderingStats") {
                 fun findWebView(view: View): WebView? {
                     if (view is WebView) return view

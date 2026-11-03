@@ -160,6 +160,9 @@ void verifyNativeEpubRecovery() {
           'phase': phase,
           'dom': dom,
           'native': native,
+          'compositionOverride': const bool.hasEnvironment(
+            'KMREADER_EPUB_HYBRID_COMPOSITION',
+          ),
           'hybrid': tester
               .widget<InAppWebView>(find.byType(InAppWebView))
               .platform
@@ -214,6 +217,16 @@ void verifyNativeEpubRecovery() {
       try {
         await mount();
         await readable('cold-open');
+        final beforeSettings = await js('return reader.position().start.cfi;');
+        await tester.tap(find.byType(PopupMenuButton<String>).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Text Settings').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Text Settings'), findsWidgets);
+        await tester.tap(find.byTooltip('Close').last);
+        await tester.pumpAndSettle();
+        expect(await js('return reader.position().start.cfi;'), beforeSettings);
+        await readable('settings-close');
         // Scope forced motion to the probe: CI/emulator accessibility can
         // disable animations; the production preference remains untouched.
         expect(
@@ -223,8 +236,9 @@ void verifyNativeEpubRecovery() {
           window.recoveryStart=KMReaderSheetEffect.prototype.start;
           KMReaderSheetEffect.prototype.start=function(...args){window.recoveryEffect=this;return recoveryStart.apply(this,args);};
           const render=KMReaderCurlSurface.prototype.render;
+          let injected=false;
           KMReaderCurlSurface.prototype.render=function(p,...args){
-            if(p>0&&p<1)throw Error('Injected Android GPU draw failure');
+            if(p>0&&p<1&&window.recoveryEffect?.surface===this){injected=true;throw Error('Injected Android GPU draw failure');}
             return render.call(this,p,...args);
           };
           const before=reader.position().start.cfi;
@@ -237,7 +251,7 @@ void verifyNativeEpubRecovery() {
               await new Promise(resolve=>setTimeout(resolve,16));
             }
             if(!recoveryEffect.failed||KMReaderSheetEffect.supported('curl'))throw Error('Fault was not recovered');
-            return reader.position().start.cfi!==before;
+            return injected && reader.position().start.cfi!==before;
           }finally{KMReaderCurlSurface.prototype.render=render;}
         '''),
           true,
