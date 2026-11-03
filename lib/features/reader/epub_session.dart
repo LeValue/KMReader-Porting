@@ -353,6 +353,19 @@ class EpubSession extends ChangeNotifier {
 
   void receive(Json event) {
     if (_closed) return;
+    final before = (
+      layoutBusy,
+      ready,
+      auxiliary,
+      chapter,
+      page,
+      pages,
+      atStart,
+      atEnd,
+      cfi,
+      href,
+      progression,
+    );
     switch (event['type']) {
       case 'layout':
         layoutBusy = event['active'] == true;
@@ -391,8 +404,25 @@ class EpubSession extends ChangeNotifier {
           _remember();
           save();
         }
+      default:
+        return;
     }
-    notifyListeners();
+    if (before !=
+        (
+          layoutBusy,
+          ready,
+          auxiliary,
+          chapter,
+          page,
+          pages,
+          atStart,
+          atEnd,
+          cfi,
+          href,
+          progression,
+        )) {
+      notifyListeners();
+    }
   }
 
   void setPreferences(EpubPreferences value) {

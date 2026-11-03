@@ -145,10 +145,17 @@ with sync_playwright() as pw:
     page.screenshot(path=str(output / f'{width}-{config.get("direction", "ltr")}-curl-sepia.png'))
     page.evaluate('effect.stop()')
     page.evaluate('(p)=>reader.preferences(p)',config['preferences'])
+    # Returning to a non-curl preference now releases the previous GPU surface.
+    # Lighting/upload probes own a separate initialized surface for their white
+    # test stock; they must not draw through that deliberately retired effect.
+    page.evaluate('''async () => {
+      window.lightingSurface=KMReaderCurlSurface.shared=new KMReaderCurlSurface();
+      await lightingSurface.whenReady();
+    }''')
     # A raised free paper edge must cast its own shadow, away from the roll
     # ridge. White textures isolate actual lighting from text/ink differences.
     shadow=page.evaluate('''() => {
-      const surface=effect.surface,g=surface.gl,stock=document.createElement('canvas');
+      const surface=lightingSurface,g=surface.gl,stock=document.createElement('canvas');
       stock.width=innerWidth;stock.height=innerHeight;
       const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
       surface.upload(stock,stock,innerWidth,innerHeight);document.body.append(surface.canvas);
@@ -168,7 +175,7 @@ with sync_playwright() as pw:
     }''')
     assert shadow['error']==0 and shadow['exposed']>50, ('Missing smooth projected paper shadow',shadow)
     seam=page.evaluate('''() => {
-  const surface=effect.surface,g=surface.gl,stock=document.createElement('canvas');
+  const surface=lightingSurface,g=surface.gl,stock=document.createElement('canvas');
   stock.width=innerWidth;stock.height=innerHeight;
   const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
   surface.upload(stock,stock,innerWidth,innerHeight);
@@ -211,7 +218,7 @@ with sync_playwright() as pw:
         assert sample['old']['front']-sample['old']['background']>60, ('Regression control cannot detect missing receiver',sample)
         assert sample['peak']>=75 and sample['edgeWidth']>=10+width*.01, ('Shadow too faint or narrow',sample)
         assert sample['plateau']<=max(2, sample['edgePixels']*.08), ('Shadow has repeated bands',sample)
-    page.evaluate('''async () => {const surface=effect.surface,g=surface.gl;
+    page.evaluate('''async () => {const surface=lightingSurface,g=surface.gl;
   const originalUpload=g.texImage2D;let uploads=0;
   g.texImage2D=function(...args){uploads++;return originalUpload.apply(this,args);};
   try {
@@ -241,6 +248,7 @@ with sync_playwright() as pw:
 
   } finally {g.texImage2D=originalUpload;}
 }''')
+    page.evaluate('lightingSurface.dispose()')
     timing=page.evaluate('''async () => {
   const original=requestAnimationFrame,cancel=cancelAnimationFrame,clock=performance.now;
   const values=[],queue=[];
