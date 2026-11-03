@@ -84,3 +84,10 @@ its WebView2 descendants. It records no process command lines or user-library
 content. `responsiveness.json` and `process-samples.json` share epoch timestamps
 for correlating input latency with CPU and memory use. The hosted smoke report
 is a harness check, not a substitute for measurements on the selected laptop.
+The workflow builds both the 0.8.11 runtime and the candidate with the same
+probe and runs them sequentially. Their embedded `runtimeSource` identifies
+the exact reader code. The launcher stops only its own diagnostic process tree
+after the final report is sealed, as with the startup smoke test; native
+application exit behavior is outside this performance probe. Initial harness
+experiments completed their measurements but encountered a native desktop
+shutdown exception. Their workflow failure is not counted as a successful gate.

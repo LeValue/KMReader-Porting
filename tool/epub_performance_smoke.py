@@ -47,7 +47,7 @@ with sync_playwright() as playwright:
         const before=reader.position().start.cfi, start=performance.now();
         await Promise.race([
           reader.turn({delta:1,style:['slide','cover','curl','none'][i%4]}),
-          new Promise((_,reject)=>setTimeout(()=>reject(Error('Animation blocked navigation')),2000))
+          new Promise((_,reject)=>setTimeout(()=>reject(Error('Animation blocked navigation at '+i+' '+['slide','cover','curl','none'][i%4])),2000))
         ]);
         times.push(performance.now()-start);
         const after=reader.position().start.cfi;

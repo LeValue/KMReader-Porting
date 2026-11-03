@@ -454,6 +454,26 @@ Future<void> main() async {
         }
         return times;
       });
+      if (style == 'none') {
+        await _phase('settingsDuringInjectedBrowserWork', () async {
+          await _revealControls();
+          await _js('''
+            setTimeout(()=>{const end=performance.now()+800;while(performance.now()<end){}},80);
+            return true;
+          ''');
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          final clock = Stopwatch()..start();
+          _widget<PopupMenuButton<String>>((w) => true)!
+              .onSelected!('settings');
+          await _until(() => _widget<BottomSheet>((w) => true) != null);
+          await WidgetsBinding.instance.endOfFrame;
+          final visibleMs = clock.elapsedMicroseconds / 1000;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          _navigation.currentState!.pop();
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          return {'injectedBrowserWorkMs': 800, 'sheetVisibleMs': visibleMs};
+        });
+      }
       (_report['browserSamples'] ??= <String, dynamic>{} as dynamic)[style] =
           await _js('return kmSamples;');
       _host.currentState!.show(

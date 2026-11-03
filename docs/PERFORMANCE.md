@@ -1,5 +1,47 @@
 # Reader rendering performance
 
+## EPUB input and location work in 0.8.12
+
+Epub.js 0.3.93 reformats its live iframes inside `currentLocation()` and walks
+text geometry from the beginning of a chapter for each boundary. Reader turns
+query location before and after moving, while scroll notifications query it
+again. This made position reporting increasingly expensive deep in a chapter.
+
+Location reads now retain settled layout; actual viewport, font, spread and
+flow changes continue through the normal layout paths. The mapper retains
+text-node bounds and eight recent CFI pairs per live document. DOM changes,
+intrinsic image/font loading, resizing and authored scrollports invalidate
+those records. Running publisher CSS animations use fresh geometry. The
+upstream word-range and CFI algorithms remain. Weak document keys permit
+discarded chapters to be collected.
+
+A differential Chromium test compares 476 positions against the original
+mapper at phone/desktop widths, LTR/RTL, changed typography, paged/continuous
+flow and immediate text mutations. All CFIs must match. Repeating the queries
+performs zero geometry reads, versus roughly 168,000 reads across each original
+119-position case. Existing CJK, fixed-page, visible-pixel, selection, gesture,
+rapid-navigation, recovery and shadow checks remain.
+
+GPU curl no longer waits an unconditional two RAFs. Browser compositor
+snapshots retain their preparation and retirement barrier. Native reader
+settings appear without waiting for browser
+input suspension; preference updates and resumption still await suspension in
+order. Publication texture resolution and typography are unchanged.
+
+The new standalone release probe uses the normal application binding, records
+first and subsequent input separately, and includes deep-chapter turns,
+vertical wheel input, idle CPU/memory and actual settings callbacks. It builds
+the 0.8.11 runtime and the candidate using identical instrumentation for a
+paired physical-PC comparison. An explicitly labelled injected browser-work
+phase checks whether settings can open while JavaScript is occupied; that
+phase is a controlled test, not a timing from the user's book.
+
+The earlier `fullyLive` integration probe continuously schedules Flutter
+frames. It remains useful for animation delivery, but its idle frame count
+does not describe production idle activity. The standalone probe filters
+batched Flutter timings by their wall-clock raster timestamp and creates no
+idle RAF sampling loop. Android device timings are still unmeasured.
+
 ## Windows high-refresh capture interval in 0.8.11
 
 A physical RTX 2060 SUPER/144Hz run with the user's local Alice EPUB exposed

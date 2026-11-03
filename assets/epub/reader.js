@@ -316,7 +316,7 @@ class KMReaderSheetEffect {
     });
   }
 
-  stop(){if(this.stopped)return;this._progress=this.progress;for(const animation of this.compositor?.animations||[])animation.cancel();this.compositor=null;this.stopped=true;cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
+  stop(){if(this.stopped)return;this._progress=this.progress;for(const animation of this.compositor?.animations||[])animation.cancel();this.compositor=null;this.stopped=true;cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();if(this.transition)KMReaderSheetEffect.needsRetirement=true;this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
 }
 
 
@@ -1160,9 +1160,10 @@ class KMReaderSheetEffect {
     if (!motionAllowed(style) || !KMReaderSheetEffect.supported(style) || (delta > 0 && atReadingEnd())) {
       await move(); return null;
     }
-    // Retire the previous compositor snapshot before starting another capture.
-    // Skipping this delivery barrier can deadlock overlapping View Transitions.
-    await tick();
+    // Keep delivery outside the snapshot update callback: queuing a new
+    // View Transition before the previous one retires can freeze its RAFs.
+    // GPU curl has no compositor snapshot to prepare or retire on its own.
+    if(style!=='curl'||KMReaderSheetEffect.needsRetirement){KMReaderSheetEffect.needsRetirement=false;await tick();}
     const effect = sheetEffect = new KMReaderSheetEffect(style,
       (delta > 0) !== (config.direction === 'rtl') ? 1 : -1, preferences, y, delta < 0, rendition.manager?.layout?.divisor === 2, captureSheet);
     if (!await effect.start(() => capturedLayout(move))) { if (sheetEffect === effect) sheetEffect = undefined; return null; }
