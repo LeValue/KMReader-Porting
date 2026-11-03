@@ -22,10 +22,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: kmreader-local-windows
-  cancel-in-progress: false
-
 jobs:
   build_test:
     if: inputs.mode != 'inspect'
@@ -81,6 +77,9 @@ jobs:
     needs: build_test
     if: ${{ !cancelled() && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
     runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
+    concurrency:
+      group: kmreader-local-windows-pc-${{ inputs.runner_label }}
+      cancel-in-progress: false
     timeout-minutes: 50
     defaults:
       run:
