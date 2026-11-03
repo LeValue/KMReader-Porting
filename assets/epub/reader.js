@@ -546,7 +546,13 @@ class KMReaderSheetEffect {
       // A position read must not reformat every iframe. Actual resize, flow,
       // font and spread changes already update layout through their own paths.
       // Keep the upstream barrier when native viewport bounds have changed.
-      if (!this._stageSize || this._stageSize.width !== innerWidth || this._stageSize.height !== innerHeight) return original.call(this);
+      const padding=this.stage?.containerPadding||{};
+      const width=(this.container?.clientWidth||0)-(padding.left||0)-(padding.right||0);
+      const height=(this.container?.clientHeight||0)-(padding.top||0)-(padding.bottom||0);
+      // Stage.size() measures the content box, excluding classic scrollbars
+      // and padding. Comparing it to innerWidth invalidated every Windows
+      // continuous-scroll query and defeated the geometry cache.
+      if (!this._stageSize || !width || !height || this._stageSize.width !== width || this._stageSize.height !== height) return original.call(this);
       return this.location = this.isPaginated && this.settings.axis === 'horizontal'
         ? this.paginatedLocation() : this.scrolledLocation();
     };

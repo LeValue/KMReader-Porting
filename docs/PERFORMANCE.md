@@ -15,11 +15,15 @@ those records. Running publisher CSS animations use fresh geometry. The
 upstream word-range and CFI algorithms remain. Weak document keys permit
 discarded chapters to be collected.
 
-A differential Chromium test compares 476 positions against the original
+A differential Chromium test compares 544 positions against the original
 mapper at phone/desktop widths, LTR/RTL, changed typography, paged/continuous
 flow and immediate text mutations. All CFIs must match. Repeating the queries
-performs zero geometry reads, versus roughly 168,000 reads across each original
-119-position case. Existing CJK, fixed-page, visible-pixel, selection, gesture,
+performs zero geometry reads, versus roughly 192,000 reads across each original
+136-position case. A reduced content-box case requires zero reformatting calls
+across repeated position reads. Layout checks compare the actual stage content
+box, excluding classic scrollbars and padding; using the outer window width
+would invalidate every continuous-scroll query on Windows. Existing CJK,
+fixed-page, visible-pixel, selection, gesture,
 rapid-navigation, recovery and shadow checks remain.
 
 GPU curl no longer waits an unconditional two RAFs. Browser compositor
@@ -28,7 +32,7 @@ settings appear without waiting for browser
 input suspension; preference updates and resumption still await suspension in
 order. Publication texture resolution and typography are unchanged.
 
-On the user's i5-10210U laptop, the 0.8.11 first curl took about 372 ms to
+In an initial trace on the user's i5-10210U laptop, the 0.8.11 first curl took about 372 ms to
 prepare and contained a 211 ms JavaScript long task during GPU initialization.
 SVG decoding itself took 11–27 ms. Shader programs are now submitted together
 during publication layout. `KHR_parallel_shader_compile` completion polling
