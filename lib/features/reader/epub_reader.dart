@@ -1028,7 +1028,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         // SurfaceAndroidView uses texture composition with native fallback.
         // Avoid forcing legacy hybrid composition (and its hardware layer),
         // which makes Flutter controls share the WebView's platform work.
-        useHybridComposition: false,
+        useHybridComposition: const bool.fromEnvironment(
+          'KMREADER_EPUB_HYBRID_COMPOSITION',
+        ),
         useOnRenderProcessGone: true,
         allowFileAccess: false,
         allowContentAccess: false,

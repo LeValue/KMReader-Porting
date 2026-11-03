@@ -22,6 +22,9 @@ on:
       renderer:
         type: string
         default: default
+      composition:
+        type: string
+        default: texture
 
 permissions:
   contents: read
@@ -53,7 +56,11 @@ jobs:
       - name: Build isolated ARM64 diagnostic APK (not a release)
         env:
           ORG_GRADLE_PROJECT_kmreaderEpubDiagnostic: 'true'
-        run: flutter build apk --debug --target-platform android-arm64 --target=integration_test/epub_recovery_test.dart --no-pub
+          EPUB_COMPOSITION: ${{ inputs.composition }}
+        run: |
+          hybrid=false
+          if [ "$EPUB_COMPOSITION" = hybrid ]; then hybrid=true; elif [ "$EPUB_COMPOSITION" != texture ]; then exit 1; fi
+          flutter build apk --debug --target-platform android-arm64 --target=integration_test/epub_recovery_test.dart --dart-define=KMREADER_EPUB_HYBRID_COMPOSITION=$hybrid --no-pub
       - uses: actions/upload-artifact@v4
         with:
           name: android-epub-recovery-apk

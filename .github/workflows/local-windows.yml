@@ -31,6 +31,11 @@ on:
         type: choice
         options: [default, skia]
         default: default
+      android_composition:
+        description: WebView composition for the isolated Android diagnostic app
+        type: choice
+        options: [texture, hybrid]
+        default: texture
 
 permissions:
   contents: read
@@ -45,6 +50,7 @@ jobs:
       prebuilt_run: ${{ inputs.prebuilt_run }}
       expected_runner: ${{ inputs.expected_runner }}
       renderer: ${{ inputs.android_renderer }}
+      composition: ${{ inputs.android_composition }}
   build_test:
     if: inputs.mode != 'inspect' && inputs.mode != 'android-epub-recovery' && inputs.prebuilt_run == ''
     runs-on: windows-latest

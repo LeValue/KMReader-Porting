@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
@@ -101,7 +103,7 @@ void verifyNativeEpubRecovery() {
         fail('Cold Android EPUB did not become ready');
       }
 
-      Future<void> readable() async {
+      Future<void> readable(String phase) async {
         expect(
           await js('''
           await reader.whenIdle();
@@ -136,7 +138,41 @@ void verifyNativeEpubRecovery() {
           }
         }
         expect(bytes, isNotEmpty);
-        final codec = await ui.instantiateImageCodec(bytes!);
+        final report =
+            IntegrationTestWidgetsFlutterBinding.ensureInitialized()
+                    .reportData ??=
+                <String, dynamic>{};
+        (report.putIfAbsent(
+          'epubRecoveryScreenshots',
+          () => <Map<String, dynamic>>[],
+        ) as List).add({'phase': phase, 'png': base64Encode(bytes!)});
+        final dom = await js('''
+          return {width:innerWidth,height:innerHeight,hidden:document.hidden,userAgent:navigator.userAgent,
+            frames:[...document.querySelectorAll('#viewer iframe')].map(f=>({
+              frame:f.getBoundingClientRect().toJSON(),body:f.contentDocument.body.getBoundingClientRect().toJSON(),
+              textLength:f.contentDocument.body.textContent.length,
+              color:f.contentWindow.getComputedStyle(f.contentDocument.body).color
+            }))};
+        ''');
+        final native = await ReaderDisplay.channel
+            .invokeMapMethod<String, dynamic>('getWebViewRenderingStats');
+        final probe = <String, dynamic>{
+          'phase': phase,
+          'dom': dom,
+          'native': native,
+          'hybrid': tester
+              .widget<InAppWebView>(find.byType(InAppWebView))
+              .platform
+              .params
+              .initialSettings
+              ?.useHybridComposition,
+        };
+        (report.putIfAbsent(
+          'epubRecoveryProbes',
+          () => <Map<String, dynamic>>[],
+        ) as List).add(probe);
+        debugPrint('EPUB visible-text probe: ${jsonEncode(probe)}');
+        final codec = await ui.instantiateImageCodec(bytes);
         final image = (await codec.getNextFrame()).image;
         codec.dispose();
         try {
@@ -154,6 +190,12 @@ void verifyNativeEpubRecovery() {
               if (r > 180 && g > 180 && b > 180) light++;
             }
           }
+          probe.addAll({
+            'darkPixels': dark,
+            'lightPixels': light,
+            'imageWidth': image.width,
+            'imageHeight': image.height,
+          });
           expect(
             dark,
             greaterThan(150),
@@ -171,7 +213,7 @@ void verifyNativeEpubRecovery() {
 
       try {
         await mount();
-        await readable();
+        await readable('cold-open');
         // Scope forced motion to the probe: CI/emulator accessibility can
         // disable animations; the production preference remains untouched.
         expect(
@@ -200,7 +242,7 @@ void verifyNativeEpubRecovery() {
         '''),
           true,
         );
-        await readable();
+        await readable('draw-failure');
         expect(
           await js('''
           const before=reader.position().start.cfi;
@@ -209,7 +251,7 @@ void verifyNativeEpubRecovery() {
         '''),
           true,
         );
-        await readable();
+        await readable('direct-turn');
         final saved = await js('return reader.position().start.cfi;');
         // Destroy the native WebView and session, then load from persisted CFI
         // with the same saved curl preferences (a JS display() is insufficient).
@@ -222,7 +264,7 @@ void verifyNativeEpubRecovery() {
         );
         await mount();
         expect(await js('return reader.position().start.cfi;'), saved);
-        await readable();
+        await readable('reader-reopen');
         expect(
           await js('''
           const media=window.matchMedia;
@@ -248,7 +290,7 @@ void verifyNativeEpubRecovery() {
         '''),
           true,
         );
-        await readable();
+        await readable('context-loss');
         expect(tester.takeException(), isNull);
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
