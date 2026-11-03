@@ -2,6 +2,17 @@ name: Android EPUB recovery diagnostics
 
 on:
   workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Windows PC with the authorized USB phone
+        type: choice
+        options: [kmreader-android-desktop, kmreader-laptop]
+        default: kmreader-android-desktop
+  workflow_call:
+    inputs:
+      runner_label:
+        type: string
+        default: kmreader-android-desktop
 
 permissions:
   contents: read
@@ -39,7 +50,10 @@ jobs:
           retention-days: 7
   phone:
     needs: build
-    runs-on: [self-hosted, Windows, X64, kmreader-laptop]
+    runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
+    concurrency:
+      group: kmreader-android-phone-${{ inputs.runner_label }}
+      cancel-in-progress: false
     timeout-minutes: 20
     defaults:
       run:

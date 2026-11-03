@@ -6,12 +6,12 @@ on:
       runner_label:
         description: Target a specific registered PC
         type: choice
-        options: [kmreader-laptop, self-hosted]
+        options: [kmreader-laptop, kmreader-android-desktop, self-hosted]
         default: kmreader-laptop
       mode:
         description: Environment, native regression tests, or profile frame timings
         type: choice
-        options: [inspect, native, profile, responsiveness]
+        options: [inspect, native, profile, responsiveness, android-epub-recovery]
         default: inspect
       publication:
         description: Profile fixture or the requested Alice download in KMReader
@@ -28,8 +28,13 @@ permissions:
   actions: read
 
 jobs:
+  android_recovery:
+    if: inputs.mode == 'android-epub-recovery'
+    uses: ./.github/workflows/local-android.yml
+    with:
+      runner_label: ${{ inputs.runner_label }}
   build_test:
-    if: inputs.mode != 'inspect' && inputs.prebuilt_run == ''
+    if: inputs.mode != 'inspect' && inputs.mode != 'android-epub-recovery' && inputs.prebuilt_run == ''
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
@@ -106,7 +111,7 @@ jobs:
           retention-days: 7
   inspect:
     needs: build_test
-    if: ${{ !cancelled() && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
+    if: ${{ !cancelled() && inputs.mode != 'android-epub-recovery' && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
     runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
     concurrency:
       group: kmreader-local-windows-pc-${{ inputs.runner_label }}

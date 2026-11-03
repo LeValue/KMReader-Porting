@@ -26,15 +26,18 @@ test is included in the existing native Android CI suite. Reader reopen is
 tested; Android process death/force-stop and a particular user's EPUB still need
 the physical-device checks below.
 
-## Later test on the Mate 20 Pro through MATEBOOK
+## Test on the Mate 20 Pro through a Windows runner
 
 The manual **Android EPUB recovery diagnostics** workflow builds the diagnostic
-APK on GitHub, then runs it through MATEBOOK's `kmreader-laptop` runner. It is
-prepared for a later run; adding the workflow does not start it. GitHub makes
-new manual workflows selectable after they reach the default branch; the
-candidate currently lives on `fix/android-epub-recovery`.
+APK on GitHub, then runs it through the selected Windows runner. The fixed PC
+uses the additional label `kmreader-android-desktop`; MATEBOOK uses
+`kmreader-laptop`. The candidate currently lives on `fix/android-epub-recovery`.
+Until the new workflow reaches the default branch, start the existing **Local
+Windows diagnostics** workflow on that candidate branch with mode
+`android-epub-recovery` and the chosen `runner_label`. It calls the Android
+workflow from the same commit and skips the Windows tests.
 
-1. Keep MATEBOOK signed in with its runner on `Listening for Jobs`.
+1. Keep the selected Windows PC signed in with its runner on `Listening for Jobs`.
 2. Connect the Mate 20 Pro by USB, enable USB debugging, authorize this PC and
    leave the phone unlocked. Disconnect other Android devices/emulators.
 3. Run `.github/workflows/local-android.yml` on the candidate commit. The first
