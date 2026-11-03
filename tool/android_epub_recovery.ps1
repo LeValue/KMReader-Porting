@@ -1,4 +1,4 @@
-param([string]$Apk = '.dart_tool/android-epub-recovery/app-debug.apk', [switch]$DisableImpeller)
+param([string]$Apk = '.dart_tool/android-epub-recovery/app-debug.apk', [switch]$DisableImpeller, [ValidateSet('auto', 'hybrid', 'texture')][string]$Composition = 'auto')
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $Apk)) { throw "Diagnostic APK missing: $Apk" }
 $analyzerCommand = Get-Command apkanalyzer.bat -ErrorAction SilentlyContinue
@@ -44,6 +44,7 @@ try {
     $ErrorActionPreference = 'Continue'
     $driveArguments = @('drive', "--use-application-binary=$Apk", '--driver=test_driver/native_reader_driver.dart', '--target=integration_test/epub_recovery_test.dart', '-d', $device, '--no-pub', '--no-dds')
     if ($DisableImpeller) { $driveArguments += '--no-enable-impeller' }
+    if ($Composition -ne 'auto') { $driveArguments += "--route=/kmreader-epub-diagnostic/$Composition" }
     Write-Output "Diagnostic Flutter renderer: $(if ($DisableImpeller) { 'Skia' } else { 'default' })"
     & flutter @driveArguments 2>&1 |
         Tee-Object "$output/test.log"
