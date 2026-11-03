@@ -1,8 +1,9 @@
 param([string]$Apk = '.dart_tool/android-epub-recovery/app-debug.apk')
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $Apk)) { throw "Diagnostic APK missing: $Apk" }
-$analyzer = Join-Path $env:ANDROID_HOME 'cmdline-tools/latest/bin/apkanalyzer.bat'
-if (-not (Test-Path $analyzer)) { throw 'Android command-line tools (apkanalyzer) are required.' }
+$analyzerCommand = Get-Command apkanalyzer.bat -ErrorAction SilentlyContinue
+if (-not $analyzerCommand) { throw 'Android command-line tools (apkanalyzer) are required on PATH.' }
+$analyzer = $analyzerCommand.Source
 $package = 'dev.levalue.kmreader.epubdiagnostic'
 $actualPackage = (& $analyzer manifest application-id $Apk | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $actualPackage -ne $package) {
