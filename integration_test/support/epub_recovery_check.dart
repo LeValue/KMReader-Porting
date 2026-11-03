@@ -227,6 +227,33 @@ void verifyNativeEpubRecovery() {
         await tester.pumpAndSettle();
         expect(await js('return reader.position().start.cfi;'), beforeSettings);
         await readable('settings-close');
+        final normalCurl = await js('''
+          const media=window.matchMedia,start=KMReaderSheetEffect.prototype.start;
+          window.matchMedia=q=>q.includes('prefers-reduced-motion')?{matches:false}:media.call(window,q);
+          let effect;
+          KMReaderSheetEffect.prototype.start=function(...args){effect=this;return start.apply(this,args);};
+          try{
+            const before=reader.position().start.cfi,started=performance.now();
+            await reader.turn({delta:1,style:'curl'});
+            const ready=performance.now();
+            if(!effect?.surface)throw Error('Normal native GPU curl did not start');
+            const samples=[],deadline=ready+4000;
+            while(!effect.stopped){
+              samples.push({time:performance.now()-ready,progress:effect.progress});
+              if(performance.now()>deadline)throw Error('Normal native curl did not finish');
+              await new Promise(resolve=>setTimeout(resolve,16));
+            }
+            if(effect.failed||effect.progress<.999)throw Error('Normal native curl fell back before completion');
+            if(samples.filter(s=>s.progress>0&&s.progress<1).length<2)throw Error('Normal native curl had no intermediate frames');
+            if(effect.surface.gl.getError()!==effect.surface.gl.NO_ERROR)throw Error('Native curl reported a GPU drawing error');
+            if(reader.position().start.cfi===before)throw Error('Normal native curl did not navigate');
+            return {readyMs:ready-started,durationMs:performance.now()-ready,samples};
+          }finally{window.matchMedia=media;KMReaderSheetEffect.prototype.start=start;}
+        ''');
+        IntegrationTestWidgetsFlutterBinding.ensureInitialized()
+                .reportData!['normalCurl'] =
+            normalCurl;
+        await readable('normal-curl');
         // Scope forced motion to the probe: CI/emulator accessibility can
         // disable animations; the production preference remains untouched.
         expect(

@@ -60,7 +60,12 @@ try {
             # Some Huawei builds reject global deletion but permit removing
             # the test package from the primary Android user.
             & adb -s $device shell pm uninstall --user 0 $package | Out-File "$output/cleanup.txt" -Append
-            if ($LASTEXITCODE -ne 0) { Write-Warning 'The phone refused diagnostic app removal; it can be removed manually. See cleanup.txt.' }
+            if ($LASTEXITCODE -ne 0) {
+                $remaining = @(& adb -s $device shell pm list packages --user 0 $package)
+                if ($LASTEXITCODE -eq 0 -and -not ($remaining -match "^package:$([Regex]::Escape($package))$")) {
+                    'Diagnostic package is no longer installed for the primary user.' | Out-File "$output/cleanup.txt" -Append
+                } else { Write-Warning 'The phone refused diagnostic app removal; it can be removed manually. See cleanup.txt.' }
+            }
         }
     }
 }
