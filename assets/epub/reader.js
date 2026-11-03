@@ -239,6 +239,13 @@ class KMReaderSheetEffect {
     this.width=innerWidth;this.height=innerHeight;this.progress=0;this.slope=0;this.id=`km-sheet-${++KMReaderSheetEffect.serial}`;
   }
   async start(move){
+    // Compositor capture needs a delivered frame after the previous surface
+    // retires. Keep that barrier here so direct/interactive callers share it.
+    if(this.style!=='curl'||KMReaderSheetEffect.needsRetirement){
+      KMReaderSheetEffect.needsRetirement=false;
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    }
+    if(this.stopped)return false;
     if(this.style==='curl'){
       let moved=false;
       try{
@@ -1192,10 +1199,8 @@ class KMReaderSheetEffect {
     if (!motionAllowed(style) || !KMReaderSheetEffect.supported(style) || (delta > 0 && atReadingEnd())) {
       await move(); return null;
     }
-    // Keep delivery outside the snapshot update callback: queuing a new
-    // View Transition before the previous one retires can freeze its RAFs.
-    // GPU curl has no compositor snapshot to prepare or retire on its own.
-    if(style!=='curl'||KMReaderSheetEffect.needsRetirement){KMReaderSheetEffect.needsRetirement=false;await tick();}
+    // SheetEffect owns the compositor delivery barrier. GPU curl has no
+    // compositor snapshot to prepare or retire on its own.
     const effect = sheetEffect = new KMReaderSheetEffect(style,
       (delta > 0) !== (config.direction === 'rtl') ? 1 : -1, preferences, y, delta < 0, rendition.manager?.layout?.divisor === 2, captureSheet);
     if (!await effect.start(() => capturedLayout(move))) { if (sheetEffect === effect) sheetEffect = undefined; return null; }
