@@ -374,11 +374,15 @@ class KMReaderSheetEffect {
       }catch(_){for(const animation of animations)animation.cancel();this.compositor=null;}
     }
     return new Promise(resolve=>{
-      this.finishAnimation=resolve;const started=performance.now();
+      this.finishAnimation=resolve;let started;
       const frame=now=>{
         if(this.stopped){resolve();return;}
+        started??=now;
         // Preserve the requested wall duration under load. Capping each delta
-        // at 32ms turned slow presentation into multi-second slow motion.
+        // at 32ms turned slow presentation into multi-second slow motion. RAF
+        // timestamps follow the delivered document frame: anchor to its first
+        // delivery so a delayed/frozen capture cannot consume the whole flight
+        // before its initial frame has even appeared.
         const t=Math.min(1,Math.max(0,now-started)/Math.max(1,duration));
         const eased=automatic?t*t*t*(10+t*(-15+6*t)):(-2*t*t*t+3*t*t)+tangent*(t*t*t-2*t*t+t);
         try{this.update(from+delta*eased);}catch(_){this.fail();return;}
@@ -413,7 +417,7 @@ class KMReaderPageSnapshot {
       // Relational selectors can make a visible block depend on the children
       // of an offscreen one. Preserve those authored documents verbatim.
       if ([...document.styleSheets].some(sheet => {
-        try { return [...sheet.cssRules].some(rule => rule.cssText.includes(':has(')); }
+        try { return [...sheet.cssRules].some(rule => rule.cssText.includes(':has(')||/::?(before|after|first-letter)\b/.test(rule.cssText)); }
         catch (_) { return true; }
       })) { cache.blocks=[]; return; }
       const ancestorStyles=new WeakMap();
@@ -431,7 +435,11 @@ class KMReaderPageSnapshot {
             element.querySelector('img,svg,math,table,video,audio,canvas,iframe,object')) return null;
         const style = document.defaultView.getComputedStyle(element);
         if (style.display !== 'block' || style.position !== 'static' || style.float !== 'none' ||
-            style.transform !== 'none' || style.columnCount !== 'auto' || style.columnWidth !== 'auto') return null;
+            style.transform !== 'none' || style.columnCount !== 'auto' || style.columnWidth !== 'auto'||
+            style.boxShadow!=='none'||style.textShadow!=='none'||style.filter!=='none') return null;
+        // Authored nowrap/height constraints can put visible ink beyond the
+        // block's box. Such content must not be culled using box visibility.
+        if(element.scrollWidth>element.clientWidth+1||element.scrollHeight>element.clientHeight+1)return null;
         for(const child of element.querySelectorAll('*')){
           const childStyle=document.defaultView.getComputedStyle(child);
           if(childStyle.float!=='none'||childStyle.position!=='static'||!['inline','contents','none'].includes(childStyle.display))return null;
@@ -445,7 +453,9 @@ class KMReaderPageSnapshot {
     }
     const blocks = root.querySelector('body').querySelectorAll('p,h1,h2,h3,h4,h5,h6');
     for (const block of cache.blocks) {
-      if (block.rects.some(r => r.right > clip.left && r.left < clip.right && r.bottom > clip.top && r.top < clip.bottom)) continue;
+      // Retain adjacent line boxes too, including italic glyph overhangs at a
+      // page edge that are outside the block's nominal rectangle.
+      if (block.rects.some(r => r.right > clip.left-128 && r.left < clip.right+128 && r.bottom > clip.top-128 && r.top < clip.bottom+128)) continue;
       const element = blocks[block.index];
       element.textContent = '\u200b';
       element.style.setProperty('height', block.height, 'important');

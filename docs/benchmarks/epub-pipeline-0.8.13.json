@@ -2,7 +2,7 @@
   "date": "2026-11-03",
   "baselineSource": "da6545fe21941f036db784b5538ed85aaad2c88d",
   "candidateVersion": "0.8.13+23",
-  "readerJsSha256": "c6463ee5da6c85f177b29364260a62146bd2876b6f356b9db6985792ad030b42",
+  "readerJsSha256": "a9dcfeae6efc0624ce0131ba4b8da18e294688bb984d24ac2d7818c9fc0901f4",
   "method": "Sequential Chromium headless runs, generated 2-chapter prose, 3000 paragraphs/chapter, 390x780, CPU throttling 6. Browser command readiness and TaskDuration; not native display FPS. First turn has no warm-up delay. Later inputs are 650 ms apart. Pause work may include delayed cosmetic preparation.",
   "baseline": {
     "cpuRate": 6,
@@ -67,45 +67,45 @@
     "cases": [
       {
         "mode": "none",
-        "openMs": 1701.248511999438,
-        "firstTurnMs": 184.89999999850988,
+        "openMs": 1705.9501400071895,
+        "firstTurnMs": 157.69999999552965,
         "followingTurnsMs": [
-          37.100000001490116,
-          25.099999994039536,
-          30.399999998509884,
-          19
+          27.399999998509884,
+          17.700000002980232,
+          16.80000000447035,
+          18.100000001490116
         ],
         "verticalScroll": null,
-        "idleTaskMs": 1.69499999999978
+        "idleTaskMs": 0.9209999999999496
       },
       {
         "mode": "curl",
-        "openMs": 1695.015853998484,
-        "firstTurnMs": 1717.1000000014901,
+        "openMs": 1692.1752089983784,
+        "firstTurnMs": 1839.5999999940395,
         "followingTurnsMs": [
-          320.1000000014901,
-          263.1000000014901,
-          269.29999999701977,
-          234.80000000447035
+          283,
+          252.09999999403954,
+          202.69999999552965,
+          252.89999999850988
         ],
         "verticalScroll": null,
-        "idleTaskMs": 4.146000000000427
+        "idleTaskMs": 1.3430000000003162
       },
       {
         "mode": "vertical",
-        "openMs": 1683.2158730030642,
-        "firstTurnMs": 18.299999997019768,
+        "openMs": 1400.2744530007476,
+        "firstTurnMs": 16.69999999552965,
         "followingTurnsMs": [
-          13.399999998509884,
-          17.200000002980232,
-          9.600000001490116,
-          12
+          10.899999998509884,
+          12.200000002980232,
+          10.899999998509884,
+          10.899999998509884
         ],
         "verticalScroll": {
-          "taskMs": 312.673,
+          "taskMs": 214.3790000000001,
           "layouts": 0
         },
-        "idleTaskMs": 6.101000000000134
+        "idleTaskMs": 5.49199999999983
       }
     ],
     "engine": "151.0.7922.34"

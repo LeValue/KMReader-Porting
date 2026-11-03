@@ -77,22 +77,29 @@ void verifyNativeEpubPerformance() {
     }
 
     Future<dynamic> jsWhilePresenting(String source) async {
-      var finished = false;
-      final reply = controller()!
-          .callAsyncJavaScript(functionBody: source)
-          .timeout(const Duration(seconds: 60))
-          .whenComplete(() => finished = true);
-      // The live test binding only draws requested frames. Keep the real
-      // platform texture consumer active while the browser animates, then
-      // assert outside any guarded pump.
-      final deadline = Stopwatch()..start();
-      while (!finished && deadline.elapsed < const Duration(seconds: 65)) {
-        await tester.pump(const Duration(milliseconds: 16));
-        await Future<void>.delayed(const Duration(milliseconds: 16));
+      final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+      final policy = binding.framePolicy;
+      // Functional animation delivery needs the platform texture consumer to
+      // honor native frame requests between explicit test pumps. This scoped
+      // policy is not used to measure production idle frames or device FPS.
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+      try {
+        var finished = false;
+        final reply = controller()!
+            .callAsyncJavaScript(functionBody: source)
+            .timeout(const Duration(seconds: 60))
+            .whenComplete(() => finished = true);
+        final deadline = Stopwatch()..start();
+        while (!finished && deadline.elapsed < const Duration(seconds: 65)) {
+          await tester.pump(const Duration(milliseconds: 16));
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+        }
+        final result = await reply;
+        expect(result?.error, isNull);
+        return result?.value;
+      } finally {
+        binding.framePolicy = policy;
       }
-      final result = await reply;
-      expect(result?.error, isNull);
-      return result?.value;
     }
 
     Future<void> visibleText() async {

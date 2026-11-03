@@ -24,7 +24,7 @@ generation, background work, GPU lifetime and failure recovery.
 | GPU lifetime | Switching from curl to vertical/direct/slide retained graphics and embedded-resource caches | Dispose the unused curl context and release decoded-page, markup and resource caches; release failed effects' retained caches too |
 | Motion failures | Draw errors, lost contexts or stalled preparations could retain an opaque overlay | Bounded preparation, cancellation/watchdog cleanup and direct reading after GPU failure |
 | Native reopening | A saved CFI could be valid while its iframe height was zero | Detect the invalid native view, reframe and restore the same locator |
-| Delayed frames | Capping each frame's elapsed delta stretched motion under load | Follow actual elapsed time rather than manufacturing slow motion |
+| Delayed frames | Capped deltas stretched motion; using the request clock could consume playback before a delayed first frame | Anchor to the first delivered RAF timestamp, then use actual elapsed frame time |
 
 The existing retained CFI mapper remains differential-tested against the stock
 mapper. Actual font, viewport, resource and content changes still invalidate
@@ -39,11 +39,11 @@ browser samples, not universal device performance or native display FPS.
 
 | Measurement | 0.8.12 | Candidate |
 |---|---:|---:|
-| Paged opening, direct motion | 3299 ms | 1701 ms |
-| First cold curl preparation | 2570 ms | 1717 ms |
-| Following curl preparation, median of 4 inputs | 1041 ms | 266 ms |
-| Vertical opening | 2731 ms | 1683 ms |
-| Vertical scroll browser task work | 366 ms | 313 ms |
+| Paged opening, direct motion | 3299 ms | 1706 ms |
+| First cold curl preparation | 2570 ms | 1840 ms |
+| Following curl preparation, median of 4 inputs | 1041 ms | 252 ms |
+| Vertical opening | 2731 ms | 1400 ms |
+| Vertical scroll browser task work | 366 ms | 214 ms |
 | Layouts during the same 40-step vertical scroll | 78 | 0 |
 
 The first cold curl remains the most expensive sampled interaction because it
@@ -57,6 +57,10 @@ match within a 4-channel-value antialiasing tolerance. Fragmentation is covered:
 replacing a split paragraph's line boxes or losing widow/orphan constraints
 caused an earlier version of this optimization to fail this test. Those
 paragraphs now retain their original text and line boxes.
+An additional regression makes authored `nowrap` text overflow from the
+preceding page. It must remain pixel-identical too. Overflow, shadows, generated
+content and complex authored boxes retain the full snapshot path; nearby line
+boxes are preserved for glyph overhangs.
 
 The resource-cache regression requires repeated small reads to reuse bytes,
 evicts resources beyond the working budget, reloads them correctly and revisits

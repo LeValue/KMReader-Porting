@@ -229,14 +229,19 @@ with sync_playwright() as pw:
     readable()
     page.evaluate('''async () => {
       const raf=window.requestAnimationFrame;
-      let time=performance.now(),callbacks=0;
-      window.requestAnimationFrame=callback=>setTimeout(()=>{callbacks++;callback(time+=120);},0);
-      const effect=new KMReaderSheetEffect('curl',1,{});
-      effect.update=value=>effect.progress=value;
       try{
-        await effect.animateTo(1,380,{automatic:true});
-        if(effect.progress!==1||callbacks>5)throw Error('Slow frames stretched the requested animation duration');
-      }finally{effect.stop();window.requestAnimationFrame=raf;}
+        for(const offset of [-1000,0,1000]){
+          let time=performance.now()+offset,callbacks=0;
+          const samples=[],effect=new KMReaderSheetEffect('curl',1,{});
+          window.requestAnimationFrame=callback=>setTimeout(()=>{callbacks++;callback(time+=120);},0);
+          effect.update=value=>{effect.progress=value;samples.push(value);};
+          try{
+            await effect.animateTo(1,380,{automatic:true});
+            if(effect.progress!==1||callbacks>5)throw Error('Slow frames stretched the requested animation duration');
+            if(samples[0]!==0||!samples.some(p=>p>0&&p<1))throw Error('Delayed frame delivery swallowed the animation');
+          }finally{effect.stop();}
+        }
+      }finally{window.requestAnimationFrame=raf;}
     }''')
     page.evaluate('''() => {
       const surface=KMReaderCurlSurface.shared;reader.destroy();
