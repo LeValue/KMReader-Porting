@@ -84,6 +84,18 @@ void main() {
       book,
       fixture(directory),
     );
+    var notifications = 0;
+    session.addListener(() => notifications++);
+    session.receive({'type': 'ready'});
+    expect(notifications, 1);
+    session.receive({'type': 'ready'});
+    session.receive({'type': 'layout', 'active': false});
+    session.receive({'type': 'tap', 'x': .5, 'y': .5});
+    expect(
+      notifications,
+      1,
+      reason: 'Input and duplicate reports must not rebuild the reader',
+    );
     session.receive({
       'type': 'position',
       'href': 'one.xhtml',
@@ -306,6 +318,40 @@ void main() {
     (1044, 'ltr'),
     (390, 'rtl'),
   ]) {
+    test(
+      'compact EPUB snapshots preserve every visible pixel at $width pixels ($direction)',
+      () async {
+        final file = fixture(
+          directory,
+          paragraphCount: 1400,
+          readingDirection: direction,
+        );
+        final host = await EpubHost.openFile(file.path);
+        try {
+          final result = await Process.run('python3', [
+            'tool/epub_snapshot_smoke.py',
+            host.reader.toString(),
+            jsonEncode({
+              'url': host.publication.toString(),
+              'preferences': EpubPreferences.fromJson({'theme': 'white'})
+                  .toJson(),
+              'nonce': 'snapshots',
+              'direction': direction,
+              'href': 'one.xhtml',
+              'viewport': {'width': width, 'height': width == 390 ? 780 : 720},
+            }),
+          ]);
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        } finally {
+          await host.close();
+        }
+      },
+      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+    );
     test(
       'EPUB compositor sheets and interactive gestures preserve pixels and progress at $width pixels ($direction)',
       () async {

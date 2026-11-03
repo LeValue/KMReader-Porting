@@ -39,7 +39,7 @@ with sync_playwright() as playwright:
     }''')
     page.evaluate('(config)=>reader.open(config)', config)
     result = page.evaluate('''async config => {
-      let comparisons=0,retainedReads=0,originalReads=0;
+      let comparisons=0,retainedReads=0,originalReads=0,scrollRestyles=0;
       function compare() {
         const manager=testRendition.manager, mapper=manager.mapping;
         const contents=testRendition.getContents()[0],doc=contents.document;
@@ -77,11 +77,24 @@ with sync_playwright() as playwright:
       compare();
       if(!chapterObservers.size)throw Error('The fixture did not exercise chapter geometry observers');
       await reader.display('two.xhtml');await reader.whenIdle();
+      const discarded=testRendition.book.spine.get(0);
+      if(discarded.document||discarded.output)throw Error('Discarded chapter retained its parsed DOM/XHTML');
       if([...chapterObservers].some(observer=>!observer.chapterBody.ownerDocument.defaultView?.frameElement?.isConnected)){
         throw Error('A discarded chapter retained its resize observer');
       }
+      await reader.display('one.xhtml');await reader.whenIdle();
+      if(!testRendition.getContents()[0].document.body.textContent.includes('Paragraph'))throw Error('Released chapter did not reload');
       for(const change of [{fontSize:27,margin:31,columns:1},{flow:'scrolled'},{fontSize:16,flow:'paged',columns:2}]){
         await reader.preferences({...config.preferences,...change});await reader.whenIdle();compare();
+        if(change.flow==='scrolled'){
+          const manager=testRendition.manager,frame=manager.views.first().iframe;
+          await manager.update();
+          const observer=new MutationObserver(records=>scrollRestyles+=records.length);
+          observer.observe(frame,{attributes:true,attributeFilter:['style']});
+          try{for(let i=0;i<8;i++)await manager.update();await Promise.resolve();}
+          finally{observer.disconnect();}
+          if(scrollRestyles)throw Error('Scrolling repeatedly restyled the visible chapter '+scrollRestyles);
+        }
       }
       // Mutations are drained synchronously, including edits before observers
       // receive their callback. The mapper must not reuse removed text nodes.
@@ -102,7 +115,7 @@ with sync_playwright() as playwright:
       if(updates)throw Error('Stable content-box reads reformatted the publication '+updates);
       compare();
       if(originalReads<=retainedReads*3)throw Error('Repeated mapping still scans chapter geometry '+JSON.stringify({retainedReads,originalReads}));
-      return {comparisons,retainedReads,originalReads,stableContentBoxReformats:updates};
+      return {comparisons,retainedReads,originalReads,stableContentBoxReformats:updates,scrollRestyles};
     }''', config)
     assert not errors, errors
     print(json.dumps(result))

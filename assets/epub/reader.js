@@ -403,6 +403,57 @@ class KMReaderSheetEffect {
   }
 }
 
+// Curl textures need the visible page's glyphs, not the text of every other
+// page in the chapter. Retain offscreen prose's measured flow boxes while
+// omitting its glyph layout in the temporary SVG document. The live publication
+// is never edited. Complex authored blocks keep the full snapshot path.
+class KMReaderPageSnapshot {
+  static compact(root, document, clip, cache) {
+    if (!cache.blocks) {
+      // Relational selectors can make a visible block depend on the children
+      // of an offscreen one. Preserve those authored documents verbatim.
+      if ([...document.styleSheets].some(sheet => {
+        try { return [...sheet.cssRules].some(rule => rule.cssText.includes(':has(')); }
+        catch (_) { return true; }
+      })) { cache.blocks=[]; return; }
+      const ancestorStyles=new WeakMap();
+      const simpleAncestor=element=>{
+        if(element===document.body)return true;
+        if(ancestorStyles.has(element))return ancestorStyles.get(element);
+        const style=document.defaultView.getComputedStyle(element);
+        const simple=style.display==='block'&&style.position==='static'&&style.float==='none'&&
+          style.columnCount==='auto'&&style.columnWidth==='auto'&&simpleAncestor(element.parentElement);
+        ancestorStyles.set(element,simple);return simple;
+      };
+      cache.blocks = [...document.body.querySelectorAll('p,h1,h2,h3,h4,h5,h6')].map((element, index) => {
+        if (!/^(P|H[1-6])$/.test(element.tagName) ||
+            !simpleAncestor(element.parentElement)||
+            element.querySelector('img,svg,math,table,video,audio,canvas,iframe,object')) return null;
+        const style = document.defaultView.getComputedStyle(element);
+        if (style.display !== 'block' || style.position !== 'static' || style.float !== 'none' ||
+            style.transform !== 'none' || style.columnCount !== 'auto' || style.columnWidth !== 'auto') return null;
+        for(const child of element.querySelectorAll('*')){
+          const childStyle=document.defaultView.getComputedStyle(child);
+          if(childStyle.float!=='none'||childStyle.position!=='static'||!['inline','contents','none'].includes(childStyle.display))return null;
+        }
+        const rects = [...element.getClientRects()].map(r => ({left:r.left,right:r.right,top:r.top,bottom:r.bottom}));
+        // Fragmented paragraphs carry widow/orphan line-break constraints.
+        // Their line boxes must stay intact even when the glyphs are offscreen.
+        if(rects.length!==1)return null;
+        return {index, height:style.height, rects};
+      }).filter(Boolean);
+    }
+    const blocks = root.querySelector('body').querySelectorAll('p,h1,h2,h3,h4,h5,h6');
+    for (const block of cache.blocks) {
+      if (block.rects.some(r => r.right > clip.left && r.left < clip.right && r.bottom > clip.top && r.top < clip.bottom)) continue;
+      const element = blocks[block.index];
+      element.textContent = '\u200b';
+      element.style.setProperty('height', block.height, 'important');
+      element.style.setProperty('break-inside', 'avoid', 'important');
+      element.style.setProperty('visibility', 'hidden', 'important');
+    }
+  }
+}
 
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
@@ -445,6 +496,73 @@ class KMReaderSheetEffect {
   const spreadPreference = value => verticalWriting() ? 'none' : value.columns === 1 ? 'none' : value.columns === 2 ? 'always'
     : isFixedLayout() && book.package?.metadata.spread === 'none' ? 'none'
     : isFixedLayout() && book.package?.metadata.spread === 'both' ? 'always' : 'auto';
+  // Epub.js formats through setters that immediately read computed geometry.
+  // A chapter was being laid out at its publisher size, again at each width /
+  // height setter, and once more when our late content hook applied typography.
+  // These formatting methods do not consume setter return values. Apply the
+  // reader stylesheet first and batch their writes; ordinary getters retain
+  // upstream semantics and the following expand() measures the final layout.
+  const formattingContents = new WeakSet();
+  const IframeView = ePub.Rendition.prototype.requireView('iframe');
+  const createIframe = IframeView.prototype.create;
+  IframeView.prototype.create = function(...args) {
+    const frame = createIframe.apply(this, args);
+    // Loading long prose into a zero-width iframe first wraps every word on
+    // its own line. Give the still-hidden frame its real initial viewport;
+    // expand() remains responsible for the final chapter extent.
+    if (!this.contents) {
+      frame.style.width = Math.max(1, this.settings.width || this.layout.width) + 'px';
+      frame.style.height = Math.max(1, this.settings.height || this.layout.height) + 'px';
+    }
+    return frame;
+  };
+  const destroyIframe = IframeView.prototype.destroy;
+  IframeView.prototype.destroy = function(...args) {
+    const result=destroyIframe.apply(this,args);
+    // Upstream drops the native iframe but retains both the parsed source DOM
+    // and its serialized XHTML on the spine (and on reusable continuous views).
+    // Keep source documents only while a live view is actually using them.
+    this.sectionRender=undefined;
+    const shared=rendition?.manager?.views?.all().some(view=>
+      view!==this&&view.section===this.section&&(view.contents||view.rendering));
+    if(!shared)this.section?.unload();
+    return result;
+  };
+  const showIframe = IframeView.prototype.show;
+  IframeView.prototype.show = function(...args) {
+    // ContinuousManager.update() calls show() on every scroll check, even for
+    // an already visible chapter. Upstream's Safari redraw workaround toggles
+    // translateZ and reads offsetWidth each time, invalidating Chromium's layer
+    // and forcing synchronous layout throughout normal Windows/Android scroll.
+    if(this.element.style.visibility==='visible'&&this.iframe?.style.visibility==='visible')return;
+    return showIframe.apply(this,args);
+  };
+  for (const name of ['columns', 'size', 'fit']) {
+    const format = ePub.Contents.prototype[name];
+    ePub.Contents.prototype[name] = function(...args) {
+      if (preferences) style(this.document);
+      formattingContents.add(this);
+      try { return format.apply(this, args); }
+      finally { formattingContents.delete(this); }
+    };
+  }
+  for (const name of ['width', 'height', 'css']) {
+    const original = ePub.Contents.prototype[name];
+    ePub.Contents.prototype[name] = function(value, ...args) {
+      if (formattingContents.has(this)) {
+        const target = this.content || this.document.body;
+        if (name === 'css' && args[0]) {
+          target.style.setProperty(value, args[0], args[1] ? 'important' : '');
+          return;
+        }
+        if (name !== 'css' && value) {
+          target.style[name] = typeof value === 'number' ? value + 'px' : value;
+          return;
+        }
+      }
+      return original.call(this, value, ...args);
+    };
+  }
   function atReadingEnd() {
     if (!location?.atEnd) return false;
     if (preferences.flow !== 'scrolled' || !rendition?.manager?.container) return true;
@@ -465,7 +583,7 @@ class KMReaderSheetEffect {
     return nativeWritingMode.call(this, value);
   };
   function style(document) {
-    document.documentElement.style.touchAction = preferences.flow === 'paged' ? 'pan-y pinch-zoom' : 'auto';
+    if (document.documentElement.style) document.documentElement.style.touchAction = preferences.flow === 'paged' ? 'pan-y pinch-zoom' : 'auto';
     const [background, foreground] = colors();
     let head = document.head || document.querySelector('head');
     if (!head) { head = document.createElementNS('http://www.w3.org/1999/xhtml', 'head'); document.documentElement.prepend(head); }
@@ -473,15 +591,16 @@ class KMReaderSheetEffect {
     if (!sheet) { sheet = document.createElementNS('http://www.w3.org/1999/xhtml', 'style'); sheet.id = 'kmreader-preferences'; head.appendChild(sheet); }
     // Fixed pages position artwork and text in an authored coordinate system.
     // Reflow typography or color overrides would change that composition.
-    if (isFixedLayout()) { sheet.textContent = ''; return; }
+    if (isFixedLayout()) { if (sheet.textContent) sheet.textContent = ''; return; }
     const custom = preferences.fontUrl && new URL(preferences.fontUrl).origin === window.location.origin;
     const family = custom ? 'font-family:kmreader-custom !important;' : ['serif','sans-serif'].includes(preferences.font) ? `font-family:${preferences.font} !important;` : '';
     const face = custom ? `@font-face{font-family:kmreader-custom;src:url("${preferences.fontUrl}");font-display:block;}` : '';
     const align = preferences.advancedLayout !== false && ['left', 'right', 'justify', 'center'].includes(preferences.alignment) ? `text-align:${preferences.alignment} !important;` : '';
-    sheet.textContent = `${face}html,body{background:${background} !important;color:${foreground} !important;}
+    const css = `${face}html,body{background:${background} !important;color:${foreground} !important;}
       body{${preferences.advancedLayout === false ? '' : `font-size:${preferences.fontSize}px !important;line-height:${preferences.lineHeight} !important;`}${family}${align}${preferences.fontWeight > 0 ? `font-weight:${preferences.fontWeight} !important;` : ''}}
       ${preferences.advancedLayout === false ? '' : `p{margin-block-end:${preferences.paragraphSpacing}em !important;text-indent:${preferences.indent}em !important;} body{letter-spacing:${preferences.letterSpacing}em !important;word-spacing:${preferences.wordSpacing}em !important;}`}
       ::selection{background:rgba(75,135,230,.38);color:inherit;}img,svg,video{max-width:100% !important;object-fit:contain;}a{color:${preferences.theme === 'black' ? '#9fc6ff' : '#235a9c'};}`;
+    if (sheet.textContent !== css) sheet.textContent = css;
   }
   async function stable(contents) {
     await tick();
@@ -500,6 +619,7 @@ class KMReaderSheetEffect {
   // ends of every location query. Keep its mapping rules and word ranges, but
   // reuse text-node geometry until the publication actually changes.
   const mappingGeometry = new WeakMap(), adaptedMapping = new WeakSet();
+  const contentDisposers = new WeakMap();
   function geometryFor(root) {
     const doc = root.ownerDocument;
     let cache = mappingGeometry.get(root);
@@ -553,6 +673,7 @@ class KMReaderSheetEffect {
     // A ResizeObserver created in the host window can retain an observed
     // iframe body after navigation. Weak map keys alone do not release it.
     mappingGeometry.get(this.document?.body)?.dispose();
+    contentDisposers.get(this.document)?.();contentDisposers.delete(this.document);
     return destroyMappedContents.apply(this,args);
   };
   function textBounds(cache, node) {
@@ -731,6 +852,12 @@ class KMReaderSheetEffect {
     const section = book.spine.get(contents.sectionIndex);
     const doc = contents.document;
     const active = () => doc.defaultView && doc.defaultView.frameElement && doc.defaultView.frameElement.isConnected;
+    const mutations=new MutationObserver(records=>{
+      captureRevision++;capturePages.clear();
+      if(records.some(record=>record.type!=='attributes'))textIndexes.delete(doc);
+    });
+    mutations.observe(doc.body,{subtree:true,childList:true,characterData:true,attributes:true});
+    contentDisposers.set(doc,()=>{mutations.disconnect();clearTimeout(doc._selectionReport);textIndexes.delete(doc);});
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
@@ -896,6 +1023,7 @@ class KMReaderSheetEffect {
   }
   async function preserve(change) {
     if (!rendition) return;
+    cancelCurlWarm();captureRevision++;capturePages.clear();
     cancelTurnAnimation();
     const cfi = anchor || (location && location.start.cfi);
     if (layoutJobs === 0) send('layout', {active:true});
@@ -915,18 +1043,22 @@ class KMReaderSheetEffect {
   }
   async function applyPreferences(value) {
     await waitForLayout();
+    cancelCurlWarm();
     const motionKeys = new Set(['animationDuration','followGesture','pageTint','pageCornerRadius','curlReach','animate','transition']);
     if ([...new Set([...Object.keys(preferences), ...Object.keys(value)])].every(key =>
         motionKeys.has(key) || JSON.stringify(preferences[key]) === JSON.stringify(value[key]))) {
-      cancelTurnAnimation(); preferences = value; warmCurl(); return;
+      cancelTurnAnimation(); preferences = value;
+      if (!curlConfigured()) releaseCurl();
+      warmCurl(); return;
     }
     captureRevision++;capturePages.clear();
     const flowChanged = preferences.flow !== value.flow;
     preferences = value;
+    if (!curlConfigured()) releaseCurl();
     const [background] = colors();
     document.body.style.background = background;
     document.getElementById('viewer').style.background = background;
-    return preserve(async () => {
+    await preserve(async () => {
       if (flowChanged) {
         const cfi = anchor || (location && location.start.cfi);
         destroyRendition();
@@ -939,6 +1071,7 @@ class KMReaderSheetEffect {
       if (auxiliary) style(auxiliary.contentDocument);
       resizePublication(window.innerWidth, window.innerHeight);
     });
+    warmCurl();
   }
   function fixedViewportLocation() {
     // One authored fixed page is one spine item. A native view can deliver its
@@ -1073,9 +1206,24 @@ class KMReaderSheetEffect {
     rendition.reportLocation();
     await tick();
   }
-  const captureMarkup=new WeakMap(),capturePages=new Map(),captureResources=new Map();
-  let captureSerial=0,captureRevision=0,captureIdle,captureIdleJob,captureResourceBytes=0;
+  let captureMarkup=new WeakMap();
+  const capturePages=new Map(),captureResources=new Map();
+  let captureSerial=0,captureRevision=0,captureIdle,captureIdleJob,captureResourceBytes=0,captureWarmRevision=0;
   const captureResourceSizes=new Map();
+  function cancelCurlWarm(){
+    captureWarmRevision++;clearTimeout(captureIdle);
+    if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);
+    captureIdleJob=null;
+  }
+  function releaseCurl(){
+    cancelCurlWarm();captureRevision++;capturePages.clear();captureMarkup=new WeakMap();
+    captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
+    KMReaderCurlSurface.shared?.dispose();
+  }
+  const curlConfigured=()=>!disposed&&KMReaderSheetEffect.supported('curl')&&
+    preferences?.flow==='paged'&&preferences.transition==='curl'&&motionAllowed('curl');
+  const curlEligible=()=>curlConfigured()&&!document.hidden&&!inputSuspended&&
+    rendition?.manager?.settings.axis==='horizontal';
   async function embeddedResource(value,base){
     if(!value||value.startsWith('data:')||value.startsWith('#'))return value;
     const url=new URL(value,base);if(url.origin!==locationOrigin())throw Error('External page artwork');
@@ -1104,13 +1252,18 @@ class KMReaderSheetEffect {
     const rules=[...sheet.cssRules];
     return (await Promise.all(rules.map(rule=>rule.styleSheet?cssSheet(rule.styleSheet,rule.styleSheet.href||base):embedCss(rule.cssText,sheet.href||base)))).join('\n');
   }
-  async function sheetMarkup(frame){
+  async function sheetMarkup(frame,shift=0){
     const doc=frame.contentDocument,box=frame.getBoundingClientRect();
     const signature=[captureRevision,box.width,box.height,doc.body.getAttribute('style'),doc.documentElement.getAttribute('style')].join('|');
-    const cached=captureMarkup.get(doc);if(cached?.signature===signature)return cached;
-    const value={signature,id:++captureSerial};
+    let cached=captureMarkup.get(doc);
+    if(cached?.signature!==signature){cached={signature,id:++captureSerial,pages:new Map()};captureMarkup.set(doc,cached);}
+    const clip={left:-box.x-shift,right:innerWidth-box.x-shift,top:-box.y,bottom:innerHeight-box.y};
+    const pageKey=JSON.stringify(clip);
+    if(cached.pages.has(pageKey))return cached.pages.get(pageKey);
+    const value={signature,id:cached.id+':'+pageKey};
     value.work=(async()=>{
       const root=doc.documentElement.cloneNode(true);
+      if(!isFixedLayout())KMReaderPageSnapshot.compact(root,doc,clip,cached);
       root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
       const css=(await Promise.all([...doc.styleSheets].map(sheet=>cssSheet(sheet,doc.baseURI)))).join('\n');
       const style=doc.createElement('style');style.textContent=css+'\n*{caret-color:transparent!important}::selection{background:transparent!important}';root.querySelector('head').append(style);
@@ -1120,12 +1273,14 @@ class KMReaderSheetEffect {
       root.querySelector('body').style.setProperty('overflow','visible','important');root.style.setProperty('overflow','visible','important');
       root.setAttribute('xmlns','http://www.w3.org/1999/xhtml');root.style.width=box.width+'px';root.style.height=box.height+'px';
       return new XMLSerializer().serializeToString(root);
-    })();captureMarkup.set(doc,value);return value;
+    })();cached.pages.set(pageKey,value);
+    while(cached.pages.size>4)cached.pages.delete(cached.pages.keys().next().value);
+    return value;
   }
   async function captureSheet(shift=0){
     const width=innerWidth,height=innerHeight,dpr=Math.min(2,devicePixelRatio||1),revision=captureRevision;
     const frames=[...document.querySelectorAll('#viewer iframe')].filter(f=>{const b=f.getBoundingClientRect();return b.right>0&&b.left<width&&b.bottom>0&&b.top<height;});
-    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame)};}));
+    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift)};}));
     if(!parts.length)throw Error('No visible publication');
     const key=JSON.stringify([width,height,dpr,...parts.map(p=>[p.markup.id,p.box.x,p.box.y])]);
     if(capturePages.has(key)){const value=capturePages.get(key);capturePages.delete(key);capturePages.set(key,value);return value;}
@@ -1146,20 +1301,23 @@ class KMReaderSheetEffect {
     try{KMReaderCurlSurface.shared??=new KMReaderCurlSurface();}catch(_){KMReaderCurlSurface.disabled=true;}
   }
   function warmCurl(){
-    clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);
-    if(inputSuspended||!KMReaderSheetEffect.supported('curl')||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
+    cancelCurlWarm();
+    if(!curlConfigured()){releaseCurl();return;}
+    if(!curlEligible())return;
+    const revision=captureWarmRevision,publication=captureRevision;
+    const valid=()=>revision===captureWarmRevision&&publication===captureRevision&&curlEligible()&&!gesture&&!sheetEffect;
     const prepare=async()=>{
-      if(disposed||inputSuspended||gesture||sheetEffect)return;
+      if(!valid())return;
       try {
         prepareCurlPrograms();
         if(!KMReaderSheetEffect.supported('curl'))return;
         const idleImage=await captureSheet();
-        if(disposed||inputSuspended||gesture||sheetEffect||!KMReaderSheetEffect.supported('curl')||rendition?.manager?.settings.axis!=='horizontal')return;
+        if(!valid())return;
         // Compile the retained GPU programs while idle, rather than on the
         // first finger movement, including driver pipeline and framebuffer setup.
         const surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
         await surface.whenReady();
-        if(disposed||inputSuspended||gesture||sheetEffect)return;
+        if(!valid())return;
         const warmKey=`${innerWidth}:${innerHeight}:${Math.min(2,devicePixelRatio||1)}`;
         // Prepare the actual front texture on every idle page, not just the
         // first viewport. A null back preserves the other retained allocation.
@@ -1174,12 +1332,14 @@ class KMReaderSheetEffect {
         // Prepare adjacent positions without navigating, layout or progress
         // writes. Actual turns reuse these textures by viewport geometry.
         for(const shift of [config.direction==='rtl'?innerWidth:-innerWidth]){
-          if(disposed||inputSuspended||gesture||sheetEffect)return;
+          if(!valid())return;
           if(bounds.left+shift<=0&&bounds.right+shift>=innerWidth)await captureSheet(shift);
         }
       }catch(_){/* Unsupported artwork retains direct reading. */}
     };
-    captureIdle=setTimeout(()=>{if(window.requestIdleCallback)captureIdleJob=requestIdleCallback(prepare,{timeout:1500});else prepare();},180);
+    // Never force speculative snapshots onto a busy browser thread. Input,
+    // settings, reflow and visibility changes retire the remainder of this job.
+    captureIdle=setTimeout(()=>{if(window.requestIdleCallback)captureIdleJob=requestIdleCallback(prepare);else prepare();},180);
   }
   function cancelTurnAnimation() {
     sheetEffect?.stop(); sheetEffect = undefined;
@@ -1189,6 +1349,7 @@ class KMReaderSheetEffect {
   function cancelGesture() { if (gesture) { gesture.invalidated = true; gesture.finish(false); } }
   function beginGesture(contact, point, pointer) {
     if (gesture || disposed) return;
+    cancelCurlWarm();
     const physical = point.x < contact.x ? 1 : -1;
     const delta = (physical > 0) !== (config.direction === 'rtl') ? 1 : -1;
     if (delta > 0 && atReadingEnd() || delta < 0 && location?.atStart) return;
@@ -1302,10 +1463,11 @@ class KMReaderSheetEffect {
   }
   async function turn(value) {
     if (!rendition || auxiliary) return;
+    cancelCurlWarm();
     for (const contents of rendition.getContents()) contents.document.getSelection()?.removeAllRanges();
     cancelTurnAnimation();
     const effect = await transitionMove(value.delta, value.style || preferences.transition, .5);
-    if (!effect || disposed) return;
+    if (!effect || disposed) { if(!disposed)warmCurl(); return; }
     // Navigation is already committed. Cosmetic motion never owns the input
     // queue, and the next input can replace this compositor transition.
     const duration = Math.max(150, Math.min(900, Number(preferences.animationDuration) || 380));
@@ -1336,6 +1498,10 @@ class KMReaderSheetEffect {
     book = ePub(value.url, {openAs: 'opf', replacements: 'none'});
     await book.ready;
     if (disposed) return;
+    // Include typography in the serialized publication before the iframe's
+    // first layout, rather than paginating the entire chapter with publisher
+    // defaults and throwing that work away in the rendered-content hook.
+    book.spine.hooks.content.register(style);
     createRendition();
     let restoredCfi = Boolean(value.cfi);
     try { await displayStable(value.cfi || value.href || undefined); }
@@ -1363,9 +1529,11 @@ class KMReaderSheetEffect {
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
   }
   function onVisibility(event){
-    if(document.hidden||event.type==='pagehide'){cancelGesture();cancelTurnAnimation();}
+    if(document.hidden||event.type==='pagehide'){cancelCurlWarm();cancelGesture();cancelTurnAnimation();}
+    else warmCurl();
   }
   function onResize() {
+    cancelCurlWarm();
     cancelGesture();
     captureRevision++;capturePages.clear();
     if (disposed || !rendition) return;
@@ -1461,7 +1629,7 @@ class KMReaderSheetEffect {
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
     suspendInput: value => {
-      inputSuspended=!!value;clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);cancelGesture();cancelTurnAnimation();
+      inputSuspended=!!value;cancelCurlWarm();cancelGesture();cancelTurnAnimation();
       for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();
       if(inputSuspended)return true;
       // Android delivers native surface bounds/focus after the sheet closes.

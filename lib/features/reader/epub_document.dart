@@ -54,6 +54,14 @@ class EpubDocument {
   );
   final InputFileStream? _input;
   final Archive? _archive;
+  // ArchiveFile.content retains every inflated entry until the book closes.
+  // Keep a bounded working set instead of accumulating chapters and artwork
+  // as the reader moves through the publication.
+  static const _resourceBudget = 8 * 1024 * 1024;
+  final _resources = <String, Uint8List>{};
+  int _resourceBytes = 0;
+  static Uint8List _readEntry(ArchiveFile item) =>
+      item.rawContent?.readBytes() ?? item.content;
   Archive get archive =>
       _archive ??
       (throw StateError('This EPUB index does not own archive resources.'));
@@ -118,7 +126,7 @@ class EpubDocument {
         if (item == null || item.size > 32 * 1024 * 1024) {
           throw const FormatException('Missing or oversized EPUB document.');
         }
-        return decodeText(item.content);
+        return decodeText(_readEntry(item));
       }
 
       final container = XmlDocument.parse(read('META-INF/container.xml'));
@@ -358,11 +366,24 @@ class EpubDocument {
   }
 
   Uint8List resource(String path) {
+    final cached = _resources.remove(path);
+    if (cached != null) {
+      _resources[path] = cached;
+      return cached;
+    }
     final item = archive.findFile(path);
     if (item == null || item.size > 64 * 1024 * 1024) {
       throw const FormatException('EPUB resource unavailable.');
     }
-    return item.content;
+    final bytes = _readEntry(item);
+    if (bytes.length <= _resourceBudget) {
+      while (_resourceBytes + bytes.length > _resourceBudget) {
+        _resourceBytes -= _resources.remove(_resources.keys.first)!.length;
+      }
+      _resources[path] = bytes;
+      _resourceBytes += bytes.length;
+    }
+    return bytes;
   }
 
   static bool _htmlResource(String path) => const [
@@ -377,7 +398,11 @@ class EpubDocument {
       (_paths?.contains(path) ?? archive.findFile(path) != null);
 
   String chapter(int index) => decodeText(resource(chapters[index].path));
-  void close() => _input?.closeSync();
+  void close() {
+    _resources.clear();
+    _resourceBytes = 0;
+    _input?.closeSync();
+  }
 }
 
 (List<EpubChapter>, String, List<EpubNavigationEntry>) _inspectEpub(

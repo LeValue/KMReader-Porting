@@ -22,6 +22,33 @@ void main() {
     () => directory = Directory.systemTemp.createTempSync('epub-resources-'),
   );
   tearDown(() => directory.deleteSync(recursive: true));
+  test('inflated EPUB resources use a bounded working set and remain reloadable', () {
+    final file = fixture(
+      directory,
+      resources: {
+        for (var i = 0; i < 10; i++)
+          'OPS/image$i.bin': Uint8List(1024 * 1024)
+            ..fillRange(0, 1024 * 1024, i),
+      },
+    );
+    final document = EpubDocument.open(file.path);
+    addTearDown(document.close);
+    final first = document.resource('OPS/image0.bin');
+    expect(identical(document.resource('OPS/image0.bin'), first), isTrue);
+    for (var i = 1; i < 10; i++) {
+      expect(document.resource('OPS/image$i.bin').last, i);
+    }
+    final reloaded = document.resource('OPS/image0.bin');
+    expect(identical(reloaded, first), isFalse);
+    expect(reloaded, first);
+    // Reading through the bounded path must not populate ArchiveFile.content's
+    // independent, unbounded cache. Its raw ZIP stream still reloads correctly.
+    expect(
+      document.archive.findFile('OPS/image0.bin')!.rawContent!.isCompressed,
+      isTrue,
+    );
+    expect(document.chapter(0), contains('Paragraph 0'));
+  });
   test(
     'resource worker returns a navigation index without opening a UI archive',
     () async {
