@@ -46,8 +46,31 @@ jobs:
           $resource = 'windows/runner/Runner.rc'
           (Get-Content $resource -Raw).Replace('"ProductName", "KMReader"', '"ProductName", "KMReader Diagnostics"') | Set-Content $resource
           if ($env:DIAGNOSTIC_MODE -eq 'responsiveness') {
-            flutter build windows --release --target=tool/epub_responsiveness.dart --no-pub
-            $bundle = 'build/windows/x64/runner/Release'
+            # Same measurement code, two production runtimes. Build both here
+            # to reuse C++ compilation and compare them on the selected PC.
+            $baseline = 'f4f0d806d83471c3cecf61cfdf9bb3f17132bb04'
+            git fetch --no-tags origin $baseline
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $paths = @('assets/epub/reader.js', 'lib/features/reader/epub_reader.dart')
+            $original = @{}
+            foreach ($path in $paths) { $original[$path] = [IO.File]::ReadAllText((Join-Path $PWD $path)) }
+            $bundle = '.dart_tool/response-bundles'
+            New-Item -ItemType Directory -Force -Path $bundle | Out-Null
+            try {
+              foreach ($path in $paths) {
+                $text = (git show "${baseline}:$path") -join "`n"
+                if ($LASTEXITCODE -ne 0) { throw 'Cannot read the baseline runtime.' }
+                [IO.File]::WriteAllText((Join-Path $PWD $path), $text)
+              }
+              flutter build windows --release --target=tool/epub_responsiveness.dart --dart-define=KMREADER_PROFILE_RUNTIME_SOURCE=$baseline --no-pub
+              if ($LASTEXITCODE -ne 0) { throw 'Baseline probe compilation failed.' }
+              Copy-Item -Recurse -Path build/windows/x64/runner/Release -Destination "$bundle/baseline"
+            } finally {
+              foreach ($path in $paths) { [IO.File]::WriteAllText((Join-Path $PWD $path), $original[$path]) }
+            }
+            flutter build windows --release --target=tool/epub_responsiveness.dart --dart-define=KMREADER_PROFILE_RUNTIME_SOURCE=${{ github.sha }} --no-pub
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Copy-Item -Recurse -Path build/windows/x64/runner/Release -Destination "$bundle/optimized"
           } elseif ($env:DIAGNOSTIC_MODE -eq 'profile') {
             flutter build windows --profile --target=integration_test/epub_frame_times_test.dart --no-pub
             $bundle = 'build/windows/x64/runner/Profile'
@@ -60,7 +83,10 @@ jobs:
       - name: Smoke test the standalone responsiveness probe
         if: inputs.mode == 'responsiveness'
         shell: pwsh
-        run: ./tool/windows_epub_responsiveness.ps1 -Executable build/windows/x64/runner/Release/kmreader.exe
+        run: |
+          foreach ($variant in @('baseline', 'optimized')) {
+            ./tool/windows_epub_responsiveness.ps1 -Executable ".dart_tool/response-bundles/$variant/kmreader.exe" -OutputDirectory "artifacts/local-windows/$variant"
+          }
       - uses: actions/upload-artifact@v4
         if: always() && inputs.mode == 'responsiveness'
         with:
@@ -129,7 +155,9 @@ jobs:
             Invoke-WebRequest -UseBasicParsing -Uri 'https://www.gutenberg.org/ebooks/11.epub3.images' -OutFile $alice
             $env:KMREADER_PROFILE_EPUB = $alice
           }
-          ./tool/windows_epub_responsiveness.ps1
+          foreach ($variant in @('baseline', 'optimized')) {
+            ./tool/windows_epub_responsiveness.ps1 -Executable ".dart_tool/native-prebuilt/$variant/kmreader.exe" -OutputDirectory "artifacts/local-windows/$variant"
+          }
       - name: Measure native EPUB frame timings in profile mode
         if: inputs.mode == 'profile'
         env:
