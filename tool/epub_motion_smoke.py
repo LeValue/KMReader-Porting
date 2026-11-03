@@ -242,31 +242,32 @@ with sync_playwright() as pw:
   } finally {g.texImage2D=originalUpload;}
 }''')
     timing=page.evaluate('''async () => {
-  const original=requestAnimationFrame,cancel=cancelAnimationFrame;
+  const original=requestAnimationFrame,cancel=cancelAnimationFrame,clock=performance.now;
   const values=[],queue=[];
-  let count=0;
+  let count=0,now=1000,sheet;
+  performance.now=()=>now;
   window.requestAnimationFrame=callback=>{queue.push(callback);return ++count;};
   window.cancelAnimationFrame=()=>{};
   try {
-    const sheet=Object.create(KMReaderSheetEffect.prototype);
+    sheet=new KMReaderSheetEffect('curl',1,{});
     sheet.style='curl';sheet.progress=0;sheet.update=p=>{sheet.progress=p;values.push(p);};
     const finished=motionAnimate.call(sheet,1,380,{automatic:true});
-    let now=1000;
     queue.shift()(now);queue.shift()(now+=16);queue.shift()(now+=200);
     const delayed=values.at(-1);
     while(queue.length&&values.length<100)queue.shift()(now+=16);
     await finished;
     sheet.progress=.4;const released=[];sheet.update=p=>{sheet.progress=p;released.push(p);};
     const release=motionAnimate.call(sheet,1,240,{velocity:.0015});
+    queue.shift()(now);
     while(queue.length&&released.length<100)queue.shift()(now+=16);
     await release;
     return {first:values[0],delayed,last:values.at(-1),monotone:values.every((v,i)=>!i||v>=values[i-1]),
       releaseFirst:released[0],releaseDelta:released[1]-released[0],releaseLast:released.at(-1),
       releaseMonotone:released.every((v,i)=>v<=1&&(!i||v>=released[i-1]))};
-  } finally {window.requestAnimationFrame=original;window.cancelAnimationFrame=cancel;}
+  } finally {sheet?.stop();performance.now=clock;window.requestAnimationFrame=original;window.cancelAnimationFrame=cancel;}
 }
 ''')
-    assert timing['first']==0 and timing['delayed']<.02 and timing['last']==1 and timing['monotone'], timing
+    assert timing['first']==0 and .5<timing['delayed']<.8 and timing['last']==1 and timing['monotone'], timing
     assert timing['releaseFirst']==.4 and .02<timing['releaseDelta']<.04 and timing['releaseLast']==1 and timing['releaseMonotone'],timing
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
     # Native-style no-op snapshot also exposes intermediate automatic frames.
