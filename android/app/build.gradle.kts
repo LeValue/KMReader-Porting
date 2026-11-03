@@ -8,6 +8,7 @@ plugins {
 
 val signingFile = rootProject.file("key.properties")
 val previewBuild = providers.gradleProperty("kmreaderPreview").orNull == "true"
+val epubDiagnostic = providers.gradleProperty("kmreaderEpubDiagnostic").orNull == "true"
 val releaseKeys = Properties()
 if (signingFile.exists()) {
     signingFile.inputStream().use { releaseKeys.load(it) }
@@ -28,7 +29,8 @@ android {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "dev.levalue.kmreader"
         if (previewBuild) applicationIdSuffix = ".preview"
-        resValue("string", "app_name", if (previewBuild) "KMReader Preview" else "KMReader")
+        if (epubDiagnostic) applicationIdSuffix = ".epubdiagnostic"
+        resValue("string", "app_name", if (epubDiagnostic) "KMReader EPUB Test" else if (previewBuild) "KMReader Preview" else "KMReader")
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

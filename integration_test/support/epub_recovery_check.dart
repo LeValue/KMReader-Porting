@@ -1,0 +1,263 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kmreader/core/api.dart';
+import 'package:kmreader/core/models.dart';
+import 'package:kmreader/core/repository.dart';
+import 'package:kmreader/core/store.dart';
+import 'package:kmreader/features/reader/epub_reader.dart';
+import 'package:kmreader/features/reader/epub_session.dart';
+import 'package:kmreader/features/reader/reader_display.dart';
+import 'package:kmreader/ui/strings.dart';
+import 'package:kmreader/ui/theme.dart';
+import 'package:sqlite3/sqlite3.dart';
+
+import '../../test/support/epub_fixture.dart';
+
+void verifyNativeEpubRecovery() {
+  testWidgets(
+    'Android EPUB restores visible text after GPU faults and cold reader reopen',
+    (tester) async {
+      await Strings.initialize();
+      final directory = await Directory.systemTemp.createTemp('epub-recovery-');
+      final store = LocalStore(sqlite3.openInMemory());
+      const profile = ServerProfile(
+        id: 'epub-recovery',
+        name: 'Fixture',
+        url: 'https://example.invalid',
+        email: '',
+        authentication: Authentication.apiKey,
+      );
+      final repository = Repository(
+        profile: profile,
+        api: KomgaApi(
+          Uri.parse(profile.url),
+          authentication: profile.authentication,
+          credential: '',
+        ),
+        store: store,
+        directory: directory,
+      )..setOffline(true);
+      final book = Book({
+        'id': 'recovery',
+        'name': 'EPUB recovery fixture',
+        'media': {'mediaProfile': 'EPUB'},
+      });
+      // Start a fresh native WebView with saved curl, including idle GPU work.
+      store.cache(
+        profile.id,
+        'epub:${book.id}',
+        EpubPreferences.fromJson({'theme': 'white', 'transition': 'curl'})
+            .toJson(),
+      );
+      final file = fixture(directory, paragraphCount: 1400);
+      InAppWebViewController? controller() {
+        if (find.byType(BrowserEpubReader).evaluate().isEmpty) return null;
+        final dynamic state = tester.state(find.byType(BrowserEpubReader));
+        return state.browserController as InAppWebViewController?;
+      }
+
+      Future<dynamic> js(String source) async {
+        var finished = false;
+        final reply = controller()!
+            .callAsyncJavaScript(functionBody: source)
+            .timeout(const Duration(seconds: 30))
+            .whenComplete(() => finished = true);
+        // Deliver actual Android texture frames while JS waits for RAF.
+        while (!finished) {
+          await tester.pump(const Duration(milliseconds: 16));
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+        }
+        final result = await reply;
+        expect(result?.error, isNull);
+        return result?.value;
+      }
+
+      Future<void> mount() async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: appTheme(Brightness.light),
+            home: ReaderDisplay(
+              child: BrowserEpubReader(
+                file: file,
+                repository: repository,
+                book: book,
+              ),
+            ),
+          ),
+        );
+        for (var i = 0; i < 180; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          if (controller() != null &&
+              find.byType(CircularProgressIndicator).evaluate().isEmpty) {
+            return;
+          }
+        }
+        fail('Cold Android EPUB did not become ready');
+      }
+
+      Future<void> readable() async {
+        expect(
+          await js('''
+          await reader.whenIdle();
+          return reader.layoutReady() && !document.querySelector('#page-curl-surface,style[data-page-motion],#page-gesture');
+        '''),
+          true,
+        );
+        // DOM/CFI success alone missed the original invisible-text failure.
+        for (final view in tester.binding.renderViews) {
+          view.markNeedsPaint();
+        }
+        await tester.pump(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        Uint8List? bytes;
+        for (var attempt = 0; attempt < 5; attempt++) {
+          try {
+            bytes = await ReaderDisplay.channel.invokeMethod<Uint8List>(
+              'captureScreenshot',
+            );
+            break;
+          } on PlatformException catch (error) {
+            final pendingFrame =
+                error.code == 'capture_failed' &&
+                    error.message == 'PixelCopy failed: 3' ||
+                error.code == 'Could not copy the pixels' &&
+                    error.message == 'result was 3';
+            if (attempt == 4 || !pendingFrame) {
+              rethrow;
+            }
+            await tester.pump(const Duration(milliseconds: 250));
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
+        }
+        expect(bytes, isNotEmpty);
+        final codec = await ui.instantiateImageCodec(bytes!);
+        final image = (await codec.getNextFrame()).image;
+        codec.dispose();
+        try {
+          final rgba = (await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          ))!;
+          var dark = 0, light = 0;
+          for (var y = image.height ~/ 4; y < image.height * 3 ~/ 4; y++) {
+            for (var x = image.width ~/ 4; x < image.width * 3 ~/ 4; x++) {
+              final offset = (y * image.width + x) * 4;
+              final r = rgba.getUint8(offset),
+                  g = rgba.getUint8(offset + 1),
+                  b = rgba.getUint8(offset + 2);
+              if (r < 120 && g < 120 && b < 120) dark++;
+              if (r > 180 && g > 180 && b > 180) light++;
+            }
+          }
+          expect(
+            dark,
+            greaterThan(150),
+            reason: 'Android must deliver visible glyphs',
+          );
+          expect(
+            light,
+            greaterThan(150),
+            reason: 'A black texture is not readable text',
+          );
+        } finally {
+          image.dispose();
+        }
+      }
+
+      try {
+        await mount();
+        await readable();
+        // Scope forced motion to the probe: CI/emulator accessibility can
+        // disable animations; the production preference remains untouched.
+        expect(
+          await js('''
+          window.recoveryMedia=window.matchMedia;
+          window.matchMedia=q=>q.includes('prefers-reduced-motion')?{matches:false}:recoveryMedia.call(window,q);
+          window.recoveryStart=KMReaderSheetEffect.prototype.start;
+          KMReaderSheetEffect.prototype.start=function(...args){window.recoveryEffect=this;return recoveryStart.apply(this,args);};
+          const render=KMReaderCurlSurface.prototype.render;
+          KMReaderCurlSurface.prototype.render=function(p,...args){
+            if(p>0&&p<1)throw Error('Injected Android GPU draw failure');
+            return render.call(this,p,...args);
+          };
+          const before=reader.position().start.cfi;
+          try{
+            await reader.turn({delta:1,style:'curl'});
+            if(!window.recoveryEffect?.surface)throw Error('Native curl path was unavailable');
+            const deadline=performance.now()+4000;
+            while(!recoveryEffect.stopped){
+              if(performance.now()>deadline)throw Error('Failed Android draw retained its overlay');
+              await new Promise(resolve=>setTimeout(resolve,16));
+            }
+            if(!recoveryEffect.failed||KMReaderSheetEffect.supported('curl'))throw Error('Fault was not recovered');
+            return reader.position().start.cfi!==before;
+          }finally{KMReaderCurlSurface.prototype.render=render;}
+        '''),
+          true,
+        );
+        await readable();
+        expect(
+          await js('''
+          const before=reader.position().start.cfi;
+          await reader.turn({delta:1,style:'curl'});
+          return reader.position().start.cfi!==before;
+        '''),
+          true,
+        );
+        await readable();
+        final saved = await js('return reader.position().start.cfi;');
+        // Destroy the native WebView and session, then load from persisted CFI
+        // with the same saved curl preferences (a JS display() is insufficient).
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        expect(
+          object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
+          saved,
+        );
+        await mount();
+        expect(await js('return reader.position().start.cfi;'), saved);
+        await readable();
+        expect(
+          await js('''
+          const media=window.matchMedia;
+          window.matchMedia=q=>q.includes('prefers-reduced-motion')?{matches:false}:media.call(window,q);
+          const animate=KMReaderSheetEffect.prototype.animateTo;
+          let lost=false;
+          KMReaderSheetEffect.prototype.animateTo=function(...args){
+            window.recoveryEffect=this;
+            const flight=animate.apply(this,args);
+            const extension=this.surface?.gl.getExtension('WEBGL_lose_context');
+            if(!extension)throw Error('Native context-loss probe unavailable');
+            extension.loseContext();lost=true;return flight;
+          };
+          try{
+            await reader.turn({delta:1,style:'curl'});
+            const deadline=performance.now()+4000;
+            while(!window.recoveryEffect?.stopped){
+              if(performance.now()>deadline)throw Error('Context loss retained the Android overlay');
+              await new Promise(resolve=>setTimeout(resolve,16));
+            }
+            return lost && recoveryEffect.failed && !KMReaderSheetEffect.supported('curl');
+          }finally{KMReaderSheetEffect.prototype.animateTo=animate;window.matchMedia=media;}
+        '''),
+          true,
+        );
+        await readable();
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        repository.dispose();
+        store.close();
+        await directory.delete(recursive: true);
+      }
+    },
+    skip: !Platform.isAndroid,
+  );
+}

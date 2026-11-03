@@ -4,6 +4,7 @@
 // The publication is uploaded once per turn, never read back/encoded per frame.
 class KMReaderCurlSurface {
   static shared;
+  static disabled=false;
   constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'page-curl-surface';
@@ -123,15 +124,16 @@ class KMReaderCurlSurface {
     this.finishPrograms=finish;
     if(parallel){
       this.readiness=(async()=>{
-        const programs=[this.background,this.sheet,this.cast,this.blur];
+        const programs=[this.background,this.sheet,this.cast,this.blur],deadline=performance.now()+2500;
         while(programs.some(program=>!gl.getProgramParameter(program.p,parallel.COMPLETION_STATUS_KHR))){
-          if(gl.isContextLost())throw Error('Curl context lost while compiling');
+          if(this.disposed||gl.isContextLost())throw Error('Curl context lost while compiling');
+          if(performance.now()>deadline)throw Error('Curl compilation timed out');
           // RAF may be frozen inside a browser View Transition update.
           await new Promise(resolve=>setTimeout(resolve,8));
         }
         finish();
       })();
-      this.readiness.catch(()=>{});
+      this.readiness.catch(()=>{if(!this.disposed)this.fail();});
     }
     this.quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
     const vertices=[],indices=[],columns=144,rows=24;
@@ -141,10 +143,28 @@ class KMReaderCurlSurface {
     this.indices=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indices);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);this.count=indices.length;
     this.textures=[0,1].map(i=>{gl.activeTexture(gl.TEXTURE0+i);const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;});
     gl.flush();
-    this.canvas.addEventListener('webglcontextlost',()=>{if(KMReaderCurlSurface.shared===this)KMReaderCurlSurface.shared=null;this.canvas.remove();});
+    this.onContextLost=()=>this.fail();
+    this.canvas.addEventListener('webglcontextlost',this.onContextLost);
   }
-  whenReady(){return this.readiness??=Promise.resolve().then(()=>this.finishPrograms());}
+  whenReady(){return this.readiness??=Promise.resolve().then(()=>{if(this.disposed)throw Error('Curl surface retired');this.finishPrograms();});}
+  fail(){
+    // Do not repeatedly warm/recreate a failing driver in this WebView. The
+    // publication remains live underneath and subsequent turns are direct.
+    KMReaderCurlSurface.disabled=true;
+    if(this.effect){this.effect.failed=true;this.effect.stop();}this.dispose();
+  }
+  dispose(){
+    if(this.disposed)return;
+    this.disposed=true;this.canvas.remove();
+    if(KMReaderCurlSurface.shared===this)KMReaderCurlSurface.shared=null;
+    this.canvas.removeEventListener('webglcontextlost',this.onContextLost);
+    // Release the retained textures/framebuffers when the reader closes or a
+    // driver fails, rather than waiting for Android's WebView GC.
+    if(!this.gl.isContextLost())this.gl.getExtension('WEBGL_lose_context')?.loseContext();
+    this.sources=[];this.effect=null;
+  }
   upload(before,after,width,height) {
+    if(this.disposed||this.gl.isContextLost())throw Error('Curl surface unavailable');
     const gl=this.gl,dpr=Math.min(2,devicePixelRatio||1);this.width=width;this.height=height;
     const pixelWidth=Math.round(width*dpr),pixelHeight=Math.round(height*dpr);
     if(this.canvas.width!==pixelWidth)this.canvas.width=pixelWidth;
@@ -165,6 +185,7 @@ class KMReaderCurlSurface {
     if(gl.getError()!==gl.NO_ERROR)throw Error('Page texture unavailable');
   }
   render(progress,spread,sign,slope,y,reach=.18){
+    if(this.disposed||this.gl.isContextLost())throw Error('Curl surface unavailable');
     const g=this.gl;
     const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform1f(u.curlReach,reach);};
     const width=this.canvas.width,height=this.canvas.height;
@@ -233,30 +254,45 @@ class KMReaderCurlSurface {
 }
 class KMReaderSheetEffect {
   static serial=0;
-  static supported(style='slide'){return style==='curl'?typeof WebGLRenderingContext!=='undefined':typeof document.startViewTransition==='function';}
+  static supported(style='slide'){return style==='curl'?!KMReaderCurlSurface.disabled&&typeof WebGLRenderingContext!=='undefined':typeof document.startViewTransition==='function';}
   constructor(style,sign,preferences,y=.5,reverse=false,spread=false,capture=null){
     Object.assign(this,{style,sign,preferences,y,reverse,spread,capture});
     this.width=innerWidth;this.height=innerHeight;this.progress=0;this.slope=0;this.id=`km-sheet-${++KMReaderSheetEffect.serial}`;
+    this.cancelled=new Promise(resolve=>this.cancelWait=resolve);
+  }
+  async wait(work){
+    let timer;
+    try{return await Promise.race([work,
+      this.cancelled.then(()=>{throw Error('Page effect cancelled');}),
+      new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('Page effect preparation timed out')),2500))]);}
+    finally{clearTimeout(timer);}
+  }
+  fail(){
+    this.failed=true;
+    if(this.style==='curl')KMReaderCurlSurface.disabled=true;
+    this.surface?.fail();this.stop();
   }
   async start(move){
     // Compositor capture needs a delivered frame after the previous surface
     // retires. Keep that barrier here so direct/interactive callers share it.
     if(this.style!=='curl'||KMReaderSheetEffect.needsRetirement){
       KMReaderSheetEffect.needsRetirement=false;
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      try{await this.wait(new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
+      catch(_){const cancelled=this.stopped;this.stop();if(!cancelled)await move();return false;}
     }
     if(this.stopped)return false;
     if(this.style==='curl'){
       let moved=false;
       try{
         this.surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
-        const [before]=await Promise.all([this.capture(),this.surface.whenReady()]);
+        this.surface.effect=this;
+        const [before]=await this.wait(Promise.all([this.capture(),this.surface.whenReady()]));
         if(this.stopped)return false;
         this.surface.upload(before,null,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
         moved=true;await move();
-        const after=await this.capture();if(this.stopped)return false;
+        const after=await this.wait(this.capture());if(this.stopped)return false;
         this.surface.upload(before,after,this.width,this.height);this.update(0);return true;
-      }catch(_){if(!moved)await move();this.stop();return false;}
+      }catch(_){const cancelled=this.stopped&&!this.failed;if(cancelled)this.stop();else this.fail();if(!moved&&!cancelled)await move();return false;}
     }
     this.sheet=document.createElement('style');this.sheet.dataset.pageMotion=this.id;
     this.sheet.textContent=`::view-transition{pointer-events:none}:root{view-transition-name:none}#viewer{view-transition-name:km-reader-page}
@@ -265,8 +301,8 @@ class KMReaderSheetEffect {
       @keyframes km-sheet-hold{from{opacity:1}to{opacity:1}}`;
     this.frames=document.createElement('style');this.frames.dataset.pageMotionFrame=this.id;document.head.append(this.sheet,this.frames);
     let moved=false;
-    try{this.transition=document.startViewTransition(async()=>{moved=true;await move();});this.transition.finished.then(()=>this.stop(),()=>this.stop());this.transition.updateCallbackDone.catch(()=>{});await this.transition.ready;this.update(0);return true;}
-    catch(_){if(this.transition)await this.transition.updateCallbackDone.catch(()=>{});if(!moved)await move();this.stop();return false;}
+    try{this.transition=document.startViewTransition(async()=>{moved=true;await move();});this.transition.finished.then(()=>this.stop(),()=>this.stop());this.transition.updateCallbackDone.catch(()=>{});await this.wait(this.transition.ready);this.update(0);return true;}
+    catch(_){this.stop();if(this.transition)await this.transition.updateCallbackDone.catch(()=>{});if(!moved)await move();return false;}
   }
   update(value,point){
     if(this.stopped)return;
@@ -300,13 +336,17 @@ class KMReaderSheetEffect {
   }
   set progress(value){this._progress=value;}
 
-  track(value,point){this.pendingPoint=[value,point];if(this.tracking)return;this.tracking=requestAnimationFrame(()=>{this.tracking=0;const args=this.pendingPoint;this.pendingPoint=null;if(args)this.update(...args);});}
+  track(value,point){if(this.stopped)return;this.pendingPoint=[value,point];if(this.tracking)return;this.tracking=requestAnimationFrame(()=>{this.tracking=0;const args=this.pendingPoint;this.pendingPoint=null;try{if(args)this.update(...args);}catch(_){this.fail();}});}
   animateTo(target,duration,{automatic=false,velocity=0}={}){
     // Flush the last pointer sample before taking over its position/velocity.
     const pending=this.pendingPoint;cancelAnimationFrame(this.tracking);this.tracking=0;this.pendingPoint=null;
-    if(pending)this.update(...pending);
+    try{if(pending)this.update(...pending);}catch(_){this.fail();}
     if(this.stopped)return Promise.resolve();
     this.finishAnimation?.();cancelAnimationFrame(this.frame);
+    clearTimeout(this.watchdog);
+    // A suspended RAF or a rejected compositor promise must never retain an
+    // opaque snapshot indefinitely. This task timer also runs without frames.
+    this.watchdog=setTimeout(()=>this.stop(),Math.max(1500,duration+1000));
     const from=this.progress,delta=target-from;
     const tangent=delta===0?0:Math.max(0,Math.min(3,velocity*duration/delta));
     if(this.style!=='curl'&&this.transition&&typeof document.documentElement.animate==='function'){
@@ -326,9 +366,10 @@ class KMReaderSheetEffect {
           this.finishAnimation=resolve;
           Promise.all(animations.map(a=>a.finished)).then(()=>{
             if(this.stopped)return;
-            this.compositor=null;this.update(target);for(const animation of animations)animation.cancel();
-            this.finishAnimation=null;resolve();
-          },()=>resolve());
+            try{this.compositor=null;this.update(target);for(const animation of animations)animation.cancel();}
+            catch(_){this.fail();}
+            clearTimeout(this.watchdog);this.finishAnimation=null;resolve();
+          },()=>this.stop());
         });
       }catch(_){for(const animation of animations)animation.cancel();this.compositor=null;}
     }
@@ -340,14 +381,26 @@ class KMReaderSheetEffect {
         last=now;
         const t=Math.min(1,elapsed/Math.max(1,duration));
         const eased=automatic?t*t*t*(10+t*(-15+6*t)):(-2*t*t*t+3*t*t)+tangent*(t*t*t-2*t*t+t);
-        this.update(from+delta*eased);
-        if(t<1)this.frame=requestAnimationFrame(frame);else{this.finishAnimation=null;resolve();}
+        try{this.update(from+delta*eased);}catch(_){this.fail();return;}
+        if(t<1)this.frame=requestAnimationFrame(frame);else{clearTimeout(this.watchdog);this.finishAnimation=null;resolve();}
       };
       this.frame=requestAnimationFrame(frame);
     });
   }
 
-  stop(){if(this.stopped)return;this._progress=this.progress;for(const animation of this.compositor?.animations||[])animation.cancel();this.compositor=null;this.stopped=true;cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);this.finishAnimation?.();this.finishAnimation=null;this.transition?.skipTransition();if(this.transition)KMReaderSheetEffect.needsRetirement=true;this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();}
+  stop(){
+    if(this.stopped)return;
+    this.stopped=true;
+    try{this._progress=this.progress;}catch(_){}
+    for(const animation of this.compositor?.animations||[])try{animation.cancel();}catch(_){}
+    this.compositor=null;clearTimeout(this.watchdog);
+    cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);
+    this.cancelWait();this.finishAnimation?.();this.finishAnimation=null;
+    try{this.transition?.skipTransition();}catch(_){}
+    if(this.transition)KMReaderSheetEffect.needsRetirement=true;
+    this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();
+    if(this.surface?.effect===this)this.surface.effect=null;
+  }
 }
 
 
@@ -681,7 +734,6 @@ class KMReaderSheetEffect {
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
-    prepareCurlPrograms();
     const clearSelection = () => doc.getSelection()?.removeAllRanges();
     if (preferences.flow === 'scrolled' && rendition.manager?.stage) {
       // The first CJK view can change the manager axis after its stage chose
@@ -1069,18 +1121,19 @@ class KMReaderSheetEffect {
     return task;
   }
   function prepareCurlPrograms(){
-    if(disposed||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
-    try{KMReaderCurlSurface.shared??=new KMReaderCurlSurface();}catch(_){/* Direct reading remains available. */}
+    if(disposed||!KMReaderSheetEffect.supported('curl')||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
+    try{KMReaderCurlSurface.shared??=new KMReaderCurlSurface();}catch(_){KMReaderCurlSurface.disabled=true;}
   }
   function warmCurl(){
     clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);
-    if(inputSuspended||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
-    prepareCurlPrograms();
+    if(inputSuspended||!KMReaderSheetEffect.supported('curl')||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
     const prepare=async()=>{
       if(disposed||inputSuspended||gesture||sheetEffect)return;
       try {
+        prepareCurlPrograms();
+        if(!KMReaderSheetEffect.supported('curl'))return;
         const idleImage=await captureSheet();
-        if(disposed||inputSuspended||gesture||sheetEffect||rendition?.manager?.settings.axis!=='horizontal')return;
+        if(disposed||inputSuspended||gesture||sheetEffect||!KMReaderSheetEffect.supported('curl')||rendition?.manager?.settings.axis!=='horizontal')return;
         // Compile the retained GPU programs while idle, rather than on the
         // first finger movement, including driver pipeline and framebuffer setup.
         const surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
@@ -1195,7 +1248,7 @@ class KMReaderSheetEffect {
     }).catch(error => send('error', {message:String(error)}));
   }
   function motionAllowed(style) {
-    return preferences.animate !== false && preferences.flow === 'paged' && style !== 'none' &&
+    return !config.disableMotion && preferences.animate !== false && preferences.flow === 'paged' && style !== 'none' &&
       !matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
   async function capturedLayout(move) {
@@ -1235,7 +1288,7 @@ class KMReaderSheetEffect {
     // Navigation is already committed. Cosmetic motion never owns the input
     // queue, and the next input can replace this compositor transition.
     const duration = Math.max(150, Math.min(900, Number(preferences.animationDuration) || 380));
-    effect.animateTo(1, duration, {automatic:true}).then(() => {
+    Promise.resolve().then(()=>effect.animateTo(1, duration, {automatic:true})).catch(()=>effect.fail()).finally(() => {
       effect.stop(); if (sheetEffect === effect) sheetEffect = undefined; warmCurl();
     });
   }
@@ -1282,8 +1335,13 @@ class KMReaderSheetEffect {
     restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
     position(false); warmCurl(); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb'});
     window.addEventListener('resize', onResize);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onVisibility);
     document.addEventListener('pointerdown',interruptMouse,true);
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
+  }
+  function onVisibility(event){
+    if(document.hidden||event.type==='pagehide'){cancelGesture();cancelTurnAnimation();}
   }
   function onResize() {
     cancelGesture();
@@ -1394,7 +1452,10 @@ class KMReaderSheetEffect {
     whenIdle: () => enqueue(waitForLayout), destroy: () => {
       disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
       cancelTurnAnimation();
+      KMReaderCurlSurface.shared?.dispose();
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onVisibility);
       document.removeEventListener('pointerdown',interruptMouse,true);
       for (const event of inputEvents) document.removeEventListener(event, noteUserMove);
       destroyRendition(); if (book) book.destroy();

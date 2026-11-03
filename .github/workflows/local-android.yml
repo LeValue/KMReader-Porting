@@ -1,0 +1,77 @@
+name: Android EPUB recovery diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: bash tool/install_android_ndk.sh
+      - run: python3 tool/prepare_build_metadata.py
+      - name: Build isolated ARM64 diagnostic APK (not a release)
+        env:
+          ORG_GRADLE_PROJECT_kmreaderEpubDiagnostic: 'true'
+        run: flutter build apk --debug --target-platform android-arm64 --target=integration_test/epub_recovery_test.dart --no-pub
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-epub-recovery-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+  phone:
+    needs: build
+    runs-on: [self-hosted, Windows, X64, kmreader-laptop]
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up the pinned Flutter driver in the runner cache
+        run: ./tool/setup_local_flutter.ps1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Resolve driver dependencies without Windows plugin links
+        run: |
+          $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-epub-recovery-apk
+          path: .dart_tool/android-epub-recovery
+      - name: Run on the single connected authorized ARM64 phone
+        run: ./tool/android_epub_recovery.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-epub-recovery-results
+          path: artifacts/android-epub-recovery
+          if-no-files-found: ignore
+          retention-days: 7
