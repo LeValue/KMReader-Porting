@@ -193,6 +193,7 @@ Future<dynamic> _turn() async {
       await new Promise(r=>setTimeout(r,5));
     }
     const sample=kmLastTurn;await sample.navigation;
+    if(['slide','curl'].includes(sample.style)&&!sample.flight)throw Error('Animation path unavailable');
     if(sample.flight)await sample.flight;
     return {...sample,navigation:undefined,flight:undefined};
   ''');
@@ -224,12 +225,14 @@ const _instrument = r'''
     const at=performance.now(),value=serialize.apply(this,args);
     record('serialize',{epoch:stamp(),ms:performance.now()-at,length:value.length});return value;
   };
-  const clone=Node.prototype.cloneNode;
-  Node.prototype.cloneNode=function(...args){
-    const at=performance.now(),value=clone.apply(this,args);
-    if(this.nodeType===1&&this.tagName==='HTML')record('clone',{epoch:stamp(),ms:performance.now()-at});
-    return value;
-  };
+  for(const frame of document.querySelectorAll('#viewer iframe')){
+    const prototype=frame.contentWindow.Node.prototype,clone=prototype.cloneNode;
+    prototype.cloneNode=function(...args){
+      const at=performance.now(),value=clone.apply(this,args);
+      if(this.nodeType===1&&this.tagName==='HTML')record('clone',{epoch:stamp(),ms:performance.now()-at});
+      return value;
+    };
+  }
   if(ePub.Rendition){
     const current=ePub.Rendition.prototype.currentLocation;
     ePub.Rendition.prototype.currentLocation=function(...args){
@@ -308,6 +311,13 @@ Future<void> main() async {
       MaterialApp(
         navigatorKey: _navigation,
         theme: appTheme(Brightness.light),
+        // Exercise the real animation path even on hosted Windows machines
+        // with accessibility animation effects disabled. This affects only
+        // the probe, never the installed application or operating system.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: false),
+          child: child!,
+        ),
         home: _ProbeHost(key: _host),
       ),
     );
@@ -355,6 +365,18 @@ Future<void> main() async {
       opening.stop();
       (_report['openingMs'] ??= <String, dynamic>{} as dynamic)[style] =
           opening.elapsedMicroseconds / 1000;
+      (_report['systemReducedMotion'] ??=
+          <String, dynamic>{} as dynamic)[style] = await _js(
+        'return matchMedia("(prefers-reduced-motion: reduce)").matches;',
+      );
+      await _browser!.callDevToolsProtocolMethod(
+        methodName: 'Emulation.setEmulatedMedia',
+        parameters: {
+          'features': [
+            {'name': 'prefers-reduced-motion', 'value': 'no-preference'},
+          ],
+        },
+      );
       await _js(_instrument);
       (_report['browser'] ??=
           <String, dynamic>{} as dynamic)[style] = await _js(
@@ -437,5 +459,10 @@ Future<void> main() async {
     store.close();
     await directory.delete(recursive: true);
   }
-  exit(status);
+  // Dart exit() bypasses desktop engine teardown and can raise a native
+  // exception even after a successful report.
+  await ServicesBinding.instance.exitApplication(
+    ui.AppExitType.required,
+    status,
+  );
 }
