@@ -13,12 +13,17 @@ on:
       runner_label:
         type: string
         default: kmreader-android-desktop
+      prebuilt_run:
+        type: string
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build:
+    if: inputs.prebuilt_run == ''
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -50,6 +55,7 @@ jobs:
           retention-days: 7
   phone:
     needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
     concurrency:
       group: kmreader-android-phone-${{ inputs.runner_label }}
@@ -62,6 +68,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Verify reused diagnostic APK source and successful build job
+        if: inputs.prebuilt_run != ''
+        env:
+          PREBUILT_RUN: ${{ inputs.prebuilt_run }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ($env:PREBUILT_RUN -notmatch '^[1-9][0-9]*$') { throw 'A numbered diagnostic run is required.' }
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }
+          $base = "https://api.github.com/repos/$env:GH_REPO/actions/runs/$env:PREBUILT_RUN"
+          $run = Invoke-RestMethod -Headers $headers -Uri $base
+          if ($run.repository.full_name -ne $env:GH_REPO -or $run.event -ne 'workflow_dispatch' -or $run.path -ne '.github/workflows/local-windows.yml' -or $run.head_branch -notin @('main', 'fix/android-epub-recovery') -or $run.head_sha -notmatch '^[0-9a-f]{40}$') { throw 'Unrecognized diagnostic build source.' }
+          $jobs = Invoke-RestMethod -Headers $headers -Uri "$base/jobs?per_page=100"
+          if (-not @($jobs.jobs | Where-Object { $_.name -eq 'android_recovery / build' -and $_.conclusion -eq 'success' }).Count) { throw 'The diagnostic APK build did not succeed.' }
+          git fetch --no-tags origin $run.head_sha
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $changed = git diff --name-only $run.head_sha HEAD -- lib assets pubspec.yaml pubspec.lock third_party android integration_test/epub_recovery_test.dart integration_test/support/epub_recovery_check.dart test/support/epub_fixture.dart test_driver/native_reader_driver.dart
+          if ($LASTEXITCODE -ne 0 -or $changed) { throw 'The diagnostic app or test source differs from the existing APK.' }
+          Write-Output "Verified unchanged application and test source from run $env:PREBUILT_RUN."
       - name: Set up the pinned Flutter driver in the runner cache
         run: ./tool/setup_local_flutter.ps1
       - uses: actions/setup-java@v4
@@ -70,7 +95,7 @@ jobs:
           java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Resolve driver dependencies without Windows plugin links
         run: |
           $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
@@ -80,6 +105,8 @@ jobs:
         with:
           name: android-epub-recovery-apk
           path: .dart_tool/android-epub-recovery
+          run-id: ${{ inputs.prebuilt_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Run on the single connected authorized ARM64 phone
         run: ./tool/android_epub_recovery.ps1
       - uses: actions/upload-artifact@v4

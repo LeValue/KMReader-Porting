@@ -19,7 +19,7 @@ on:
         options: [generated, cached-alice, alice-gutenberg]
         default: generated
       prebuilt_run:
-        description: Reuse an existing main-branch responsiveness bundle with identical app/probe source
+        description: Reuse an existing responsiveness bundle or Android diagnostic APK with identical app/test source
         type: string
         default: ''
 
@@ -33,6 +33,7 @@ jobs:
     uses: ./.github/workflows/local-android.yml
     with:
       runner_label: ${{ inputs.runner_label }}
+      prebuilt_run: ${{ inputs.prebuilt_run }}
   build_test:
     if: inputs.mode != 'inspect' && inputs.mode != 'android-epub-recovery' && inputs.prebuilt_run == ''
     runs-on: windows-latest
