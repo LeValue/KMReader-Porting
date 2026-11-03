@@ -4,7 +4,11 @@
 is a manual workflow for a registered self-hosted Windows x64 runner. Start the
 runner with `run.cmd` in the signed-in desktop session, rather than installing it
 as a service. Keep the desktop unlocked and the test application visible. The
-workflow uses the runner's default `self-hosted`, `Windows`, `X64` labels.
+workflow uses the runner's default `self-hosted`, `Windows`, `X64` labels plus
+the selected `runner_label`. For the laptop, register the additional label
+`kmreader-laptop` and select it when starting the workflow. Select `self-hosted`
+only to use the original unrestricted Windows runner selection. The laptop
+label keeps jobs off the desktop when both machines are connected.
 
 Choose **Run workflow** and one of these modes:
 

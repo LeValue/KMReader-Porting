@@ -3,6 +3,11 @@ name: Local Windows diagnostics
 on:
   workflow_dispatch:
     inputs:
+      runner_label:
+        description: Target a specific registered PC
+        type: choice
+        options: [kmreader-laptop, self-hosted]
+        default: kmreader-laptop
       mode:
         description: Environment, native regression tests, or profile frame timings
         type: choice
@@ -61,7 +66,7 @@ jobs:
   inspect:
     needs: build_test
     if: ${{ !cancelled() && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
     timeout-minutes: 50
     defaults:
       run:
