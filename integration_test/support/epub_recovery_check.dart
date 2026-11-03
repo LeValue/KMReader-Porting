@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
@@ -82,6 +82,7 @@ void verifyNativeEpubRecovery() {
       Future<void> mount() async {
         await tester.pumpWidget(
           MaterialApp(
+            initialRoute: '/',
             theme: appTheme(Brightness.light),
             home: ReaderDisplay(
               child: BrowserEpubReader(
@@ -160,9 +161,11 @@ void verifyNativeEpubRecovery() {
           'phase': phase,
           'dom': dom,
           'native': native,
-          'compositionOverride': const bool.hasEnvironment(
-            'KMREADER_EPUB_HYBRID_COMPOSITION',
-          ),
+          'compositionOverride':
+              const bool.hasEnvironment('KMREADER_EPUB_HYBRID_COMPOSITION') ||
+              tester.binding.platformDispatcher.defaultRouteName.startsWith(
+                '/kmreader-epub-diagnostic/',
+              ),
           'hybrid': tester
               .widget<InAppWebView>(find.byType(InAppWebView))
               .platform
@@ -175,43 +178,39 @@ void verifyNativeEpubRecovery() {
           () => <Map<String, dynamic>>[],
         ) as List).add(probe);
         debugPrint('EPUB visible-text probe: ${jsonEncode(probe)}');
-        final codec = await ui.instantiateImageCodec(bytes);
-        final image = (await codec.getNextFrame()).image;
-        codec.dispose();
-        try {
-          final rgba = (await image.toByteData(
-            format: ui.ImageByteFormat.rawRgba,
-          ))!;
-          var dark = 0, light = 0;
-          for (var y = image.height ~/ 4; y < image.height * 3 ~/ 4; y++) {
-            for (var x = image.width ~/ 4; x < image.width * 3 ~/ 4; x++) {
-              final offset = (y * image.width + x) * 4;
-              final r = rgba.getUint8(offset),
-                  g = rgba.getUint8(offset + 1),
-                  b = rgba.getUint8(offset + 2);
-              if (r < 120 && g < 120 && b < 120) dark++;
-              if (r > 180 && g > 180 && b > 180) light++;
-            }
-          }
-          probe.addAll({
-            'darkPixels': dark,
-            'lightPixels': light,
-            'imageWidth': image.width,
-            'imageHeight': image.height,
-          });
-          expect(
-            dark,
-            greaterThan(150),
-            reason: 'Android must deliver visible glyphs',
-          );
-          expect(
-            light,
-            greaterThan(150),
-            reason: 'A black texture is not readable text',
-          );
-        } finally {
-          image.dispose();
+        // PixelCopy already captured the actual app surface. Decode its PNG
+        // on CPU: ui.Image.toByteData adds an unrelated Impeller GPU blit that
+        // crashed the Mate 20's IO thread during this verification itself.
+        final image = img.decodePng(bytes)!;
+        var dark = 0, light = 0;
+        final pixels = image.getRange(
+          image.width ~/ 4,
+          image.height ~/ 4,
+          image.width ~/ 2,
+          image.height ~/ 2,
+        );
+        while (pixels.moveNext()) {
+          final pixel = pixels.current;
+          final r = pixel.r, g = pixel.g, b = pixel.b;
+          if (r < 120 && g < 120 && b < 120) dark++;
+          if (r > 180 && g > 180 && b > 180) light++;
         }
+        probe.addAll({
+          'darkPixels': dark,
+          'lightPixels': light,
+          'imageWidth': image.width,
+          'imageHeight': image.height,
+        });
+        expect(
+          dark,
+          greaterThan(150),
+          reason: 'Android must deliver visible glyphs',
+        );
+        expect(
+          light,
+          greaterThan(150),
+          reason: 'A black texture is not readable text',
+        );
       }
 
       try {

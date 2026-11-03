@@ -207,6 +207,26 @@ with sync_playwright() as pw:
       }finally{KMReaderSheetEffect.prototype.start=start;}
     }''')
     readable()
+    fresh()
+    page.evaluate('''async () => {
+      const display=ePub.Rendition.prototype.display;
+      ePub.Rendition.prototype.display=function(...args){window.boundsRendition=this;return display.apply(this,args);};
+      try{await reader.display(reader.position().start.cfi);}finally{ePub.Rendition.prototype.display=display;}
+      window.collapsePublication=()=>boundsRendition.manager.views.forEach(view=>{
+        if(view.displayed&&view.iframe){view.lockedHeight=0;view.reframe(view.width(),0);}
+      });
+      collapsePublication();
+      if(reader.layoutReady())throw Error('Collapsed iframe was reported as a readable publication');
+      await reader.whenIdle();
+      if(!reader.layoutReady()||document.querySelector('#viewer iframe').clientHeight===0)throw Error('Idle reader did not repair collapsed publication bounds');
+    }''')
+    readable()
+    page.evaluate('''async () => {
+      const cfi=reader.position().start.cfi;collapsePublication();await reader.display(cfi);
+      if(document.querySelector('#viewer iframe').clientHeight===0)throw Error('Saved-CFI display kept a collapsed iframe');
+      if(reader.position().start.cfi!==cfi)throw Error('Dimension repair changed the reading locator');
+    }''')
+    readable()
     page.evaluate('''() => {
       const surface=KMReaderCurlSurface.shared;reader.destroy();
       if(surface&&(!surface.disposed||!surface.gl.isContextLost()))throw Error('Closed reader retained its GPU allocations');

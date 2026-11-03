@@ -152,7 +152,8 @@ jobs:
         env:
           DIAGNOSTIC_APK: ${{ steps.apk.outputs.file }}
           ANDROID_RENDERER: ${{ inputs.renderer }}
-        run: ./tool/android_epub_recovery.ps1 -Apk $env:DIAGNOSTIC_APK -DisableImpeller:($env:ANDROID_RENDERER -eq 'skia')
+          ANDROID_COMPOSITION: ${{ inputs.composition }}
+        run: ./tool/android_epub_recovery.ps1 -Apk $env:DIAGNOSTIC_APK -DisableImpeller:($env:ANDROID_RENDERER -eq 'skia') -Composition $env:ANDROID_COMPOSITION
       - uses: actions/upload-artifact@v4
         if: always()
         with:

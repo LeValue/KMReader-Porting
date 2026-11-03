@@ -859,13 +859,24 @@ class KMReaderSheetEffect {
     manager._stageSize = manager.stage.size(); manager._bounds = manager.bounds();
     manager.updateLayout();
     manager.views.forEach(view => {
+      const collapsed=view.displayed&&view.iframe?.isConnected&&view.iframe.clientHeight===0;
+      const previousReframe=view._needsReframe;
+      if(collapsed)view._needsReframe=true;
       view.size(manager.layout.width, manager.layout.height);
       view.setLayout(manager.layout);
+      if(collapsed)view._needsReframe=previousReframe;
     });
+  }
+  function collapsedPageView(){
+    const manager=rendition?.manager;
+    if(preferences?.flow!=='paged'||manager?.settings.axis!=='horizontal'||isFixedLayout())return false;
+    let collapsed=false;
+    manager.views?.forEach(view=>{if(view.displayed&&view.iframe?.isConnected&&view.iframe.clientHeight===0)collapsed=true;});
+    return collapsed;
   }
   function layoutReady() {
     return !restoring && resizeTimer === null && layoutJobs === 0 &&
-      Boolean(rendition?.getContents().length);
+      Boolean(rendition?.getContents().length) && !collapsedPageView();
   }
   async function waitForLayout() {
     if (resizeTimer !== null) {
@@ -878,6 +889,10 @@ class KMReaderSheetEffect {
       if (Date.now() > deadline) throw new Error('The EPUB layout did not settle.');
       await new Promise(resolve => setTimeout(resolve, 20));
     }
+    // Native view recreation can leave an iframe at zero height even when the
+    // host viewport and saved CFI are valid. Repair only that invalid state;
+    // stable position reads keep the retained-layout optimization.
+    if(collapsedPageView())await preserve(()=>resizePublication(innerWidth,innerHeight));
   }
   async function preserve(change) {
     if (!rendition) return;
@@ -1015,6 +1030,12 @@ class KMReaderSheetEffect {
   async function displayStable(target) {
     await rendition.display(target);
     await stable(rendition.getContents());
+    if(collapsedPageView()){
+      resizePublication(innerWidth,innerHeight);
+      await rendition.display(target);
+      await stable(rendition.getContents());
+      if(collapsedPageView())throw Error('The EPUB page has no visible height.');
+    }
     // Continuous moveTo only applies target.top. Vertical pagination also
     // reuses a width-based delta after reflow. Align locators on the real axis.
     const manager = rendition.manager;
@@ -1327,6 +1348,7 @@ class KMReaderSheetEffect {
     // first completion. Keep the verified initial layout barrier; archive
     // preparation is optimized independently of native first-paint readiness.
     await stable(rendition.getContents());
+    if(collapsedPageView())await displayStable(restoredCfi?value.cfi:value.href||undefined);
     if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
     await tick();
     // Ready must describe a real viewport, even if the initial relocated

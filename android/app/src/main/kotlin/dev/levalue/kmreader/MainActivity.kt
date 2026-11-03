@@ -94,9 +94,16 @@ class MainActivity : FlutterFragmentActivity() {
                 // SurfaceProducer buffers while WebView's DOM remains healthy.
                 // Direct hybrid composition keeps hardware-accelerated text
                 // visible on the verified Mate 20 Pro configuration.
-                result.success(mapOf("hybridComposition" to
-                    (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q &&
-                        Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true))))
+                val diagnostic = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+                    packageName == "dev.levalue.kmreader.epubdiagnostic"
+                val diagnosticMode = if (diagnostic) intent.getStringExtra("route") else null
+                val hybrid = when (diagnosticMode) {
+                    "/kmreader-epub-diagnostic/texture" -> false
+                    "/kmreader-epub-diagnostic/hybrid" -> true
+                    else -> Build.VERSION.SDK_INT == Build.VERSION_CODES.Q &&
+                        Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true)
+                }
+                result.success(mapOf("hybridComposition" to hybrid))
             } else if (call.method == "getWebViewRenderingStats") {
                 fun findWebView(view: View): WebView? {
                     if (view is WebView) return view
