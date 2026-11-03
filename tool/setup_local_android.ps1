@@ -25,7 +25,12 @@ if (-not (Test-Path $manager)) {
     Remove-Item -Force $archive
 }
 $ErrorActionPreference = 'Continue'
-1..100 | ForEach-Object { 'y' } | & $manager "--sdk_root=$sdkRoot" --licenses
+# Use plain ASCII stdin through cmd.exe: PS5's native pipeline on this runner
+# returned from sdkmanager's first prompt without accepting any licenses.
+$answers = Join-Path $env:RUNNER_TEMP 'kmreader-android-sdk-answers.txt'
+[IO.File]::WriteAllText($answers, ("y`r`n" * 100), [Text.Encoding]::ASCII)
+$licenseCommand = '""{0}" "--sdk_root={1}" --licenses < "{2}""' -f $manager, $sdkRoot, $answers
+& $env:ComSpec /d /s /c $licenseCommand
 $licenseExit = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 if ($licenseExit -ne 0) { throw 'Could not accept Android driver SDK licenses.' }
