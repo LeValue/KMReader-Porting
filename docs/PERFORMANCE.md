@@ -28,6 +28,16 @@ settings appear without waiting for browser
 input suspension; preference updates and resumption still await suspension in
 order. Publication texture resolution and typography are unchanged.
 
+On the user's i5-10210U laptop, the 0.8.11 first curl took about 372 ms to
+prepare and contained a 211 ms JavaScript long task during GPU initialization.
+SVG decoding itself took 11–27 ms. Shader programs are now submitted together
+during publication layout. `KHR_parallel_shader_compile` completion polling
+keeps browser tasks running; compile/link status and uniform lookups are deferred
+until completion. Older WebGL implementations retain deferred validation at the
+normal preparation boundary. The first page capture and program readiness can
+progress together. A controlled pending-compiler test requires browser tasks
+to run while readiness stays unresolved, followed by normal GPU initialization.
+
 The new standalone release probe uses the normal application binding, records
 first and subsequent input separately, and includes deep-chapter turns,
 vertical wheel input, idle CPU/memory and actual settings callbacks. It builds

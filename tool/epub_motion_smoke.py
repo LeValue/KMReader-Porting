@@ -413,6 +413,31 @@ with sync_playwright() as pw:
     page.evaluate("reader.turn({delta:1,style:'curl'})")
     assert page.evaluate('boundaryStarts') == 0, 'Last page started another animation'
     assert page.evaluate('reader.position().start.cfi') == end_cfi
+    compilation = page.evaluate('''async () => {
+      const prototype=WebGLRenderingContext.prototype,query=prototype.getProgramParameter;
+      let hold=true,done=false,candidate;
+      prototype.getProgramParameter=function(program,name){
+        if(name===0x91b1&&hold)return false;
+        return query.call(this,program,name);
+      };
+      try{
+        candidate=new KMReaderCurlSurface();
+        const ready=candidate.whenReady().then(()=>done=true);
+        if(candidate.parallelCompilation){
+          // Simulate unfinished GPU compilation. Browser tasks must still run
+          // and the surface must not report readiness before completion.
+          await new Promise(resolve=>setTimeout(resolve,25));
+          if(done)throw Error('Curl used an unfinished GPU program');
+        }
+        hold=false;await ready;
+        if(!candidate.initialized)throw Error('GPU initialization did not finish');
+        return {parallel:candidate.parallelCompilation};
+      }finally{
+        prototype.getProgramParameter=query;
+        candidate?.gl.getExtension('WEBGL_lose_context')?.loseContext();
+      }
+    }''')
+    print('GPU preparation', json.dumps(compilation))
     assert not errors, errors
     page.evaluate('reader.destroy()')
     assert page.evaluate('document.querySelectorAll("style[data-page-motion],#page-gesture").length') == 0

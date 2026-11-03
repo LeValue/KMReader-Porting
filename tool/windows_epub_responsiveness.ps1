@@ -22,10 +22,9 @@ try {
         if ($watch.Elapsed.TotalSeconds -gt $TimeoutSeconds) { throw 'Standalone reader probe timed out.' }
         # Only PIDs descended from this exact diagnostic launch. Do not record
         # process command lines, account names, paths or other applications.
-        foreach ($parent in @($known)) {
-            foreach ($child in @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$parent")) {
-                if ($child.Name -match '^(kmreader|msedgewebview2)\.exe$') { [void]$known.Add([int]$child.ProcessId) }
-            }
+        $parentFilter = (@($known) | ForEach-Object { "ParentProcessId=$_" }) -join ' OR '
+        foreach ($child in @(Get-CimInstance Win32_Process -Filter $parentFilter -Property Name,ProcessId,ParentProcessId)) {
+            if ($child.Name -match '^(kmreader|msedgewebview2)\.exe$') { [void]$known.Add([int]$child.ProcessId) }
         }
         $processes = @()
         foreach ($processId in @($known)) {
@@ -41,6 +40,8 @@ try {
                     }
                 } catch { # A child may exit during sampling.
                 }
+            } else {
+                [void]$known.Remove($processId)
             }
         }
         $samples.Add([ordered]@{

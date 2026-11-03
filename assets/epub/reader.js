@@ -10,7 +10,12 @@ class KMReaderCurlSurface {
     this.canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2147483645';
     const gl=this.gl=this.canvas.getContext('webgl',{alpha:false,antialias:true,preserveDrawingBuffer:false});
     if (!gl) throw Error('WebGL unavailable');
-    const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader;};
+    const parallel=gl.getExtension('KHR_parallel_shader_compile'),pending=[];
+    this.parallelCompilation=!!parallel;
+    // COMPILE_STATUS, LINK_STATUS and uniform lookups force the browser to
+    // wait for the GPU compiler. Submit all programs first and poll the
+    // nonblocking completion query when supported.
+    const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);return shader;};
     const uniforms=`uniform sampler2D oldPage,newPage;uniform vec2 size;uniform float progress,spread,sign,slope,grabY,curlReach;`;
     const samples=`vec4 oldAt(vec2 q){return texture2D(oldPage,clamp(q/size,vec2(0.),vec2(1.)));}
       vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}`;
@@ -105,12 +110,29 @@ class KMReaderCurlSurface {
     const program=(vertexSource,fragmentSource)=>{
       const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource),p=gl.createProgram();
       gl.attachShader(p,vertex);gl.attachShader(p,fragment);gl.linkProgram(p);gl.deleteShader(vertex);gl.deleteShader(fragment);
-      if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
-      const u={};for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep','rasterSize','blurWeights[0]'])u[name]=gl.getUniformLocation(p,name);
-      return {p,u,a:gl.getAttribLocation(p,'a')};
+      const result={p,u:{},a:-1};
+      pending.push(()=>{
+        if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
+        for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep','rasterSize','blurWeights[0]'])result.u[name]=gl.getUniformLocation(p,name);
+        result.a=gl.getAttribLocation(p,'a');
+      });return result;
     };
     this.background=program(quadVertex,background);this.sheet=program(meshVertex,meshFragment);
     this.cast=program(meshVertex,shadowFragment);this.blur=program(quadVertex,blurFragment);
+    const finish=()=>{for(const complete of pending)complete();this.initialized=true;};
+    this.finishPrograms=finish;
+    if(parallel){
+      this.readiness=(async()=>{
+        const programs=[this.background,this.sheet,this.cast,this.blur];
+        while(programs.some(program=>!gl.getProgramParameter(program.p,parallel.COMPLETION_STATUS_KHR))){
+          if(gl.isContextLost())throw Error('Curl context lost while compiling');
+          // RAF may be frozen inside a browser View Transition update.
+          await new Promise(resolve=>setTimeout(resolve,8));
+        }
+        finish();
+      })();
+      this.readiness.catch(()=>{});
+    }
     this.quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
     const vertices=[],indices=[],columns=144,rows=24;
     for(let col=0;col<=columns;col++)for(let row=0;row<=rows;row++)vertices.push(3*col/columns,row/rows);
@@ -118,8 +140,10 @@ class KMReaderCurlSurface {
     this.mesh=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.mesh);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
     this.indices=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indices);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);this.count=indices.length;
     this.textures=[0,1].map(i=>{gl.activeTexture(gl.TEXTURE0+i);const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;});
-    this.canvas.addEventListener('webglcontextlost',()=>{KMReaderCurlSurface.shared=null;this.canvas.remove();});
+    gl.flush();
+    this.canvas.addEventListener('webglcontextlost',()=>{if(KMReaderCurlSurface.shared===this)KMReaderCurlSurface.shared=null;this.canvas.remove();});
   }
+  whenReady(){return this.readiness??=Promise.resolve().then(()=>this.finishPrograms());}
   upload(before,after,width,height) {
     const gl=this.gl,dpr=Math.min(2,devicePixelRatio||1);this.width=width;this.height=height;
     const pixelWidth=Math.round(width*dpr),pixelHeight=Math.round(height*dpr);
@@ -218,9 +242,9 @@ class KMReaderSheetEffect {
     if(this.style==='curl'){
       let moved=false;
       try{
-        const before=await this.capture();
-        if(this.stopped)return false;
         this.surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
+        const [before]=await Promise.all([this.capture(),this.surface.whenReady()]);
+        if(this.stopped)return false;
         this.surface.upload(before,null,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
         moved=true;await move();
         const after=await this.capture();if(this.stopped)return false;
@@ -630,6 +654,7 @@ class KMReaderSheetEffect {
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
+    prepareCurlPrograms();
     const clearSelection = () => doc.getSelection()?.removeAllRanges();
     if (preferences.flow === 'scrolled' && rendition.manager?.stage) {
       // The first CJK view can change the manager axis after its stage chose
@@ -1016,9 +1041,14 @@ class KMReaderSheetEffect {
     while(capturePages.size>limit)capturePages.delete(capturePages.keys().next().value);
     return task;
   }
+  function prepareCurlPrograms(){
+    if(disposed||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
+    try{KMReaderCurlSurface.shared??=new KMReaderCurlSurface();}catch(_){/* Direct reading remains available. */}
+  }
   function warmCurl(){
     clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);
     if(inputSuspended||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
+    prepareCurlPrograms();
     const prepare=async()=>{
       if(disposed||inputSuspended||gesture||sheetEffect)return;
       try {
@@ -1027,6 +1057,8 @@ class KMReaderSheetEffect {
         // Compile the retained GPU programs while idle, rather than on the
         // first finger movement, including driver pipeline and framebuffer setup.
         const surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
+        await surface.whenReady();
+        if(disposed||inputSuspended||gesture||sheetEffect)return;
         const warmKey=`${innerWidth}:${innerHeight}:${Math.min(2,devicePixelRatio||1)}`;
         // Prepare the actual front texture on every idle page, not just the
         // first viewport. A null back preserves the other retained allocation.
