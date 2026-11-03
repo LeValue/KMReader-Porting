@@ -29,6 +29,15 @@ application using `--use-application-binary`. The diagnostic executable has a
 separate Windows product identity and WebView cache. These jobs do not install
 system-wide toolchains or change Windows developer settings.
 
+The launcher requires the unlocked `Default` input desktop and temporarily
+raises only its own diagnostic window above other windows. It restores that
+state during cleanup and rejects missing native texture delivery. This avoids
+treating locked or occluded presentation as an application performance result.
+`prebuilt_run` can repeat a successful main-branch responsiveness bundle after
+launcher-only changes. The workflow checks the run's repository, branch, event,
+path and conclusion and rejects changes in app, dependency, platform, fixture
+or probe source before downloading the executable.
+
 Artifacts are retained for seven days. `local-windows-diagnostics` contains the
 environment report and command logs. Profile mode also writes
 `epub-frame-times.json`, including partial phase results when later phases fail.

@@ -18,13 +18,18 @@ on:
         type: choice
         options: [generated, cached-alice, alice-gutenberg]
         default: generated
+      prebuilt_run:
+        description: Reuse an existing main-branch responsiveness bundle with identical app/probe source
+        type: string
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build_test:
-    if: inputs.mode != 'inspect'
+    if: inputs.mode != 'inspect' && inputs.prebuilt_run == ''
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
@@ -116,6 +121,23 @@ jobs:
           persist-credentials: false
       - name: Inspect graphics session and build prerequisites
         run: ./tool/windows_local_diagnostics.ps1
+      - name: Verify the source of a reused responsiveness bundle
+        if: inputs.prebuilt_run != ''
+        env:
+          PREBUILT_RUN: ${{ inputs.prebuilt_run }}
+          DIAGNOSTIC_MODE: ${{ inputs.mode }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ($env:DIAGNOSTIC_MODE -ne 'responsiveness' -or $env:PREBUILT_RUN -notmatch '^[1-9][0-9]*$') { throw 'Only a numbered responsiveness build can be reused.' }
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }
+          $run = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$env:GH_REPO/actions/runs/$env:PREBUILT_RUN"
+          if ($run.repository.full_name -ne $env:GH_REPO -or $run.head_branch -ne 'main' -or $run.event -ne 'workflow_dispatch' -or $run.path -ne '.github/workflows/local-windows.yml' -or $run.status -ne 'completed' -or $run.conclusion -ne 'success' -or $run.head_sha -notmatch '^[0-9a-f]{40}$') { throw 'The prebuilt bundle must come from a successful main-branch diagnostic run.' }
+          git fetch --no-tags origin $run.head_sha
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $changed = git diff --name-only $run.head_sha HEAD -- lib assets pubspec.yaml pubspec.lock third_party windows android tool/epub_responsiveness.dart test/support/epub_fixture.dart
+          if ($LASTEXITCODE -ne 0 -or $changed) { throw 'The prebuilt application or measurement code differs from this source.' }
+          Write-Output "Verified unchanged application and measurement source from run $env:PREBUILT_RUN."
       - name: Set up the verified Flutter SDK in the runner tool cache
         if: inputs.mode == 'native' || inputs.mode == 'profile'
         run: ./tool/setup_local_flutter.ps1
@@ -134,6 +156,8 @@ jobs:
         with:
           name: local-windows-test-app
           path: .dart_tool/native-prebuilt
+          run-id: ${{ inputs.prebuilt_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Run native reader regression tests
         if: inputs.mode == 'native'
         run: |
