@@ -73,8 +73,20 @@ with sync_playwright() as playwright:
       const p=doc.createElement('p');p.textContent='Inserted publication text. '.repeat(40);doc.body.prepend(p);compare();
       p.firstChild.data='Replaced text with a different length. '.repeat(60);compare();
       p.remove();compare();
+      // Classic Windows scrollbars and stage padding reduce available layout
+      // width. Stable position queries must not reformat the chapter each time
+      // simply because that content box differs from the outer viewport.
+      const manager=testRendition.manager,container=manager.container;
+      container.style.paddingRight='17px';container.style.boxSizing='border-box';
+      manager.updateLayout();
+      const update=manager.updateLayout;let updates=0;
+      manager.updateLayout=function(...args){updates++;return update.apply(this,args);};
+      try{for(let i=0;i<8;i++)testRendition.currentLocation();}
+      finally{manager.updateLayout=update;}
+      if(updates)throw Error('Stable content-box reads reformatted the publication '+updates);
+      compare();
       if(originalReads<=retainedReads*3)throw Error('Repeated mapping still scans chapter geometry '+JSON.stringify({retainedReads,originalReads}));
-      return {comparisons,retainedReads,originalReads};
+      return {comparisons,retainedReads,originalReads,stableContentBoxReformats:updates};
     }''', config)
     assert not errors, errors
     print(json.dumps(result))
