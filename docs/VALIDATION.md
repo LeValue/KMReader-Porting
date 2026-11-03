@@ -1,5 +1,66 @@
 # Development validation
 
+## 0.8.12 preview — EPUB input work and chapter lifetime
+
+Published [0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1),
+runtime source `da6545fe21941f036db784b5538ed85aaad2c88d`.
+[Exact-source CI 41618748905](https://github.com/LeValue/KMReader-Porting/actions/runs/41618748905)
+passed Android release, Windows native/release/startup and Android native/display
+checks. [Publisher 41621460757](https://github.com/LeValue/KMReader-Porting/actions/runs/41621460757)
+reused the verified Windows artifact and locally signed APKs.
+
+All 331 host tests pass with Chromium and ONNX enabled; one live-Komga host test
+is skipped without its external configuration. CI separately tests the actual
+Komga client. The final code also passes all 20 browser checks, including 544
+CFI comparisons with the stock mapper, stable reduced-content-box reads and
+chapter-observer destruction. Existing native checks preserve real glyphs,
+selection, live preferences, fixed pages, CJK, gestures, shadows, animation
+intermediate frames and renderer recovery.
+
+Paired runs on MATEBOOK used its existing local Alice EPUB (189,851 bytes,
+SHA256 `23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139`),
+a 1266x682 logical viewport at DPR 1.25, i5-10210U, Intel UHD and a nominal
+60 Hz display. The original 0.8.11 runtime and each candidate use identical
+standalone instrumentation and normal Flutter frame scheduling. The book stayed
+on the PC. [Durable data](benchmarks/epub-windows-0.8.12-matebook.json) retains
+source identifiers and measurement limits.
+
+In [paired run 41616746989](https://github.com/LeValue/KMReader-Porting/actions/runs/41616746989),
+the content-box candidate `4c45d54` measured:
+
+| Check | 0.8.11 | Candidate |
+|---|---:|---:|
+| First curl: input to animation ready | 735 ms | 355 ms |
+| Three middle-chapter vertical turns: browser task duration | 87 ms | 29 ms |
+| Settings visible during an injected 800 ms browser task | 834 ms | 39 ms |
+
+These are sampled readiness/task timings, not physical monitor FPS. Another
+active paired run measured first-curl readiness at 415 vs 280 ms. Results vary
+with cold initialization and machine load. Peak private memory did not show a
+large reduction; chapter lifetime is now bounded by explicit observer/listener
+cleanup rather than relying on weak keys alone.
+
+The final-source [run 41618749777](https://github.com/LeValue/KMReader-Porting/actions/runs/41618749777)
+completed functionally but delivered only a few native textures during motion.
+Its timings are excluded from active-presentation claims. A launcher-only repeat
+is queued with input-desktop checks, temporary visibility of the diagnostic
+window, source-verified artifact reuse and a native-delivery gate. Physical
+Mate 20 Pro performance remains unmeasured; Android passes emulator checks.
+
+All five public assets were downloaded and checked against SHA256SUMS and
+GitHub SHA256 digests. APK source/version/build 22, preview certificate,
+non-debuggable status, ABI, reader asset and ZIP alignment match. Windows has
+63 files matching CI byte-for-byte and 21 AMD64 PE files; its source metadata
+and canonical reader asset also match.
+
+| Download | Bytes | SHA256 |
+|---|---:|---|
+| [KMReader-0.8.12-android-arm64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-android-arm64-preview.apk) | 77,637,646 | `eb75b7e661bc06f2b46e185ae5ff40bc88fa95278381fe8b8c4d2b688df38499` |
+| [KMReader-0.8.12-android-armv7-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-android-armv7-preview.apk) | 64,003,936 | `dd4d6d467fe6b5bbf669b70082aac4232ae186c32c4ab4deeecde3084075bdbd` |
+| [KMReader-0.8.12-android-x64-preview.apk](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-android-x64-preview.apk) | 83,939,027 | `8b90ea3019ff498094d18fa2b82ae914e92a61d6a76855a7f7667269e1ec5335` |
+| [KMReader-0.8.12-windows-x64-preview.zip](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-windows-x64-preview.zip) | 34,451,673 | `679d197f38a4251d23c76af8075055d219c6a9e1df6ca351b465f85fc35241e3` |
+| [SHA256SUMS.txt](https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/SHA256SUMS.txt) | 428 | `1ecb22e284323742b33e2d8aa870b8fdb5163f4bfa8e62cdd2459d92fb40e9d9` |
+
 ## 0.8.11 preview — physical Windows capture pacing
 
 Published [0.8.11](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.11-preview.1), runtime source `f4f0d806d83471c3cecf61cfdf9bb3f17132bb04`.

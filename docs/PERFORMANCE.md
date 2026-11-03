@@ -58,6 +58,16 @@ does not describe production idle activity. The standalone probe filters
 batched Flutter timings by their wall-clock raster timestamp and creates no
 idle RAF sampling loop. Android device timings are still unmeasured.
 
+The [MATEBOOK data](benchmarks/epub-windows-0.8.12-matebook.json) records
+paired 0.8.11/candidate runs against the user's local Alice. One active comparison
+measured first-curl readiness at 735 vs 355 ms, middle-chapter vertical task work
+at 87 vs 29 ms, and settings visibility during the controlled 800 ms browser
+task at 834 vs 39 ms. These sampled timings vary with machine load and cold
+initialization. Memory did not show a large fixed reduction. A final-source run
+with insufficient native texture delivery is excluded from active-presentation
+claims; the visible, unlocked-desktop repeat is queued. See [validation](VALIDATION.md)
+for exact sources and released-asset checks.
+
 ## Windows high-refresh capture interval in 0.8.11
 
 A physical RTX 2060 SUPER/144Hz run with the user's local Alice EPUB exposed

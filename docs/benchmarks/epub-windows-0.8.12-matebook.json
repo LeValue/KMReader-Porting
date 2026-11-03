@@ -1,0 +1,2432 @@
+{
+  "schema": 1,
+  "release": {
+    "version": "0.8.12",
+    "build": 22,
+    "source": "da6545fe21941f036db784b5538ed85aaad2c88d",
+    "ciRun": 41618748905,
+    "publisherRun": 41621460757,
+    "assets": [
+      {
+        "name": "KMReader-0.8.12-android-arm64-preview.apk",
+        "bytes": 77637646,
+        "sha256": "eb75b7e661bc06f2b46e185ae5ff40bc88fa95278381fe8b8c4d2b688df38499"
+      },
+      {
+        "name": "KMReader-0.8.12-android-armv7-preview.apk",
+        "bytes": 64003936,
+        "sha256": "dd4d6d467fe6b5bbf669b70082aac4232ae186c32c4ab4deeecde3084075bdbd"
+      },
+      {
+        "name": "KMReader-0.8.12-android-x64-preview.apk",
+        "bytes": 83939027,
+        "sha256": "8b90ea3019ff498094d18fa2b82ae914e92a61d6a76855a7f7667269e1ec5335"
+      },
+      {
+        "name": "KMReader-0.8.12-windows-x64-preview.zip",
+        "bytes": 34451673,
+        "sha256": "679d197f38a4251d23c76af8075055d219c6a9e1df6ca351b465f85fc35241e3"
+      },
+      {
+        "name": "SHA256SUMS.txt",
+        "bytes": 428,
+        "sha256": "1ecb22e284323742b33e2d8aa870b8fdb5163f4bfa8e62cdd2459d92fb40e9d9"
+      }
+    ]
+  },
+  "machine": {
+    "os": "Microsoft Windows 11 Home",
+    "osVersion": "10.0.26100",
+    "processors": [
+      {
+        "name": "Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz",
+        "cores": 4,
+        "logical": 8
+      }
+    ],
+    "memoryGB": 7.8,
+    "freeMemoryGB": 0.9,
+    "webView2": [
+      "156.0.4314.58"
+    ]
+  },
+  "display": {
+    "name": "Intel(R) UHD Graphics",
+    "driver": "27.20.100.8984",
+    "refreshHz": 60,
+    "width": 1920,
+    "height": 1080,
+    "status": "OK"
+  },
+  "method": {
+    "binding": "WidgetsFlutterBinding",
+    "mode": "release",
+    "viewport": {
+      "width": 1266,
+      "height": 682,
+      "dpr": 1.25
+    },
+    "firstTurn": "No warm-up turn or artificial idle delay. Time is input to browser animation readiness, not physical monitor presentation.",
+    "laterTurns": "Three real reader-button callbacks per case.",
+    "browserTaskMs": "Chrome Performance.getMetrics TaskDuration delta; not process-wide CPU time.",
+    "memory": "Peak sum of diagnostic process-tree private bytes. Working-set sums may double-count shared pages.",
+    "injectedSettingsWork": "Explicit 800 ms JavaScript task; a controlled responsiveness check, not natural book work.",
+    "samplingLimit": "Sequential A/B samples vary with cold initialization and machine load; no claim of universal device FPS or a large fixed-memory reduction."
+  },
+  "comparisons": [
+    {
+      "run": 41612717028,
+      "label": "GPU/location changes",
+      "usableForActivePresentationComparison": true,
+      "reports": {
+        "optimized": {
+          "success": true,
+          "error": null,
+          "runtimeSource": "2a903c8b4e53f4219e25b53a9fa5d179c0a5c3ee",
+          "publication": {
+            "kind": "external",
+            "bytes": 189851,
+            "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+          },
+          "browser": {
+            "none": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793699858346.5,
+              "width": 1266
+            },
+            "slide": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793699880095.5,
+              "width": 1266
+            },
+            "curl": {
+              "curlProgramsReady": true,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": true,
+              "reducedMotion": false,
+              "timeOrigin": 1793699900830.5,
+              "width": 1266
+            },
+            "vertical": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793699921909.0,
+              "width": 1266
+            }
+          },
+          "phases": {
+            "flutterIdle": {
+              "elapsedMs": 3002.255,
+              "flutterFrames": 0
+            },
+            "noneFirstTurn": {
+              "elapsedMs": 173.896,
+              "flutterFrames": 1,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 171.305908203125,
+                "samples": [
+                  171.305908203125
+                ]
+              },
+              "browserTaskMs": 82.37799999999996,
+              "layoutCount": 15
+            },
+            "noneFollowingTurns": {
+              "elapsedMs": 222.092,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 33.68994140625,
+                "samples": [
+                  33.68994140625,
+                  149.10498046875,
+                  33.361083984375
+                ]
+              },
+              "browserTaskMs": 91.65200000000002,
+              "layoutCount": 15
+            },
+            "noneIdle": {
+              "elapsedMs": 3001.451,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 40.87200000000002,
+              "layoutCount": 0
+            },
+            "noneMiddleTurns": {
+              "elapsedMs": 237.063,
+              "flutterFrames": 3,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 30.884033203125,
+                "samples": [
+                  28.1259765625,
+                  148.492919921875,
+                  30.884033203125
+                ]
+              },
+              "browserTaskMs": 90.329,
+              "layoutCount": 15
+            },
+            "noneSettings": {
+              "elapsedMs": 2358.475,
+              "flutterFrames": 93,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                37.25,
+                28.681,
+                28.581
+              ],
+              "browserTaskMs": 101.02499999999992,
+              "layoutCount": 0
+            },
+            "settingsDuringInjectedBrowserWork": {
+              "elapsedMs": 1404.082,
+              "flutterFrames": 31,
+              "gpuCopies": 0,
+              "action": {
+                "injectedBrowserWorkMs": 800,
+                "sheetVisibleMs": 29.977
+              },
+              "browserTaskMs": 810.078,
+              "layoutCount": 0
+            },
+            "slideFirstTurn": {
+              "elapsedMs": 526.234,
+              "flutterFrames": 3,
+              "gpuCopies": 8,
+              "commandResolvedLatencyMs": {
+                "median": 132.2109375,
+                "samples": [
+                  132.2109375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 130.2109375,
+                "samples": [
+                  130.2109375
+                ]
+              },
+              "browserTaskMs": 112.89699999999999,
+              "layoutCount": 18
+            },
+            "slideFollowingTurns": {
+              "elapsedMs": 1401.815,
+              "flutterFrames": 6,
+              "gpuCopies": 62,
+              "commandResolvedLatencyMs": {
+                "median": 47.964111328125,
+                "samples": [
+                  40.281982421875,
+                  122.699951171875,
+                  47.964111328125
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 44.964111328125,
+                "samples": [
+                  38.281982421875,
+                  121.699951171875,
+                  44.964111328125
+                ]
+              },
+              "browserTaskMs": 299.11799999999994,
+              "layoutCount": 30
+            },
+            "slideIdle": {
+              "elapsedMs": 3001.194,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 37.87000000000007,
+              "layoutCount": 0
+            },
+            "slideMiddleTurns": {
+              "elapsedMs": 1416.144,
+              "flutterFrames": 7,
+              "gpuCopies": 66,
+              "commandResolvedLatencyMs": {
+                "median": 43.552001953125,
+                "samples": [
+                  32.22705078125,
+                  143.635986328125,
+                  43.552001953125
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 41.552001953125,
+                "samples": [
+                  31.22705078125,
+                  141.635986328125,
+                  41.552001953125
+                ]
+              },
+              "browserTaskMs": 297.61499999999995,
+              "layoutCount": 30
+            },
+            "slideSettings": {
+              "elapsedMs": 2355.745,
+              "flutterFrames": 92,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                34.43,
+                31.3,
+                27.793
+              ],
+              "browserTaskMs": 85.80600000000005,
+              "layoutCount": 0
+            },
+            "curlFirstTurn": {
+              "elapsedMs": 658.098,
+              "flutterFrames": 3,
+              "gpuCopies": 17,
+              "commandResolvedLatencyMs": {
+                "median": 279.823974609375,
+                "samples": [
+                  279.823974609375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 279.823974609375,
+                "samples": [
+                  279.823974609375
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 280.823974609375,
+                "samples": [
+                  280.823974609375
+                ]
+              },
+              "browserTaskMs": 321.72100000000006,
+              "layoutCount": 17
+            },
+            "curlFollowingTurns": {
+              "elapsedMs": 1450.543,
+              "flutterFrames": 6,
+              "gpuCopies": 65,
+              "commandResolvedLatencyMs": {
+                "median": 88.27099609375,
+                "samples": [
+                  34.94189453125,
+                  185.89794921875,
+                  88.27099609375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 88.27099609375,
+                "samples": [
+                  34.94189453125,
+                  185.89794921875,
+                  88.27099609375
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 91.27099609375,
+                "samples": [
+                  36.94189453125,
+                  195.89794921875,
+                  91.27099609375
+                ]
+              },
+              "browserTaskMs": 434.87700000000007,
+              "layoutCount": 21
+            },
+            "curlIdle": {
+              "elapsedMs": 3001.147,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 39.14499999999998,
+              "layoutCount": 0
+            },
+            "curlMiddleTurns": {
+              "elapsedMs": 1545.427,
+              "flutterFrames": 7,
+              "gpuCopies": 64,
+              "commandResolvedLatencyMs": {
+                "median": 83.7119140625,
+                "samples": [
+                  83.48095703125,
+                  194.64501953125,
+                  83.7119140625
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 83.7119140625,
+                "samples": [
+                  83.48095703125,
+                  194.64501953125,
+                  83.7119140625
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 102.48095703125,
+                "samples": [
+                  102.48095703125,
+                  195.64501953125,
+                  85.7119140625
+                ]
+              },
+              "browserTaskMs": 441.184,
+              "layoutCount": 21
+            },
+            "curlSettings": {
+              "elapsedMs": 2355.065,
+              "flutterFrames": 95,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                31.792,
+                32.289,
+                28.75
+              ],
+              "browserTaskMs": 99.54200000000002,
+              "layoutCount": 0
+            },
+            "verticalFirstTurn": {
+              "elapsedMs": 11.907,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 6.573974609375,
+                "samples": [
+                  6.573974609375
+                ]
+              },
+              "browserTaskMs": 12.012000000000022,
+              "layoutCount": 3
+            },
+            "verticalFollowingTurns": {
+              "elapsedMs": 142.807,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 30.736083984375,
+                "samples": [
+                  90.428955078125,
+                  11.69091796875,
+                  30.736083984375
+                ]
+              },
+              "browserTaskMs": 81.513,
+              "layoutCount": 30
+            },
+            "verticalIdle": {
+              "elapsedMs": 3002.515,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.29600000000001847,
+              "layoutCount": 0
+            },
+            "verticalMiddleTurns": {
+              "elapsedMs": 114.402,
+              "flutterFrames": 3,
+              "gpuCopies": 2,
+              "commandResolvedLatencyMs": {
+                "median": 32.1669921875,
+                "samples": [
+                  5.925048828125,
+                  43.452880859375,
+                  32.1669921875
+                ]
+              },
+              "browserTaskMs": 46.233999999999995,
+              "layoutCount": 8
+            },
+            "verticalWheel": {
+              "elapsedMs": 1803.195,
+              "flutterFrames": 1,
+              "gpuCopies": 40,
+              "browserTaskMs": 274.78999999999996,
+              "layoutCount": 94
+            },
+            "verticalSettings": {
+              "elapsedMs": 2369.475,
+              "flutterFrames": 94,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                26.117,
+                30.14,
+                27.89
+              ],
+              "browserTaskMs": 98.89899999999996,
+              "layoutCount": 0
+            }
+          },
+          "peakPrivateBytes": 523812864,
+          "peakWorkingBytesSum": 819376128
+        },
+        "baseline": {
+          "success": true,
+          "error": null,
+          "runtimeSource": "f4f0d806d83471c3cecf61cfdf9bb3f17132bb04",
+          "publication": {
+            "kind": "external",
+            "bytes": 189851,
+            "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+          },
+          "browser": {
+            "none": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793699760458.6,
+              "width": 1266
+            },
+            "slide": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793699783248.1,
+              "width": 1266
+            },
+            "curl": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793699804123.4,
+              "width": 1266
+            },
+            "vertical": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793699825742.2,
+              "width": 1266
+            }
+          },
+          "phases": {
+            "flutterIdle": {
+              "elapsedMs": 3001.428,
+              "flutterFrames": 0
+            },
+            "noneFirstTurn": {
+              "elapsedMs": 258.955,
+              "flutterFrames": 1,
+              "gpuCopies": 2,
+              "commandResolvedLatencyMs": {
+                "median": 251.2548828125,
+                "samples": [
+                  251.2548828125
+                ]
+              },
+              "browserTaskMs": 100.05600000000001,
+              "layoutCount": 16
+            },
+            "noneFollowingTurns": {
+              "elapsedMs": 206.727,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 33.881103515625,
+                "samples": [
+                  19.951904296875,
+                  147.068115234375,
+                  33.881103515625
+                ]
+              },
+              "browserTaskMs": 109.80799999999996,
+              "layoutCount": 15
+            },
+            "noneIdle": {
+              "elapsedMs": 3001.374,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.36000000000002697,
+              "layoutCount": 0
+            },
+            "noneMiddleTurns": {
+              "elapsedMs": 219.717,
+              "flutterFrames": 3,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 31.26611328125,
+                "samples": [
+                  10.548095703125,
+                  147.958984375,
+                  31.26611328125
+                ]
+              },
+              "browserTaskMs": 111.769,
+              "layoutCount": 15
+            },
+            "noneSettings": {
+              "elapsedMs": 2357.463,
+              "flutterFrames": 92,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                38.417,
+                32.926,
+                24.138
+              ],
+              "browserTaskMs": 3.835000000000033,
+              "layoutCount": 0
+            },
+            "settingsDuringInjectedBrowserWork": {
+              "elapsedMs": 2186.689,
+              "flutterFrames": 29,
+              "gpuCopies": 0,
+              "action": {
+                "injectedBrowserWorkMs": 800,
+                "sheetVisibleMs": 812.202
+              },
+              "browserTaskMs": 804.214,
+              "layoutCount": 0
+            },
+            "slideFirstTurn": {
+              "elapsedMs": 593.379,
+              "flutterFrames": 3,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 194.695068359375,
+                "samples": [
+                  194.695068359375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 172.695068359375,
+                "samples": [
+                  172.695068359375
+                ]
+              },
+              "browserTaskMs": 168.941,
+              "layoutCount": 18
+            },
+            "slideFollowingTurns": {
+              "elapsedMs": 1399.808,
+              "flutterFrames": 6,
+              "gpuCopies": 65,
+              "commandResolvedLatencyMs": {
+                "median": 54.490966796875,
+                "samples": [
+                  24.759033203125,
+                  138.260986328125,
+                  54.490966796875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 50.490966796875,
+                "samples": [
+                  23.759033203125,
+                  137.260986328125,
+                  50.490966796875
+                ]
+              },
+              "browserTaskMs": 331.015,
+              "layoutCount": 30
+            },
+            "slideIdle": {
+              "elapsedMs": 3001.451,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.2630000000000132,
+              "layoutCount": 0
+            },
+            "slideMiddleTurns": {
+              "elapsedMs": 1441.617,
+              "flutterFrames": 7,
+              "gpuCopies": 64,
+              "commandResolvedLatencyMs": {
+                "median": 48.22802734375,
+                "samples": [
+                  28.10595703125,
+                  146.422119140625,
+                  48.22802734375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 43.22802734375,
+                "samples": [
+                  26.10595703125,
+                  144.422119140625,
+                  43.22802734375
+                ]
+              },
+              "browserTaskMs": 298.72999999999996,
+              "layoutCount": 30
+            },
+            "slideSettings": {
+              "elapsedMs": 2353.301,
+              "flutterFrames": 92,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                30.893,
+                29.175,
+                31.83
+              ],
+              "browserTaskMs": 5.651000000000073,
+              "layoutCount": 0
+            },
+            "curlFirstTurn": {
+              "elapsedMs": 793.431,
+              "flutterFrames": 3,
+              "gpuCopies": 18,
+              "commandResolvedLatencyMs": {
+                "median": 415.833984375,
+                "samples": [
+                  415.833984375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 414.833984375,
+                "samples": [
+                  414.833984375
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 419.833984375,
+                "samples": [
+                  419.833984375
+                ]
+              },
+              "browserTaskMs": 452.72100000000006,
+              "layoutCount": 17
+            },
+            "curlFollowingTurns": {
+              "elapsedMs": 1514.236,
+              "flutterFrames": 6,
+              "gpuCopies": 64,
+              "commandResolvedLatencyMs": {
+                "median": 105.199951171875,
+                "samples": [
+                  55.764892578125,
+                  192.52197265625,
+                  105.199951171875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 105.199951171875,
+                "samples": [
+                  55.764892578125,
+                  192.52197265625,
+                  105.199951171875
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 126.199951171875,
+                "samples": [
+                  62.764892578125,
+                  208.52197265625,
+                  126.199951171875
+                ]
+              },
+              "browserTaskMs": 399.269,
+              "layoutCount": 21
+            },
+            "curlIdle": {
+              "elapsedMs": 3002.606,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.38800000000005497,
+              "layoutCount": 0
+            },
+            "curlMiddleTurns": {
+              "elapsedMs": 1597.342,
+              "flutterFrames": 7,
+              "gpuCopies": 61,
+              "commandResolvedLatencyMs": {
+                "median": 98.485107421875,
+                "samples": [
+                  95.674072265625,
+                  200.51806640625,
+                  98.485107421875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 98.485107421875,
+                "samples": [
+                  95.674072265625,
+                  200.51806640625,
+                  98.485107421875
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 125.485107421875,
+                "samples": [
+                  122.674072265625,
+                  206.51806640625,
+                  125.485107421875
+                ]
+              },
+              "browserTaskMs": 466.523,
+              "layoutCount": 22
+            },
+            "curlSettings": {
+              "elapsedMs": 2352.783,
+              "flutterFrames": 94,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                32.67,
+                29.058,
+                29.466
+              ],
+              "browserTaskMs": 11.795999999999918,
+              "layoutCount": 0
+            },
+            "verticalFirstTurn": {
+              "elapsedMs": 23.907,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 20.68505859375,
+                "samples": [
+                  20.68505859375
+                ]
+              },
+              "browserTaskMs": 11.438000000000004,
+              "layoutCount": 0
+            },
+            "verticalFollowingTurns": {
+              "elapsedMs": 143.287,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 31.533935546875,
+                "samples": [
+                  89.968017578125,
+                  13.40087890625,
+                  31.533935546875
+                ]
+              },
+              "browserTaskMs": 88.87799999999996,
+              "layoutCount": 30
+            },
+            "verticalIdle": {
+              "elapsedMs": 3001.464,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.3090000000000037,
+              "layoutCount": 0
+            },
+            "verticalMiddleTurns": {
+              "elapsedMs": 114.317,
+              "flutterFrames": 3,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 36.717041015625,
+                "samples": [
+                  5.321044921875,
+                  36.717041015625,
+                  38.47509765625
+                ]
+              },
+              "browserTaskMs": 51.57100000000003,
+              "layoutCount": 8
+            },
+            "verticalWheel": {
+              "elapsedMs": 1775.623,
+              "flutterFrames": 1,
+              "gpuCopies": 40,
+              "browserTaskMs": 225.67899999999997,
+              "layoutCount": 89
+            },
+            "verticalSettings": {
+              "elapsedMs": 2389.07,
+              "flutterFrames": 94,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                39.685,
+                32.267,
+                33.143
+              ],
+              "browserTaskMs": 5.041000000000073,
+              "layoutCount": 0
+            }
+          },
+          "peakPrivateBytes": 497369088,
+          "peakWorkingBytesSum": 777596928
+        }
+      }
+    },
+    {
+      "run": 41616746989,
+      "label": "Content-box fix",
+      "usableForActivePresentationComparison": true,
+      "reports": {
+        "optimized": {
+          "success": true,
+          "error": null,
+          "runtimeSource": "4c45d540933a9e662a099c50b167123368fb5843",
+          "publication": {
+            "kind": "external",
+            "bytes": 189851,
+            "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+          },
+          "browser": {
+            "none": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793701347802.0,
+              "width": 1266
+            },
+            "slide": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793701370036.2,
+              "width": 1266
+            },
+            "curl": {
+              "curlProgramsReady": true,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": true,
+              "reducedMotion": false,
+              "timeOrigin": 1793701391577.8,
+              "width": 1266
+            },
+            "vertical": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793701413597.4,
+              "width": 1266
+            }
+          },
+          "phases": {
+            "flutterIdle": {
+              "elapsedMs": 3002.771,
+              "flutterFrames": 0
+            },
+            "noneFirstTurn": {
+              "elapsedMs": 209.116,
+              "flutterFrames": 0,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 205.02001953125,
+                "samples": [
+                  205.02001953125
+                ]
+              },
+              "browserTaskMs": 127.71,
+              "layoutCount": 15
+            },
+            "noneFollowingTurns": {
+              "elapsedMs": 227.172,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 36.205078125,
+                "samples": [
+                  22.569091796875,
+                  162.660888671875,
+                  36.205078125
+                ]
+              },
+              "browserTaskMs": 113.11200000000005,
+              "layoutCount": 15
+            },
+            "noneIdle": {
+              "elapsedMs": 3001.16,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 66.07499999999999,
+              "layoutCount": 0
+            },
+            "noneMiddleTurns": {
+              "elapsedMs": 287.838,
+              "flutterFrames": 3,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 29.56591796875,
+                "samples": [
+                  23.00390625,
+                  198.94091796875,
+                  29.56591796875
+                ]
+              },
+              "browserTaskMs": 131.75400000000005,
+              "layoutCount": 15
+            },
+            "noneSettings": {
+              "elapsedMs": 2465.058,
+              "flutterFrames": 79,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                73.699,
+                72.141,
+                51.635
+              ],
+              "browserTaskMs": 82.68200000000003,
+              "layoutCount": 0
+            },
+            "settingsDuringInjectedBrowserWork": {
+              "elapsedMs": 1417.506,
+              "flutterFrames": 30,
+              "gpuCopies": 0,
+              "action": {
+                "injectedBrowserWorkMs": 800,
+                "sheetVisibleMs": 39.493
+              },
+              "browserTaskMs": 814.9950000000001,
+              "layoutCount": 0
+            },
+            "slideFirstTurn": {
+              "elapsedMs": 587.291,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 197.532958984375,
+                "samples": [
+                  197.532958984375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 193.532958984375,
+                "samples": [
+                  193.532958984375
+                ]
+              },
+              "browserTaskMs": 171.64299999999997,
+              "layoutCount": 18
+            },
+            "slideFollowingTurns": {
+              "elapsedMs": 1497.442,
+              "flutterFrames": 6,
+              "gpuCopies": 52,
+              "commandResolvedLatencyMs": {
+                "median": 71.158935546875,
+                "samples": [
+                  45.677978515625,
+                  210.237060546875,
+                  71.158935546875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 68.158935546875,
+                "samples": [
+                  42.677978515625,
+                  207.237060546875,
+                  68.158935546875
+                ]
+              },
+              "browserTaskMs": 421.0450000000001,
+              "layoutCount": 30
+            },
+            "slideIdle": {
+              "elapsedMs": 3001.517,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 77.97799999999988,
+              "layoutCount": 0
+            },
+            "slideMiddleTurns": {
+              "elapsedMs": 1535.369,
+              "flutterFrames": 7,
+              "gpuCopies": 59,
+              "commandResolvedLatencyMs": {
+                "median": 56.030029296875,
+                "samples": [
+                  40.951904296875,
+                  215.111083984375,
+                  56.030029296875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 51.030029296875,
+                "samples": [
+                  36.951904296875,
+                  212.111083984375,
+                  51.030029296875
+                ]
+              },
+              "browserTaskMs": 411.15600000000006,
+              "layoutCount": 30
+            },
+            "slideSettings": {
+              "elapsedMs": 2498.979,
+              "flutterFrames": 83,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                71.077,
+                75.419,
+                86.861
+              ],
+              "browserTaskMs": 86.89000000000013,
+              "layoutCount": 0
+            },
+            "curlFirstTurn": {
+              "elapsedMs": 733.223,
+              "flutterFrames": 2,
+              "gpuCopies": 21,
+              "commandResolvedLatencyMs": {
+                "median": 355.133056640625,
+                "samples": [
+                  355.133056640625
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 355.133056640625,
+                "samples": [
+                  355.133056640625
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 356.133056640625,
+                "samples": [
+                  356.133056640625
+                ]
+              },
+              "browserTaskMs": 369.581,
+              "layoutCount": 15
+            },
+            "curlFollowingTurns": {
+              "elapsedMs": 1572.928,
+              "flutterFrames": 6,
+              "gpuCopies": 60,
+              "commandResolvedLatencyMs": {
+                "median": 139.197998046875,
+                "samples": [
+                  72.756103515625,
+                  214.3779296875,
+                  139.197998046875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 139.197998046875,
+                "samples": [
+                  72.756103515625,
+                  214.3779296875,
+                  139.197998046875
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 147.197998046875,
+                "samples": [
+                  73.756103515625,
+                  227.3779296875,
+                  147.197998046875
+                ]
+              },
+              "browserTaskMs": 539.8520000000001,
+              "layoutCount": 21
+            },
+            "curlIdle": {
+              "elapsedMs": 3002.641,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 81.72800000000002,
+              "layoutCount": 0
+            },
+            "curlMiddleTurns": {
+              "elapsedMs": 1609.809,
+              "flutterFrames": 7,
+              "gpuCopies": 63,
+              "commandResolvedLatencyMs": {
+                "median": 114.89794921875,
+                "samples": [
+                  114.89794921875,
+                  230.406005859375,
+                  85.362060546875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 114.89794921875,
+                "samples": [
+                  114.89794921875,
+                  230.406005859375,
+                  85.362060546875
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 131.89794921875,
+                "samples": [
+                  131.89794921875,
+                  231.406005859375,
+                  93.362060546875
+                ]
+              },
+              "browserTaskMs": 510.41400000000016,
+              "layoutCount": 21
+            },
+            "curlSettings": {
+              "elapsedMs": 2503.291,
+              "flutterFrames": 80,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                82.94,
+                77.662,
+                77.687
+              ],
+              "browserTaskMs": 68.78799999999963,
+              "layoutCount": 0
+            },
+            "verticalFirstTurn": {
+              "elapsedMs": 14.431,
+              "flutterFrames": 0,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 12.408935546875,
+                "samples": [
+                  12.408935546875
+                ]
+              },
+              "browserTaskMs": 7.010000000000016,
+              "layoutCount": 0
+            },
+            "verticalFollowingTurns": {
+              "elapsedMs": 198.389,
+              "flutterFrames": 2,
+              "gpuCopies": 4,
+              "commandResolvedLatencyMs": {
+                "median": 27.31689453125,
+                "samples": [
+                  141.868896484375,
+                  14.576904296875,
+                  27.31689453125
+                ]
+              },
+              "browserTaskMs": 112.92599999999997,
+              "layoutCount": 30
+            },
+            "verticalIdle": {
+              "elapsedMs": 3000.832,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.4990000000000272,
+              "layoutCount": 0
+            },
+            "verticalMiddleTurns": {
+              "elapsedMs": 108.185,
+              "flutterFrames": 3,
+              "gpuCopies": 2,
+              "commandResolvedLatencyMs": {
+                "median": 27.596923828125,
+                "samples": [
+                  4.08203125,
+                  27.596923828125,
+                  42.35009765625
+                ]
+              },
+              "browserTaskMs": 29.223,
+              "layoutCount": 8
+            },
+            "verticalWheel": {
+              "elapsedMs": 1855.991,
+              "flutterFrames": 1,
+              "gpuCopies": 40,
+              "browserTaskMs": 280.318,
+              "layoutCount": 95
+            },
+            "verticalSettings": {
+              "elapsedMs": 2503.846,
+              "flutterFrames": 84,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                54.619,
+                63.703,
+                60.685
+              ],
+              "browserTaskMs": 86.58700000000007,
+              "layoutCount": 0
+            }
+          },
+          "peakPrivateBytes": 521900032,
+          "peakWorkingBytesSum": 818429952
+        },
+        "baseline": {
+          "success": true,
+          "error": null,
+          "runtimeSource": "f4f0d806d83471c3cecf61cfdf9bb3f17132bb04",
+          "publication": {
+            "kind": "external",
+            "bytes": 189851,
+            "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+          },
+          "browser": {
+            "none": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793701243813.0,
+              "width": 1266
+            },
+            "slide": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793701267126.0,
+              "width": 1266
+            },
+            "curl": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793701288550.6,
+              "width": 1266
+            },
+            "vertical": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793701311206.6,
+              "width": 1266
+            }
+          },
+          "phases": {
+            "flutterIdle": {
+              "elapsedMs": 3001.96,
+              "flutterFrames": 0
+            },
+            "noneFirstTurn": {
+              "elapsedMs": 218.012,
+              "flutterFrames": 0,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 213.056884765625,
+                "samples": [
+                  213.056884765625
+                ]
+              },
+              "browserTaskMs": 131.146,
+              "layoutCount": 15
+            },
+            "noneFollowingTurns": {
+              "elapsedMs": 315.88,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 27.2509765625,
+                "samples": [
+                  27.2509765625,
+                  241.35302734375,
+                  22.196044921875
+                ]
+              },
+              "browserTaskMs": 202.52800000000005,
+              "layoutCount": 16
+            },
+            "noneIdle": {
+              "elapsedMs": 3000.599,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.6319999999999659,
+              "layoutCount": 0
+            },
+            "noneMiddleTurns": {
+              "elapsedMs": 370.323,
+              "flutterFrames": 3,
+              "gpuCopies": 2,
+              "commandResolvedLatencyMs": {
+                "median": 28.5791015625,
+                "samples": [
+                  25.326904296875,
+                  274.98388671875,
+                  28.5791015625
+                ]
+              },
+              "browserTaskMs": 218.464,
+              "layoutCount": 15
+            },
+            "noneSettings": {
+              "elapsedMs": 2513.144,
+              "flutterFrames": 84,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                64.017,
+                103.17,
+                75.791
+              ],
+              "browserTaskMs": 7.550999999999974,
+              "layoutCount": 0
+            },
+            "settingsDuringInjectedBrowserWork": {
+              "elapsedMs": 2214.064,
+              "flutterFrames": 28,
+              "gpuCopies": 0,
+              "action": {
+                "injectedBrowserWorkMs": 800,
+                "sheetVisibleMs": 834.494
+              },
+              "browserTaskMs": 803.5570000000001,
+              "layoutCount": 0
+            },
+            "slideFirstTurn": {
+              "elapsedMs": 582.59,
+              "flutterFrames": 2,
+              "gpuCopies": 2,
+              "commandResolvedLatencyMs": {
+                "median": 176.20703125,
+                "samples": [
+                  176.20703125
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 173.20703125,
+                "samples": [
+                  173.20703125
+                ]
+              },
+              "browserTaskMs": 141.988,
+              "layoutCount": 18
+            },
+            "slideFollowingTurns": {
+              "elapsedMs": 1526.521,
+              "flutterFrames": 6,
+              "gpuCopies": 58,
+              "commandResolvedLatencyMs": {
+                "median": 51.678955078125,
+                "samples": [
+                  29.56494140625,
+                  241.31396484375,
+                  51.678955078125
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 48.678955078125,
+                "samples": [
+                  25.56494140625,
+                  239.31396484375,
+                  48.678955078125
+                ]
+              },
+              "browserTaskMs": 375.802,
+              "layoutCount": 30
+            },
+            "slideIdle": {
+              "elapsedMs": 3001.392,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.8040000000000269,
+              "layoutCount": 0
+            },
+            "slideMiddleTurns": {
+              "elapsedMs": 1440.707,
+              "flutterFrames": 7,
+              "gpuCopies": 51,
+              "commandResolvedLatencyMs": {
+                "median": 43.2958984375,
+                "samples": [
+                  27.94091796875,
+                  179.8310546875,
+                  43.2958984375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 42.2958984375,
+                "samples": [
+                  25.94091796875,
+                  176.8310546875,
+                  42.2958984375
+                ]
+              },
+              "browserTaskMs": 286.44000000000005,
+              "layoutCount": 30
+            },
+            "slideSettings": {
+              "elapsedMs": 2504.734,
+              "flutterFrames": 83,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                79.512,
+                74.234,
+                83.952
+              ],
+              "browserTaskMs": 7.238999999999995,
+              "layoutCount": 0
+            },
+            "curlFirstTurn": {
+              "elapsedMs": 1121.109,
+              "flutterFrames": 3,
+              "gpuCopies": 15,
+              "commandResolvedLatencyMs": {
+                "median": 735.364013671875,
+                "samples": [
+                  735.364013671875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 735.364013671875,
+                "samples": [
+                  735.364013671875
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 749.364013671875,
+                "samples": [
+                  749.364013671875
+                ]
+              },
+              "browserTaskMs": 731.563,
+              "layoutCount": 15
+            },
+            "curlFollowingTurns": {
+              "elapsedMs": 1735.474,
+              "flutterFrames": 6,
+              "gpuCopies": 57,
+              "commandResolvedLatencyMs": {
+                "median": 164.324951171875,
+                "samples": [
+                  103.27392578125,
+                  310.7529296875,
+                  164.324951171875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 164.324951171875,
+                "samples": [
+                  103.27392578125,
+                  310.7529296875,
+                  164.324951171875
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 177.324951171875,
+                "samples": [
+                  114.27392578125,
+                  326.7529296875,
+                  177.324951171875
+                ]
+              },
+              "browserTaskMs": 588.212,
+              "layoutCount": 21
+            },
+            "curlIdle": {
+              "elapsedMs": 3001.697,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 1.3769999999999616,
+              "layoutCount": 0
+            },
+            "curlMiddleTurns": {
+              "elapsedMs": 1919.367,
+              "flutterFrames": 7,
+              "gpuCopies": 54,
+              "commandResolvedLatencyMs": {
+                "median": 169.450927734375,
+                "samples": [
+                  134.152099609375,
+                  418.194091796875,
+                  169.450927734375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 169.450927734375,
+                "samples": [
+                  134.152099609375,
+                  418.194091796875,
+                  169.450927734375
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 178.450927734375,
+                "samples": [
+                  154.152099609375,
+                  425.194091796875,
+                  178.450927734375
+                ]
+              },
+              "browserTaskMs": 730.3750000000002,
+              "layoutCount": 21
+            },
+            "curlSettings": {
+              "elapsedMs": 2430.422,
+              "flutterFrames": 88,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                77.86,
+                30.855,
+                55.947
+              ],
+              "browserTaskMs": 11.995999999999896,
+              "layoutCount": 0
+            },
+            "verticalFirstTurn": {
+              "elapsedMs": 15.033,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 12.001953125,
+                "samples": [
+                  12.001953125
+                ]
+              },
+              "browserTaskMs": 9.11899999999999,
+              "layoutCount": 0
+            },
+            "verticalFollowingTurns": {
+              "elapsedMs": 182.708,
+              "flutterFrames": 2,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 37.550048828125,
+                "samples": [
+                  121.080078125,
+                  14.251953125,
+                  37.550048828125
+                ]
+              },
+              "browserTaskMs": 117.76599999999998,
+              "layoutCount": 30
+            },
+            "verticalIdle": {
+              "elapsedMs": 3002.343,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.6340000000000234,
+              "layoutCount": 0
+            },
+            "verticalMiddleTurns": {
+              "elapsedMs": 170.839,
+              "flutterFrames": 3,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 33.009033203125,
+                "samples": [
+                  15.214111328125,
+                  33.009033203125,
+                  43.800048828125
+                ]
+              },
+              "browserTaskMs": 86.88200000000002,
+              "layoutCount": 10
+            },
+            "verticalWheel": {
+              "elapsedMs": 1815.068,
+              "flutterFrames": 2,
+              "gpuCopies": 37,
+              "browserTaskMs": 290.841,
+              "layoutCount": 94
+            },
+            "verticalSettings": {
+              "elapsedMs": 2556.65,
+              "flutterFrames": 82,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                54.285,
+                85.409,
+                87.257
+              ],
+              "browserTaskMs": 7.547999999999999,
+              "layoutCount": 0
+            }
+          },
+          "peakPrivateBytes": 499179520,
+          "peakWorkingBytesSum": 797102080
+        }
+      }
+    },
+    {
+      "run": 41618749777,
+      "label": "Final source; presentation excluded",
+      "usableForActivePresentationComparison": false,
+      "reports": {
+        "optimized": {
+          "success": true,
+          "error": null,
+          "runtimeSource": "da6545fe21941f036db784b5538ed85aaad2c88d",
+          "publication": {
+            "kind": "external",
+            "bytes": 189851,
+            "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+          },
+          "browser": {
+            "none": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793702410430.6,
+              "width": 1266
+            },
+            "slide": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793702432550.6,
+              "width": 1266
+            },
+            "curl": {
+              "curlProgramsReady": true,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": true,
+              "reducedMotion": false,
+              "timeOrigin": 1793702454115.8,
+              "width": 1266
+            },
+            "vertical": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793702476715.7,
+              "width": 1266
+            }
+          },
+          "phases": {
+            "flutterIdle": {
+              "elapsedMs": 3001.935,
+              "flutterFrames": 0
+            },
+            "noneFirstTurn": {
+              "elapsedMs": 181.991,
+              "flutterFrames": 0,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 178.50390625,
+                "samples": [
+                  178.50390625
+                ]
+              },
+              "browserTaskMs": 104.53599999999996,
+              "layoutCount": 15
+            },
+            "noneFollowingTurns": {
+              "elapsedMs": 259.483,
+              "flutterFrames": 2,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 34.85888671875,
+                "samples": [
+                  22.39208984375,
+                  193.2529296875,
+                  34.85888671875
+                ]
+              },
+              "browserTaskMs": 141.12599999999998,
+              "layoutCount": 15
+            },
+            "noneIdle": {
+              "elapsedMs": 3001.047,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.520000000000076,
+              "layoutCount": 0
+            },
+            "noneMiddleTurns": {
+              "elapsedMs": 280.736,
+              "flutterFrames": 3,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 33.054931640625,
+                "samples": [
+                  20.427001953125,
+                  189.674072265625,
+                  33.054931640625
+                ]
+              },
+              "browserTaskMs": 125.97000000000003,
+              "layoutCount": 15
+            },
+            "noneSettings": {
+              "elapsedMs": 2412.971,
+              "flutterFrames": 67,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                54.403,
+                45.979,
+                47.296
+              ],
+              "browserTaskMs": 6.2149999999999705,
+              "layoutCount": 0
+            },
+            "settingsDuringInjectedBrowserWork": {
+              "elapsedMs": 1411.151,
+              "flutterFrames": 31,
+              "gpuCopies": 0,
+              "action": {
+                "injectedBrowserWorkMs": 800,
+                "sheetVisibleMs": 34.359
+              },
+              "browserTaskMs": 802.3989999999999,
+              "layoutCount": 0
+            },
+            "slideFirstTurn": {
+              "elapsedMs": 686.966,
+              "flutterFrames": 2,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 221.2060546875,
+                "samples": [
+                  221.2060546875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 217.2060546875,
+                "samples": [
+                  217.2060546875
+                ]
+              },
+              "browserTaskMs": 179.074,
+              "layoutCount": 18
+            },
+            "slideFollowingTurns": {
+              "elapsedMs": 1414.938,
+              "flutterFrames": 6,
+              "gpuCopies": 4,
+              "commandResolvedLatencyMs": {
+                "median": 51.4169921875,
+                "samples": [
+                  29.14697265625,
+                  138.876953125,
+                  51.4169921875
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 48.4169921875,
+                "samples": [
+                  28.14697265625,
+                  136.876953125,
+                  48.4169921875
+                ]
+              },
+              "browserTaskMs": 191.814,
+              "layoutCount": 30
+            },
+            "slideIdle": {
+              "elapsedMs": 3001.625,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.4689999999999417,
+              "layoutCount": 0
+            },
+            "slideMiddleTurns": {
+              "elapsedMs": 1486.024,
+              "flutterFrames": 7,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 40.534912109375,
+                "samples": [
+                  29.779052734375,
+                  160.239013671875,
+                  40.534912109375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 37.534912109375,
+                "samples": [
+                  28.779052734375,
+                  157.239013671875,
+                  37.534912109375
+                ]
+              },
+              "browserTaskMs": 204.02399999999997,
+              "layoutCount": 30
+            },
+            "slideSettings": {
+              "elapsedMs": 2501.262,
+              "flutterFrames": 81,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                63.153,
+                85.734,
+                89.074
+              ],
+              "browserTaskMs": 6.466000000000083,
+              "layoutCount": 0
+            },
+            "curlFirstTurn": {
+              "elapsedMs": 1056.951,
+              "flutterFrames": 3,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 666.56005859375,
+                "samples": [
+                  666.56005859375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 665.56005859375,
+                "samples": [
+                  665.56005859375
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 677.56005859375,
+                "samples": [
+                  677.56005859375
+                ]
+              },
+              "browserTaskMs": 653.632,
+              "layoutCount": 17
+            },
+            "curlFollowingTurns": {
+              "elapsedMs": 1624.301,
+              "flutterFrames": 6,
+              "gpuCopies": 5,
+              "commandResolvedLatencyMs": {
+                "median": 76.14208984375,
+                "samples": [
+                  70.718017578125,
+                  279.154052734375,
+                  76.14208984375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 76.14208984375,
+                "samples": [
+                  70.718017578125,
+                  279.154052734375,
+                  76.14208984375
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 104.14208984375,
+                "samples": [
+                  73.718017578125,
+                  298.154052734375,
+                  104.14208984375
+                ]
+              },
+              "browserTaskMs": 443.11199999999997,
+              "layoutCount": 21
+            },
+            "curlIdle": {
+              "elapsedMs": 3001.957,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 1.258999999999899,
+              "layoutCount": 0
+            },
+            "curlMiddleTurns": {
+              "elapsedMs": 1874.925,
+              "flutterFrames": 7,
+              "gpuCopies": 4,
+              "commandResolvedLatencyMs": {
+                "median": 94.2548828125,
+                "samples": [
+                  94.2548828125,
+                  190.260009765625,
+                  54.011962890625
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 94.2548828125,
+                "samples": [
+                  94.2548828125,
+                  190.260009765625,
+                  54.011962890625
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 95.2548828125,
+                "samples": [
+                  95.2548828125,
+                  208.260009765625,
+                  67.011962890625
+                ]
+              },
+              "browserTaskMs": 380.03200000000015,
+              "layoutCount": 21
+            },
+            "curlSettings": {
+              "elapsedMs": 2515.078,
+              "flutterFrames": 76,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                74.327,
+                76.047,
+                99.485
+              ],
+              "browserTaskMs": 13.151000000000135,
+              "layoutCount": 0
+            },
+            "verticalFirstTurn": {
+              "elapsedMs": 16.414,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 11.04296875,
+                "samples": [
+                  11.04296875
+                ]
+              },
+              "browserTaskMs": 13.191000000000008,
+              "layoutCount": 0
+            },
+            "verticalFollowingTurns": {
+              "elapsedMs": 201.705,
+              "flutterFrames": 2,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 30.31689453125,
+                "samples": [
+                  146.013916015625,
+                  14.322021484375,
+                  30.31689453125
+                ]
+              },
+              "browserTaskMs": 120.15099999999995,
+              "layoutCount": 31
+            },
+            "verticalIdle": {
+              "elapsedMs": 3001.23,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.42199999999992244,
+              "layoutCount": 0
+            },
+            "verticalMiddleTurns": {
+              "elapsedMs": 154.645,
+              "flutterFrames": 3,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 31.070068359375,
+                "samples": [
+                  5.261962890625,
+                  31.070068359375,
+                  48.18310546875
+                ]
+              },
+              "browserTaskMs": 26.368999999999975,
+              "layoutCount": 8
+            },
+            "verticalWheel": {
+              "elapsedMs": 1760.387,
+              "flutterFrames": 1,
+              "gpuCopies": 4,
+              "browserTaskMs": 213.92200000000005,
+              "layoutCount": 94
+            },
+            "verticalSettings": {
+              "elapsedMs": 2444.174,
+              "flutterFrames": 91,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                28.82,
+                26.345,
+                78.896
+              ],
+              "browserTaskMs": 6.377999999999995,
+              "layoutCount": 0
+            }
+          },
+          "peakPrivateBytes": 531148800,
+          "peakWorkingBytesSum": 823746560
+        },
+        "baseline": {
+          "success": true,
+          "error": null,
+          "runtimeSource": "f4f0d806d83471c3cecf61cfdf9bb3f17132bb04",
+          "publication": {
+            "kind": "external",
+            "bytes": 189851,
+            "sha256": "23ba9d11f7c5f606431becb672b5577927569074bb02c3dab875bc81bf184139"
+          },
+          "browser": {
+            "none": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793702306587.7,
+              "width": 1266
+            },
+            "slide": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793702329883.2,
+              "width": 1266
+            },
+            "curl": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793702351667.6,
+              "width": 1266
+            },
+            "vertical": {
+              "curlProgramsReady": false,
+              "dpr": 1.25,
+              "height": 682,
+              "parallelShaderCompilation": null,
+              "reducedMotion": false,
+              "timeOrigin": 1793702374415.9,
+              "width": 1266
+            }
+          },
+          "phases": {
+            "flutterIdle": {
+              "elapsedMs": 3001.072,
+              "flutterFrames": 0
+            },
+            "noneFirstTurn": {
+              "elapsedMs": 219.837,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 214.611083984375,
+                "samples": [
+                  214.611083984375
+                ]
+              },
+              "browserTaskMs": 138.27200000000002,
+              "layoutCount": 15
+            },
+            "noneFollowingTurns": {
+              "elapsedMs": 323.896,
+              "flutterFrames": 2,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 35.10009765625,
+                "samples": [
+                  32.4580078125,
+                  243.533935546875,
+                  35.10009765625
+                ]
+              },
+              "browserTaskMs": 192.24399999999997,
+              "layoutCount": 15
+            },
+            "noneIdle": {
+              "elapsedMs": 3001.337,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.6040000000000489,
+              "layoutCount": 0
+            },
+            "noneMiddleTurns": {
+              "elapsedMs": 366.527,
+              "flutterFrames": 3,
+              "gpuCopies": 1,
+              "commandResolvedLatencyMs": {
+                "median": 30.712890625,
+                "samples": [
+                  30.712890625,
+                  264.675048828125,
+                  25.3330078125
+                ]
+              },
+              "browserTaskMs": 214.9110000000001,
+              "layoutCount": 15
+            },
+            "noneSettings": {
+              "elapsedMs": 2470.259,
+              "flutterFrames": 80,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                76.404,
+                44.958,
+                81.396
+              ],
+              "browserTaskMs": 9.325000000000028,
+              "layoutCount": 0
+            },
+            "settingsDuringInjectedBrowserWork": {
+              "elapsedMs": 2168.709,
+              "flutterFrames": 31,
+              "gpuCopies": 0,
+              "action": {
+                "injectedBrowserWorkMs": 800,
+                "sheetVisibleMs": 791.161
+              },
+              "browserTaskMs": 804.69,
+              "layoutCount": 0
+            },
+            "slideFirstTurn": {
+              "elapsedMs": 687.166,
+              "flutterFrames": 3,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 275.4541015625,
+                "samples": [
+                  275.4541015625
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 271.4541015625,
+                "samples": [
+                  271.4541015625
+                ]
+              },
+              "browserTaskMs": 228.78299999999996,
+              "layoutCount": 18
+            },
+            "slideFollowingTurns": {
+              "elapsedMs": 1572.026,
+              "flutterFrames": 6,
+              "gpuCopies": 4,
+              "commandResolvedLatencyMs": {
+                "median": 68.306884765625,
+                "samples": [
+                  36.201904296875,
+                  180.572998046875,
+                  68.306884765625
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 64.306884765625,
+                "samples": [
+                  34.201904296875,
+                  179.572998046875,
+                  64.306884765625
+                ]
+              },
+              "browserTaskMs": 323.24600000000004,
+              "layoutCount": 30
+            },
+            "slideIdle": {
+              "elapsedMs": 3001.34,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.9350000000000191,
+              "layoutCount": 0
+            },
+            "slideMiddleTurns": {
+              "elapsedMs": 1522.802,
+              "flutterFrames": 7,
+              "gpuCopies": 5,
+              "commandResolvedLatencyMs": {
+                "median": 45.2109375,
+                "samples": [
+                  41.93310546875,
+                  203.30810546875,
+                  45.2109375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 43.2109375,
+                "samples": [
+                  39.93310546875,
+                  202.30810546875,
+                  43.2109375
+                ]
+              },
+              "browserTaskMs": 240.67899999999997,
+              "layoutCount": 30
+            },
+            "slideSettings": {
+              "elapsedMs": 2465.793,
+              "flutterFrames": 85,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                92.028,
+                64.352,
+                43.871
+              ],
+              "browserTaskMs": 8.194999999999952,
+              "layoutCount": 0
+            },
+            "curlFirstTurn": {
+              "elapsedMs": 1140.751,
+              "flutterFrames": 3,
+              "gpuCopies": 3,
+              "commandResolvedLatencyMs": {
+                "median": 763.011962890625,
+                "samples": [
+                  763.011962890625
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 763.011962890625,
+                "samples": [
+                  763.011962890625
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 780.011962890625,
+                "samples": [
+                  780.011962890625
+                ]
+              },
+              "browserTaskMs": 716.083,
+              "layoutCount": 17
+            },
+            "curlFollowingTurns": {
+              "elapsedMs": 1731.412,
+              "flutterFrames": 6,
+              "gpuCopies": 5,
+              "commandResolvedLatencyMs": {
+                "median": 111.047119140625,
+                "samples": [
+                  100.662109375,
+                  316.125,
+                  111.047119140625
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 111.047119140625,
+                "samples": [
+                  99.662109375,
+                  316.125,
+                  111.047119140625
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 137.047119140625,
+                "samples": [
+                  127.662109375,
+                  334.125,
+                  137.047119140625
+                ]
+              },
+              "browserTaskMs": 444.46499999999986,
+              "layoutCount": 21
+            },
+            "curlIdle": {
+              "elapsedMs": 3000.429,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 1.3300000000000534,
+              "layoutCount": 0
+            },
+            "curlMiddleTurns": {
+              "elapsedMs": 1787.898,
+              "flutterFrames": 7,
+              "gpuCopies": 5,
+              "commandResolvedLatencyMs": {
+                "median": 142.306884765625,
+                "samples": [
+                  142.306884765625,
+                  314.9189453125,
+                  104.4130859375
+                ]
+              },
+              "animationReadyLatencyMs": {
+                "median": 142.306884765625,
+                "samples": [
+                  142.306884765625,
+                  314.9189453125,
+                  104.4130859375
+                ]
+              },
+              "firstProgressLatencyMs": {
+                "median": 143.306884765625,
+                "samples": [
+                  143.306884765625,
+                  316.9189453125,
+                  137.4130859375
+                ]
+              },
+              "browserTaskMs": 488.054,
+              "layoutCount": 21
+            },
+            "curlSettings": {
+              "elapsedMs": 2418.764,
+              "flutterFrames": 86,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                55.587,
+                47.045,
+                47.684
+              ],
+              "browserTaskMs": 14.946000000000126,
+              "layoutCount": 0
+            },
+            "verticalFirstTurn": {
+              "elapsedMs": 24.84,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 21.571044921875,
+                "samples": [
+                  21.571044921875
+                ]
+              },
+              "browserTaskMs": 9.677000000000046,
+              "layoutCount": 0
+            },
+            "verticalFollowingTurns": {
+              "elapsedMs": 202.77,
+              "flutterFrames": 2,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 78.19189453125,
+                "samples": [
+                  94.631103515625,
+                  16.837890625,
+                  78.19189453125
+                ]
+              },
+              "browserTaskMs": 98.09499999999998,
+              "layoutCount": 36
+            },
+            "verticalIdle": {
+              "elapsedMs": 3000.678,
+              "flutterFrames": 1,
+              "gpuCopies": 0,
+              "browserTaskMs": 0.5380000000000384,
+              "layoutCount": 0
+            },
+            "verticalMiddleTurns": {
+              "elapsedMs": 128.37,
+              "flutterFrames": 3,
+              "gpuCopies": 0,
+              "commandResolvedLatencyMs": {
+                "median": 39.455078125,
+                "samples": [
+                  9.652099609375,
+                  39.455078125,
+                  46.447998046875
+                ]
+              },
+              "browserTaskMs": 55.871,
+              "layoutCount": 8
+            },
+            "verticalWheel": {
+              "elapsedMs": 2097.706,
+              "flutterFrames": 2,
+              "gpuCopies": 5,
+              "browserTaskMs": 237.90299999999996,
+              "layoutCount": 94
+            },
+            "verticalSettings": {
+              "elapsedMs": 2429.82,
+              "flutterFrames": 84,
+              "gpuCopies": 0,
+              "sheetVisibleMs": [
+                53.276,
+                45.617,
+                47.104
+              ],
+              "browserTaskMs": 9.025999999999978,
+              "layoutCount": 0
+            }
+          },
+          "peakPrivateBytes": 549298176,
+          "peakWorkingBytesSum": 843497472
+        }
+      }
+    }
+  ],
+  "finalPresentationRetry": {
+    "run": 41622512845,
+    "statusWhenDocumented": "queued, awaiting MATEBOOK",
+    "reason": "The final-source run completed functionally but native texture delivery was too low for an active-presentation comparison. The repeat requires an unlocked desktop and temporarily pins only the diagnostic window."
+  }
+}
