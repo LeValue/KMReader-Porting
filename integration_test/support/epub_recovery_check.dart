@@ -85,6 +85,7 @@ void verifyNativeEpubRecovery() {
             initialRoute: '/',
             theme: appTheme(Brightness.light),
             home: ReaderDisplay(
+              keepAwake: true,
               child: BrowserEpubReader(
                 file: file,
                 repository: repository,
@@ -157,15 +158,16 @@ void verifyNativeEpubRecovery() {
         ''');
         final native = await ReaderDisplay.channel
             .invokeMapMethod<String, dynamic>('getWebViewRenderingStats');
+        final configuration = await ReaderDisplay.channel
+            .invokeMapMethod<String, dynamic>('getEpubWebViewConfiguration');
         final probe = <String, dynamic>{
           'phase': phase,
           'dom': dom,
           'native': native,
+          'impellerRequested': configuration?['impellerRequested'],
           'compositionOverride':
               const bool.hasEnvironment('KMREADER_EPUB_HYBRID_COMPOSITION') ||
-              tester.binding.platformDispatcher.defaultRouteName.startsWith(
-                '/kmreader-epub-diagnostic/',
-              ),
+              configuration?['diagnosticOverride'] == true,
           'hybrid': tester
               .widget<InAppWebView>(find.byType(InAppWebView))
               .platform
@@ -227,10 +229,11 @@ void verifyNativeEpubRecovery() {
         expect(await js('return reader.position().start.cfi;'), beforeSettings);
         await readable('settings-close');
         final normalCurl = await js('''
-          const media=window.matchMedia,start=KMReaderSheetEffect.prototype.start;
+          const media=window.matchMedia,start=KMReaderSheetEffect.prototype.start,animate=KMReaderSheetEffect.prototype.animateTo;
           window.matchMedia=q=>q.includes('prefers-reduced-motion')?{matches:false}:media.call(window,q);
           let effect;
           KMReaderSheetEffect.prototype.start=function(...args){effect=this;return start.apply(this,args);};
+          KMReaderSheetEffect.prototype.animateTo=function(target,duration,options){return animate.call(this,target,900,options);};
           try{
             const before=reader.position().start.cfi,started=performance.now();
             await reader.turn({delta:1,style:'curl'});
@@ -243,11 +246,11 @@ void verifyNativeEpubRecovery() {
               await new Promise(resolve=>setTimeout(resolve,16));
             }
             if(effect.failed||effect.progress<.999)throw Error('Normal native curl fell back before completion');
-            if(samples.filter(s=>s.progress>0&&s.progress<1).length<2)throw Error('Normal native curl had no intermediate frames');
+            if(new Set(samples.filter(s=>s.progress>0&&s.progress<1).map(s=>s.progress)).size<2)throw Error('Normal native curl had no intermediate frames');
             if(effect.surface.gl.getError()!==effect.surface.gl.NO_ERROR)throw Error('Native curl reported a GPU drawing error');
             if(reader.position().start.cfi===before)throw Error('Normal native curl did not navigate');
-            return {readyMs:ready-started,durationMs:performance.now()-ready,samples};
-          }finally{window.matchMedia=media;KMReaderSheetEffect.prototype.start=start;}
+            return {configuredDurationMs:900,readyMs:ready-started,durationMs:performance.now()-ready,samples};
+          }finally{window.matchMedia=media;KMReaderSheetEffect.prototype.start=start;KMReaderSheetEffect.prototype.animateTo=animate;}
         ''');
         IntegrationTestWidgetsFlutterBinding.ensureInitialized()
                 .reportData!['normalCurl'] =

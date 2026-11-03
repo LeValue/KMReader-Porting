@@ -51,6 +51,19 @@ try {
     $driveExit = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($driveExit -ne 0) { throw 'Android EPUB recovery regression failed; inspect test.log.' }
+    $report = Get-Content "$output/report.json" -Raw | ConvertFrom-Json
+    $probes = @($report.epubRecoveryProbes)
+    if ($probes.Count -eq 0) { throw 'The reader did not return visible-text probes.' }
+    foreach ($probe in $probes) {
+        if ($Composition -ne 'auto') {
+            if (-not $probe.compositionOverride -or $probe.hybrid -ne ($Composition -eq 'hybrid')) {
+                throw 'The requested WebView composition was not applied; this comparison is invalid.'
+            }
+        } elseif ($probe.compositionOverride) { throw 'Automatic composition was overridden in the test APK.' }
+        if ($DisableImpeller -and $probe.impellerRequested -ne $false) {
+            throw 'The launcher did not forward the requested renderer flag; this comparison is invalid.'
+        }
+    }
 } finally {
     if ($installed) {
         # Keep diagnostics scoped to this test process; do not export the

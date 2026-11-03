@@ -374,12 +374,12 @@ class KMReaderSheetEffect {
       }catch(_){for(const animation of animations)animation.cancel();this.compositor=null;}
     }
     return new Promise(resolve=>{
-      this.finishAnimation=resolve;let last=null,elapsed=0;
+      this.finishAnimation=resolve;const started=performance.now();
       const frame=now=>{
         if(this.stopped){resolve();return;}
-        if(last!==null)elapsed+=Math.min(32,Math.max(0,now-last));
-        last=now;
-        const t=Math.min(1,elapsed/Math.max(1,duration));
+        // Preserve the requested wall duration under load. Capping each delta
+        // at 32ms turned slow presentation into multi-second slow motion.
+        const t=Math.min(1,Math.max(0,now-started)/Math.max(1,duration));
         const eased=automatic?t*t*t*(10+t*(-15+6*t)):(-2*t*t*t+3*t*t)+tangent*(t*t*t-2*t*t+t);
         try{this.update(from+delta*eased);}catch(_){this.fail();return;}
         if(t<1)this.frame=requestAnimationFrame(frame);else{clearTimeout(this.watchdog);this.finishAnimation=null;resolve();}
