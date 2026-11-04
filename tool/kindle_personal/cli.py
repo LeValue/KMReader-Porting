@@ -26,8 +26,9 @@ def exclusive(directory):
         if os.name == "nt":
             import msvcrt
 
-            stream.seek(0)
-            if not stream.read(1):
+            # A byte-range lock also forbids reads by a second handle on
+            # Windows. Inspect file metadata before attempting the lock instead.
+            if os.fstat(stream.fileno()).st_size == 0:
                 stream.write(b"0")
                 stream.flush()
             stream.seek(0)
@@ -211,7 +212,9 @@ class Application:
                     self.library()
                 elif choice == "3":
                     self.show_items(self.cached_library())
-                    selection = input("Numero del titolo (vuoto per annullare): ").strip()
+                    selection = input(
+                        "Numero del titolo (vuoto per annullare): "
+                    ).strip()
                     if selection:
                         self.download(selection)
                 elif choice == "4":
