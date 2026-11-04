@@ -5,6 +5,14 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      deliver_draft:
+        description: Deliver already verified signed builds to an existing review draft without publishing
+        type: boolean
+        default: false
+      draft_tag:
+        description: Existing empty versioned EPUB candidate draft
+        type: string
+        default: ''
       publish_preview:
         description: Publish the verified Android APK to the development preview release
         type: boolean
@@ -41,7 +49,7 @@ permissions:
   contents: read
 jobs:
   android:
-    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
+    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +101,7 @@ jobs:
           name: android-release-unsigned
           path: build/app/outputs/flutter-apk/app-release.apk
   windows:
-    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
+    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -129,7 +137,7 @@ jobs:
           name: windows
           path: build/windows/x64/runner/Release/
   android_reader_display:
-    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
+    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -240,7 +248,7 @@ jobs:
             artifacts/native-epub/*.png
             ${{ runner.temp }}/reader-logcat.txt
   publish_android_preview:
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && !inputs.deliver_draft && github.ref == 'refs/heads/main'
     needs: [android, windows, android_reader_display]
     runs-on: ubuntu-latest
     permissions:
@@ -382,3 +390,37 @@ jobs:
           print('All release assets match GitHub SHA256 digests.')
           PYCODE
           gh release edit "$RELEASE_TAG" --target "$GITHUB_SHA" --notes-file release-notes.md --draft=false --prerelease --latest=false
+  deliver_verified_draft:
+    if: github.event_name == 'workflow_dispatch' && inputs.deliver_draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: verified-draft-delivery-${{ inputs.draft_tag }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERIFIED_RUN: ${{ inputs.verified_run }}
+      DRAFT_TAG: ${{ inputs.draft_tag }}
+      PREVIEW_BLOB: ${{ inputs.preview_blob }}
+      PREVIEW_SHA256: ${{ inputs.preview_sha256 }}
+      ARMV7_BLOB: ${{ inputs.preview_armv7_blob }}
+      ARMV7_SHA256: ${{ inputs.preview_armv7_sha256 }}
+      X64_BLOB: ${{ inputs.preview_x64_blob }}
+      X64_SHA256: ${{ inputs.preview_x64_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;36.0.0'
+      - name: Recheck source, complete CI, signatures and bytes; deliver to the existing draft only
+        run: python3 tool/deliver_draft.py

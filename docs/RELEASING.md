@@ -53,3 +53,13 @@ asset digests, compare the Android files with the locally verified APKs and all
 Windows bundle files with the successful CI artifact. Update README download
 links and `docs/VALIDATION.md` with the exact source, runs and observed limits.
 A development preview must not be presented as verified full upstream parity.
+
+For review builds before merging, `ci.yml` also supports `deliver_draft=true`,
+an existing empty `v<version>-epub-candidate.<number>` draft, `verified_run`, and
+the three staged APK blob/hash pairs. This skips compilation and public
+publication. `tool/deliver_draft.py` requires successful Android/Windows/native
+CI, unchanged application/runtime sources, matching APK provenance, signatures,
+architecture, alignment and exact bytes. It packages the matching Windows CI
+artifact and verifies GitHub asset digests. The existing draft must target the
+verified commit and remains unpublished. Delivery-only tooling may be added
+after that verified runtime commit; runtime changes require fresh complete CI.
