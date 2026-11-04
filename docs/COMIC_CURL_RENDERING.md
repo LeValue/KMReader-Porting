@@ -34,3 +34,23 @@ letterbox preservation with a larger incoming page, continuous final pixels,
 reverse direction, differing back rectangles and preserved flat sheet distances.
 Android native snapshots for the new pixel probe use PixelCopy and CPU PNG decode.
 These are correctness/resolution checks, not claims about physical-device FPS.
+
+## Opaque double-page curl (0.8.17)
+
+The last 28% of a turn previously faded the stationary leaf into the destination;
+the moving front also faded during the final 4%. Both timed opacity ramps are
+removed. The original stationary image remains opaque outside the returning
+leaf's projected free edge. That edge sweeps its replacement across the old leaf;
+its reveal span follows the stationary fitted width so unequal formats finish
+without residual old artwork. Actual image texture coordinates remain unchanged.
+Letterboxing follows the ridge without opacity interpolation.
+
+A fixed mesh cell can straddle the front/back normal even when the real fold is
+smaller than one pixel, leaving a spurious triangle of old ink. Once the remaining
+projection is below a quarter texture pixel, the exact destination retires that
+subpixel geometry. This is an endpoint precision rule, not a crossfade or a change
+of animation style.
+
+Shared pixel probes inspect late-turn source/destination color separation in both
+physical directions, alongside mixed-format and endpoint continuity checks. The
+same cases execute on Android's delivered surface via PixelCopy and on Windows.
