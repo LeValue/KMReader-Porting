@@ -105,6 +105,8 @@ e non ha una firma Authenticode. Non contiene le tue credenziali o libri.
 ## Sviluppo e verifica
 
 Sorgenti nel repository, senza importare i progetti GPL/AGPL nell'app MIT.
+Per eseguire i sorgenti su Windows usa Python 3.11 x64: il parser Ion fissato
+nelle dipendenze ha un pacchetto binario per questa versione e non richiede CMake.
 I campi del protocollo sono stati implementati separatamente sulla base delle
 [fonti esaminate](https://github.com/LeValue/KMReader-Porting/blob/fix/android-epub-recovery/docs/KINDLE_UNOFFICIAL_ARCHITECTURE.md). Nessun accesso
 Amazon autenticato è stato eseguito durante i test automatici o la compilazione.

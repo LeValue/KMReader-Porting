@@ -5,6 +5,7 @@ import hashlib
 import importlib.metadata
 import json
 import shutil
+import sys
 import zipfile
 from pathlib import Path
 
@@ -41,6 +42,9 @@ def main():
     # dependencies). Node/Playwright notices are already included by collect-all.
     notices = stage / "THIRD_PARTY_LICENSES"
     notices.mkdir()
+    python_license = Path(sys.base_prefix) / "LICENSE.txt"
+    if python_license.is_file():
+        shutil.copyfile(python_license, notices / "Python-LICENSE.txt")
     dependencies = {}
     for distribution in importlib.metadata.distributions():
         name = distribution.metadata["Name"]
