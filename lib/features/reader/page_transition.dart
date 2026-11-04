@@ -471,6 +471,14 @@ class PageTurnPainter extends CustomPainter {
     final hinge = direction > 0 ? bounds.left : bounds.right;
     final width = math.max(bounds.width, back?.width ?? 0);
     final height = math.max(bounds.height, back?.height ?? 0);
+    // Retire subpixel geometry at the exact destination. A fixed mesh cell
+    // straddling the front/back normal can otherwise leave a whole old-ink
+    // triangle after the real fold is smaller than a quarter texture pixel.
+    final resolution = math.max(
+      before.width / size.width,
+      (after?.width ?? before.width) / size.width,
+    );
+    if (width * (1 - p) * resolution < .25) return;
     CurlProjection projection(double hinge) => CurlProjection(
       width: width,
       height: height,
@@ -508,12 +516,30 @@ class PageTurnPainter extends CustomPainter {
       canvas.clipRect(stationary, clipOp: ui.ClipOp.difference);
     }
     canvas.clipPath(unturned);
-    image(canvas, before, size, Offset.zero, 1 - settle);
+    image(canvas, before, size);
     canvas.restore();
     if (stationary != null) {
       canvas.save();
       canvas.clipRect(stationary);
-      image(canvas, before, size, Offset.zero, 1 - settle);
+      // The old stationary leaf stays opaque until the turning sheet covers
+      // it. Its free edge sweeps the replacement across the leaf, including
+      // mixed fitted sizes; a timed crossfade ghosts both pages together.
+      final uncovered = Path()..moveTo(edge, -margin);
+      for (var i = 0; i <= 48; i++) {
+        final outer = front.point(
+          hinge + direction * width,
+          -margin + margin * 2 * i / 48,
+        );
+        uncovered.lineTo(
+          hinge + (outer.x - hinge) * stationary.width / width,
+          outer.y,
+        );
+      }
+      uncovered
+        ..lineTo(edge, margin)
+        ..close();
+      canvas.clipPath(uncovered);
+      image(canvas, before, size);
       canvas.restore();
     }
 
@@ -608,12 +634,7 @@ class PageTurnPainter extends CustomPainter {
             TileMode.clamp,
             Matrix4.identity().storage,
           )
-          ..filterQuality = FilterQuality.high
-          ..color = Colors.white.withValues(
-            alpha: backside
-                ? 1
-                : 1 - Curves.easeInOut.transform(((p - .96) / .04).clamp(0, 1)),
-          );
+          ..filterQuality = FilterQuality.high;
         if (backside && !reverseFace) {
           paint.colorFilter = const ColorFilter.matrix([
             .45,
