@@ -110,8 +110,12 @@ jobs:
         shell: bash
         run: |
           tag="kindle-personal-prototype-v0.1.0"
-          gh release create "$tag" --draft --target "$GITHUB_SHA" --title "KMReader Kindle personale 0.1.0 — Amazon.it" --notes-file tool/kindle_personal/RELEASE_NOTES.md
-          archive=$(rg --files artifacts/kindle-delivery | rg '/KMReader-Kindle-.*-windows-x64\.zip$')
-          checksums=$(rg --files artifacts/kindle-delivery | rg '/SHA256SUMS\.txt$')
+          archive=$(python -c "from pathlib import Path; p=list(Path('artifacts/kindle-delivery').rglob('KMReader-Kindle-*-windows-x64.zip')); assert len(p)==1; print(p[0])")
+          checksums=$(python -c "from pathlib import Path; p=list(Path('artifacts/kindle-delivery').rglob('SHA256SUMS.txt')); assert len(p)==1; print(p[0])")
           (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$checksums")")
+          if gh release view "$tag" --json isDraft,targetCommitish,assets > artifacts/draft.json 2>/dev/null; then
+            python -c "import json,os; r=json.load(open('artifacts/draft.json')); assert r['isDraft'] and r['targetCommitish']==os.environ['GITHUB_SHA'] and not r['assets'], 'Only an empty draft for this exact source can be resumed'"
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "KMReader Kindle personale 0.1.0 — Amazon.it" --notes-file tool/kindle_personal/RELEASE_NOTES.md
+          fi
           gh release upload "$tag" "$archive" "$checksums"
