@@ -1341,7 +1341,7 @@ class KMReaderPageSnapshot {
     cancelCurlWarm();
     // Direct navigation is also used inside an effect's capture callback.
     // Never dispose or replace its textures while that effect owns them.
-    if(gesture||sheetEffect)return;
+    if(gesture||sheetEffect||KMReaderCurlSurface.shared?.effect)return;
     if(!curlConfigured()){releaseCurl();return;}
     if(!curlEligible())return;
     const revision=captureWarmRevision,publication=captureRevision;
