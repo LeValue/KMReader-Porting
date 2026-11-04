@@ -5,7 +5,7 @@ import io
 import json
 import sys
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import sync_playwright
 
 url, config = sys.argv[1], json.loads(sys.argv[2])
@@ -51,8 +51,30 @@ with sync_playwright() as pw:
                                for k in ['original', 'optimized']]
         changed = sum(max(pixel) > 4 for pixel in ImageChops.difference(original, optimized).getdata())
         assert changed == 0, (fraction, config['viewport'], config['direction'], changed)
+        live = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+        assert max(ImageStat.Stat(ImageChops.difference(live, optimized)).mean) < 1, (
+            'Curl changed the live text layout', fraction, config['viewport'])
         assert result['glyphsAfter'] < result['glyphsBefore'] / 3, result['glyphsAfter']
     if config['direction'] == 'ltr' and config['viewport']['width'] == 390:
+        note = page.evaluate('''async () => {
+          const content=snapshotRendition.getContents()[0],doc=content.document,pre=doc.querySelector('pre');
+          const range=doc.createRange();range.selectNodeContents(pre);range.collapse(true);
+          await reader.display(content.cfiFromRange(range));
+          const style=doc.defaultView.getComputedStyle(pre),text=pre.firstChild;
+          const column=snapshotRendition.manager.layout.columnWidth;
+          let widest=0;
+          for(const match of text.textContent.matchAll(/\\S+/g)){
+            range.setStart(text,match.index);range.setEnd(text,match.index+match[0].length);
+            for(const rect of range.getClientRects())widest=Math.max(widest,rect.width);
+          }
+          // Re-wrapping the note keeps every authored word and line break.
+          return {whiteSpace:style.whiteSpace,width:pre.clientWidth,overflow:pre.scrollWidth,widest,column,
+            lines:text.textContent.split('\\n').length,words:text.textContent.match(/\\S+/g).length};
+        }''')
+        assert note['whiteSpace'] == 'pre-wrap', note
+        assert note['overflow'] <= note['width'] + 1, note
+        assert note['widest'] < note['column'] and note['lines'] == 24, note
+        assert note['words'] == 24 * 18, note
         overflow = page.evaluate('''async () => {
           await reader.display('one.xhtml');
           const doc=snapshotRendition.getContents()[0].document,p=doc.querySelector('p');

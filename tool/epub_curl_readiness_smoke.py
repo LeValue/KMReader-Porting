@@ -19,6 +19,8 @@ with sync_playwright() as pw:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(url)
     page.evaluate("""() => {
+      const renderTo=ePub.Book.prototype.renderTo;
+      ePub.Book.prototype.renderTo=function(...args){return window.testRendition=renderTo.apply(this,args);};
       window.warms=0;window.work={serialize:0,decode:0,upload:0};
       for(const [prototype,name,key] of [[XMLSerializer.prototype,'serializeToString','serialize'],
           [HTMLImageElement.prototype,'decode','decode'],[WebGLRenderingContext.prototype,'texImage2D','upload']]){
@@ -91,6 +93,45 @@ with sync_playwright() as pw:
     assert page.evaluate('reader.position().start.cfi') == saved
     page.evaluate('reader.next()')
     assert page.evaluate('reader.position().start.cfi') != saved, 'Focus loss locked the navigation queue'
+    # The old chapter-boundary path deliberately waited for pointerup before
+    # starting a curl. Exercise both boundaries while input is still held.
+    last_warm = page.evaluate('warms')
+    page.evaluate('''async () => {
+      const content=testRendition.getContents()[0],doc=content.document,p=[...doc.querySelectorAll('p')].at(-1);
+      const range=doc.createRange();range.selectNodeContents(p);range.collapse(false);
+      await reader.display(content.cfiFromRange(range));
+    }''')
+    for delta in [1, -1]:
+        page.wait_for_function('(n)=>warms>n', arg=last_warm)
+        saved = page.evaluate('reader.position().start.cfi')
+        page.evaluate('window.retainedFrame=document.querySelector("#viewer iframe");window.beforeWork={...work}')
+        start_x, end_x = (width - 6, width * .65) if delta == 1 else (6, width * .35)
+        page.mouse.move(xcoord(start_x), height * .55)
+        page.mouse.down()
+        page.mouse.move(xcoord(end_x), height * .55, steps=7)
+        try:
+            page.wait_for_function('() => effect && !effect.stopped && effect.progress>.15')
+        except Exception:
+            print('Boundary input failure', delta, page.evaluate('''() => ({position:reader.position(),shield:!!document.getElementById('page-gesture'),
+              effect:{progress:effect?.progress,ready:effect?.ready,stopped:effect?.stopped,failed:effect?.failed},
+              frames:[...document.querySelectorAll('iframe')].map(f=>f.getBoundingClientRect().toJSON()),work})'''), errors, flush=True)
+            raise
+        assert page.evaluate('!!previewPair'), 'Chapter boundary waited for release'
+        assert page.evaluate('reader.position().start.cfi') == saved
+        assert page.evaluate('document.querySelector("#viewer iframe")===retainedFrame')
+        boundary_work = page.evaluate('({work,beforeWork})')
+        assert all(boundary_work['work'][k] == boundary_work['beforeWork'][k] for k in ['serialize', 'decode']), ('Boundary did foreground snapshot work', delta, boundary_work)
+        assert boundary_work['work']['upload'] <= boundary_work['beforeWork']['upload'] + (1 if delta < 0 else 0), ('Boundary reuploaded prepared textures', delta, boundary_work)
+        page.evaluate('effect.update(1)')
+        destination = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+        last_warm = page.evaluate('warms')
+        page.mouse.up()
+        page.wait_for_function('() => !document.getElementById("page-gesture")')
+        live = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+        assert max(ImageStat.Stat(ImageChops.difference(destination,live)).mean)<6, 'Boundary preview differs from destination'
+        assert page.evaluate('reader.position().start.href') == ('two.xhtml' if delta == 1 else 'one.xhtml')
+    page.wait_for_function('(n)=>warms>n', arg=last_warm)
+    assert page.evaluate('document.querySelectorAll("iframe").length') == 1, 'Idle boundary DOM retained'
     front_shade=page.evaluate("""async () => {
       const probe=async surface=>{
       const g=surface.gl;await surface.whenReady();
