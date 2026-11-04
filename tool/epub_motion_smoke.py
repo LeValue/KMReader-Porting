@@ -68,7 +68,7 @@ with sync_playwright() as pw:
       window.motionUpdate = KMReaderSheetEffect.prototype.update;
       window.motionAnimate = KMReaderSheetEffect.prototype.animateTo;
       const start=KMReaderSheetEffect.prototype.start;
-      KMReaderSheetEffect.prototype.start=async function(move){window.effect=this;return start.call(this,move);};
+      KMReaderSheetEffect.prototype.start=async function(...args){window.effect=this;return start.apply(this,args);};
       KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
     }''')
     output = Path('artifacts/epub-motion-0.8.10')
@@ -320,6 +320,7 @@ with sync_playwright() as pw:
     progress = page.evaluate('effect.progress')
     assert (.60 < progress < 1 if width>800 else .30 < progress < .55), progress
     assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Gesture preview wrote progress'
+    assert page.evaluate('reader.position().start.cfi') == saved, 'Curl navigated before the finger committed'
     if width == 390 and not rtl:
         for step in range(22):
             page.wait_for_timeout(500)

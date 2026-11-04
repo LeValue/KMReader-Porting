@@ -389,6 +389,48 @@ void main() {
       skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
     );
   }
+  for (final (width, direction) in [
+    (390, 'ltr'),
+    (1044, 'ltr'),
+    (390, 'rtl'),
+  ]) {
+    test(
+      'EPUB first curl reuses idle textures and commits only after release at $width ($direction)',
+      () async {
+        final file = fixture(
+          directory,
+          paragraphCount: 1400,
+          readingDirection: direction,
+        );
+        final document = EpubDocument.open(file.path);
+        final host = await EpubHost.open(document, filePath: file.path);
+        try {
+          final result = await Process.run('python3', [
+            'tool/epub_curl_readiness_smoke.py',
+            host.reader.toString(),
+            jsonEncode({
+              'url': host.publication.toString(),
+              'preferences': EpubPreferences.fromJson({'theme': 'white'})
+                  .toJson(),
+              'nonce': 'readiness',
+              'direction': direction,
+              'href': 'one.xhtml',
+              'viewport': {'width': width, 'height': width == 390 ? 780 : 720},
+            }),
+          ]);
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        } finally {
+          await host.close();
+          document.close();
+        }
+      },
+      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+    );
+  }
   test(
     'EPUB animation failures recover visible text and saved-CFI reopen',
     () async {

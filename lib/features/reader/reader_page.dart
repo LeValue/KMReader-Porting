@@ -275,7 +275,33 @@ class _ReaderPageState extends State<ReaderPage>
               ? after.leaves.first
               : after.leaves.last
         : null;
-    return PreparedPageTurn(before.image, after.image, sourceLeaf, backLeaf);
+    return PreparedPageTurn(
+      before.image,
+      after.image,
+      sourceLeaf,
+      backLeaf,
+      curlCompatible: comicSheetsMatch(before.leaves, after.leaves),
+    );
+  }
+
+  bool _canCurl(Size size, int physical) {
+    final delta = _session.preferences.direction == ReadingDirection.rtl
+        ? -physical
+        : physical;
+    final target = _viewIndex + delta;
+    if (target < 0 || target >= _viewCount) return false;
+    final count = _split ? 1 : _session.visiblePages(_viewIndex);
+    if (!_split && count != _session.visiblePages(target)) return false;
+    return comicSheetsMatch(
+      [
+        for (final side in count == 1 ? [physical] : [-1, 1])
+          _sheetBounds(size, side),
+      ],
+      [
+        for (final side in count == 1 ? [physical] : [-1, 1])
+          _sheetBounds(size, side, target),
+      ],
+    );
   }
 
   bool _previewing = false;
@@ -1740,6 +1766,7 @@ class _ReaderPageState extends State<ReaderPage>
                     },
                     captureImage: _capturePageImage,
                     sheetBounds: _sheetBounds,
+                    canCurl: _canCurl,
                     backBounds: (size, physical) {
                       final delta = settings.direction == ReadingDirection.rtl
                           ? -physical

@@ -1,4 +1,3 @@
-import '../../ui/reader_preview.dart';
 import '../../ui/reader_chrome.dart';
 
 import 'dart:async';
@@ -71,6 +70,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   bool _fixedLayout = false, _settingsOpen = false;
+  bool _settingsHidden = false;
   bool _verticalWriting = false;
   final _closed = Completer<void>();
   String? _error, _selection, _actionSelection;
@@ -695,26 +695,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   Future<void> _settings() async {
     if (_settingsOpen) return;
-    _settingsOpen = true;
+    setState(() {
+      _settingsOpen = true;
+      _settingsHidden = true;
+    });
     _chromeTimer?.cancel();
     // The native sheet can open while the browser finishes outstanding work.
     // Keep suspension ordered before preference changes and resuming input,
     // without making Flutter's controls wait for the JavaScript thread.
     final suspended = _call('suspendInput', true);
     var draft = _session!.preferences.toJson();
-    final preview = ReaderPreview<EpubPreferences>(
-      (next) async {
-        await suspended;
-        if (!mounted) return;
-        final session = _session!;
-        session.setPreferences(next);
-        await session.prepareFont();
-        if (mounted) await _call('preferences', session.browserPreferences);
-      },
-      onError: (error) {
-        if (mounted) showError(context, error);
-      },
-    );
+    final original = jsonEncode(draft);
     if (!mounted) return;
     try {
       await showModalBottomSheet<void>(
@@ -742,9 +733,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   'advancedLayout': true,
               });
               draft = next.toJson();
-              preview.schedule(next);
               update(() {});
-              await preview.flush();
             }
 
             Widget slider(
@@ -773,7 +762,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                 }.contains(key)) {
                   draft['advancedLayout'] = true;
                 }
-                preview.schedule(EpubPreferences.fromJson(draft));
               },
               onChangeEnd: (v) => apply(key, v),
             );
@@ -964,8 +952,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         motion: p.motion,
                         onChanged: (motion) {
                           draft = {...draft, ...motion.toJson()};
-                          preview.schedule(EpubPreferences.fromJson(draft));
-                          unawaited(preview.flush());
                           update(() {});
                         },
                       ),
@@ -1014,10 +1000,27 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       );
     } finally {
       await suspended;
-      await preview.flush();
-      _settingsOpen = false;
-      await _call('suspendInput', false);
-      _scheduleControlsHide();
+      if (mounted) setState(() => _settingsHidden = false);
+      // Keep panel scrolling and slider input independent of chapter layout.
+      // The offstage native browser may suspend RAF; restore its presentation
+      // before applying the final draft once, rather than reflowing invisibly.
+      try {
+        if (mounted) {
+          await WidgetsBinding.instance.endOfFrame;
+          if (jsonEncode(draft) != original) {
+            final session = _session!;
+            session.setPreferences(EpubPreferences.fromJson(draft));
+            await session.prepareFont();
+            if (mounted) await _call('preferences', session.browserPreferences);
+          }
+        }
+      } catch (error) {
+        if (mounted) showError(context, error);
+      } finally {
+        await _call('suspendInput', false);
+        _settingsOpen = false;
+        _scheduleControlsHide();
+      }
     }
   }
 
@@ -1274,7 +1277,16 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                               retry: () => _restartBrowser(manual: true),
                             )
                           else if (!_recovering)
-                            RepaintBoundary(child: _readerView(session)),
+                            // Retain the browser and its viewport while removing
+                            // its native surface from modal composition. Android
+                            // 10 hybrid WebViews otherwise force costly copies
+                            // beneath every scrolling frame of the settings.
+                            Offstage(
+                              offstage: _settingsHidden,
+                              child: RepaintBoundary(
+                                child: _readerView(session),
+                              ),
+                            ),
                           if (_controls)
                             Positioned(
                               top: 8,

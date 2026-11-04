@@ -8,8 +8,29 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/page_transition.dart';
+import 'package:kmreader/features/reader/comic_spread.dart';
 
 void main() {
+  test('comic curl compares fitted paper rather than image resolution', () {
+    const viewport = Size(390, 780);
+    final portrait = comicLeafBounds(viewport, [.65]);
+    expect(
+      comicSheetsMatch(portrait, comicLeafBounds(viewport, [1300 / 2000])),
+      isTrue,
+    );
+    expect(
+      comicSheetsMatch(portrait, comicLeafBounds(viewport, [.66])),
+      isTrue,
+    );
+    expect(
+      comicSheetsMatch(portrait, comicLeafBounds(viewport, [1.4])),
+      isFalse,
+    );
+    expect(
+      comicSheetsMatch(portrait, comicLeafBounds(viewport, [.65, .65])),
+      isFalse,
+    );
+  });
   Future<ui.Image> raster(Color color) async {
     final recorder = ui.PictureRecorder();
     Canvas(recorder).drawColor(color, BlendMode.src);

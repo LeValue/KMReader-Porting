@@ -48,6 +48,78 @@ Future<void> _finishNativeRaster(WidgetTester tester) async {
 }
 
 void verifyComicSpread() {
+  Future<ui.Image> mixedFormatRaster(Color color) async {
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawColor(color, BlendMode.src);
+    final picture = recorder.endRecording();
+    try {
+      return await picture.toImage(100, 100);
+    } finally {
+      picture.dispose();
+    }
+  }
+
+  for (final direction in [-1, 1]) {
+    testWidgets(
+      'mixed comic formats slide continuously in direction $direction',
+      (tester) async {
+        final before = (await tester.runAsync(
+          () => mixedFormatRaster(Colors.red),
+        ))!;
+        final after = (await tester.runAsync(
+          () => mixedFormatRaster(Colors.green),
+        ))!;
+        addTearDown(before.dispose);
+        addTearDown(after.dispose);
+        final key = GlobalKey<ReaderPageTransitionState>();
+        var moves = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ReaderPageTransition(
+              key: key,
+              prepare: (_) => PreparedPageTurn(
+                before.clone(),
+                after.clone(),
+                const Rect.fromLTWH(40, 0, 120, 240),
+                null,
+                curlCompatible: false,
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        );
+        final drag = key.currentState!.drag(
+          reverse: false,
+          width: 200,
+          preview: (_) async =>
+              throw StateError('Prepared transition must not navigate'),
+          finish: (_, commit) async {
+            if (commit) moves++;
+          },
+        );
+        drag.update(
+          DragUpdateDetails(
+            delta: Offset(-80.0 * direction, 0),
+            globalPosition: const Offset(100, 100),
+          ),
+        );
+        await tester.pump();
+        final painter = tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((w) => w.painter)
+            .whereType<PageTurnPainter>()
+            .single;
+        expect(painter.style, 'slide');
+        expect(painter.progress, closeTo(.4, .001));
+        expect(moves, 0);
+        drag.end(DragEndDetails());
+        await tester.pumpAndSettle();
+        expect(moves, 1);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets(
     'centered comic leaf exits or lands continuously at the end of a curl',
     (tester) async {

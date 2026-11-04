@@ -80,11 +80,13 @@ class KMReaderCurlSurface {
         // A soft contact shadow on the front and a broad roll terminator.
         // Lighting belongs to the sheet normal, independent of slide tint.
         float shade=1.-.30*pow(max(0.,sin(sheetAngle)),1.4);
-        shade-=.09*exp(-pow((sheetAngle-.5)/.35,2.))*smoothstep(0.,.15,sheetAngle);
         // Flat paper is another receiver on the same plane as the stationary
         // page. Sample the same screen-space shadow across the spine instead
         // of repainting this half without a shadow.
-        float received=texture2D(castShadow,gl_FragCoord.xy/rasterSize).r*(1.-smoothstep(0.,2.,depth));
+        // Attenuate over the physical roll radius. A fixed 2px cutoff made
+        // the projected shadow disappear just as the front started bending,
+        // leaving a bright diagonal seam on otherwise shaded paper.
+        float received=texture2D(castShadow,gl_FragCoord.xy/rasterSize).r*exp(-depth/max(1.,w*.075));
         gl_FragColor=vec4(color.rgb*shade*(1.-received),1.);
       }`;
     const shadowFragment=`precision highp float;${uniforms}
@@ -272,7 +274,7 @@ class KMReaderSheetEffect {
     if(this.style==='curl')KMReaderCurlSurface.disabled=true;
     this.surface?.fail();this.stop();
   }
-  async start(move){
+  async start(move,preview){
     // Compositor capture needs a delivered frame after the previous surface
     // retires. Keep that barrier here so direct/interactive callers share it.
     if(this.style!=='curl'||KMReaderSheetEffect.needsRetirement){
@@ -286,8 +288,11 @@ class KMReaderSheetEffect {
       try{
         this.surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
         this.surface.effect=this;
-        const [before]=await this.wait(Promise.all([this.capture(),this.surface.whenReady()]));
+        const [before,afterPreview]=await this.wait(Promise.all([preview?.before||this.capture(),preview?.after,this.surface.whenReady()]));
         if(this.stopped)return false;
+        if(afterPreview){
+          this.surface.upload(before,afterPreview,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);return true;
+        }
         this.surface.upload(before,null,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
         moved=true;await move();
         const after=await this.wait(this.capture());if(this.stopped)return false;
@@ -1043,7 +1048,7 @@ class KMReaderPageSnapshot {
       await stable(rendition.getContents());
       if (cfi) await displayStable(cfi);
       await tick();
-    } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); if (!restoring) send('layout', {active:false}); }
+    } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); if (!restoring) { send('layout', {active:false}); warmCurl(); } }
   }
   function setPreferences(value) {
     cancelGesture();
@@ -1155,20 +1160,20 @@ class KMReaderPageSnapshot {
     if (atReadingEnd()) { send('end'); return; }
     restoring = true;
     try { await advance(1); }
-    finally { restoring = false; userMove = false; position(true); }
+    finally { restoring = false; userMove = false; position(true); if(!interactiveNavigation)warmCurl(); }
   }
   async function previous() {
     if (!rendition || auxiliary) return;
     await waitForLayout();
     restoring = true;
     try { await advance(-1); }
-    finally { restoring = false; userMove = false; position(true); }
+    finally { restoring = false; userMove = false; position(true); if(!interactiveNavigation)warmCurl(); }
   }
   async function display(target, changed = true) {
     if (auxiliary) closeAuxiliary();
     restoring = true;
     try { await displayStable(target); }
-    finally { restoring = false; userMove = false; position(changed); }
+    finally { restoring = false; userMove = false; position(changed); warmCurl(); }
   }
   async function displayStable(target) {
     await rendition.display(target);
@@ -1219,6 +1224,7 @@ class KMReaderPageSnapshot {
   let captureMarkup=new WeakMap();
   const capturePages=new Map(),captureResources=new Map();
   let captureSerial=0,captureRevision=0,captureIdle,captureIdleJob,captureResourceBytes=0,captureWarmRevision=0;
+  let curlPreview;
   const captureResourceSizes=new Map();
   function cancelCurlWarm(){
     captureWarmRevision++;clearTimeout(captureIdle);
@@ -1226,7 +1232,7 @@ class KMReaderPageSnapshot {
     captureIdleJob=null;
   }
   function releaseCurl(){
-    cancelCurlWarm();captureRevision++;capturePages.clear();captureMarkup=new WeakMap();
+    cancelCurlWarm();curlPreview=null;captureRevision++;capturePages.clear();captureMarkup=new WeakMap();
     captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
     KMReaderCurlSurface.shared?.dispose();
   }
@@ -1310,8 +1316,32 @@ class KMReaderPageSnapshot {
     if(disposed||!KMReaderSheetEffect.supported('curl')||preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||preferences.transition!=='curl'||!motionAllowed('curl'))return;
     try{KMReaderCurlSurface.shared??=new KMReaderCurlSurface();}catch(_){KMReaderCurlSurface.disabled=true;}
   }
+  function previewOrigin(){
+    const manager=rendition?.manager;
+    return [captureRevision,innerWidth,innerHeight,manager?.container.scrollLeft,manager?.container.scrollTop,
+      ...[...document.querySelectorAll('#viewer iframe')].map(f=>{const b=f.getBoundingClientRect();return [b.x,b.y,b.width,b.height].join(',');})].join('|');
+  }
+  function previewShift(delta){
+    if(!curlEligible()||isFixedLayout())return null;
+    const frames=[...document.querySelectorAll('#viewer iframe')];
+    if(frames.length!==1)return null;
+    const physical=(delta>0)!==(config.direction==='rtl')?1:-1;
+    const shift=-physical*innerWidth,bounds=frames[0].getBoundingClientRect();
+    return bounds.left+shift<=1&&bounds.right+shift>=innerWidth-1?shift:null;
+  }
+  async function preparePreview(delta){
+    const shift=previewShift(delta);if(shift===null)return null;
+    const origin=previewOrigin();
+    if(curlPreview?.origin===origin&&curlPreview.pages.has(delta))return {before:curlPreview.before,after:curlPreview.pages.get(delta)};
+    const [before,after]=await Promise.all([captureSheet(),captureSheet(shift)]);
+    if(origin!==previewOrigin())return null;
+    return {before,after};
+  }
   function warmCurl(){
     cancelCurlWarm();
+    // Direct navigation is also used inside an effect's capture callback.
+    // Never dispose or replace its textures while that effect owns them.
+    if(gesture||sheetEffect)return;
     if(!curlConfigured()){releaseCurl();return;}
     if(!curlEligible())return;
     const revision=captureWarmRevision,publication=captureRevision;
@@ -1328,28 +1358,30 @@ class KMReaderPageSnapshot {
         const surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
         await surface.whenReady();
         if(!valid())return;
-        const warmKey=`${innerWidth}:${innerHeight}:${Math.min(2,devicePixelRatio||1)}`;
         // Prepare the actual front texture on every idle page, not just the
         // first viewport. A null back preserves the other retained allocation.
-        surface.upload(idleImage,null,innerWidth,innerHeight);
-        if(surface.warmKey!==warmKey){
-          surface.render(.5,rendition.manager?.layout?.divisor===2,1,0,.5);
-          surface.render(0,false,1,0,.5);surface.gl.flush();surface.warmKey=warmKey;
+        const origin=previewOrigin(),pages=new Map();
+        curlPreview={origin,before:idleImage,pages};
+        // Cache both directions without moving the publication. Navigating
+        // during a drag used to invalidate input routing and require rollback.
+        const budget=innerWidth*innerHeight*Math.min(2,devicePixelRatio||1)**2*4;
+        for(const delta of budget*3<=32*1024*1024?[1,-1]:[1]){
+          const shift=previewShift(delta);
+          if(shift===null)continue;
+          const image=await captureSheet(shift);
+          if(!valid()||origin!==previewOrigin())return;
+          pages.set(delta,image);
         }
-        const frames=[...document.querySelectorAll('#viewer iframe')];
-        if(frames.length!==1)return;
-        const bounds=frames[0].getBoundingClientRect();
-        // Prepare adjacent positions without navigating, layout or progress
-        // writes. Actual turns reuse these textures by viewport geometry.
-        for(const shift of [config.direction==='rtl'?innerWidth:-innerWidth]){
-          if(!valid())return;
-          if(bounds.left+shift<=0&&bounds.right+shift>=innerWidth)await captureSheet(shift);
-        }
+        surface.upload(idleImage,pages.get(1)||idleImage,innerWidth,innerHeight);
+        // Submit a real draw for each newly prepared pair. Decoding SVG alone
+        // does not force its glyph rasterization/texture work onto the GPU.
+        surface.render(.5,rendition.manager?.layout?.divisor===2,1,0,.5);
+        surface.render(0,false,1,0,.5);surface.gl.flush();
       }catch(_){/* Unsupported artwork retains direct reading. */}
     };
     // Never force speculative snapshots onto a busy browser thread. Input,
     // settings, reflow and visibility changes retire the remainder of this job.
-    captureIdle=setTimeout(()=>{if(window.requestIdleCallback)captureIdleJob=requestIdleCallback(prepare);else prepare();},180);
+    captureIdle=setTimeout(()=>{if(window.requestIdleCallback)captureIdleJob=requestIdleCallback(prepare);else prepare();},16);
   }
   function cancelTurnAnimation() {
     sheetEffect?.stop(); sheetEffect = undefined;
@@ -1398,6 +1430,8 @@ class KMReaderPageSnapshot {
     shield.addEventListener('pointercancel', () => state.finish(false));
 
     shield.addEventListener('pointerdown', event => { if (event.pointerId !== pointer) state.finish(false); });
+    const abort=()=>{state.invalidated=true;state.finish(false);};
+    window.addEventListener('blur',abort);
     // Keep input in its original document. Moving capture between a book iframe
     // and the top document can deadlock Chromium's input router during capture.
     enqueue(async () => {
@@ -1405,10 +1439,33 @@ class KMReaderPageSnapshot {
       const originalManager=rendition.manager,originalDocuments=rendition.getContents().map(c=>c.document);
       const originalScroll={x:originalManager.container.scrollLeft,y:originalManager.container.scrollTop};
       interactiveNavigation = true;
+      let moved=false;
       try {
-        state.effect = await transitionMove(delta, preferences.transition, contact.y / innerHeight);
-        state.effect?.update(state.progress,state.point);
+        const preview=preferences.transition==='curl'?await timeout(Promise.race([
+          preparePreview(delta).catch(()=>null),finished.then(()=>null)
+        ]),2500):null;
+        // In-chapter curl is a visual preview only. The live document and CFI
+        // remain on the original page until the user commits. At chapter
+        // boundaries wait for release before replacing the input's iframe.
+        if(preview&&!state.invalidated){
+          state.effect=sheetEffect=new KMReaderSheetEffect('curl',physical,preferences,contact.y/innerHeight,delta<0,
+            rendition.manager?.layout?.divisor===2,captureSheet);
+          if(!await state.effect.start(()=>Promise.resolve(),preview)){
+            if(sheetEffect===state.effect)sheetEffect=undefined;
+            state.effect=null;
+          }
+          state.effect?.update(state.progress,state.point);
+        }else if(preferences.transition!=='curl'&&!state.invalidated){
+          state.effect=await transitionMove(delta,preferences.transition,contact.y/innerHeight);
+          moved=true;state.effect?.update(state.progress,state.point);
+        }
         let commit = await finished;
+        commit=commit&&!state.invalidated;
+        if(commit&&!state.effect){
+          state.effect=await transitionMove(delta,preferences.transition,contact.y/innerHeight);
+          moved=true;
+          state.progress=0;
+        }
         const duration = Math.min(300, Math.max(80, (Number(preferences.animationDuration) || 380) *
           (commit ? 1 - state.progress : state.progress)));
         if (!disposed) {
@@ -1416,7 +1473,8 @@ class KMReaderPageSnapshot {
           await state.effect?.animateTo(commit ? 1 : 0, duration, {velocity:velocity/(innerWidth/(rendition.manager?.layout?.divisor===2?2:1))});
         }
         commit = commit && !state.invalidated;
-        if (!disposed && !commit && saved) {
+        if(!disposed&&commit&&!moved){await (delta>0?next():previous());moved=true;}
+        if (!disposed && !commit && moved && saved) {
           const current=rendition.getContents().map(c=>c.document);
           if(rendition.manager===originalManager && current.length===originalDocuments.length && current.every((d,i)=>d===originalDocuments[i])) {
             originalManager.scrollTo(originalScroll.x,originalScroll.y,true);
@@ -1435,7 +1493,11 @@ class KMReaderPageSnapshot {
         interactiveNavigation = false;
         shield.remove();
         if (gesture === state) gesture = undefined;
+        window.removeEventListener('blur',abort);
         suppressClickUntil = Date.now() + 500;
+        // Both committed and canceled drags need preparation for the next
+        // input. Previously only automatic turns restarted idle warming.
+        if(!disposed)warmCurl();
       }
     }).catch(error => send('error', {message:String(error)}));
   }

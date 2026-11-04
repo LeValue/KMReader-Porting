@@ -81,3 +81,47 @@ CPU, avoiding additional Flutter GPU image uploads/readbacks in the verification
 itself. Failed playback reports include delivered-frame wall times, animation
 times, pending/play state and initial compositor availability. These are test
 harness settings, not a software-rendering mode for the publication.
+
+
+## Follow-up: first drag, settings and mixed comic formats (0.8.14)
+
+The 0.8.13 warm path restarted after automatic turns but not interactive ones.
+It decoded the next position without uploading/drawing it, and the warm GPU draw
+was limited to the first viewport. Consequently a canceled curl paid preparation
+cost once and a retry reused it, while the first drag on the next page was cold.
+Preparation now runs after every gesture/navigation/reflow, captures both
+available directions within the image budget, uploads the forward pair and
+submits a real offscreen draw per page. Origin/revision checks reject stale pairs.
+
+In-chapter gestures now use two snapshots without moving the live publication.
+Only release with a commit advances the book; canceled gestures do not navigate
+and restore it. At a chapter boundary, source iframe replacement waits for release.
+Preparation races cancellation and has a 2.5-second bound. Window blur cancels a
+held gesture too; valid held input is not expired by a short gesture watchdog.
+
+The text sheet now keeps the native browser offstage with unchanged constraints.
+This removes the hybrid platform surface from per-frame modal composition.
+Settings edit a local draft and apply it once after restoring the native surface;
+there are no hidden preference reflows while scrolling/dragging controls. Input
+resumes in a finally block even if font preparation fails.
+
+The projected front shadow previously faded completely at depth 2 CSS pixels.
+That screen-independent cutoff introduced a bright diagonal stripe where the
+sheet first bent. Exponential attenuation over the roll radius removes the abrupt
+transition. Pixel probes sample the bent front and reconstruct the previous
+shader cutoff as a negative control, alongside the existing stationary receiver
+and soft-penumbra checks.
+
+Comic source/destination bounds are compared after fitting, with a small tolerance
+for scan differences. A large aspect/layout change uses a slide for that turn,
+without distorting either page or curling background letterboxes into a floating
+sheet. Matching formats still use the curved mesh; differing source resolution is
+irrelevant. Prepared and captured transition paths use the same compatibility rule.
+
+`tool/epub_curl_readiness_smoke.py` checks four consecutive page commits, canceled
+retries, first-drag zero additional serialization/decode/texture uploads, correct
+front/underlay pixels, unchanged CFI during previews, focus-loss recovery and a
+never-resolving SVG decode. It runs at 390/1044 pixels and in RTL. Native integration
+also checks retained view identity/bounds, scrolling the sheet, no preference
+applications inside it, one application after closing, and readable restored text.
+These functional checks do not substitute for physical-device latency/FPS data.
