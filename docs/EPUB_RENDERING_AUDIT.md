@@ -125,3 +125,42 @@ never-resolving SVG decode. It runs at 390/1044 pixels and in RTL. Native integr
 also checks retained view identity/bounds, scrolling the sheet, no preference
 applications inside it, one application after closing, and readable restored text.
 These functional checks do not substitute for physical-device latency/FPS data.
+
+## Follow-up: 0.8.16 text fidelity and gesture entry
+
+An anchor-only paragraph has no line box and allows its margins to collapse
+through it. The compact snapshot used a zero-width glyph even for these empty
+blocks, introducing a line box and displacing later columns. Empty blocks now
+remain verbatim; the offscreen-prose optimization stays enabled. First-line
+pseudo-element documents also retain the full snapshot path.
+
+A Gutenberg Moby Dick reproduction at 393 × 844 exposed the layout drift.
+[Recorded comparisons](benchmarks/epub-layout-0.8.16.json) show the compact image
+now matches the live page pixel for pixel at all three checked viewports. Browser
+regressions compare live, full and compact rasters with anchor-only chapter
+markers, collapsed margins, headings and a long note, including RTL and spreads.
+Preformatted notes preserve authored whitespace/newlines but soft-wrap long lines
+inside their column, preventing spill into adjoining text. Fixed layout is exempt.
+
+Curl previously deferred chapter-boundary navigation until pointer release, so a
+held boundary drag had no animation. A temporary view prepares just the adjacent
+chapter's first/last screen without replacing the live input iframe. Preparation
+is serialized, image results are bounded, and the temporary DOM/observers are
+destroyed after capture. Boundary tests verify held input, unchanged source/CFI,
+matching destination pixels and no foreground serialization/decoding. Forward
+textures reuse the idle upload; backward entry may replace one retained texture.
+
+Gesture entry only eases when its first displacement exceeds 24 CSS pixels,
+including input accumulated during asynchronous preparation. Catch-up is bounded
+to 90 ms and does not restart with every event. Once caught up, movement is direct.
+Release starts from the displayed position. Unready surfaces cannot receive
+tracking draws. Small motions introduce no extra catch-up delay.
+
+Compositor retirement is observed with the original browser RAF, independent of
+the task-based scheduler used during frozen capture. Layout changes and removed
+surfaces mark retirement pending; after delivered frames, the next idle gesture
+skips the former unconditional capture barrier. Rapid mixed transitions still
+wait when necessary. Idle curl preparation prioritizes forward textures and has
+a 120 ms scheduling deadline against starvation; input/reflow generations still
+retire speculative work. These checks establish behavior in the exercised cases,
+not universal frame rates or the absence of all publication/device-specific bugs.

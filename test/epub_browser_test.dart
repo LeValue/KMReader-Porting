@@ -315,6 +315,8 @@ void main() {
   }
   for (final (width, direction) in [
     (390, 'ltr'),
+    (393, 'ltr'),
+    (591, 'ltr'),
     (1044, 'ltr'),
     (390, 'rtl'),
   ]) {
@@ -325,6 +327,7 @@ void main() {
           directory,
           paragraphCount: 1400,
           readingDirection: direction,
+          chapterMarkers: true,
         );
         final host = await EpubHost.openFile(file.path);
         try {
@@ -333,12 +336,14 @@ void main() {
             host.reader.toString(),
             jsonEncode({
               'url': host.publication.toString(),
-              'preferences': EpubPreferences.fromJson({'theme': 'white'})
-                  .toJson(),
+              'preferences': EpubPreferences.fromJson({
+                'theme': 'white',
+                'fontSize': 19,
+              }).toJson(),
               'nonce': 'snapshots',
               'direction': direction,
               'href': 'one.xhtml',
-              'viewport': {'width': width, 'height': width == 390 ? 780 : 720},
+              'viewport': {'width': width, 'height': width < 800 ? 844 : 720},
             }),
           ]);
           expect(

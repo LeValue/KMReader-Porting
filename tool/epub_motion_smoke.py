@@ -19,6 +19,35 @@ with sync_playwright() as pw:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script("window.messages=[];addEventListener('readerEvent',e=>messages.push(e.detail));")
     page.goto(url)
+    # Deterministic delivered frames: a large first input eases into position,
+    # ordinary movement stays direct, and release never flushes an unseen jump.
+    entry = page.evaluate('''() => {
+      const raf=requestAnimationFrame,caf=cancelAnimationFrame;
+      const callbacks=new Map();let serial=0;
+      window.requestAnimationFrame=callback=>{callbacks.set(++serial,callback);return serial;};
+      window.cancelAnimationFrame=id=>callbacks.delete(id);
+      const step=time=>{const frames=[...callbacks.values()];callbacks.clear();for(const frame of frames)frame(time);};
+      const make=()=>{
+        const effect=new KMReaderSheetEffect('slide',1,{});effect.samples=[];
+        effect.update=function(p){this.progress=p;this.samples.push(p);};return effect;
+      };
+      const effects=[];
+      try{
+        const effect=make();effects.push(effect);
+        effect.track(.5);const unready=effect.samples.length;
+        effect.ready=true;effect.track(.5);step(0);const first=effect.progress;
+        step(32);const middle=effect.progress;effect.track(.6);step(100);const caught=effect.progress;
+        effect.track(.65);step(116);const direct=effect.progress;
+        const small=make();effects.push(small);small.ready=true;small.track(8/innerWidth);step(200);
+        const release=make();effects.push(release);release.ready=true;release.track(.7);
+        release.animateTo(1,200);const released=release.progress;step(300);const settledStart=release.progress;
+        return {unready,first,middle,caught,direct,small:small.progress,released,settledStart};
+      }finally{for(const effect of effects)effect.stop();window.requestAnimationFrame=raf;window.cancelAnimationFrame=caf;}
+    }''')
+    assert entry['unready'] == 0 and entry['first'] == 0, entry
+    assert 0 < entry['middle'] < .5 and entry['caught'] == .6 and entry['direct'] == .65, entry
+    assert abs(entry['small'] - 8 / width) < .0001, entry
+    assert entry['released'] == 0 and entry['settledStart'] == 0, entry
     page.evaluate('(c)=>reader.open(c)', config)
     selected = page.evaluate("""() => {const doc=document.querySelector('#viewer iframe').contentDocument,p=doc.querySelector('p');doc.getSelection().selectAllChildren(p);doc.defaultView.dispatchEvent(new Event('blur'));return p.textContent;}""")
     assert page.evaluate('reader.selectedText()') == selected, 'Toolbar focus destroyed the selected passage'
@@ -79,6 +108,10 @@ with sync_playwright() as pw:
         page.evaluate('(style)=>reader.turn({delta:1,style})', style)
         assert page.evaluate('!effect.stopped'), style
         assert page.evaluate('reader.position().start.cfi') != old
+        page.evaluate('effect.update(0)')
+        from PIL import ImageStat
+        initial = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+        assert max(ImageStat.Stat(ImageChops.difference(before,initial)).mean)<6, (style, 'Initial sheet moved before the gesture')
         page.evaluate('effect.update(.43)')
         image = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
         image.save(output / f'{width}-{config.get("direction", "ltr")}-{style}.png')
@@ -120,6 +153,11 @@ with sync_playwright() as pw:
             assert max(ImageStat.Stat(ImageChops.difference(end,live)).mean)<6, 'Curl endpoint changed the publication layout'
         if style != 'curl':
             assert page.evaluate('document.querySelectorAll("style[data-page-motion]").length') == 1
+            page.evaluate('effect.update(1)')
+            endpoint = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            page.evaluate('effect.stop()')
+            live = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            assert max(ImageStat.Stat(ImageChops.difference(endpoint,live)).mean)<6, (style, 'Final sheet jumped on release')
         page.evaluate('effect.stop()')
     # Backward turns peel the other leaf; they must not play a forward curl
     # in reverse time on the same side of the spine.
