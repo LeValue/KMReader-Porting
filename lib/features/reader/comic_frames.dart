@@ -17,6 +17,17 @@ class ComicFrame {
 }
 
 class ComicFrames {
+  static const _budget = 64 * 1024 * 1024;
+  static int capacity(Size size, double pixelRatio) => math.max(
+    2,
+    math.min(
+      4,
+      _budget ~/
+          ((size.width * pixelRatio).ceil() *
+              (size.height * pixelRatio).ceil() *
+              4),
+    ),
+  );
   final _frames = <String, ComicFrame>{};
   final _pending = <String, Future<void>>{};
   bool _closed = false;
@@ -30,6 +41,7 @@ class ComicFrames {
   Future<void> warm({
     required String key,
     required Size size,
+    required double pixelRatio,
     required int first,
     required int count,
     required int pageCount,
@@ -40,7 +52,7 @@ class ComicFrames {
     if (_closed || _frames.containsKey(key)) return Future.value();
     return _pending
         .putIfAbsent(key, () async {
-          final ratio = math.min(2.0, 2048 / size.longestSide);
+          final ratio = pixelRatio;
           final recorder = ui.PictureRecorder();
           final canvas = Canvas(recorder)..scale(ratio);
           canvas.drawRect(Offset.zero & size, Paint()..color = background);
@@ -56,7 +68,8 @@ class ComicFrames {
               if (_closed) return;
               final codec = await ui.instantiateImageCodec(
                 bytes,
-                targetWidth: (size.width / count * ratio).ceil(),
+                targetWidth: (size.width * ratio).ceil().clamp(1, 4096),
+                allowUpscaling: false,
               );
               late ui.Image image;
               try {
@@ -120,8 +133,8 @@ class ComicFrames {
               (total, frame) =>
                   total + frame.image.width * frame.image.height * 4,
             );
-            while (_frames.length > 4 ||
-                bytes > 48 * 1024 * 1024 && _frames.length > 1) {
+            while (_frames.length > capacity(size, pixelRatio) ||
+                bytes > _budget && _frames.length > 2) {
               final oldest = _frames.remove(_frames.keys.first)!;
               bytes -= oldest.image.width * oldest.image.height * 4;
               oldest.image.dispose();

@@ -51,3 +51,59 @@ class CurlSheet {
     );
   }
 }
+
+/// Orthographic projection keeps the untouched artwork at its original scale.
+/// The two paper faces share a fold, but retain their own fitted rectangles.
+class CurlProjection {
+  CurlProjection({
+    required this.width,
+    required this.height,
+    required this.progress,
+    required this.hinge,
+    required this.originY,
+    required this.direction,
+    double foldSlope = 0,
+    double grabY = .5,
+    this.exit = 0,
+  }) {
+    final wave = math.sin(math.pi * progress);
+    final slope = foldSlope * wave * wave;
+    nx = 1 / math.sqrt(1 + slope * slope);
+    ny = slope * nx;
+    cone = ((.5 - grabY) * .65 + foldSlope * .35).clamp(-.45, .45);
+  }
+  final double width, height, progress, hinge, originY, exit;
+  final int direction;
+  late final double nx, ny, cone;
+  CurlSheet _section(double v) => CurlSheet(
+    width,
+    progress,
+    cone: (1 + cone * v / height).clamp(.65, 1.35),
+  );
+  ({double x, double y, double z, double angle}) point(
+    double x,
+    double y, {
+    bool back = false,
+  }) {
+    final sx = (x - hinge) * direction * (back ? -1 : 1), sy = y - originY;
+    final u = nx * sx + ny * sy, v = -ny * sx + nx * sy;
+    final p = _section(v).point(u);
+    return (
+      x: hinge + direction * (nx * p.x - ny * v - exit),
+      y: originY + ny * p.x + nx * v,
+      z: p.z,
+      angle: p.angle,
+    );
+  }
+
+  ({double x, double y}) ridge(double v) {
+    final sheet = _section(v);
+    final p = sheet.point(
+      sheet.front + sheet.radius * (math.pi / 2 - sheet.angle),
+    );
+    return (
+      x: hinge + direction * (nx * p.x - ny * v - exit),
+      y: originY + ny * p.x + nx * v,
+    );
+  }
+}

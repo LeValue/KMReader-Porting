@@ -1,3 +1,4 @@
+import 'shell_navigation.dart';
 import '../features/local/local_library_page.dart';
 
 import 'package:flutter/cupertino.dart';
@@ -270,19 +271,11 @@ class _AppShellState extends State<AppShell> {
       ),
       bottomNavigationBar: wide
           ? null
-          : NavigationBar(
+          : ShellNavigationBar(
               selectedIndex: _index,
-              labelTextStyle: const WidgetStatePropertyAll(
-                TextStyle(fontSize: 11),
-              ),
-              onDestinationSelected: (i) => setState(() => _index = i),
-              destinations: [
-                for (var i = 0; i < _labels.length; i++)
-                  NavigationDestination(
-                    icon: Icon(_icons[i]),
-                    label: tr(context, _labels[i]),
-                  ),
-              ],
+              onSelected: (i) => setState(() => _index = i),
+              labels: [for (final label in _labels) tr(context, label)],
+              icons: _icons,
             ),
     );
   }
