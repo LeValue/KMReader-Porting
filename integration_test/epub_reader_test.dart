@@ -271,29 +271,51 @@ void main() {
           );
           final saved = object(store.cached(profile.id, 'epub:${book.id}'));
           expect(repository.pendingCount, 1);
-          await tester.tap(find.byType(PopupMenuButton<String>).first);
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Text Settings').last);
-          await tester.pumpAndSettle();
+          Future<void> openSettings() async {
+            await tester.tap(find.byType(PopupMenuButton<String>).first);
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Text Settings').last);
+            await tester.pumpAndSettle();
+          }
+
+          Future<void> closeSettings() async {
+            await tester.tap(find.byTooltip('Close').last);
+            await tester.pumpAndSettle();
+            await Future<void>.delayed(const Duration(seconds: 1));
+            await tester.pump();
+          }
+
+          await openSettings();
           if (layout == 'fixed') {
             expect(
               find.text('This book uses a fixed page layout.'),
               findsOneWidget,
             );
             expect(find.byKey(const ValueKey('epub-fontSize')), findsNothing);
+            await closeSettings();
           } else {
             final slider = find.byType(Slider).first;
             await tester.drag(slider, const Offset(80, 0));
             await tester.pumpAndSettle();
-            await Future<void>.delayed(const Duration(seconds: 1));
-            await tester.pump();
             expect(
               object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
               saved['cfi'],
             );
             expect(
               object(store.cached(profile.id, 'epub:${book.id}'))['fontSize'],
-              isNot(19),
+              19,
+              reason:
+                  'The open sheet edits a local draft without hidden reflows',
+            );
+            expect(find.text('Text Settings'), findsWidgets);
+            await closeSettings();
+            await waitFor(
+              () =>
+                  object(
+                        store.cached(profile.id, 'epub:${book.id}'),
+                      )['fontSize'] !=
+                      19 &&
+                  find.byType(CircularProgressIndicator).evaluate().isEmpty,
             );
             final liveFont = await browser.callAsyncJavaScript(
               functionBody: "return parseFloat(getComputedStyle(document.querySelector('#viewer iframe').contentDocument.body).fontSize);",
@@ -308,10 +330,12 @@ void main() {
                     .toDouble(),
                 .1,
               ),
-              reason: 'Typography must update while the settings sheet is still open',
+              reason: 'Closing the sheet must apply the final typography to the live book',
             );
-            expect(find.text('Text Settings'), findsWidgets);
-
+            expect(
+              object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
+              saved['cfi'],
+            );
             expect(
               object(
                 store.cached(profile.id, 'epub:${book.id}'),
@@ -322,25 +346,30 @@ void main() {
           }
           for (final flow
               in layout == 'reflowable' ? ['Vertical', 'Paged'] : <String>[]) {
+            await openSettings();
             await tester.tap(
               find.text(flow == 'Vertical' ? 'Paged' : 'Vertical').last,
             );
             await tester.pumpAndSettle();
             await tester.tap(find.text(flow).last);
             await tester.pumpAndSettle();
-            await Future<void>.delayed(const Duration(seconds: 1));
-            await tester.pump();
             expect(
               object(store.cached(profile.id, 'epub:${book.id}'))['flow'],
-              flow == 'Vertical' ? 'scrolled' : 'paged',
+              flow == 'Vertical' ? 'paged' : 'scrolled',
+              reason: 'Flow changes must wait for closing the settings too',
+            );
+            await closeSettings();
+            await waitFor(
+              () =>
+                  object(store.cached(profile.id, 'epub:${book.id}'))['flow'] ==
+                      (flow == 'Vertical' ? 'scrolled' : 'paged') &&
+                  find.byType(CircularProgressIndicator).evaluate().isEmpty,
             );
             expect(
               object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
               saved['cfi'],
             );
           }
-          await tester.tap(find.byTooltip('Close').last);
-          await tester.pumpAndSettle();
           await tester.tap(
             find.byTooltip(layout == 'fixed' ? 'Previous Page' : 'Next Page'),
           );

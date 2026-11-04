@@ -63,6 +63,10 @@ void verifyComicSpread() {
     testWidgets(
       'mixed comic formats slide continuously in direction $direction',
       (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: ColoredBox(color: Colors.black)),
+        );
+        await _finishNativeRaster(tester);
         final before = (await tester.runAsync(
           () => mixedFormatRaster(Colors.red),
         ))!;
