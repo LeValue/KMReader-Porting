@@ -196,6 +196,9 @@ void verifyComicSpread() {
               // on the CPU. A deferred 3x GPU snapshot need not be materialized
               // until it is actually painted by the platform renderer.
               await _finishNativeRaster(tester);
+              // Raster completion precedes SurfaceFlinger's window latch.
+              // PixelCopy must sample this phase, rather than the prior buffer.
+              await Future<void>.delayed(const Duration(milliseconds: 50));
               final png = await ReaderDisplay.channel.invokeMethod<Uint8List>(
                 'captureScreenshot',
               );
