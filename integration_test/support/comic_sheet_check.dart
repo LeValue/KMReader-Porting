@@ -81,12 +81,20 @@ void verifyNativeComicSheets() {
               final values = [
                 for (var i = 0; i < 3; i++) pixels!.getUint8(offset + i),
               ];
-              expect(
-                values.any((v) => v > 80),
-                true,
-                reason:
-                    'Black letterbox lifted: direction=$direction p=$progress x=$x',
-              );
+              final oldSide = direction > 0 ? x == 10 : x == 190;
+              if (progress < .5 && oldSide) {
+                expect(
+                  values.every((v) => v < 20),
+                  true,
+                  reason: 'The original letterbox stays flat ahead of the fold',
+                );
+              } else if (!oldSide || progress > .9) {
+                expect(
+                  values[1],
+                  greaterThan(80),
+                  reason: 'The new page is exposed behind the fold',
+                );
+              }
             }
           }
         }

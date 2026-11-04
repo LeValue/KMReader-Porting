@@ -11,25 +11,16 @@ import 'package:kmreader/features/reader/page_transition.dart';
 import 'package:kmreader/features/reader/comic_spread.dart';
 
 void main() {
-  test('comic curl compares fitted paper rather than image resolution', () {
-    const viewport = Size(390, 780);
-    final portrait = comicLeafBounds(viewport, [.65]);
-    expect(
-      comicSheetsMatch(portrait, comicLeafBounds(viewport, [1300 / 2000])),
-      isTrue,
-    );
-    expect(
-      comicSheetsMatch(portrait, comicLeafBounds(viewport, [.66])),
-      isTrue,
-    );
-    expect(
-      comicSheetsMatch(portrait, comicLeafBounds(viewport, [1.4])),
-      isFalse,
-    );
-    expect(
-      comicSheetsMatch(portrait, comicLeafBounds(viewport, [.65, .65])),
-      isFalse,
-    );
+  test('unequal spread formats retain the same screen spine', () {
+    for (final aspects in [
+      [.5, .75],
+      [1.4, .6],
+      [.6, 1.4],
+    ]) {
+      final leaves = comicLeafBounds(const Size(800, 500), aspects);
+      expect(leaves.first.right, 400);
+      expect(leaves.last.left, 400);
+    }
   });
   Future<ui.Image> raster(Color color) async {
     final recorder = ui.PictureRecorder();
@@ -177,11 +168,18 @@ void main() {
         () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
       ))!;
       image.dispose();
-      final offset = (100 * 200 + 20) * 4;
+      final unrevealed = (100 * 200 + 20) * 4;
+      final revealed = (100 * 200 + 180) * 4;
       expect(
-        data.getUint8(offset + 1),
+        data.getUint8(unrevealed + 1),
+        0,
+        reason:
+            'Margins ahead of the fold must retain their original background',
+      );
+      expect(
+        data.getUint8(revealed + 1),
         greaterThan(100),
-        reason: 'Black margins must stay off the curled sheet',
+        reason: 'Margins behind the fold must reveal the next page',
       );
     },
   );
