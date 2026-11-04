@@ -1,5 +1,9 @@
 # Kindle in KMReader: fattibilità e integrazione
 
+Approfondimento successivo: [connettore personale non ufficiale, reverse engineering
+e streaming](KINDLE_UNOFFICIAL_ARCHITECTURE.md). Include ulteriori client, il percorso
+renderer per manga, modifiche precise a KMReader e una prova di streaming EPUB.
+
 Ricerca del 4 novembre 2026. Analisi di documentazione pubblica e codice sorgente;
 nessun accesso a un account Amazon e nessuna verifica autenticata dei servizi.
 Il requisito è una libreria nativa e la lettura nel motore di KMReader. Incorporare

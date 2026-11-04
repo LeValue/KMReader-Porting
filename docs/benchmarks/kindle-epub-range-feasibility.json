@@ -1,0 +1,46 @@
+{
+  "purpose": "Transport/resource feasibility with generated unencrypted EPUB; not Amazon access or device FPS",
+  "fixtureBytes": 14183251,
+  "chapters": 12,
+  "cases": [
+    {
+      "case": "range",
+      "firstReady": {
+        "bytes": 1272659,
+        "requests": 20,
+        "resources": [
+          "OPS/c0.xhtml",
+          "OPS/img0.png",
+          "OPS/nav.xhtml",
+          "OPS/package.opf"
+        ]
+      },
+      "secondChapter": {
+        "bytes": 2452307,
+        "requests": 38
+      },
+      "revisitAdditionalBytes": 0,
+      "fullFileFallback": false
+    },
+    {
+      "case": "full",
+      "firstReady": {
+        "bytes": 14183251,
+        "requests": 1,
+        "resources": [
+          "OPS/c0.xhtml",
+          "OPS/img0.png",
+          "OPS/nav.xhtml",
+          "OPS/package.opf"
+        ]
+      },
+      "secondChapter": {
+        "bytes": 14183251,
+        "requests": 1
+      },
+      "revisitAdditionalBytes": 0,
+      "fullFileFallback": true
+    }
+  ],
+  "browser": "151.0.7922.34"
+}
