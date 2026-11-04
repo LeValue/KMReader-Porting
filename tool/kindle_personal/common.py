@@ -1,0 +1,58 @@
+"""Small, deliberately credential-free records and filesystem helpers."""
+
+import hashlib
+import json
+import os
+import tempfile
+from pathlib import Path
+
+
+class KindleError(Exception):
+    """Only public diagnostics belong in this exception (never response bodies)."""
+
+    def __init__(self, code: str, message: str, *, stage: str = "local", status=None):
+        super().__init__(message)
+        self.code, self.stage, self.status = code, stage, status
+
+    def diagnostic(self):
+        return {"code": self.code, "stage": self.stage, "http_status": self.status}
+
+
+def digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def atomic_bytes(path: Path, data: bytes):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
+def write_json(path: Path, value):
+    atomic_bytes(
+        path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode()
+    )
+
+
+def read_json(path: Path, default=None):
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        raise KindleError("local_record", "Record locale non leggibile.") from None
+
+
+def file_hash(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()

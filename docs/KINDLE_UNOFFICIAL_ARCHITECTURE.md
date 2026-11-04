@@ -297,3 +297,35 @@ Il risultato di questa analisi è quindi un percorso non ufficiale verificabile 
 una prova riuscita dello streaming nel motore EPUB. Login Kindle attuale, consegna
 Amazon e compatibilità delle protezioni restano da provare con un account reale:
 non vengono presentati come già implementati nella build 0.8.17.
+
+## 9. Primo prototipo scaricamento Amazon.it
+
+Su richiesta dell'utente il primo esperimento eseguibile è ora limitato al
+**download**, con streaming rimandato. I sorgenti sono in
+[`tool/kindle_personal`](../tool/kindle_personal/README.md), separati dai runtime
+Android/Windows dell'app. Il workflow `kindle-prototype.yml` verifica Linux e
+Windows e prepara un eseguibile Windows x64 con browser Edge esterno e archivio
+credenziali DPAPI; l'utente non deve installare Python o avviare un runner.
+
+Il prototipo implementa identità stabile, tentativo di login PKCE e alternativa
+storica esplicita, registrazione, rinnovo, richieste firmate, catalogo EBOK/PDOC
+con aggiornamenti/rimozioni, manifest freschi e acquisizione atomica di tutte le
+risorse. Un vecchio PDOC con manifest 404 può essere richiesto dall'endpoint di
+consegna documenti storico. Non vengono rimossi dispositivi né scritti progressi
+su Amazon. Il catalogo è testuale, senza copertine; la paginazione non ancora
+confermata viene dichiarata parziale quando il limite o la risposta lo richiedono.
+
+EPUB/PDF sono verificati strutturalmente; altri formati possono essere sottoposti
+a un Calibre installato separatamente. Non includiamo convertitori o plugin
+GPL/AGPL nell'app MIT e non trasferiamo automaticamente le credenziali del
+dispositivo ai plugin. Quindi un acquisto protetto può restare nello stato
+`needs_conversion` anche dopo aver scaricato tutte le risorse: non è ancora un
+risultato leggibile e non è dimostrato supporto universale ai KFX correnti.
+
+Le prove automatiche usano account, manifest e contenuti sintetici; verificano
+anche il confine del browser reale, la firma, i trasferimenti interrotti, la
+separazione degli account e l'assenza di segreti nei report. Una richiesta
+anonima ai due flussi login dall'ambiente cloud ha ricevuto HTTP 503, senza
+form di accesso: non costituisce una convalida né un rifiuto autenticato del
+profilo. Il prossimo dato necessario è la prova locale dell'account Amazon.it,
+poi un documento personale e un acquisto recente aperti nel motore KMReader.

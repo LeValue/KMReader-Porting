@@ -60,3 +60,7 @@ app.*.map.json
 
 # Generated, source-bound build provenance (not application source).
 /assets/build/source.json
+
+# Personal Kindle prototype: never commit sessions, catalogs or downloaded books.
+/.kindle-personal/
+/tool/kindle_personal/.venv/

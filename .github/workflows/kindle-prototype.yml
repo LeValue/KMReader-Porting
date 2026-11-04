@@ -1,0 +1,116 @@
+name: Personal Kindle download prototype
+on:
+  push:
+    branches: [fix/android-epub-recovery]
+    paths:
+      - '.github/workflows/kindle-prototype.yml'
+      - 'tool/kindle_personal/**'
+      - 'tool/kindle_personal_cli.py'
+      - 'tool/package_kindle_prototype.py'
+  workflow_dispatch:
+    inputs:
+      deliver_draft:
+        description: Attach verified Windows prototype to a draft release
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  protocol:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tool/kindle_personal/requirements.txt
+      - run: python -m pip install -r tool/kindle_personal/requirements.txt
+      - if: runner.os == 'Linux'
+        run: python -m playwright install --with-deps chromium
+      - if: runner.os == 'Windows'
+        run: python -m playwright install chromium
+      - name: Protocol, download, privacy, offline and real browser boundary tests
+        env:
+          KMREADER_KINDLE_BROWSER_TEST: '1'
+        run: python -m unittest discover -s tool/kindle_personal/tests -v
+      - run: python -m tool.kindle_personal self-test --output kindle-self-test.json --fixtures artifacts/kindle-native-fixtures
+      - if: runner.os == 'Linux'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          cache: true
+      - if: runner.os == 'Linux'
+        run: flutter pub get --enforce-lockfile
+      - if: runner.os == 'Linux'
+        name: Import prepared EPUB and PDF through the actual KMReader local library
+        env:
+          KMREADER_KINDLE_FIXTURES: artifacts/kindle-native-fixtures
+        run: flutter test tool/kindle_personal/tests/native_import_test.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kindle-protocol-${{ runner.os }}
+          path: kindle-self-test.json
+  windows:
+    needs: protocol
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m venv artifacts/kindle-build-env
+      - run: artifacts/kindle-build-env/Scripts/python.exe -m pip install -r tool/kindle_personal/requirements.txt pyinstaller==6.22.3
+      - name: Build standalone executable (uses installed Edge; no bundled Chromium)
+        run: >-
+          artifacts/kindle-build-env/Scripts/python.exe -m PyInstaller
+          --noconfirm --clean --onedir --name KMReader-Kindle
+          --distpath artifacts/kindle-dist --workpath artifacts/kindle-work
+          --specpath artifacts/kindle-spec --paths tool
+          --collect-all playwright --collect-submodules amazon.ion
+          tool/kindle_personal_cli.py
+      - name: Verify packaged DPAPI, protocol pipeline and Edge callback
+        run: |
+          artifacts/kindle-dist/KMReader-Kindle/KMReader-Kindle.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Version check failed' }
+          artifacts/kindle-dist/KMReader-Kindle/KMReader-Kindle.exe self-test --browser --output artifacts/kindle-executable-check.json
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged executable smoke check failed' }
+      - name: Package verified executable and dependency notices
+        run: >-
+          artifacts/kindle-build-env/Scripts/python.exe tool/package_kindle_prototype.py
+          --binary-directory artifacts/kindle-dist/KMReader-Kindle
+          --source ${{ github.sha }} --smoke-report artifacts/kindle-executable-check.json
+          --output artifacts/kindle-delivery
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KMReader-Kindle-windows-x64
+          path: |
+            artifacts/kindle-delivery/*.zip
+            artifacts/kindle-delivery/SHA256SUMS.txt
+            artifacts/kindle-executable-check.json
+  deliver:
+    if: github.event_name == 'push' || inputs.deliver_draft
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: KMReader-Kindle-windows-x64
+          path: artifacts/kindle-delivery
+      - name: Create review draft and attach verified prototype
+        shell: bash
+        run: |
+          tag="kindle-personal-prototype-v0.1.0"
+          gh release create "$tag" --draft --target "$GITHUB_SHA" --title "KMReader Kindle personale 0.1.0 — Amazon.it" --notes-file tool/kindle_personal/RELEASE_NOTES.md
+          archive=$(rg --files artifacts/kindle-delivery | rg '/KMReader-Kindle-.*-windows-x64\.zip$')
+          checksums=$(rg --files artifacts/kindle-delivery | rg '/SHA256SUMS\.txt$')
+          (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$checksums")")
+          gh release upload "$tag" "$archive" "$checksums"
