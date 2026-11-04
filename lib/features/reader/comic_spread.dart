@@ -71,3 +71,20 @@ class ComicSpread extends StatelessWidget {
     },
   );
 }
+
+/// A physical sheet needs matching fitted surfaces on both sides of a turn.
+/// Source image resolution is irrelevant; compare its actual on-screen bounds.
+bool comicSheetsMatch(List<Rect> before, List<Rect> after) {
+  if (before.length != after.length) return false;
+  for (var i = 0; i < before.length; i++) {
+    final a = before[i], b = after[i];
+    final tolerance = math.max(2.0, math.min(a.width, a.height) * .02);
+    if ((a.left - b.left).abs() > tolerance ||
+        (a.top - b.top).abs() > tolerance ||
+        (a.right - b.right).abs() > tolerance ||
+        (a.bottom - b.bottom).abs() > tolerance) {
+      return false;
+    }
+  }
+  return true;
+}

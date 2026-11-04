@@ -14,10 +14,17 @@ import 'curl_sheet.dart';
 import 'package:flutter/services.dart';
 
 class PreparedPageTurn {
-  PreparedPageTurn(this.before, this.after, this.bounds, this.backBounds);
+  PreparedPageTurn(
+    this.before,
+    this.after,
+    this.bounds,
+    this.backBounds, {
+    this.curlCompatible = true,
+  });
   final ui.Image before, after;
   final Rect bounds;
   final Rect? backBounds;
+  final bool curlCompatible;
 }
 
 /// Raster overlays keep native browser views stationary while Flutter paints
@@ -32,6 +39,7 @@ class ReaderPageTransition extends StatefulWidget {
     this.captureImage,
     this.sheetBounds,
     this.backBounds,
+    this.canCurl,
     this.motion = const PageMotion(),
   });
   final PreparedPageTurn? Function(int direction)? prepare;
@@ -41,6 +49,7 @@ class ReaderPageTransition extends StatefulWidget {
   final Future<ui.Image?> Function()? captureImage;
   final Rect Function(Size size, int direction)? sheetBounds;
   final Rect? Function(Size size, int direction)? backBounds;
+  final bool Function(Size size, int direction)? canCurl;
   final PageMotion motion;
   @override
   State<ReaderPageTransition> createState() => ReaderPageTransitionState();
@@ -112,6 +121,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
       }
       final prepared = widget.prepare?.call(direction);
       if (prepared != null) {
+        if (style == 'curl' && !prepared.curlCompatible) style = 'slide';
         before = prepared.before;
         after = prepared.after;
         setState(() {
@@ -141,6 +151,11 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         return;
       }
       final box = context.findRenderObject();
+      if (style == 'curl' &&
+          box is RenderBox &&
+          widget.canCurl?.call(box.size, direction) == false) {
+        style = 'slide';
+      }
       _sheetBounds = box is RenderBox
           ? widget.sheetBounds?.call(box.size, direction)
           : null;
@@ -221,7 +236,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         setState(() {
           _before = before;
           _after = after;
-          _style = 'curl';
+          _style = prepared.curlCompatible ? 'curl' : 'slide';
           _direction = drag.physical;
           _previewReady = true;
           _animation.value = drag.progress;
@@ -243,7 +258,11 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         setState(() {
           _before = before;
           _after = null;
-          _style = 'curl';
+          _style =
+              box is RenderBox &&
+                  widget.canCurl?.call(box.size, drag.physical) == false
+              ? 'slide'
+              : 'curl';
           _direction = drag.physical;
           _animation.value = 0;
         });

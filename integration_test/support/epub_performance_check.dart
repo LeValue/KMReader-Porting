@@ -19,6 +19,7 @@ import 'package:kmreader/features/reader/epub_session.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
 import 'package:kmreader/ui/strings.dart';
 import 'package:kmreader/ui/theme.dart';
+import 'package:kmreader/ui/reader_options.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../test/support/epub_fixture.dart';
@@ -259,6 +260,67 @@ void verifyNativeEpubPerformance() {
       }
 
       final initial = await js('return reader.position().start.cfi;');
+      final settingsController = controller();
+      final retainedSize = tester.getSize(find.byType(InAppWebView));
+      await js(
+        '''window.preferenceApplications=0; const applyPreferences=reader.preferences;
+        reader.preferences=(...args)=>{preferenceApplications++;return applyPreferences(...args);};return true;''',
+      );
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Text Settings'));
+      await tester.pumpAndSettle();
+      final hiddenBrowser = find.byType(InAppWebView, skipOffstage: false);
+      expect(hiddenBrowser, findsOneWidget);
+      expect(
+        find.byType(InAppWebView),
+        findsNothing,
+        reason: 'Scrolling settings must not composite the native WebView',
+      );
+      expect(tester.getSize(hiddenBrowser), retainedSize);
+      final settingsList = find.descendant(
+        of: find.byType(ReaderOptionsPanel),
+        matching: find.byType(ListView),
+      );
+      final sizeSlider = find
+          .descendant(
+            of: find.byType(ReaderOptionsPanel),
+            matching: find.byType(Slider),
+          )
+          .first;
+      await tester.ensureVisible(sizeSlider);
+      await tester.drag(sizeSlider, const Offset(60, 0));
+      await tester.pumpAndSettle();
+      expect(
+        await js('return preferenceApplications;'),
+        0,
+        reason: 'Settings input must not queue hidden chapter reflows',
+      );
+      for (var i = 0; i < 3; i++) {
+        await tester.fling(settingsList, const Offset(0, -350), 900);
+        await tester.pumpAndSettle();
+      }
+      expect(controller(), same(settingsController));
+      expect(await js('return reader.position().start.cfi;'), initial);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ReaderOptionsPanel),
+          matching: find.byTooltip('Close'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(InAppWebView), findsOneWidget);
+      expect(controller(), same(settingsController));
+      expect(tester.getSize(find.byType(InAppWebView)), retainedSize);
+      for (var i = 0; i < 60; i++) {
+        if (await js('return preferenceApplications;') == 1) break;
+        await tester.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(await js('return preferenceApplications;'), 1);
+      await jsWhilePresenting('await reader.whenIdle(); return true;');
+      expect(await js('return reader.position().start.cfi;'), initial);
+      await visibleText();
       await js(
         '''window.turnArguments=[]; window.completedTurns=0; const turn=reader.turn;
         reader.turn=async value=>{turnArguments.push(value); await turn(value); completedTurns++; return true;}; return true;''',
@@ -393,7 +455,7 @@ void verifyNativeEpubPerformance() {
           window.matchMedia=query=>query.includes('prefers-reduced-motion')?{matches:false}:nativeMedia.call(window,query);
           window.nativeStart=KMReaderSheetEffect.prototype.start;
           window.nativeAnimate=KMReaderSheetEffect.prototype.animateTo;
-          KMReaderSheetEffect.prototype.start=async function(move){window.nativeCurl=this;return nativeStart.call(this,move);};
+          KMReaderSheetEffect.prototype.start=async function(...args){window.nativeCurl=this;return nativeStart.apply(this,args);};
           KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
           await reader.turn({delta:1,style:'curl'});
           if(!window.nativeCurl)throw Error('GPU effect did not start: supported='+KMReaderSheetEffect.supported('curl')+', reduced='+matchMedia('(prefers-reduced-motion: reduce)').matches);
