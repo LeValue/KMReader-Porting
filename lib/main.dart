@@ -15,6 +15,12 @@ import 'ui/scroll_behavior.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(
+      ['Kindle conversion worker (kfxlib)'],
+      '${await rootBundle.loadString('assets/kindle/NOTICE.md')}\n${await rootBundle.loadString('assets/kindle/COPYING')}',
+    );
+  });
+  LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
       'KMReader (upstream)',
     ], await rootBundle.loadString('LICENSE'));

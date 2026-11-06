@@ -421,6 +421,10 @@ def main(argv=None):
         "directory", type=Path, help="Cartella contenente receipt.json e le risorse"
     )
     prepare.add_argument("--converter")
+    native_prepare = sub.add_parser("prepare-json", help=argparse.SUPPRESS)
+    native_prepare.add_argument("directory", type=Path)
+    native_connect = sub.add_parser("connect-json", help=argparse.SUPPRESS)
+    native_connect.add_argument("--import-existing", action="store_true")
     probe = sub.add_parser(
         "probe",
         help="Misura Range KFX e disponibilità delle posizioni; nessuna scrittura Amazon",
@@ -454,6 +458,49 @@ def main(argv=None):
         help="Verifica anche Chrome ed Edge con risposte interamente sintetiche",
     )
     args = parser.parse_args(argv)
+    if args.command in {"prepare-json", "connect-json"}:
+        # Private, bounded process IPC for the app. Never copy this output to
+        # console diagnostics: connect-json intentionally returns credentials
+        # to its parent for the parent's platform-protected credential vault.
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+
+        application = None
+        try:
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                if args.command == "prepare-json":
+                    result = prepare_download(args.directory.resolve(), convert=True)
+                    response = {
+                        "ok": result["state"] == "importable",
+                        "preparation": result,
+                    }
+                else:
+                    directory = args.data_dir or default_directory()
+                    with exclusive(directory):
+                        application = Application(directory)
+                        if (
+                            args.import_existing
+                            and not application.client.session
+                            and directory != default_directory()
+                        ):
+                            existing = WindowsVault(default_directory()).load()
+                            if existing:
+                                application.client.vault.save(existing)
+                                application.client.session = existing
+                        application.login()
+                        application.client.refresh()
+                        response = {"ok": True, "session": application.client.session}
+            print(json.dumps(response, separators=(",", ":")))
+            return 0 if response["ok"] else 3
+        except KindleError as error:
+            print(json.dumps({"ok": False, "error": error.diagnostic()}))
+            return 2
+        except Exception:
+            print(json.dumps({"ok": False, "error": {"code": "native_worker"}}))
+            return 2
+        finally:
+            if application:
+                application.client.close()
     if args.command == "probe-file":
         from .probe import file_probe
 

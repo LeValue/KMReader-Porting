@@ -159,6 +159,7 @@ class EpubSession extends ChangeNotifier {
   final Repository repository;
   final Book book;
   final bool incognito;
+  Json? _externalPosition;
   final EpubHost host;
   EpubDocument get document => host.document;
   EpubPreferences preferences;
@@ -238,6 +239,12 @@ class EpubSession extends ChangeNotifier {
   }) async {
     // Start remote resume and ZIP inspection together; only the resource worker
     // opens the archive. The UI receives a small immutable navigation index.
+    final externalPosition = incognito
+        ? Future<Json?>.value()
+        : repository
+              .externalDocumentPosition(book, file)
+              .timeout(const Duration(seconds: 4))
+              .then<Json?>((value) => value, onError: (Object _) => null);
     final remoteProgress =
         !repository.offline &&
             !repository.store.isPending(repository.profile.id, book.id)
@@ -314,6 +321,17 @@ class EpubSession extends ChangeNotifier {
         session.cfi = '';
         session.progression = 0;
       }
+      final external = await externalPosition;
+      if (external != null) {
+        final chapter = session.chapterFor(text(external['href']));
+        if (chapter >= 0) {
+          session._externalPosition = external;
+          session.chapter = chapter;
+          session.href = doc.chapters[chapter].path;
+          session.cfi = '';
+          session.progression = 0;
+        }
+      }
       await session.prepareFont();
       return session;
     } catch (_) {
@@ -349,6 +367,8 @@ class EpubSession extends ChangeNotifier {
     if (cfi.isNotEmpty) 'cfi': cfi,
     'href': relativeHref(href),
     'progression': progression,
+    if (repository.profile.isKindle && !incognito) 'kindlePositions': true,
+    if (_externalPosition != null) 'kindleResume': _externalPosition,
   };
 
   void receive(Json event) {
@@ -394,6 +414,7 @@ class EpubSession extends ChangeNotifier {
         atStart = event['atStart'] == true;
         atEnd = event['atEnd'] == true;
         if (event['changed'] == true) {
+          if (!incognito) repository.documentPosition(book, event);
           _remember();
           _saveTimer?.cancel();
           _saveTimer = Timer(const Duration(milliseconds: 400), save);

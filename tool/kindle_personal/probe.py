@@ -1,5 +1,6 @@
 """Read-only progressive KFX experiments; reports contain counters, not books."""
 
+import json
 import shutil
 import tempfile
 import time
@@ -251,6 +252,41 @@ def online_probe(client, item):
                     "epub_bytes": len(epub),
                     "decoder_already_loaded": True,
                 }
+                # Validate the app's exact-edition resume guard without ever
+                # exporting IDs, note passages, credentials or book content.
+                from .mapped_kfx import mapped_epub
+                import io
+                import zipfile
+
+                mapped_started = time.perf_counter()
+                prepared = mapped_epub(path)
+                with zipfile.ZipFile(io.BytesIO(prepared)) as publication:
+                    mapping = json.loads(
+                        publication.read("META-INF/kmreader-kindle.json")
+                    )
+                verified = {
+                    "entries": len(mapping["entries"]),
+                    "conversion_ms": round(
+                        (time.perf_counter() - mapped_started) * 1000, 2
+                    ),
+                    "sidecar_edition_matches": None,
+                }
+                try:
+                    payload = json.loads(
+                        client.bounded_get(
+                            "https://cde-ta-g7g.amazon.com/FionaCDEServiceEngine/sidecar",
+                            stage="probe",
+                            params={"type": item["type"], "key": item["id"]},
+                        )
+                    )
+                    payload = payload.get("payload", payload)
+                    verified["sidecar_edition_matches"] = (
+                        bool(payload.get("acr"))
+                        and payload.get("acr") in mapping["container_acrs"]
+                    )
+                except (KindleError, ValueError, TypeError, AttributeError):
+                    pass
+                report["normalized_position_map"] = verified
             return report
         except KindleError as error:
             last_error = error

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Six destinations share a row even on compact phones. Keep labels on one
+/// Destinations share a row even on compact phones. Keep labels on one
 /// baseline; the complete destination name remains available to semantics.
 class ShellNavigationBar extends StatelessWidget {
   const ShellNavigationBar({

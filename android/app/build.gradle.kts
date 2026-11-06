@@ -2,6 +2,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    id("com.chaquo.python")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -34,6 +35,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64") }
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -69,6 +71,34 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+val kindlePythonSources = layout.buildDirectory.dir("generated/kindlePython")
+val prepareKindleSources by tasks.registering(Sync::class) {
+    into(kindlePythonSources)
+    from("../../tool/kindle_android") { include("*.py") }
+    from("../../tool/kindle_personal") {
+        include("__init__.py", "mapped_kfx.py", "prepare.py", "common.py")
+        into("kindle_personal")
+    }
+}
+chaquopy {
+    defaultConfig {
+        version = "3.11"
+        buildPython(providers.gradleProperty("kindleBuildPython").orNull ?: "python3.11")
+        pip {
+            install("lxml==5.3.0")
+            install("Pillow==11.0.0")
+            install("beautifulsoup4==4.14.3")
+            install("pypdf==6.21.4")
+            install("defusedxml==0.7.1")
+            install("kfxlib @ git+https://github.com/kafkasl/ksync.git@fc00a7b7a04badfbd61f3e42aaaa5e45e1d0cfd7#subdirectory=vendor/kfxlib")
+        }
+    }
+    sourceSets.getByName("main") { srcDir(kindlePythonSources) }
+}
+tasks.configureEach {
+    if (name.contains("Python")) dependsOn(prepareKindleSources)
 }
 
 // On-device OCR: models are bundled so downloaded comics work offline.

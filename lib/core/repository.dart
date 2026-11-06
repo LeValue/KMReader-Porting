@@ -36,6 +36,11 @@ class Repository extends ChangeNotifier {
     api.readNetworkPreferences = () => NetworkPreferences.fromStore(store);
   }
   final ServerProfile profile;
+  bool get supportsSeries => true;
+  bool get supportsRemoteLists => true;
+  Future<Book> resolveDocumentBook(Book book, File file) async => book;
+  Future<Json?> externalDocumentPosition(Book book, File file) async => null;
+  void documentPosition(Book book, Json event) {}
   final KomgaApi api;
   final LocalStore store;
   late final BrowsePreferences browse = BrowsePreferences(store);

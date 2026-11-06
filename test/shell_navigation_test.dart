@@ -19,7 +19,6 @@ void main() {
           'Dashboard',
           'Libreria',
           'Elenchi',
-          'Cerca',
           'Libri locali',
           'Impostazioni',
         ];
@@ -27,7 +26,6 @@ void main() {
           CupertinoIcons.house,
           CupertinoIcons.book,
           CupertinoIcons.rectangle_stack,
-          CupertinoIcons.search,
           CupertinoIcons.folder,
           CupertinoIcons.gear,
         ];
@@ -43,7 +41,7 @@ void main() {
               ),
               child: Scaffold(
                 bottomNavigationBar: ShellNavigationBar(
-                  selectedIndex: 5,
+                  selectedIndex: 4,
                   labels: labels,
                   icons: icons,
                   onSelected: (value) => selected = value,

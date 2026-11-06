@@ -1,3 +1,4 @@
+import 'support/kindle_worker_check.dart';
 import 'support/local_library_check.dart';
 
 import 'package:kmreader/core/background_downloads.dart';
@@ -39,6 +40,7 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   // Keep native GPU readback probes in the initial renderer, before fixtures
   // that create/terminate WebView and background-engine graphics contexts.
+  verifyNativeKindleWorker();
   verifyNativeComicSheets();
   verifyNativeBackgroundDownloads();
   verifyNativeScrolling(binding);

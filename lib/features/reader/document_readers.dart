@@ -40,6 +40,8 @@ class DocumentReader extends StatefulWidget {
 
 class _DocumentReaderState extends State<DocumentReader> {
   late Future<File> _file;
+  Book? _resolvedBook;
+  Book get book => _resolvedBook ?? widget.book;
   @override
   void initState() {
     super.initState();
@@ -48,7 +50,11 @@ class _DocumentReaderState extends State<DocumentReader> {
 
   Future<File> _load() async {
     final file = await widget.load();
-    if (widget.book.format == 'pdf') await initializePdfRuntime();
+    _resolvedBook = await widget.repository.resolveDocumentBook(
+      widget.book,
+      file,
+    );
+    if (book.format == 'pdf') await initializePdfRuntime();
     return file;
   }
 
@@ -71,19 +77,19 @@ class _DocumentReaderState extends State<DocumentReader> {
           body: const Center(child: CircularProgressIndicator.adaptive()),
         );
       }
-      return widget.book.format == 'pdf'
+      return book.format == 'pdf'
           ? widget.repository.store.setting<bool>('useNativePdfReader') == false
                 ? PdfRasterReader(
                     file: snapshot.data!,
                     repository: widget.repository,
-                    book: widget.book,
+                    book: book,
                     incognito: widget.incognito,
                     onNextBook: widget.onNextBook,
                   )
                 : PdfReader(
                     file: snapshot.data!,
                     repository: widget.repository,
-                    book: widget.book,
+                    book: book,
                     incognito: widget.incognito,
                     onNextBook: widget.onNextBook,
                   )
@@ -97,13 +103,13 @@ class _DocumentReaderState extends State<DocumentReader> {
               onNextBook: widget.onNextBook,
               file: snapshot.data!,
               repository: widget.repository,
-              book: widget.book,
+              book: book,
               incognito: widget.incognito,
             )
           : _EpubReader(
               file: snapshot.data!,
               repository: widget.repository,
-              book: widget.book,
+              book: book,
               incognito: widget.incognito,
             );
     },

@@ -1594,5 +1594,33 @@
   "Only the imported copy is removed. The original file stays on your device.": {
     "en": "Only the imported copy is removed. The original file stays on your device.",
     "it": "Viene rimossa solo la copia importata. Il file originale rimane sul dispositivo."
+  },
+  "Connect Kindle": {
+    "en": "Connect Kindle",
+    "it": "Collega Kindle"
+  },
+  "Complete the Amazon sign-in in your browser.": {
+    "en": "Complete the Amazon sign-in in your browser.",
+    "it": "Completa l’accesso ad Amazon nella finestra del browser."
+  },
+  "Connecting to Amazon.it…": {
+    "en": "Connecting to Amazon.it…",
+    "it": "Collegamento ad Amazon.it…"
+  },
+  "Sync reading position with Kindle": {
+    "en": "Sync reading position with Kindle",
+    "it": "Sincronizza la posizione di lettura con Kindle"
+  },
+  "Show Amazon dictionaries": {
+    "en": "Show Amazon dictionaries",
+    "it": "Mostra i dizionari Amazon"
+  },
+  "Remove Account": {
+    "en": "Remove Account",
+    "it": "Rimuovi account"
+  },
+  "Remove this account and its downloaded files from this device? Your Kindle library is kept.": {
+    "en": "Remove this account and its downloaded files from this device? Your Kindle library is kept.",
+    "it": "Rimuovere da questo dispositivo l’account e i file scaricati? La libreria Kindle viene conservata."
   }
 }
