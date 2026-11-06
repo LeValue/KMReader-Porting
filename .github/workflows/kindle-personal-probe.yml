@@ -1,5 +1,13 @@
 name: Personal Kindle read-only probe
 on:
+  workflow_call:
+    inputs:
+      prototype_run:
+        type: string
+        required: true
+      runner_label:
+        type: string
+        default: kmreader-android-desktop
   workflow_dispatch:
     inputs:
       prototype_run:
@@ -38,7 +46,10 @@ jobs:
           $destination = Join-Path $env:RUNNER_TEMP ('kindle-read-only-' + $env:GITHUB_RUN_ID)
           Expand-Archive $archives[0].FullName -DestinationPath $destination -Force
           $build = Get-Content (Join-Path $destination build.json) -Raw | ConvertFrom-Json
-          if ($build.source -ne $env:GITHUB_SHA) { throw 'Companion must be built from this exact source' }
+          git fetch --no-tags origin $build.source
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify the companion source' }
+          git diff --exit-code $build.source $env:GITHUB_SHA -- tool/kindle_personal tool/kindle_personal_cli.py tool/package_kindle_prototype.py
+          if ($LASTEXITCODE -ne 0) { throw 'The companion code must be identical to the tested source' }
           $executable = Join-Path $destination 'KMReader-Kindle/KMReader-Kindle.exe'
           New-Item artifacts/kindle-personal-probe -ItemType Directory -Force | Out-Null
           & $executable probe --output artifacts/kindle-personal-probe/report.json

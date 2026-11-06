@@ -11,7 +11,7 @@ on:
       mode:
         description: Environment, native regression tests, or profile frame timings
         type: choice
-        options: [inspect, native, profile, responsiveness, android-epub-recovery]
+        options: [inspect, native, profile, responsiveness, android-epub-recovery, kindle-probe]
         default: inspect
       publication:
         description: Profile fixture or the requested Alice download in KMReader
@@ -42,6 +42,12 @@ permissions:
   actions: read
 
 jobs:
+  kindle_probe:
+    if: inputs.mode == 'kindle-probe'
+    uses: ./.github/workflows/kindle-personal-probe.yml
+    with:
+      prototype_run: ${{ inputs.prebuilt_run }}
+      runner_label: ${{ inputs.runner_label }}
   android_recovery:
     if: inputs.mode == 'android-epub-recovery'
     uses: ./.github/workflows/local-android.yml
@@ -52,7 +58,7 @@ jobs:
       renderer: ${{ inputs.android_renderer }}
       composition: ${{ inputs.android_composition }}
   build_test:
-    if: inputs.mode != 'inspect' && inputs.mode != 'android-epub-recovery' && inputs.prebuilt_run == ''
+    if: inputs.mode != 'inspect' && inputs.mode != 'android-epub-recovery' && inputs.mode != 'kindle-probe' && inputs.prebuilt_run == ''
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
@@ -129,7 +135,7 @@ jobs:
           retention-days: 7
   inspect:
     needs: build_test
-    if: ${{ !cancelled() && inputs.mode != 'android-epub-recovery' && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
+    if: ${{ !cancelled() && inputs.mode != 'android-epub-recovery' && inputs.mode != 'kindle-probe' && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
     runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
     concurrency:
       group: kmreader-local-windows-pc-${{ inputs.runner_label }}
