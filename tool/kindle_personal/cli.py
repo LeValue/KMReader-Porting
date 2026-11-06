@@ -81,8 +81,11 @@ class Application:
         print(
             "Al termine torna qui. Non condividere URL di ritorno o file di sessione."
         )
-        data = capture_login(attempt, channel=browser)
-        self.client.register(attempt, data)
+        capture_login(
+            attempt,
+            channel=browser,
+            on_auth=lambda data: self.client.register(attempt, data),
+        )
         print(
             "Dispositivo personale registrato; credenziali protette con Windows DPAPI."
         )
@@ -282,6 +285,10 @@ class Application:
         print(
             f"\n{error}\nCodice: {error.code}; fase: {error.stage}; HTTP: {error.status or '-'}"
         )
+        if error.authentication:
+            print(
+                "Autenticazione:", json.dumps(error.authentication, ensure_ascii=False)
+            )
         write_json(
             self.directory / "last-error.json",
             {

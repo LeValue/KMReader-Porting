@@ -257,25 +257,35 @@ def self_check(*, browser=False, fixtures=None):
                 attempt = LoginAttempt("synthetic-browser")
                 callback = "https://www.amazon.it/ap/maplanding?" + urlencode(
                     {
-                        "openid.oa2.authorization_code": "synthetic-browser-code",
+                        "openid.ns": "http://specs.openid.net/auth/2.0",
+                        "openid.oa2.authorization_code": "synthetic/browser-code",
                         "openid.oa2.state": attempt.state,
-                    }
+                    },
+                    safe="/",
                 )
-                context.route(
-                    "**/*",
-                    lambda route: route.fulfill(
+                forwarded, redeemed = [], []
+
+                def upstream(route):
+                    if "/ap/signin?" not in route.request.url:
+                        forwarded.append(True)
+                    route.fulfill(
                         content_type="text/html",
                         body=f"<script>location.href={callback!r};</script>",
-                    ),
-                )
+                    )
+
+                context.route("**/*", upstream)
                 assert (
-                    capture_in_context(context, attempt, timeout=5)[
-                        "authorization_code"
-                    ]
-                    == "synthetic-browser-code"
+                    capture_in_context(
+                        context, attempt, timeout=5, on_auth=redeemed.append
+                    )["authorization_code"]
+                    == "synthetic/browser-code"
                 )
+                assert not forwarded and len(redeemed) == 1
+                assert not context.pages[0].is_closed()
                 context.close()
             finally:
                 instance.close()
         report["browser_callback"] = "passed"
+        report["browser_callback_interception"] = "passed"
+        report["browser_auth_handler"] = "passed"
     return report

@@ -6,6 +6,24 @@ import os
 import tempfile
 from pathlib import Path
 
+AUTH_ERROR_REASONS = {
+    "invalid_grant",
+    "expired_token",
+    "invalid_authentication_data",
+    "invalid_request",
+    "invalid_client",
+    "unauthorized_client",
+    "invalid_scope",
+    "unsupported_grant_type",
+    "access_denied",
+    "invalid_token",
+    "invalid_device",
+    "device_registration_limit_exceeded",
+    "device_already_registered",
+    "validation_error",
+    "unknown",
+}
+
 
 class KindleError(Exception):
     """Only public diagnostics belong in this exception (never response bodies)."""
@@ -18,11 +36,28 @@ class KindleError(Exception):
         stage: str = "local",
         status=None,
         details=None,
+        authentication=None,
     ):
         super().__init__(message)
         self.code, self.stage, self.status = code, stage, status
         self.details = {}
         self.add_details(details or {})
+        self.authentication = {}
+        self.add_authentication(authentication or {})
+
+    def add_authentication(self, details):
+        categories = {
+            "reason": AUTH_ERROR_REASONS,
+            "flow": {"pkce", "token"},
+            "response_format": {"json", "other", "empty"},
+        }
+        for key, value in details.items():
+            if (
+                key in categories
+                and isinstance(value, str)
+                and value in categories[key]
+            ):
+                self.authentication[key] = value
 
     def add_details(self, details):
         # Diagnostics accept protocol categories and counters, never arbitrary
@@ -57,6 +92,8 @@ class KindleError(Exception):
         result = {"code": self.code, "stage": self.stage, "http_status": self.status}
         if self.details:
             result["resource"] = self.details
+        if self.authentication:
+            result["authentication"] = self.authentication
         return result
 
 

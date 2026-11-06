@@ -13,13 +13,39 @@ import uuid
 from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlencode, urlsplit
 
-from .common import KindleError
+from .common import AUTH_ERROR_REASONS, KindleError
 
 DEVICE_TYPE = "AGZZ1ST63LKBW"
 APP_VERSION = "6.38.0.100"
 SOFTWARE_VERSION = "1184366692"
 USER_AGENT = "Kindle/1.0.235280.0.10 CFNetwork/1220.1 Darwin/20.3.0"
 PROFILE = "kindle-ios-6.38-experimental"
+
+
+def registration_error_reason(payload):
+    """Return only a known protocol enum; never echo a server string/message."""
+    accepted = {
+        "".join(c for c in reason if c.isalnum()): reason
+        for reason in AUTH_ERROR_REASONS
+    }
+    if not isinstance(payload, dict):
+        return "unknown"
+    containers = [payload]
+    if isinstance(payload.get("response"), dict):
+        containers.append(payload["response"])
+    for container in list(containers):
+        if isinstance(container.get("error"), dict):
+            containers.append(container["error"])
+    for container in containers:
+        for key in ("error", "code", "errorCode", "type", "__type"):
+            code = container.get(key)
+            if isinstance(code, str) and len(code) <= 128:
+                normalized = "".join(
+                    c for c in code.rsplit("#", 1)[-1].casefold() if c.isalnum()
+                )
+                if normalized in accepted:
+                    return accepted[normalized]
+    return "unknown"
 
 
 @dataclass(repr=False)
@@ -69,13 +95,9 @@ class LoginAttempt:
 
     def callback(self, url: str):
         """Only called for navigation in our ephemeral browser context."""
-        parsed = urlsplit(url)
-        if (parsed.scheme, parsed.netloc, parsed.path) != (
-            "https",
-            "www.amazon.it",
-            "/ap/maplanding",
-        ):
+        if not self.is_callback_url(url):
             return None
+        parsed = urlsplit(url)
         values = parse_qs(parsed.query + "&" + parsed.fragment)
         if "error" in values or "openid.oa2.error" in values:
             raise KindleError(
@@ -109,6 +131,18 @@ class LoginAttempt:
                 "client_domain": "DeviceLegacy",
             }
         return {"access_token": token[0]}
+
+    @staticmethod
+    def is_callback_url(url: str):
+        try:
+            parsed = urlsplit(url)
+            return (parsed.scheme, parsed.netloc, parsed.path) == (
+                "https",
+                "www.amazon.it",
+                "/ap/maplanding",
+            )
+        except ValueError:
+            return False
 
 
 def new_serial() -> str:

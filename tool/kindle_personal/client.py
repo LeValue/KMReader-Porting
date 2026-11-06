@@ -17,6 +17,7 @@ from .auth import (
     SOFTWARE_VERSION,
     USER_AGENT,
     registration_body,
+    registration_error_reason,
 )
 from .common import KindleError
 
@@ -119,7 +120,6 @@ class KindleClient:
         try:
             self.http.cookies.clear()
             with self.http.stream(method, url, **kwargs) as response:
-                self._check(response, stage)
                 chunks, size = [], 0
                 for chunk in response.iter_bytes():
                     size += len(chunk)
@@ -128,9 +128,26 @@ class KindleClient:
                             "response_size",
                             "Risposta Amazon troppo grande.",
                             stage=stage,
+                            status=response.status_code,
                         )
                     chunks.append(chunk)
-                value = json.loads(b"".join(chunks))
+                raw = b"".join(chunks)
+                try:
+                    value = json.loads(raw)
+                    response_format = "json"
+                except (ValueError, UnicodeError):
+                    value = None
+                    response_format = "other" if raw else "empty"
+                if not 200 <= response.status_code < 300:
+                    try:
+                        self._check(response, stage)
+                    except KindleError as error:
+                        if stage in {"register", "refresh"}:
+                            reason = registration_error_reason(value)
+                            error.add_authentication(
+                                {"reason": reason, "response_format": response_format}
+                            )
+                        raise
                 if not isinstance(value, dict):
                     raise ValueError()
                 return value
@@ -151,12 +168,16 @@ class KindleClient:
                 "already_connected",
                 "Account già collegato: usa la sessione esistente o scollega prima il prototipo.",
             )
-        data = self._json(
-            "POST",
-            "https://api.amazon.it/auth/register",
-            stage="register",
-            json=registration_body(attempt, auth_data),
-        )
+        try:
+            data = self._json(
+                "POST",
+                "https://api.amazon.it/auth/register",
+                stage="register",
+                json=registration_body(attempt, auth_data),
+            )
+        except KindleError as error:
+            error.add_authentication({"flow": attempt.flow})
+            raise
         try:
             success = data["response"]["success"]
             tokens, extensions = success["tokens"], success["extensions"]
