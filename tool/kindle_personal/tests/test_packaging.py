@@ -28,11 +28,11 @@ class SourcePackageTest(unittest.TestCase):
             for name, value in files.items():
                 path = repository / name
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(value)
+                path.write_bytes(value.encode("utf-8"))
             dependency.mkdir()
-            (dependency / "COPYING").write_text("GPL test notice\n")
-            (dependency / "pyproject.toml").write_text("# upstream build config\n")
-            (dependency / "parser.py").write_text("# upstream source\n")
+            (dependency / "COPYING").write_bytes(b"GPL test notice\n")
+            (dependency / "pyproject.toml").write_bytes(b"# upstream build config\n")
+            (dependency / "parser.py").write_bytes(b"# upstream source\n")
             output.mkdir()
             archive = source_bundle(
                 repository,
