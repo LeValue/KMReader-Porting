@@ -21,7 +21,7 @@ def quiet_library():
 
 
 class ProgressiveKfx:
-    def __init__(self, source):
+    def __init__(self, source, *, metadata_only=False):
         from kfxlib import YJ_Book
         from kfxlib.ion_binary import IonBinary
         from kfxlib.kfx_container import KfxContainerEntity
@@ -143,8 +143,8 @@ class ProgressiveKfx:
                 slice_header(info["$594"], info["$595"]), expect_annotation="$593"
             )
             self.book.fragments.append(YJFragment(capabilities))
-        self.sections = self.book.ordered_section_names()
-        if not self.sections:
+        self.sections = [] if metadata_only else self.book.ordered_section_names()
+        if not self.sections and not metadata_only:
             raise KindleError(
                 "probe_kfx_spine", "Ordine di lettura KFX assente.", stage="probe"
             )
