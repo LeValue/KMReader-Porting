@@ -11,7 +11,7 @@ from pathlib import Path
 
 def convert_kfx(source: Path, output: Path):
     try:
-        from kfxlib import KFXDRMError, YJ_Book, set_logger
+        from kfxlib import KFXDRMError, set_logger
     except ImportError:
         return 6
 
@@ -20,7 +20,9 @@ def convert_kfx(source: Path, output: Path):
     logger.propagate = False
     set_logger(logger)
     try:
-        data = YJ_Book(str(source)).convert_to_epub()
+        from .mapped_kfx import mapped_epub
+
+        data = mapped_epub(source)
         output.write_bytes(data)
         return 0
     except KFXDRMError:

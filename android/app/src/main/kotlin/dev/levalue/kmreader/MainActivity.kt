@@ -43,6 +43,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        flutterEngine.plugins.add(KindlePlugin())
         transferConditions = TransferConditions(this, flutterEngine.dartExecutor.binaryMessenger)
         ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
         exporter = FileExporter(this, flutterEngine.dartExecutor.binaryMessenger)

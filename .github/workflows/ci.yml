@@ -53,6 +53,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - run: python3 tool/prepare_build_metadata.py
       - name: Reserve space for the optimized Android build
         run: |
@@ -112,7 +115,13 @@ jobs:
           $tokens = $null
           [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tool/android_epub_recovery.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
           if ($parseErrors) { throw ($parseErrors | Out-String) }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - run: python tool/prepare_build_metadata.py
+      - name: Build and verify the separate Kindle converter
+        shell: pwsh
+        run: ./tool/build_kindle_worker.ps1
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'
@@ -124,6 +133,12 @@ jobs:
       - name: Verify EPUB in native Windows WebView2
         run: flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub
       - run: flutter build windows --release
+      - name: Include the on-demand Kindle converter
+        shell: pwsh
+        run: |
+          Copy-Item artifacts/kindle-dist/KMReader-Kindle build/windows/x64/runner/Release/kindle -Recurse
+          Copy-Item artifacts/kindle-delivery/*-source.zip build/windows/x64/runner/Release/
+          Copy-Item assets/kindle/NOTICE.md build/windows/x64/runner/Release/Kindle-NOTICE.md
       - name: Launch the native Windows app in an isolated profile
         shell: pwsh
         run: ./tool/windows_startup_smoke.ps1 -Executable build/windows/x64/runner/Release/kmreader.exe -OutputDirectory "${{ runner.temp }}/windows-startup"
@@ -142,6 +157,9 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - run: python3 tool/prepare_build_metadata.py
       - name: Reserve disk space for the emulator and Android build
         run: |

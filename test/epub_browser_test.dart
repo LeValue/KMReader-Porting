@@ -21,6 +21,43 @@ void main() {
   late Directory directory;
   setUp(() => directory = Directory.systemTemp.createTempSync('epub-browser-'));
   tearDown(() => directory.deleteSync(recursive: true));
+  test('Kindle Unicode positions survive restore, reflow and page navigation', () async {
+    final text =
+        '😀 old words. ${List.filled(500, 'Accenti città e navigazione. ').join()}';
+    final document = EpubDocument.open(
+      fixture(
+        directory,
+        resources: {
+          'OPS/one.xhtml': utf8.encode(
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Positions</title></head><body><p id="mapped" data-kmreader-kindle-position="100" data-kmreader-kindle-length="${text.runes.length}">$text</p></body></html>',
+          ),
+        },
+      ).path,
+    );
+    final host = await EpubHost.open(
+      document,
+      filePath: '${directory.path}/browser.epub',
+    );
+    try {
+      final result = await Process.run('python3', [
+        'tool/kindle_reader_smoke.py',
+        host.reader.toString(),
+        jsonEncode({
+          'url': host.publication.toString(),
+          'preferences': const EpubPreferences().toJson(),
+          'nonce': 'synthetic-kindle',
+          'direction': 'ltr',
+          'href': 'one.xhtml',
+          'kindlePositions': true,
+          'kindleResume': {'id': 'mapped', 'position': 100, 'offset': 2},
+        }),
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    } finally {
+      await host.close();
+      document.close();
+    }
+  }, skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1');
   test('publication host serves only token-scoped archive resources', () async {
     final document = EpubDocument.open(fixture(directory).path);
     final host = await EpubHost.open(

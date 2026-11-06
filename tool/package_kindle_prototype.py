@@ -26,9 +26,16 @@ def source_bundle(repository, dependency, output, version, metadata):
         repository / "tool/kindle_personal_cli.py",
         repository / "tool/package_kindle_prototype.py",
         repository / ".github/workflows/kindle-prototype.yml",
+        *sorted((repository / "tool/kindle_android").glob("*.py")),
+        repository / "tool/build_kindle_worker.ps1",
+        repository / "android/app/build.gradle.kts",
+        repository / "android/settings.gradle.kts",
+        repository / "android/app/src/main/kotlin/dev/levalue/kmreader/KindlePlugin.kt",
     ]
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         for path in paths:
+            if not path.is_file():
+                continue
             bundle.write(path, path.relative_to(repository).as_posix())
         for path in sorted(dependency.rglob("*")):
             if (

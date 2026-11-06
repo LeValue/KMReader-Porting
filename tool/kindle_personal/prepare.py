@@ -349,6 +349,7 @@ def prepare_download(directory: Path, *, converter=None, convert=False):
                         format="epub",
                         file=final.name,
                         sha256=file_hash(final),
+                        kindle_locator_map=builtin,
                     )
                 else:
                     result.update(reason="conversion_unsupported")

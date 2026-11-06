@@ -887,6 +887,51 @@ class KMReaderPageSnapshot {
     const cfi = visibleTextCfi(contents, {left, right, top, bottom: top + viewport.height});
     if (cfi) location.start.cfi = cfi;
   }
+  function kindleOriginalPosition(start) {
+    if (!config.kindlePositions || !start?.cfi) return null;
+    try {
+      const cfi = new ePub.CFI(start.cfi);
+      for (const contents of rendition.getContents()) {
+        if (contents.sectionIndex !== cfi.spinePos) continue;
+        const range = cfi.toRange(contents.document);
+        const node = range?.startContainer;
+        const element = (node?.nodeType === 1 ? node : node?.parentElement)
+          ?.closest('[data-kmreader-kindle-position]');
+        if (!element) continue;
+        const original = Number(element.getAttribute('data-kmreader-kindle-position'));
+        const length = Number(element.getAttribute('data-kmreader-kindle-length'));
+        if (!Number.isSafeInteger(original) || !Number.isSafeInteger(length) ||
+            original < 0 || length !== [...element.textContent].length) continue;
+        const prefix = contents.document.createRange();
+        prefix.selectNodeContents(element);
+        prefix.setEnd(range.startContainer, range.startOffset);
+        const offset = [...prefix.toString()].length;
+        if (offset >= 0 && offset < length) return original + offset;
+      }
+    } catch (_) {}
+    return null;
+  }
+  async function restoreKindlePosition(value) {
+    for (const contents of rendition.getContents()) {
+      const element = contents.document.getElementById(String(value.id));
+      if (!element || Number(element.getAttribute('data-kmreader-kindle-position')) !== value.position) continue;
+      let remaining = value.offset;
+      if (!Number.isSafeInteger(remaining) || remaining < 0 ||
+          remaining >= Number(element.getAttribute('data-kmreader-kindle-length'))) return null;
+      const walker = contents.document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const characters = [...node.data];
+        if (remaining >= characters.length) { remaining -= characters.length; continue; }
+        const range = contents.document.createRange();
+        range.setStart(node, characters.slice(0, remaining).join('').length);
+        range.collapse(true);
+        const cfi = contents.cfiFromRange(range);
+        await displayStable(cfi);
+        return cfi;
+      }
+    }
+    return null;
+  }
   function position(changed = false) {
     if (!location || restoring || auxiliary || interactiveNavigation) return;
     // Delayed Epub.js reports contain a coarse paragraph CFI, which can lie on
@@ -903,7 +948,8 @@ class KMReaderPageSnapshot {
     send('position', {cfi: start.cfi, href: start.href, page: displayed.page, pages: displayed.total,
       progression: progression(start, displayed),
       totalProgression: Number.isFinite(start.percentage) ? start.percentage : null,
-      atStart: !!location.atStart, atEnd: atReadingEnd(), changed});
+      atStart: !!location.atStart, atEnd: atReadingEnd(), changed,
+      ...(config.kindlePositions ? {kindlePosition: kindleOriginalPosition(start)} : {})});
   }
   function hook(contents) {
     adaptLocationMapping(rendition.manager);
@@ -1681,6 +1727,10 @@ class KMReaderPageSnapshot {
     await stable(rendition.getContents());
     if(collapsedPageView())await displayStable(restoredCfi?value.cfi:value.href||undefined);
     if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
+    if (value.kindleResume) {
+      const cfi = await restoreKindlePosition(value.kindleResume);
+      if (cfi) { value.cfi = cfi; restoredCfi = true; }
+    }
     await tick();
     // Ready must describe a real viewport, even if the initial relocated
     // callback is still queued by the renderer.

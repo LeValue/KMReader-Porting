@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -22,6 +24,8 @@ import 'system_features_page.dart';
 import 'preference_controls.dart';
 import 'settings_style.dart';
 import '../auth/login_page.dart';
+import '../auth/kindle_login_page.dart';
+import '../../core/kindle/repository.dart';
 import '../offline/downloads_page.dart';
 import '../catalog/dashboard.dart';
 import '../catalog/history_page.dart';
@@ -268,13 +272,14 @@ class _SettingsIndex extends StatelessWidget {
             Colors.grey,
             _section('Servers', SettingsSection.accounts),
           ),
-          _link(
-            context,
-            'Server Info',
-            CupertinoIcons.tray_2,
-            Colors.blueGrey,
-            _section('Server Info', SettingsSection.server),
-          ),
+          if (!repository.profile.isKindle)
+            _link(
+              context,
+              'Server Info',
+              CupertinoIcons.tray_2,
+              Colors.blueGrey,
+              _section('Server Info', SettingsSection.server),
+            ),
         ]),
       ],
     ),
@@ -311,39 +316,43 @@ class _SettingsSection extends StatelessWidget {
             Card(
               child: Column(
                 children: [
-                  ListTile(
-                    leading: const Icon(CupertinoIcons.lock),
-                    title: Text(tr(context, 'API Keys')),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => ApiKeysPage(repository: repository),
+                  if (!repository.profile.isKindle)
+                    ListTile(
+                      leading: const Icon(CupertinoIcons.lock),
+                      title: Text(tr(context, 'API Keys')),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ApiKeysPage(repository: repository),
+                        ),
                       ),
                     ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.password),
-                    title: Text(tr(context, 'account.details.changePassword')),
-                    enabled: !repository.offline,
-                    onTap: () async {
-                      final changed = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              PasswordPage(app: app, repository: repository),
-                        ),
-                      );
-                      if (changed == true && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              tr(context, 'account.details.passwordUpdated'),
-                            ),
+                  if (!repository.profile.isKindle)
+                    ListTile(
+                      leading: const Icon(Icons.password),
+                      title: Text(
+                        tr(context, 'account.details.changePassword'),
+                      ),
+                      enabled: !repository.offline,
+                      onTap: () async {
+                        final changed = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                PasswordPage(app: app, repository: repository),
                           ),
                         );
-                      }
-                    },
-                  ),
+                        if (changed == true && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                tr(context, 'account.details.passwordUpdated'),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   ListTile(
                     leading: const Icon(CupertinoIcons.clock),
                     title: Text(tr(context, 'History and Statistics')),
@@ -357,17 +366,19 @@ class _SettingsSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.manage_history),
-                    title: Text(tr(context, 'Authentication Activity')),
-                    onTap: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            AuthenticationActivityPage(repository: repository),
+                  if (!repository.profile.isKindle)
+                    ListTile(
+                      leading: const Icon(Icons.manage_history),
+                      title: Text(tr(context, 'Authentication Activity')),
+                      onTap: () => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AuthenticationActivityPage(
+                            repository: repository,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
                   for (final profile in app.servers)
                     ListTile(
                       leading: Icon(
@@ -392,16 +403,21 @@ class _SettingsSection extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    LoginPage(app: app, profile: profile),
+                                builder: (_) => profile.isKindle
+                                    ? KindleLoginPage(app: app)
+                                    : LoginPage(app: app, profile: profile),
                               ),
                             );
                           }
                           if (action == 'remove' &&
                               await confirm(
                                 context,
-                                'Remove Server',
-                                'Remove this server and its downloaded files from this device?',
+                                profile.isKindle
+                                    ? 'Remove Account'
+                                    : 'Remove Server',
+                                profile.isKindle
+                                    ? 'Remove this account and its downloaded files from this device? Your Kindle library is kept.'
+                                    : 'Remove this server and its downloaded files from this device?',
                               )) {
                             try {
                               await app.remove(profile);
@@ -417,7 +433,14 @@ class _SettingsSection extends StatelessWidget {
                           ),
                           PopupMenuItem(
                             value: 'remove',
-                            child: Text(tr(context, 'Remove Server')),
+                            child: Text(
+                              tr(
+                                context,
+                                profile.isKindle
+                                    ? 'Remove Account'
+                                    : 'Remove Server',
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -432,6 +455,53 @@ class _SettingsSection extends StatelessWidget {
                       ),
                     ),
                   ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.book),
+                    title: Text(tr(context, 'Connect Kindle')),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => KindleLoginPage(app: app),
+                      ),
+                    ),
+                  ),
+                  if (repository is KindleRepository) ...[
+                    SwitchListTile.adaptive(
+                      title: Text(
+                        tr(context, 'Sync reading position with Kindle'),
+                      ),
+                      value:
+                          repository.store.setting<bool>(
+                            'kindleSync:${repository.profile.id}',
+                          ) !=
+                          false,
+                      onChanged: (value) {
+                        repository.store.setSetting(
+                          'kindleSync:${repository.profile.id}',
+                          value,
+                        );
+                        if (value) unawaited(repository.sync());
+                        app.settingsChanged();
+                      },
+                    ),
+                    SwitchListTile.adaptive(
+                      title: Text(tr(context, 'Show Amazon dictionaries')),
+                      value:
+                          repository.store.setting<bool>(
+                            'kindleDictionaries:${repository.profile.id}',
+                          ) ==
+                          true,
+                      onChanged: (value) {
+                        repository.store.setSetting(
+                          'kindleDictionaries:${repository.profile.id}',
+                          value,
+                        );
+                        (repository as KindleRepository).library.index();
+                        repository.localCatalogChanged();
+                        app.settingsChanged();
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

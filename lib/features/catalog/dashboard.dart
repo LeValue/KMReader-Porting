@@ -275,8 +275,15 @@ class _DashboardState extends State<Dashboard> {
                 ),
                 for (final title in order)
                   if (!hidden.contains(title) &&
+                      (repository.supportsSeries ||
+                          !const {
+                            'dashboard.onDeck',
+                            'dashboard.recentlyAddedSeries',
+                            'dashboard.recentlyUpdatedSeries',
+                          }.contains(title)) &&
                       (title != 'dashboard.readListsInProgress' ||
-                          repository.readLists.enabled))
+                          repository.supportsRemoteLists &&
+                              repository.readLists.enabled))
                     if (title == 'dashboard.readListsInProgress')
                       _ReadListSection(
                         repository: repository,

@@ -357,10 +357,11 @@ class _BookDetail extends StatelessWidget {
                         }
                       },
                       itemBuilder: (_) => [
-                        PopupMenuItem(
-                          value: 'list',
-                          child: Text(tr(context, 'Add to Read List')),
-                        ),
+                        if (repository.supportsRemoteLists)
+                          PopupMenuItem(
+                            value: 'list',
+                            child: Text(tr(context, 'Add to Read List')),
+                          ),
                         PopupMenuItem(
                           value: 'read',
                           child: Text(tr(context, 'Mark as Read')),

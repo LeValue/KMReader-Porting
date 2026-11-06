@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.1.6
+# KMReader Kindle personale — prototipo Windows 0.2.0
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -181,7 +181,7 @@ L'app Flutter rimane MIT e non dipende da questo programma. L'eseguibile separat
 del prototipo include **kfxlib di John Howell, GPL-3.0-or-later** ed è distribuito
 nel suo insieme sotto GPL-3.0-or-later; il codice originale mantiene gli avvisi MIT.
 Lo ZIP contiene `LICENSE`, `MIT-LICENSE` e gli avvisi delle dipendenze. Nella stessa
-release si trova `KMReader-Kindle-0.1.6-source.zip`, con sorgenti corrispondenti del
+release si trova `KMReader-Kindle-0.2.0-source.zip`, con sorgenti corrispondenti del
 prototipo, sorgenti kfxlib della revisione fissata e istruzioni di ricompilazione.
 
 Per eseguire i sorgenti su Windows usa Python 3.11 x64: il parser Ion fissato
@@ -226,3 +226,11 @@ riusa il decoder già caricato, come indicato nel report. Il probe locale mantie
 la misura delle allocazioni e dichiara esplicitamente che il profiler altera i tempi.
 Le operazioni sui contenuti Kindle sono di sola lettura; se necessario viene
 rinnovata normalmente la sessione di autenticazione.
+
+## Integrazione KMReader 0.9.0
+
+Il companion espone `connect-json` e `prepare-json` per il processo nativo.
+Il primo restituisce una sessione soltanto nella pipe privata del processo padre;
+non usarlo per raccogliere diagnostica o in workflow con log pubblici.
+La conversione aggiunge marcatori delle posizioni originali solo dove il testo
+corrisponde esattamente, senza aggiungere nodi o cambiare impaginazione.

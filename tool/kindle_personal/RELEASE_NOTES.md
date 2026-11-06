@@ -1,3 +1,7 @@
+La 0.2.0 aggiunge il bridge nativo per KMReader e la conversione con mappa
+delle posizioni originali, senza modificare testo o struttura del documento.
+La preparazione avviene in un processo separato dal lettore.
+
 La 0.1.6 aggiunge test di decodifica progressiva KFX e della mappa delle posizioni
 originali Kindle, senza modificare libri, note o avanzamento su Amazon.
 
