@@ -334,6 +334,21 @@ def self_check(*, browser=False, fixtures=None):
             )
         assert prepare_download(kfx_directory)["state"] == "importable"
         report["offline_kfx_conversion"] = "passed"
+        from .probe import file_probe
+        from .probe_fixtures import synthetic_progressive_kfx
+
+        probe_source = root / "synthetic-progressive.kfx"
+        probe_source.write_bytes(synthetic_progressive_kfx())
+        probe_result = file_probe(probe_source)
+        assert probe_result["matches_full_decode"]
+        assert (
+            probe_result["first_section_transfer"]["transferred_bytes"]
+            < probe_source.stat().st_size
+        )
+        assert probe_result["position_roundtrips"] > 0
+        assert probe_result["revisit_additional_bytes"] == 0
+        report["progressive_kfx_decoding"] = "passed"
+        report["kindle_position_roundtrip"] = "passed"
         import base64
 
         assert (

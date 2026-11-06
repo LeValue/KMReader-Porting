@@ -116,6 +116,8 @@ def main():
         or smoke.get("browser_callback_chrome") != "passed"
         or smoke.get("browser_callback_edge") != "passed"
         or smoke.get("offline_kfx_conversion") != "passed"
+        or smoke.get("progressive_kfx_decoding") != "passed"
+        or smoke.get("kindle_position_roundtrip") != "passed"
         or smoke.get("amazon_contacted") is not False
     ):
         raise ValueError(

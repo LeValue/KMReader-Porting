@@ -267,8 +267,16 @@ class KindleClient:
         self.refresh()
         check_url(url)
         self.http.cookies.clear()
+        public_headers = {
+            "User-Agent": USER_AGENT,
+            **{
+                key: value
+                for key, value in (headers or {}).items()
+                if key.lower() in {"range", "if-range"}
+            },
+        }
         request = self.http.build_request(
-            "GET", url, params=params, headers={"User-Agent": USER_AGENT}
+            "GET", url, params=params, headers=public_headers
         )
         if request.url.host in SIGNING_HOSTS:
             request.headers.update(headers or {})
@@ -293,9 +301,7 @@ class KindleClient:
             response.close()
             check_url(next_url)
             self.http.cookies.clear()
-            request = self.http.build_request(
-                "GET", next_url, headers={"User-Agent": USER_AGENT}
-            )
+            request = self.http.build_request("GET", next_url, headers=public_headers)
             if request.url.host in SIGNING_HOSTS:
                 request.headers.update(headers or {})
                 request.headers.update(signing_headers(request, self.session))

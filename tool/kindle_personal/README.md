@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.1.4
+# KMReader Kindle personale — prototipo Windows 0.1.5
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -181,7 +181,7 @@ L'app Flutter rimane MIT e non dipende da questo programma. L'eseguibile separat
 del prototipo include **kfxlib di John Howell, GPL-3.0-or-later** ed è distribuito
 nel suo insieme sotto GPL-3.0-or-later; il codice originale mantiene gli avvisi MIT.
 Lo ZIP contiene `LICENSE`, `MIT-LICENSE` e gli avvisi delle dipendenze. Nella stessa
-release si trova `KMReader-Kindle-0.1.4-source.zip`, con sorgenti corrispondenti del
+release si trova `KMReader-Kindle-0.1.5-source.zip`, con sorgenti corrispondenti del
 prototipo, sorgenti kfxlib della revisione fissata e istruzioni di ricompilazione.
 
 Per eseguire i sorgenti su Windows usa Python 3.11 x64: il parser Ion fissato
@@ -201,3 +201,20 @@ KMREADER_KINDLE_BROWSER_TEST=1 python -m unittest discover -s tool/kindle_person
 Il programma interattivo conserva le credenziali soltanto su Windows. I test
 Linux usano sessioni sintetiche in memoria; nessun archivio in chiaro è attivabile
 dall'interfaccia o dai comandi del programma.
+
+## Probe progressivo 0.1.5
+
+Il menu **11** misura letture Range del KFX originale e disponibilità dei dati
+Kindle di posizione/annotazioni, usando esclusivamente GET. `progressive-probe.json`
+contiene contatori, tempi e categorie, senza contenuto, titoli, identificativi,
+credenziali o URL. La risorsa deve avere una versione verificabile (ETag forte o
+Last-Modified); intervalli errati, cambiamenti e trasferimenti troncati falliscono.
+Un server che restituisce il file completo viene dichiarato come tale.
+
+`probe-file documento.kfx --output report.json` confronta l'estrazione parziale
+con la decodifica completa, verificando testo e posizioni originali. La misura
+di memoria è delle sole allocazioni Python tracciate, non della memoria totale
+del processo; i tempi locali non predicono quelli del telefono. Gli offset del
+DOM UTF-16 vengono mappati sulle posizioni Kindle per carattere Unicode senza
+normalizzare il testo. Il probe non riproduce ancora l'impaginazione editoriale
+e non abilita scritture di sincronizzazione.

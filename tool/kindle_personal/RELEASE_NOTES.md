@@ -1,20 +1,16 @@
-Il documento veniva scaricato correttamente ma restava in formato Amazon KFX:
-la 0.1.3 non riconosceva la firma `CONT` e, senza Calibre, non produceva un EPUB.
+La 0.1.5 aggiunge test di decodifica progressiva KFX e della mappa delle posizioni
+originali Kindle, senza modificare libri, note o avanzamento su Amazon.
 
-La **0.1.4 converte automaticamente i KFX non cifrati in `ready.epub`**, offline,
-senza installare Calibre o plugin. Controlla l'integrità delle risorse e la struttura
-dell'EPUB prima di dichiararlo importabile; un errore non diventa un falso successo.
+Il menu **11** oppure `probe --output report.json` verifica sul PC già collegato
+se la risorsa Amazon supporta letture parziali e se sono disponibili posizione e
+annotazioni. Il report contiene soltanto tempi, contatori e codici, senza testo,
+titoli, identificativi, URL o credenziali.
 
-Chiudi il vecchio prototipo, estrai tutto lo ZIP Windows e avvia **Avvia-Kindle.cmd**.
-Scegli **4 — Riprova preparazione**, seleziona il documento già scaricato e importa
-il `ready.epub` indicato in **KMReader → Libri locali**. Non serve rifare login o
-download. I nuovi download con **3** vengono preparati automaticamente.
+Il decoder sperimentale legge indice e frammenti su richiesta; i test confrontano
+il testo e le posizioni con una decodifica completa, includendo Unicode, cache,
+risorse cambiate e server senza Range. La prova misura l'estrazione del testo,
+non certifica ancora la riproduzione dell'impaginazione originale.
 
-Verifiche: conversione reale di KFX sintetici su Windows/Linux, importazione EPUB
-nel motore KMReader e riapertura offline, eseguibile Windows con conversione KFX,
-DPAPI, Chrome ed Edge. I test pubblici non contengono documenti personali.
-
-Il prototipo è un programma separato dall'app Flutter MIT. Include kfxlib di John
-Howell (GPL-3.0-or-later); il pacchetto combinato è distribuito sotto GPLv3 o successiva
-con avvisi MIT e dipendenze. I sorgenti corrispondenti, incluso kfxlib della revisione
-fissata e le istruzioni di compilazione, sono nello ZIP `source` allegato.
+Il download e la conversione automatica della 0.1.4 restano disponibili, insieme
+a sessioni e documenti già salvati. Sorgenti corrispondenti e licenze GPLv3+/MIT
+sono inclusi nella release del companion separato dall'app.

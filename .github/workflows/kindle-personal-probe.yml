@@ -1,0 +1,50 @@
+name: Personal Kindle read-only probe
+on:
+  workflow_dispatch:
+    inputs:
+      prototype_run:
+        description: Successful Kindle prototype build run for this source
+        type: string
+        required: true
+      runner_label:
+        description: Previously configured personal runner label
+        type: choice
+        options: [kmreader-android-desktop, kmreader-laptop]
+        default: kmreader-android-desktop
+permissions:
+  contents: read
+  actions: read
+jobs:
+  probe:
+    runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: KMReader-Kindle-windows-x64
+          run-id: ${{ inputs.prototype_run }}
+          github-token: ${{ github.token }}
+          path: artifacts/kindle-probe-build
+      - name: Validate the exact-source companion and run GET-only Amazon probes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archives = @(Get-ChildItem artifacts/kindle-probe-build -Filter 'KMReader-Kindle-*-windows-x64.zip' -Recurse)
+          if ($archives.Count -ne 1) { throw 'Expected exactly one companion archive' }
+          $sums = Get-ChildItem artifacts/kindle-probe-build -Filter SHA256SUMS.txt -Recurse | Select-Object -First 1
+          $line = Get-Content $sums.FullName | Where-Object { $_.EndsWith($archives[0].Name) }
+          if (-not $line -or (Get-FileHash $archives[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant() -ne $line.Substring(0,64)) { throw 'Companion checksum mismatch' }
+          $destination = Join-Path $env:RUNNER_TEMP ('kindle-read-only-' + $env:GITHUB_RUN_ID)
+          Expand-Archive $archives[0].FullName -DestinationPath $destination -Force
+          $build = Get-Content (Join-Path $destination build.json) -Raw | ConvertFrom-Json
+          if ($build.source -ne $env:GITHUB_SHA) { throw 'Companion must be built from this exact source' }
+          $executable = Join-Path $destination 'KMReader-Kindle/KMReader-Kindle.exe'
+          New-Item artifacts/kindle-personal-probe -ItemType Directory -Force | Out-Null
+          & $executable probe --output artifacts/kindle-personal-probe/report.json
+          if ($LASTEXITCODE -ne 0) { throw 'Read-only probe did not complete; no private files will be uploaded' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kindle-personal-read-only-probe
+          path: artifacts/kindle-personal-probe/report.json
+          if-no-files-found: error
