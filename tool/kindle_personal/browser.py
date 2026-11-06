@@ -10,15 +10,23 @@ def capture_login(attempt, *, channel=None, timeout=600, on_auth=None):
     from playwright.sync_api import Error, sync_playwright
 
     with sync_playwright() as playwright:
+        selected = channel or ("chrome" if os.name == "nt" else None)
         try:
             browser = playwright.chromium.launch(
                 headless=False,
-                channel=channel or ("msedge" if os.name == "nt" else None),
+                channel=selected,
             )
         except Error:
             raise KindleError(
                 "browser_missing",
-                "Microsoft Edge non disponibile. Installa Edge oppure usa --browser chrome.",
+                (
+                    "Google Chrome"
+                    if selected == "chrome"
+                    else "Microsoft Edge"
+                    if selected == "msedge"
+                    else "Chromium"
+                )
+                + " non disponibile. Installa il browser scelto oppure cambialo dal menu 10.",
                 stage="login",
             ) from None
         try:

@@ -57,6 +57,20 @@ class Application:
         self.directory = directory
         self.client = client or KindleClient(WindowsVault(directory))
         self.include_dictionaries = False
+        try:
+            preferences = read_json(directory / "preferences.json", {})
+        except KindleError:
+            preferences = {}
+        selected = (
+            preferences.get("login_browser") if isinstance(preferences, dict) else None
+        )
+        self.login_browser = selected if selected in ("chrome", "msedge") else "chrome"
+
+    def set_login_browser(self, browser):
+        if browser not in ("chrome", "msedge"):
+            raise KindleError("browser_choice", "Scegli Chrome oppure Edge.")
+        write_json(self.directory / "preferences.json", {"login_browser": browser})
+        self.login_browser = browser
 
     @property
     def account_directory(self):
@@ -75,18 +89,27 @@ class Application:
         write_json(self.directory / "identity.json", identity)
         attempt = LoginAttempt(identity["serial"], flow)
         (self.directory / "last-error.json").unlink(missing_ok=True)
-        print("Si apre Amazon.it in una finestra separata di Edge.")
+        selected_browser = browser or self.login_browser
+        print(
+            "Si apre Amazon.it in una finestra separata di "
+            + ("Chrome" if selected_browser == "chrome" else "Edge")
+            + "."
+        )
         print(
             "Inserisci password ed eventuale codice esclusivamente nella pagina Amazon."
         )
         print(
             "Al termine torna qui. Non condividere URL di ritorno o file di sessione."
         )
-        capture_login(
-            attempt,
-            channel=browser,
-            on_auth=lambda data: self.client.register(attempt, data),
-        )
+        try:
+            capture_login(
+                attempt,
+                channel=selected_browser,
+                on_auth=lambda data: self.client.register(attempt, data),
+            )
+        except KindleError as error:
+            error.add_authentication({"browser": selected_browser})
+            raise
         print(
             "Dispositivo personale registrato; credenziali protette con Windows DPAPI."
         )
@@ -196,6 +219,7 @@ class Application:
             if self.client.session
             else PROFILE,
             "connected": bool(self.client.session),
+            "login_browser": self.login_browser,
             "login_flow": self.client.session.get("flow")
             if self.client.session
             else None,
@@ -239,6 +263,11 @@ class Application:
                     else "Mostra anche i dizionari Amazon"
                 )
             )
+            print(
+                "10. Browser per il login: "
+                + ("Chrome" if self.login_browser == "chrome" else "Edge")
+                + " (modifica)"
+            )
             print("0. Esci")
             choice = input("> ").strip()
             try:
@@ -281,6 +310,13 @@ class Application:
                 elif choice == "9":
                     self.include_dictionaries = not self.include_dictionaries
                     self.show_items(self.cached_library())
+                elif choice == "10":
+                    print("1. Google Chrome\n2. Microsoft Edge")
+                    selected = input("Browser (vuoto per annullare): ").strip()
+                    if selected in ("1", "2"):
+                        self.set_login_browser(
+                            "chrome" if selected == "1" else "msedge"
+                        )
             except KindleError as error:
                 self.record_error(error)
 
@@ -315,7 +351,7 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command")
     login = sub.add_parser("login")
     login.add_argument("--flow", choices=("pkce", "token"), default="pkce")
-    login.add_argument("--browser", choices=("msedge", "chrome"), default="msedge")
+    login.add_argument("--browser", choices=("msedge", "chrome"), default=None)
     library = sub.add_parser("library")
     library.add_argument("--full", action="store_true")
     library.add_argument("--include-dictionaries", action="store_true")
@@ -344,7 +380,7 @@ def main(argv=None):
     check.add_argument(
         "--browser",
         action="store_true",
-        help="Verifica anche il browser Edge con risposte interamente sintetiche",
+        help="Verifica anche Chrome ed Edge con risposte interamente sintetiche",
     )
     args = parser.parse_args(argv)
     if args.command == "self-test":
