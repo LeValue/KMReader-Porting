@@ -9,7 +9,8 @@ from .common import KindleError
 
 
 def services_probe(client, item):
-    from .cover import allowed_cover_url, remote_cover
+    from .cover import extract_cover, MAX_TRANSFER
+    from .range_source import RangeSource
     from .download import _resource_urls
 
     report = {"amazon_writes": False}
@@ -30,6 +31,7 @@ def services_probe(client, item):
                     for k, v in r.items()
                     if re.fullmatch(r"[a-zA-Z_][a-zA-Z_]{0,48}", k)
                 },
+                "position_numeric": str(r.get("startPosition", "")).isdigit(),
                 "location_shape": re.sub(
                     r"[0-9a-fA-F]", "#", str(r.get("location", ""))
                 )[:100]
@@ -49,29 +51,79 @@ def services_probe(client, item):
         ]
     except Exception:
         report["records_error"] = True
-    try:
-        raw = client.bounded_get(base + "getAnnotations", stage="probe", params=params)
-        root = ET.fromstring(raw)
-        report["xml_schema"] = sorted(
-            set(
-                e.tag.rsplit("}", 1)[-1] + ":" + ",".join(sorted(e.attrib))
-                for e in root.iter()
+    report["xml_filters"] = {}
+    for kind in ("bookmark", "highlight", "note", "all"):
+        try:
+            raw = client.bounded_get(
+                base + "getAnnotations",
+                stage="probe",
+                params={**params, "guid": payload.get("guid", ""), "filter": kind},
             )
-        )
-    except Exception:
-        report["xml_error"] = True
+            root = ET.fromstring(raw)
+            report["xml_filters"][kind] = sorted(
+                set(
+                    e.tag.rsplit("}", 1)[-1] + ":" + ",".join(sorted(e.attrib))
+                    for e in root.iter()
+                )
+            )
+        except KindleError as error:
+            report["xml_filters"][kind] = {"code": error.code, "status": error.status}
+        except Exception:
+            report["xml_filters"][kind] = {"unrecognized": True}
     started = time.perf_counter()
     try:
-        manifest, _ = client.manifest(item)
-        urls = [
-            url
-            for part in manifest["resources"]
-            if part.get("type")
-            in {"KINDLE_MAIN_BASE", "KINDLE_MAIN_METADATA", "KINDLE_MAIN_ATTACHABLE"}
-            for url in _resource_urls(part)
-            if allowed_cover_url(url)
-        ]
-        cover = remote_cover(urls)
+        manifest, headers = client.manifest(item)
+        transferred = 0
+
+        class Bounded:
+            def __init__(self, response):
+                self.response = response
+                self.status_code = response.status_code
+                self.headers = response.headers
+
+            def iter_raw(self):
+                nonlocal transferred
+                for chunk in self.response.iter_raw():
+                    transferred += len(chunk)
+                    if transferred > MAX_TRANSFER:
+                        raise ValueError("Transfer limit")
+                    yield chunk
+
+            def close(self):
+                self.response.close()
+
+        sources = []
+
+        def request(urls, ranged):
+            for url in urls:
+                response = client.request(
+                    url, stage="probe", headers={**headers, **ranged}
+                )
+                if response.status_code in (200, 206):
+                    return Bounded(response)
+                response.close()
+            raise ValueError("Cover unavailable")
+
+        try:
+            for part in manifest["resources"]:
+                if part.get("type") in {
+                    "KINDLE_MAIN_BASE",
+                    "KINDLE_MAIN_METADATA",
+                    "KINDLE_MAIN_ATTACHABLE",
+                }:
+                    urls = _resource_urls(part)
+                    sources.append(
+                        RangeSource(
+                            lambda ranged, urls=urls: request(urls, ranged),
+                            full_limit=MAX_TRANSFER,
+                        )
+                    )
+            cover = extract_cover(sources)
+            cover["transferred"] = transferred
+            cover["resources_bytes"] = sum(s.size or 0 for s in sources)
+        finally:
+            for source in sources:
+                source.close()
         report["cover"] = {k: v for k, v in cover.items() if k != "image"}
         report["cover"]["available"] = bool(cover.get("image"))
     except KindleError as error:
