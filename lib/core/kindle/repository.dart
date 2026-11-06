@@ -83,8 +83,9 @@ class KindleRepository extends Repository {
       if (closed ||
           generation != _mappingGeneration ||
           mapping == null ||
-          mapping.entries.isEmpty)
+          mapping.entries.isEmpty) {
         return null;
+      }
       _mapping = mapping;
       _mappedBook = book.id;
       final cachedSidecar = object(
@@ -98,8 +99,9 @@ class KindleRepository extends Repository {
                   }
                 : cachedSidecar)
           : await library.client.sidecar(library.item(book.id));
-      if (closed || generation != _mappingGeneration || sidecar == null)
+      if (closed || generation != _mappingGeneration || sidecar == null) {
         return null;
+      }
       final matches = mapping.matches(sidecar);
       store.cache(profile.id, 'kindle:availability:${book.id}', {
         'mapped': true,
