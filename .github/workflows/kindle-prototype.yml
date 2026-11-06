@@ -67,7 +67,7 @@ jobs:
           python-version: '3.11'
       - run: python -m venv artifacts/kindle-build-env
       - run: artifacts/kindle-build-env/Scripts/python.exe -m pip install -r tool/kindle_personal/requirements.txt pyinstaller==6.22.3
-      - name: Build standalone executable (uses installed Edge; no bundled Chromium)
+      - name: Build standalone executable (uses installed Chrome or Edge)
         run: >-
           artifacts/kindle-build-env/Scripts/python.exe -m PyInstaller
           --noconfirm --clean --onedir --name KMReader-Kindle
@@ -75,7 +75,7 @@ jobs:
           --specpath artifacts/kindle-spec --paths tool
           --collect-all playwright --collect-submodules amazon.ion
           tool/kindle_personal_cli.py
-      - name: Verify packaged DPAPI, protocol pipeline and Edge callback
+      - name: Verify packaged DPAPI, protocol pipeline, Chrome and Edge callbacks
         run: |
           artifacts/kindle-dist/KMReader-Kindle/KMReader-Kindle.exe --version
           if ($LASTEXITCODE -ne 0) { throw 'Version check failed' }

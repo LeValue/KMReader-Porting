@@ -43,7 +43,7 @@ dal catalogo e un documento personale rimangono nell'elenco principale.
 ## Prova sul tuo PC
 
 1. Estrai **tutto** lo ZIP in una cartella; lascia insieme `Avvia-Kindle.cmd`,
-   la cartella `KMReader-Kindle` e i suoi file. Serve Windows 10/11 x64 con Edge.
+   la cartella `KMReader-Kindle` e i suoi file. Serve Windows 10/11 x64 con Chrome o Edge installato.
    Non servono Python, GitHub Runner, telefono collegato o installazione di KMReader nuova.
 2. Apri `Avvia-Kindle.cmd` e scegli **1 — Collega Amazon.it**.
 3. Nella finestra Amazon inserisci password ed eventuale verifica. Nessuno dei
@@ -58,6 +58,13 @@ dal catalogo e un documento personale rimangono nell'elenco principale.
 7. Se qualcosa fallisce, usa **6 — Esporta diagnostica** e condividi soltanto
    `diagnostic.json` insieme alla fase in cui ti sei fermato. Non inviare la
    cartella dell'archivio, file di sessione, URL di ritorno o credenziali.
+
+**Chrome è il browser predefinito per i nuovi collegamenti.** Il menu **10**
+permette di scegliere Chrome o Edge e ricorda la scelta per gli avvii successivi.
+La preferenza riguarda solo il login del prototipo e non cambia il browser
+predefinito di Windows. Le sessioni già collegate restano valide qualunque sia
+il browser selezionato. `login --browser chrome` / `login --browser msedge`
+permettono invece di scegliere il browser per il singolo comando.
 
 Usa il flusso **PKCE del menu 1**. Le sessioni già collegate con l'ingresso
 precedente vengono riutilizzate: non sono costrette a un nuovo login.

@@ -284,42 +284,51 @@ def self_check(*, browser=False, fixtures=None):
         from .browser import capture_in_context
 
         with sync_playwright() as playwright:
-            instance = playwright.chromium.launch(
-                headless=True, channel="msedge" if os.name == "nt" else None
-            )
-            try:
-                context = instance.new_context(service_workers="block")
-                attempt = LoginAttempt("synthetic-browser")
-                callback = "https://www.amazon.it/ap/maplanding?" + urlencode(
-                    {
-                        "openid.ns": "http://specs.openid.net/auth/2.0",
-                        "openid.oa2.authorization_code": "synthetic/browser-code",
-                        "openid.oa2.state": attempt.state,
-                    },
-                    safe="/",
-                )
-                forwarded, redeemed = [], []
-
-                def upstream(route):
-                    if "/ap/signin?" not in route.request.url:
-                        forwarded.append(True)
-                    route.fulfill(
-                        content_type="text/html",
-                        body=f"<script>location.href={callback!r};</script>",
+            for channel in ["msedge", "chrome"] if os.name == "nt" else [None]:
+                instance = playwright.chromium.launch(headless=True, channel=channel)
+                try:
+                    context = instance.new_context(service_workers="block")
+                    attempt = LoginAttempt("synthetic-browser")
+                    callback = "https://www.amazon.it/ap/maplanding?" + urlencode(
+                        {
+                            "openid.ns": "http://specs.openid.net/auth/2.0",
+                            "openid.oa2.authorization_code": "synthetic+/browser-code",
+                            "openid.oa2.state": attempt.state,
+                        },
+                        safe="/+",
                     )
+                    forwarded, redeemed = [], []
 
-                context.route("**/*", upstream)
-                assert (
-                    capture_in_context(
-                        context, attempt, timeout=5, on_auth=redeemed.append
-                    )["authorization_code"]
-                    == "synthetic/browser-code"
-                )
-                assert not forwarded and len(redeemed) == 1
-                assert not context.pages[0].is_closed()
-                context.close()
-            finally:
-                instance.close()
+                    def upstream(route):
+                        if "/ap/signin?" not in route.request.url:
+                            forwarded.append(True)
+                        route.fulfill(
+                            content_type="text/html",
+                            body=f"<script>location.href={callback!r};</script>",
+                        )
+
+                    context.route("**/*", upstream)
+                    assert (
+                        capture_in_context(
+                            context, attempt, timeout=5, on_auth=redeemed.append
+                        )["authorization_code"]
+                        == "synthetic+/browser-code"
+                    )
+                    assert not forwarded and len(redeemed) == 1
+                    assert not context.pages[0].is_closed()
+                    context.close()
+                finally:
+                    instance.close()
+                report[
+                    "browser_callback_"
+                    + (
+                        "edge"
+                        if channel == "msedge"
+                        else "chrome"
+                        if channel == "chrome"
+                        else "chromium"
+                    )
+                ] = "passed"
         report["browser_callback"] = "passed"
         report["browser_callback_interception"] = "passed"
         report["browser_auth_handler"] = "passed"

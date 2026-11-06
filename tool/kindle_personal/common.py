@@ -51,6 +51,7 @@ class KindleError(Exception):
             "flow": {"pkce", "token"},
             "response_format": {"json", "other", "empty"},
             "entry": {"device_it", "kindle_ios_it"},
+            "browser": {"chrome", "msedge"},
         }
         for key, value in details.items():
             if (

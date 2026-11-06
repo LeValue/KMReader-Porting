@@ -21,6 +21,41 @@ from tool.kindle_personal.selfcheck import MemoryVault, synthetic_session
 
 
 class RegistrationErrorTest(unittest.TestCase):
+    def test_browser_preference_defaults_to_chrome_and_is_saved_for_next_launch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            client = MagicMock()
+            client.session = None
+            app = Application(Path(temporary), client=client)
+            self.assertEqual(app.login_browser, "chrome")
+            app.set_login_browser("msedge")
+            restored = Application(Path(temporary), client=client)
+            self.assertEqual(restored.login_browser, "msedge")
+            with (
+                patch("tool.kindle_personal.browser.capture_login") as browser,
+                redirect_stdout(io.StringIO()),
+            ):
+                restored.login()
+                self.assertEqual(browser.call_args.kwargs["channel"], "msedge")
+                restored.login(browser="chrome")
+                self.assertEqual(browser.call_args.kwargs["channel"], "chrome")
+            self.assertEqual(restored.login_browser, "msedge")
+
+    def test_browser_choice_does_not_modify_identity_or_credentials(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            session = synthetic_session()
+            vault = MemoryVault(session)
+            client = KindleClient(vault)
+            try:
+                directory = Path(temporary)
+                identity = directory / "identity.json"
+                identity.write_text('{"serial":"stable"}')
+                app = Application(directory, client=client)
+                app.set_login_browser("chrome")
+                self.assertEqual(identity.read_text(), '{"serial":"stable"}')
+                self.assertIs(vault.session, session)
+            finally:
+                client.close()
+
     def test_existing_legacy_session_is_preserved_without_opening_login(self):
         with tempfile.TemporaryDirectory() as temporary:
             session = synthetic_session()

@@ -32,10 +32,12 @@ def main():
     if (
         smoke.get("windows_dpapi") != "passed"
         or smoke.get("browser_callback") != "passed"
+        or smoke.get("browser_callback_chrome") != "passed"
+        or smoke.get("browser_callback_edge") != "passed"
         or smoke.get("amazon_contacted") is not False
     ):
         raise ValueError(
-            "Packaged executable must pass Windows DPAPI and browser smoke tests"
+            "Packaged executable must pass Windows DPAPI, Chrome and Edge smoke tests"
         )
     shutil.copyfile(args.smoke_report, stage / "verification.json")
     # Include installed distribution notices (also those of transitive runtime
