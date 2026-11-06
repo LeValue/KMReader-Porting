@@ -14,7 +14,12 @@ from tool.kindle_personal.kfx_progressive import (
     ProgressiveKfx,
     utf16_length,
 )
-from tool.kindle_personal.probe import file_probe, progressive_probe, sidecar_probe
+from tool.kindle_personal.probe import (
+    file_probe,
+    online_probe,
+    progressive_probe,
+    sidecar_probe,
+)
 from tool.kindle_personal.probe_fixtures import synthetic_progressive_kfx
 from tool.kindle_personal.range_source import RangeSource
 from tool.kindle_personal.selfcheck import MemoryVault, synthetic_session
@@ -81,6 +86,62 @@ class ProgressiveTest(unittest.TestCase):
             path = Path(temporary) / "book.kfx"
             path.write_bytes(self.body)
             self.assertTrue(file_probe(path)["matches_full_decode"])
+
+    def test_online_comparison_measures_real_paths_without_allocation_profiling(self):
+        def handle(request):
+            if "/delivery/manifest/" in request.url.path:
+                return httpx.Response(
+                    200,
+                    json={
+                        "content": {"id": "TEST"},
+                        "resources": [
+                            {
+                                "id": "TEST",
+                                "type": "KINDLE_MAIN_BASE",
+                                "optimalEndpoint": {
+                                    "directUrl": "https://synthetic.cloudfront.net/book"
+                                },
+                            }
+                        ],
+                    },
+                )
+            interval = request.headers.get("range")
+            if interval:
+                first, last = map(int, interval.split("=")[1].split("-"))
+                last = min(last, len(self.body) - 1)
+                return httpx.Response(
+                    206,
+                    headers={
+                        "content-range": f"bytes {first}-{last}/{len(self.body)}",
+                        "etag": '"v1"',
+                    },
+                    stream=httpx.ByteStream(self.body[first : last + 1]),
+                )
+            return httpx.Response(
+                200,
+                headers={
+                    "content-length": str(len(self.body)),
+                    "content-type": "application/octet-stream",
+                },
+                stream=httpx.ByteStream(self.body),
+            )
+
+        client = KindleClient(
+            MemoryVault(synthetic_session()), transport=httpx.MockTransport(handle)
+        )
+        try:
+            report = online_probe(client, {"type": "PDOC", "id": "TEST"})
+            self.assertFalse(report["timings_include_allocation_profiler"])
+            self.assertIsNone(report["python_peak_allocated_bytes"])
+            self.assertEqual(
+                report["full_download_and_epub"]["transferred_bytes"], len(self.body)
+            )
+            self.assertGreater(report["full_download_and_epub"]["epub_bytes"], 0)
+            self.assertFalse(
+                report["larger_blocks"]["timings_include_allocation_profiler"]
+            )
+        finally:
+            client.close()
 
     def test_random_section_keeps_global_original_positions(self):
         source, _ = self.source()
