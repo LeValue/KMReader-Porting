@@ -51,9 +51,38 @@ void main() {
         final clock = Stopwatch()..start();
         await repo.library.refresh();
         report['catalog_ms'] = clock.elapsedMilliseconds;
-        final selected = repo.library.items
+        final candidates = repo.library.items
             .where((item) => item['type'] == 'PDOC')
-            .first;
+            .take(5)
+            .toList();
+        var selected = candidates.first;
+        var annotationsExpected = false;
+        // Prefer a book with existing cloud annotations, so the live import
+        // check cannot silently succeed by testing an unannotated document.
+        for (final candidate in candidates) {
+          try {
+            final sidecar = await repo.library.client.sidecar(
+              candidate,
+              annotations: true,
+            );
+            if ((sidecar?['records'] as List? ?? [])
+                .map(object)
+                .any(
+                  (r) => const {
+                    'kindle.bookmark',
+                    'kindle.highlight',
+                    'kindle.note',
+                  }.contains(r['type']),
+                )) {
+              selected = candidate;
+              annotationsExpected = true;
+              break;
+            }
+          } on KindleFailure {
+            /* Availability is reported by the app check. */
+          }
+        }
+        report['annotations_expected'] = annotationsExpected;
         final id = repo.library.idFor(selected);
         clock.reset();
         final cover = await repo.library.cover(id);
@@ -80,10 +109,17 @@ void main() {
         final prepared = await repo.book(id);
         await repo.externalDocumentPosition(prepared, repo.bookFile(prepared));
         report['annotation_count'] = repo.documentAnnotations(prepared).length;
+        report['annotation_edition_matches'] =
+            object(
+              store.cached(profile.id, 'kindle:availability:$id'),
+            )['edition_matches'] ==
+            true;
         expect(report['download_ready'], true);
         expect(report['cover_available_before_download'], true);
         expect(report['pages_available'], true);
         expect(report['cached_copy_network_requests'], 0);
+        if (annotationsExpected)
+          expect(report['annotation_count'] as int, greaterThan(0));
         report['passed'] = true;
       } catch (error) {
         report['passed'] = false;
