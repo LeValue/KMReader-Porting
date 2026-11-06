@@ -83,6 +83,7 @@ class KindleRepository extends Repository {
       if (closed ||
           generation != _mappingGeneration ||
           mapping == null ||
+          mapping.acrs.isEmpty ||
           mapping.entries.isEmpty) {
         return null;
       }
@@ -91,6 +92,15 @@ class KindleRepository extends Repository {
       final cachedSidecar = object(
         store.cached(profile.id, 'kindle:sidecar:${book.id}'),
       );
+      // Preserve original positions even when a book opens without a working
+      // connection. A fresh matching server GUID is still required before any
+      // queued position can be sent; these local placeholders never authorize
+      // an Amazon write on their own.
+      _verifiedSidecars
+        ..clear()
+        ..[book.id] = mapping.matches(cachedSidecar)
+            ? cachedSidecar
+            : <String, dynamic>{'acr': mapping.primary, 'guid': ''};
       final sidecar = offline
           ? (cachedSidecar.isEmpty
                 ? <String, dynamic>{
