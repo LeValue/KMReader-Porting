@@ -118,8 +118,9 @@ void main() {
         expect(report['cover_available_before_download'], true);
         expect(report['pages_available'], true);
         expect(report['cached_copy_network_requests'], 0);
-        if (annotationsExpected)
+        if (annotationsExpected) {
           expect(report['annotation_count'] as int, greaterThan(0));
+        }
         report['passed'] = true;
       } catch (error) {
         report['passed'] = false;
