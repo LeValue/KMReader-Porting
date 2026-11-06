@@ -1,18 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
 import '../models.dart';
 import '../store.dart';
 import '../../features/reader/epub_document.dart';
+import '../../features/reader/epub_page_index.dart';
 import 'client.dart';
 import 'conversion.dart';
+import 'cover_proxy.dart';
 
 class KindleLibrary {
   KindleLibrary({
@@ -32,18 +33,19 @@ class KindleLibrary {
   Json? _snapshot;
   List<Json>? _visibleItems;
   Map<String, Json>? _byId;
-  bool? _dictionaryPreference;
+  final _manifests =
+      <String, ({DateTime time, Future<(Json, Map<String, String>)> value})>{};
+  final _covers = <String, Future<File?>>{};
+  final _coverFailures = <String, DateTime>{};
+  final _preparing = <String, Future<File>>{};
   Json get snapshot =>
       _snapshot ??= object(store.cached(profile.id, 'kindle:catalog'));
   bool get hasCatalog => snapshot['items'] is List;
   List<Json> get items {
-    final dictionaries =
-        store.setting<bool>('kindleDictionaries:${profile.id}') == true;
-    if (_visibleItems == null || _dictionaryPreference != dictionaries) {
-      _dictionaryPreference = dictionaries;
+    if (_visibleItems == null) {
       _visibleItems = (snapshot['items'] as List? ?? [])
           .map(object)
-          .where((item) => dictionaries || item['is_amazon_dictionary'] != true)
+          .where((item) => item['is_amazon_dictionary'] != true)
           .toList();
       _byId = {for (final item in _visibleItems!) idFor(item): item};
     }
@@ -86,6 +88,8 @@ class KindleLibrary {
             ? 'application/pdf'
             : 'application/epub+zip',
         'pagesCount': integer(object(existing['media'])['pagesCount']),
+        if (object(existing['media'])['pagesCountEstimated'] == true)
+          'pagesCountEstimated': true,
       },
       if (existing['readProgress'] != null)
         'readProgress': existing['readProgress'],
@@ -96,17 +100,7 @@ class KindleLibrary {
 
   void index() {
     final fingerprint = sha256
-        .convert(
-          utf8.encode(
-            jsonEncode({
-              'schema': 1,
-              'snapshot': snapshot,
-              'dictionaries':
-                  store.setting<bool>('kindleDictionaries:${profile.id}') ==
-                  true,
-            }),
-          ),
-        )
+        .convert(utf8.encode(jsonEncode({'schema': 2, 'snapshot': snapshot})))
         .toString();
     if (store.setting<String>('kindleIndex:${profile.id}') == fingerprint) {
       return;
@@ -153,7 +147,181 @@ class KindleLibrary {
   File coverFile(String id) =>
       File(p.join(directory.path, profile.id, 'kindle-covers', '$id.cover'));
 
+  Future<(Json, Map<String, String>)> _manifest(String id) async {
+    final old = _manifests[id];
+    if (old != null &&
+        DateTime.now().difference(old.time) < const Duration(minutes: 10)) {
+      return old.value;
+    }
+    if (_manifests.length >= 24) _manifests.remove(_manifests.keys.first);
+    final future = client.manifest(item(id));
+    _manifests[id] = (time: DateTime.now(), value: future);
+    try {
+      return await future;
+    } catch (_) {
+      _manifests.remove(id);
+      rethrow;
+    }
+  }
+
+  void updatePages(String id, int pages, {bool estimated = true}) {
+    if (pages < 1 || pages > 1000000) return;
+    final old = object(store.cached(profile.id, 'book:$id'));
+    if (integer(object(old['media'])['pagesCount']) == pages &&
+        object(old['media'])['pagesCountEstimated'] == estimated) {
+      return;
+    }
+    final value = old.isEmpty ? bookJson(item(id)) : old;
+    store.cacheBooks(profile.id, [
+      CatalogItem('books', {
+        ...value,
+        'media': {
+          ...object(value['media']),
+          'pagesCount': pages,
+          'pagesCountEstimated': estimated,
+        },
+      }),
+    ]);
+    onPrepared?.call(id);
+  }
+
+  Future<File?> cover(String id) async {
+    final file = coverFile(id);
+    final exists = await file.exists();
+    if (exists &&
+        integer(
+              object(
+                object(store.cached(profile.id, 'book:$id'))['media'],
+              )['pagesCount'],
+            ) >
+            0) {
+      return file;
+    }
+    if (store.setting<bool>('kindleCovers:${profile.id}') == false ||
+        store.setting<bool>('offline:${profile.id}') == true ||
+        preparation is! KindleCoverPreparation) {
+      return exists ? file : null;
+    }
+    final failed = _coverFailures[id];
+    if (failed != null &&
+        DateTime.now().difference(failed) < const Duration(minutes: 5)) {
+      return exists ? file : null;
+    }
+    if (_covers[id] case final Future<File?> pending) {
+      return exists ? file : await pending;
+    }
+    final work = () async {
+      KindleCoverProxy? proxy;
+      try {
+        final (manifest, headers) = await _manifest(id);
+        proxy = await KindleCoverProxy.open(client, manifest, headers);
+        final result = await (preparation as KindleCoverPreparation).cover(
+          proxy.urls,
+        );
+        final encoded = text(result['image']);
+        if (integer(result['pages']) > 0) {
+          updatePages(
+            id,
+            integer(result['pages']),
+            estimated: result['estimated'] != false,
+          );
+        }
+        if (encoded.isEmpty || encoded.length > 768 * 1024) return null;
+        final bytes = base64Decode(encoded);
+        if (bytes.length < 3 ||
+            bytes[0] != 0xff ||
+            bytes[1] != 0xd8 ||
+            bytes[2] != 0xff) {
+          return null;
+        }
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(bytes, flush: true);
+        return file;
+      } catch (_) {
+        return null;
+      } finally {
+        await proxy?.close();
+      }
+    }();
+    final tracked = work
+        .then((value) {
+          if (value == null) _coverFailures[id] = DateTime.now();
+          return value;
+        })
+        .whenComplete(() {
+          _covers.remove(id);
+        });
+    _covers[id] = tracked;
+    if (exists) {
+      unawaited(tracked);
+      return file;
+    }
+    return tracked;
+  }
+
+  Directory get _preparedDirectory =>
+      Directory(p.join(directory.path, profile.id, 'kindle-prepared'));
+  File _preparedFile(String id) {
+    final version = sha256
+        .convert(utf8.encode('$id:${item(id)['revision']}:mapped-v2'))
+        .toString();
+    return File(p.join(_preparedDirectory.path, '$version.document'));
+  }
+
+  Future<void> clearPreparedCache() async {
+    if (_preparing.isNotEmpty) {
+      throw const KindleFailure('preparation_in_progress');
+    }
+    if (await _preparedDirectory.exists()) {
+      await _preparedDirectory.delete(recursive: true);
+    }
+  }
+
   Future<File> download(
+    String id,
+    File target, {
+    void Function(int, int?)? progress,
+    bool Function()? cancelled,
+    Future<void>? abortTrigger,
+  }) async {
+    final cached = _preparedFile(id);
+    if (!await cached.exists() || await cached.length() == 0) {
+      final pending = _preparing[id];
+      if (pending != null) {
+        await pending;
+      } else {
+        final work = _prepare(
+          id,
+          cached,
+          progress: progress,
+          cancelled: cancelled,
+          abortTrigger: abortTrigger,
+        );
+        _preparing[id] = work;
+        try {
+          await work;
+        } finally {
+          _preparing.remove(id);
+        }
+      }
+    }
+    if (cancelled?.call() == true) throw const KindleFailure('cancelled');
+    await target.parent.create(recursive: true);
+    final partial = File('${target.path}.kindle.part');
+    try {
+      await cached.copy(partial.path);
+      if (cancelled?.call() == true) throw const KindleFailure('cancelled');
+      if (await target.exists()) await target.delete();
+      await partial.rename(target.path);
+      final size = await target.length();
+      progress?.call(size, size);
+      return target;
+    } finally {
+      if (await partial.exists()) await partial.delete();
+    }
+  }
+
+  Future<File> _prepare(
     String id,
     File target, {
     void Function(int, int?)? progress,
@@ -169,7 +337,7 @@ class KindleLibrary {
     Json manifest;
     Map<String, String> headers;
     try {
-      final result = await client.manifest(selected);
+      final result = await _manifest(id);
       manifest = result.$1;
       headers = result.$2;
     } on KindleFailure catch (error) {
@@ -247,6 +415,9 @@ class KindleLibrary {
               'DEFERRED',
               'PREFERRED',
             }.contains(text(part['requirement']).toUpperCase());
+        // Notes are fetched separately through the sidecar service. Deferred
+        // annotation packages are not required to render or map the book.
+        if (optional) continue;
         KindleFailure? failure;
         var success = false;
         for (final url in urls) {
@@ -349,17 +520,27 @@ class KindleLibrary {
       check();
       final source = File(p.join(temporary.path, text(prepared['file'])));
       final format = text(prepared['format']);
+      if (format == 'pdf') {
+        updatePages(id, integer(prepared['pages']), estimated: false);
+      }
       if (format == 'epub') {
         final path = source.path;
-        await Isolate.run(() {
-          try {
-            final book = EpubDocument.open(path);
-            book.close();
-          } catch (_) {
-            throw const KindleFailure('invalid_epub');
-          }
+        final inspected = await compute(_inspectPreparedEpub, path);
+        final cover = inspected['cover'] as Uint8List?;
+        final weights = (inspected['weights'] as List).cast<int>();
+        store.cache(profile.id, 'epubPageIndex:$id', {
+          'schema': 1,
+          'size': await source.length(),
+          'hash': text(selected['revision']),
+          'weights': weights,
         });
-        final cover = await Isolate.run(() => _epubCover(path));
+        final media = object(
+          object(store.cached(profile.id, 'book:$id'))['media'],
+        );
+        if (integer(media['pagesCount']) == 0 ||
+            media['pagesCountEstimated'] == true) {
+          updatePages(id, EpubPageIndex(weights).pages);
+        }
         if (cover != null) {
           final file = coverFile(id);
           await file.parent.create(recursive: true);
@@ -448,10 +629,22 @@ Future<void> _validateResource(File file, String type, String mime) async {
   }
 }
 
-Uint8List? _epubCover(String path) {
-  EpubDocument? book;
+Json _inspectPreparedEpub(String path) {
+  EpubDocument book;
   try {
     book = EpubDocument.open(path);
+  } catch (_) {
+    throw const KindleFailure('invalid_epub');
+  }
+  try {
+    return {'cover': _epubCover(book), 'weights': countEpubText(book)};
+  } finally {
+    book.close();
+  }
+}
+
+Uint8List? _epubCover(EpubDocument book) {
+  try {
     final container = XmlDocument.parse(
       EpubDocument.decodeText(book.resource('META-INF/container.xml')),
     );
@@ -489,7 +682,5 @@ Uint8List? _epubCover(String path) {
     return bytes.length <= 16 * 1024 * 1024 ? bytes : null;
   } catch (_) {
     return null;
-  } finally {
-    book?.close();
   }
 }

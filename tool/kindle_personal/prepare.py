@@ -51,7 +51,12 @@ def inspect_file(path: Path):
                 return {"format": "pdf", "importable": False, "reason": "pdf_encrypted"}
             if len(reader.pages) < 1:
                 raise ValueError()
-            return {"format": "pdf", "importable": True, "reason": "native_pdf"}
+            return {
+                "format": "pdf",
+                "importable": True,
+                "reason": "native_pdf",
+                "pages": len(reader.pages),
+            }
         except (PyPdfError, ValueError, OSError):
             return {"format": "pdf", "importable": False, "reason": "invalid_pdf"}
     if prefix[60:68] == b"BOOKMOBI":
@@ -283,6 +288,8 @@ def prepare_download(directory: Path, *, converter=None, convert=False, inline=F
         source = directory / bases[0]["file"]
         inspected = inspect_file(source)
         result.update({"format": inspected["format"], "reason": inspected["reason"]})
+        if inspected.get("pages"):
+            result["pages"] = inspected["pages"]
         if inspected["importable"]:
             output = directory / ("ready." + inspected["format"])
             with tempfile.TemporaryDirectory(

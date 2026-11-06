@@ -433,6 +433,7 @@ def main(argv=None):
     native_prepare.add_argument("directory", type=Path)
     native_connect = sub.add_parser("connect-json", help=argparse.SUPPRESS)
     native_connect.add_argument("--import-existing", action="store_true")
+    native_connect.add_argument("--import-only", action="store_true")
     probe = sub.add_parser(
         "probe",
         help="Misura Range KFX e disponibilità delle posizioni; nessuna scrittura Amazon",
@@ -496,6 +497,12 @@ def main(argv=None):
                             if existing:
                                 application.client.vault.save(existing)
                                 application.client.session = existing
+                        if args.import_only and not application.client.session:
+                            raise KindleError(
+                                "session_missing",
+                                "Sessione locale assente.",
+                                stage="probe",
+                            )
                         application.login()
                         application.client.refresh()
                         response = {"ok": True, "session": application.client.session}

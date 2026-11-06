@@ -4,12 +4,14 @@ import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/app_controller.dart';
 import '../../core/kindle/client.dart';
 import '../../core/kindle/conversion.dart';
+import '../../core/kindle/chrome.dart';
 import '../../ui/strings.dart';
 
 class KindleLoginPage extends StatefulWidget {
@@ -46,7 +48,8 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
       });
     }
     try {
-      if (Platform.isWindows) {
+      if (Platform.isWindows &&
+          widget.app.store.setting<bool>('kindleIsolatedLogin') == true) {
         final session = await NativeKindlePreparation.connectWindows(
           widget.app.directory,
           importExisting:
@@ -55,7 +58,7 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
         );
         if (!mounted) return;
         await _finish(session);
-      } else if (Platform.isAndroid) {
+      } else if (Platform.isAndroid || Platform.isWindows) {
         var serial = await widget.app.vault.read('kindle-installation');
         if (serial == null) {
           serial = List.generate(16, (_) => Random.secure().nextInt(256))
@@ -69,6 +72,9 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
             _attempt = KindleLoginAttempt(serial: serial!);
             _busy = false;
           });
+        }
+        if (Platform.isWindows && mounted) {
+          await openKindleChrome(_attempt!.url);
         }
       } else {
         throw const KindleFailure('platform_unsupported');
@@ -121,6 +127,25 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
     }
   }
 
+  Future<void> _pasteCallback() async {
+    final value = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+    final uri = Uri.tryParse(value.trim());
+    try {
+      if (uri == null || _attempt?.callback(uri) == null) {
+        throw const KindleFailure('login_callback');
+      }
+      await _callback(uri);
+      // Remove the one-time authorization URL only if the clipboard still
+      // contains the exact value the user explicitly handed to this app.
+      if (_redeeming &&
+          (await Clipboard.getData(Clipboard.kTextPlain))?.text == value) {
+        await Clipboard.setData(const ClipboardData(text: ''));
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(tr(context, 'Connect Kindle'))),
@@ -145,7 +170,36 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
           )
         : Stack(
             children: [
-              if (_attempt != null)
+              if (_attempt != null && Platform.isWindows)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.open_in_browser, size: 40),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Completa il login e l’OTP nel tuo Chrome abituale. Poi copia l’indirizzo completo dalla barra di Chrome e incollalo qui, anche se Amazon mostra una pagina di servizio non disponibile.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: _busy ? null : _pasteCallback,
+                          icon: const Icon(Icons.content_paste),
+                          label: const Text('Completa con l’indirizzo copiato'),
+                        ),
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () => openKindleChrome(_attempt!.url),
+                          child: const Text('Riapri Chrome'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_attempt != null && Platform.isAndroid)
                 InAppWebView(
                   initialUrlRequest: URLRequest(
                     url: WebUri(_attempt!.url.toString()),

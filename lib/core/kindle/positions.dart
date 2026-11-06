@@ -47,8 +47,28 @@ Json? kindleLastRead(Json sidecar) {
 }
 
 class KindlePositionMap {
-  KindlePositionMap(this.entries, this.acrs, {this.primaryAcr});
+  KindlePositionMap(List<Json> entries, this.acrs, {this.primaryAcr})
+    : entries = [...entries]
+        ..sort(
+          (a, b) => integer(a['position']).compareTo(integer(b['position'])),
+        ) {
+    _ends = List.filled(entries.length, 0);
+    _build(0, entries.length);
+  }
   final List<Json> entries;
+  late final List<int> _ends;
+  int _build(int left, int right) {
+    if (left >= right) return 0;
+    final middle = (left + right) ~/ 2;
+    var end =
+        integer(entries[middle]['position']) +
+        integer(entries[middle]['length']);
+    final a = _build(left, middle), b = _build(middle + 1, right);
+    if (a > end) end = a;
+    if (b > end) end = b;
+    return _ends[middle] = end;
+  }
+
   final Set<String> acrs;
   final String? primaryAcr;
   String? get primary =>
@@ -123,17 +143,27 @@ class KindlePositionMap {
     // Overlapping parent/child spans can both be correct. Prefer the shortest
     // verified range containing the position, preserving its precise offset.
     Json? best;
-    for (final entry in entries) {
+    void visit(int left, int right) {
+      if (left >= right) return;
+      final middle = (left + right) ~/ 2;
+      if (_ends[middle] <= position) return;
+      final entry = entries[middle];
       final start = integer(entry['position']),
           length = integer(entry['length']);
-      if (start > position) break;
-      if (position < start + length &&
-          (best == null || length < integer(best['length']))) {
+      visit(left, middle);
+      final current = best;
+      if (start <= position &&
+          position < start + length &&
+          (current == null || length < integer(current['length']))) {
         best = entry;
       }
+      if (start <= position) visit(middle + 1, right);
     }
-    return best == null
+
+    visit(0, entries.length);
+    final result = best;
+    return result == null
         ? null
-        : {...best, 'offset': position - integer(best['position'])};
+        : {...result, 'offset': position - integer(result['position'])};
   }
 }

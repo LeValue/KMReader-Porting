@@ -334,6 +334,35 @@ def self_check(*, browser=False, fixtures=None):
             )
         assert prepare_download(kfx_directory)["state"] == "importable"
         report["offline_kfx_conversion"] = "passed"
+        # Exercise the packaged entry point used by the app, not just Python
+        # functions. Two jobs must work in the same private JSON-lines worker.
+        import subprocess
+        import sys
+
+        command = (
+            [sys.executable]
+            if getattr(sys, "frozen", False)
+            else [sys.executable, "-m", "tool.kindle_personal"]
+        )
+        process = subprocess.run(
+            [*command, "rpc-json"],
+            input="\n".join(
+                json.dumps(request)
+                for request in [
+                    {"id": 1, "operation": "prepare", "directory": str(kfx_directory)},
+                    {"id": 2, "operation": "cover", "urls": []},
+                ]
+            )
+            + "\n",
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+        responses = [json.loads(line) for line in process.stdout.splitlines()]
+        assert process.returncode == 0 and len(responses) == 2
+        assert responses[0]["id"] == 1 and responses[0]["ok"]
+        assert responses[1]["id"] == 2 and responses[1]["ok"]
+        report["native_rpc_reuse"] = "passed"
         from .probe import file_probe
         from .probe_fixtures import synthetic_progressive_kfx
 

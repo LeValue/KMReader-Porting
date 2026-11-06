@@ -34,6 +34,9 @@ void main() {
   var expiredCdn = false, expiredRequests = 0;
   var edition = 'SYNTHETIC-ACR';
   late List<int> resource;
+  late _Preparation preparation;
+  var resourceRequests = 0;
+  List<Json> annotations = [];
   Completer<void>? delayedSidecar, sidecarStarted;
   setUp(() async {
     root = Directory.systemTemp.createTempSync('kindle-native-');
@@ -51,6 +54,9 @@ void main() {
       source: 'kindle',
     );
     position = 12;
+    resourceRequests = 0;
+    annotations = [];
+    preparation = _Preparation();
     networkUnavailable = false;
     expiredCdn = false;
     expiredRequests = 0;
@@ -89,6 +95,12 @@ void main() {
           'type': 'PDOC',
           'title': 'Documento sintetico',
           'authors': ['Autore'],
+        },
+        {
+          'key': 'PDOC:second',
+          'id': 'second',
+          'type': 'PDOC',
+          'title': 'Secondo documento',
         },
         {
           'key': 'EBOK:dict',
@@ -131,6 +143,7 @@ void main() {
                 'acr': edition,
                 'guid': 'SYNTHETIC-GUID',
                 'records': [
+                  ...annotations,
                   {
                     'type': 'kindle.most_recent_read',
                     'location': position,
@@ -171,6 +184,7 @@ void main() {
         }
         if (request.url.host == 'fixture.cloudfront.net') {
           expect(request.headers['x-adp-token'], isNull);
+          resourceRequests++;
           return http.Response.bytes(resource, 200);
         }
         throw StateError('Unexpected test request');
@@ -181,7 +195,7 @@ void main() {
       store: store,
       directory: root,
       client: client,
-      preparation: _Preparation(),
+      preparation: preparation,
     );
     book = await repo.book(repo.library.idFor(repo.library.items.first));
     store.setSetting('kindleMapped:${profile.id}:${book.id}', true);
@@ -199,7 +213,7 @@ void main() {
         (await repo.catalog('books', search: 'sintetico')).items.single.id,
         book.id,
       );
-      expect((await repo.catalog('books')).items, hasLength(1));
+      expect((await repo.catalog('books')).items, hasLength(2));
       store.setSetting('kindleDictionaries:${repo.profile.id}', true);
       repo.library.index();
       expect((await repo.catalog('books')).items, hasLength(2));
@@ -278,6 +292,74 @@ void main() {
       expect(repo.pendingCount, 1);
     },
   );
+  test('the real pinned download queue completes without sending its completers to an isolate', () async {
+    await repo.download(book);
+    expect(store.download(repo.profile.id, book.id)?['status'], 'ready');
+    expect(await repo.bookFile(book).readAsBytes(), resource);
+    expect(preparation.calls, 1);
+  });
+  test(
+    'opening then pinning reuses the prepared book and never converts twice',
+    () async {
+      final lease = await repo.documents.open(
+        book,
+        pinned: repo.bookFile(book),
+        offline: false,
+      );
+      lease.close();
+      final requests = resourceRequests;
+      await repo.download(book);
+      expect(preparation.calls, 1);
+      expect(resourceRequests, requests);
+      expect(store.download(repo.profile.id, book.id)?['status'], 'ready');
+    },
+  );
+  test('Kindle imports only matching-edition annotations and replaces remote deletions', () async {
+    annotations = [
+      {
+        'type': 'kindle.bookmark',
+        'annotationId': 'synthetic-bookmark',
+        'startPosition': '42',
+      },
+      {
+        'type': 'kindle.highlight',
+        'annotationId': 'synthetic-highlight',
+        'startPosition': '50',
+        'endPosition': '70',
+      },
+      {
+        'type': 'kindle.note',
+        'annotationId': 'synthetic-note',
+        'startPosition': '80',
+        'endPosition': '90',
+        'noteText': 'Synthetic note',
+      },
+      {
+        'type': 'kindle.bookmark',
+        'annotationId': 'unmapped',
+        'startPosition': '9000',
+      },
+    ];
+    await repo.externalDocumentPosition(book, publication);
+    final marks = repo.documentAnnotations(book);
+    expect(marks, hasLength(3));
+    expect(marks.first['locator']['offset'], 32);
+    expect(marks[1]['endLocator']['offset'], 60);
+    expect(marks.last['label'], 'Synthetic note');
+    annotations = [];
+    await repo.externalDocumentPosition(book, publication);
+    expect(repo.documentAnnotations(book), isEmpty);
+    annotations = [
+      {
+        'type': 'kindle.bookmark',
+        'annotationId': 'wrong-edition',
+        'startPosition': '42',
+      },
+    ];
+    edition = 'OTHER-EDITION';
+    await repo.externalDocumentPosition(book, publication);
+    expect(repo.documentAnnotations(book), isEmpty);
+  });
   test('native delivery prepares offline document and refreshes existing catalog metadata', () async {
     final lease = await repo.documents.open(
       book,
@@ -328,6 +410,22 @@ void main() {
       expect(map.locator(12)?['offset'], 2);
     },
   );
+  test('indexed original positions retain the shortest overlapping span and reject gaps', () {
+    final map = KindlePositionMap(
+      [
+        {'position': 15, 'length': 3, 'id': 'child'},
+        {'position': 10, 'length': 100, 'id': 'parent'},
+        {'position': 200, 'length': 5, 'id': 'next'},
+      ],
+      {'edition'},
+    );
+    expect(map.locator(16)?['id'], 'child');
+    expect(map.locator(18)?['id'], 'parent');
+    expect(map.locator(110), isNull);
+    expect(map.locator(150), isNull);
+    expect(map.locator(200)?['id'], 'next');
+    expect(map.locator(205), isNull);
+  });
   test(
     'expired CDN delivery falls back to the manifest alternate endpoint',
     () async {
@@ -396,11 +494,13 @@ void main() {
 }
 
 class _Preparation implements KindlePreparation {
+  int calls = 0;
   @override
   Future<Json> prepare(
     Directory directory, {
     Future<void>? abortTrigger,
   }) async {
+    calls++;
     final receipt = object(
       jsonDecode(await File('${directory.path}/receipt.json').readAsString()),
     );

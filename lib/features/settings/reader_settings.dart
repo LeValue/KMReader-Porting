@@ -572,7 +572,7 @@ class EpubSettingsPage extends StatelessWidget {
                 'readerFooterLeading': 'chapterTitle',
                 'readerFooterTrailing': 'chapterRemaining',
                 'controlsHeaderCenter': 'bookProgressPercent',
-                'controlsFooterCenter': 'chapterPosition',
+                'controlsFooterCenter': 'bookPosition',
               }[entry.key] ??
               'none',
           bucket: 'epubOverlay',
@@ -588,6 +588,7 @@ class EpubSettingsPage extends StatelessWidget {
             'chapterProgressPercent': 'epub.overlay.item.chapter_progress',
             'chapterRemaining': 'epub.overlay.item.chapter_remaining',
             'chapterPosition': 'epub.overlay.item.chapter_page',
+            'bookPosition': 'Pagine del volume (stimate)',
           },
         ),
       const PreferenceSpec(

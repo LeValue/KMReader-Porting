@@ -7,14 +7,26 @@ import 'package:path/path.dart' as p;
 
 import '../models.dart';
 import 'client.dart';
+import 'worker.dart';
 
 abstract class KindlePreparation {
   Future<Json> prepare(Directory directory, {Future<void>? abortTrigger});
 }
 
-class NativeKindlePreparation implements KindlePreparation {
+abstract interface class KindleCoverPreparation {
+  Future<Json> cover(List<String> urls);
+}
+
+class NativeKindlePreparation
+    implements KindlePreparation, KindleCoverPreparation {
   static const channel = MethodChannel('dev.levalue.kmreader/kindle');
   static String? executableOverride;
+  static KindleWorker? _rpc;
+  static KindleWorker get rpc {
+    if (_rpc?.executable != executable) _rpc = KindleWorker(executable);
+    return _rpc!;
+  }
+
   static String get executable =>
       executableOverride ??
       p.join(
@@ -112,10 +124,10 @@ class NativeKindlePreparation implements KindlePreparation {
   }) async {
     Json result;
     if (Platform.isWindows) {
-      result = await _worker([
-        'prepare-json',
-        directory.absolute.path,
-      ], abortTrigger: abortTrigger);
+      result = await rpc.call({
+        'operation': 'prepare',
+        'directory': directory.absolute.path,
+      }, abortTrigger: abortTrigger);
     } else if (Platform.isAndroid) {
       if (abortTrigger != null) {
         unawaited(
@@ -158,5 +170,26 @@ class NativeKindlePreparation implements KindlePreparation {
       throw const KindleFailure('worker_file');
     }
     return prepared;
+  }
+
+  @override
+  Future<Json> cover(List<String> urls) async {
+    if (Platform.isWindows) {
+      return object(
+        (await rpc.call({'operation': 'cover', 'urls': urls}))['cover'],
+      );
+    }
+    if (Platform.isAndroid) {
+      try {
+        final value = await channel.invokeMethod<String>('cover', {
+          'urls': urls,
+        });
+        final result = object(jsonDecode(value ?? '{}'));
+        if (result['ok'] == true) return object(result['cover']);
+      } on PlatformException {
+        /* A cover failure must never block reading. */
+      }
+    }
+    return {};
   }
 }

@@ -57,6 +57,94 @@ class KindleRepository extends Repository {
   final _verifiedSidecars = <String, Json>{};
   bool get kindleSyncEnabled =>
       store.setting<bool>('kindleSync:${profile.id}') != false;
+  bool get kindleAnnotationsEnabled =>
+      store.setting<bool>('kindleAnnotations:${profile.id}') != false;
+  @override
+  List<Json> documentAnnotations(Book book) => !kindleAnnotationsEnabled
+      ? const []
+      : (store.cached(profile.id, 'kindle:annotations:${book.id}') as List? ??
+                [])
+            .map(object)
+            .toList();
+
+  Future<void> refreshAnnotations() async {
+    final id = _mappedBook, mapping = _mapping, generation = _mappingGeneration;
+    if (id == null ||
+        mapping == null ||
+        !kindleAnnotationsEnabled ||
+        offline ||
+        closed) {
+      return;
+    }
+    final sidecar = await library.client.sidecar(
+      library.item(id),
+      guid: mapping.primary,
+      annotations: true,
+    );
+    if (closed ||
+        generation != _mappingGeneration ||
+        sidecar == null ||
+        !mapping.matches(sidecar)) {
+      return;
+    }
+    store.cache(profile.id, 'kindle:sidecar:$id', sidecar);
+    _importAnnotations(await book(id), mapping, sidecar);
+  }
+
+  void _importAnnotations(Book book, KindlePositionMap mapping, Json sidecar) {
+    if (!kindleAnnotationsEnabled ||
+        sidecar['annotations_loaded'] != true ||
+        !mapping.matches(sidecar)) {
+      return;
+    }
+    final values = <Json>[];
+    for (final record in (sidecar['records'] as List? ?? []).map(object)) {
+      final type = text(record['type']);
+      if (!const {
+        'kindle.bookmark',
+        'kindle.highlight',
+        'kindle.note',
+      }.contains(type)) {
+        continue;
+      }
+      final position = int.tryParse('${record['startPosition']}');
+      if (position == null || text(record['annotationId']).isEmpty) continue;
+      final locator = mapping.locator(position);
+      if (locator == null) continue;
+      final end = int.tryParse('${record['endPosition']}');
+      final note = text(
+        record['noteText'],
+        text(record['text'], text(record['note'])),
+      );
+      final endLocator = end != null && end > position
+          ? mapping.locator(end - 1)
+          : null;
+      values.add({
+        'id': 'kindle:${record['annotationId']}',
+        'source': 'kindle',
+        'type': type,
+        'href': locator['href'],
+        'locator': locator,
+        if (endLocator != null)
+          'endLocator': {
+            ...endLocator,
+            'offset': integer(endLocator['offset']) + 1,
+          },
+        'label': note.isNotEmpty
+            ? note
+            : switch (type) {
+                'kindle.note' => 'Nota Kindle',
+                'kindle.highlight' => 'Evidenziazione Kindle',
+                _ => 'Segnalibro Kindle',
+              },
+        'created': record['creationTime'],
+        'modified': record['lastModificationTime'],
+      });
+    }
+    store.cache(profile.id, 'kindle:annotations:${book.id}', values);
+    documentAnnotationChanges.value++;
+  }
+
   Json get _outbox => object(store.cached(profile.id, 'kindle:outbox'));
   void _saveOutbox(Json value) =>
       store.cache(profile.id, 'kindle:outbox', value);
@@ -72,7 +160,7 @@ class KindleRepository extends Repository {
   @override
   Future<Json?> externalDocumentPosition(Book book, File file) async {
     final generation = ++_mappingGeneration;
-    if (!kindleSyncEnabled ||
+    if ((!kindleSyncEnabled && !kindleAnnotationsEnabled) ||
         closed ||
         book.format != 'epub' ||
         store.setting<bool>('kindleMapped:${profile.id}:${book.id}') != true) {
@@ -111,6 +199,7 @@ class KindleRepository extends Repository {
           : await library.client.sidecar(
               library.item(book.id),
               guid: mapping.primary,
+              annotations: kindleAnnotationsEnabled,
             );
       if (closed || generation != _mappingGeneration || sidecar == null) {
         return null;
@@ -122,13 +211,15 @@ class KindleRepository extends Repository {
         'guid_available': text(sidecar['guid']).isNotEmpty,
       });
       if (!matches) return null;
+      _importAnnotations(book, mapping, sidecar);
       _verifiedSidecars.clear();
       _verifiedSidecars[book.id] = sidecar;
       if (!offline) {
         store.cache(profile.id, 'kindle:sidecar:${book.id}', sidecar);
       }
       final remote = kindleLastRead(sidecar);
-      if (offline ||
+      if (!kindleSyncEnabled ||
+          offline ||
           remote == null ||
           book.completed ||
           _outbox.containsKey(book.id)) {
@@ -185,12 +276,24 @@ class KindleRepository extends Repository {
   @override
   bool get supportsSeries => false;
   @override
+  bool get prefetchDownloadCover => false;
+  @override
   bool get supportsRemoteLists => false;
   @override
   File bookFile(Book book) =>
       File(p.join(bookDirectory(book.id).path, 'source.document'));
   @override
-  void listen() {}
+  void listen() {
+    if (offline ||
+        store.setting<bool>('kindleAutoRefresh:${profile.id}') == false) {
+      return;
+    }
+    final fetched = integer(library.snapshot['fetched_at']);
+    if (DateTime.now().millisecondsSinceEpoch ~/ 1000 - fetched > 15 * 60) {
+      refreshContent();
+    }
+  }
+
   @override
   Future<Book> resolveDocumentBook(Book book, File file) async =>
       await this.book(book.id);
@@ -320,6 +423,7 @@ class KindleRepository extends Repository {
             final sidecar = await library.client.sidecar(
               item,
               guid: text(local['target_guid'], text(local['guid'])),
+              annotations: kindleAnnotationsEnabled,
             );
             if (sidecar == null ||
                 text(sidecar['guid']).isEmpty ||
@@ -350,6 +454,7 @@ class KindleRepository extends Repository {
                     item,
                     text(sidecar['guid']),
                     integer(local['position']),
+                    annotations: kindleAnnotationsEnabled,
                   );
             if (closed) break;
             _verifiedSidecars[entry.key] = after;
@@ -496,8 +601,8 @@ class _KindleApi extends KomgaApi {
     if (match == null) {
       throw const ApiFailure('Cover unavailable.', status: 404);
     }
-    final file = library.coverFile(Uri.decodeComponent(match[1]!));
-    if (!await file.exists()) {
+    final file = await library.cover(Uri.decodeComponent(match[1]!));
+    if (file == null) {
       throw const ApiFailure('Cover unavailable.', status: 404);
     }
     return (

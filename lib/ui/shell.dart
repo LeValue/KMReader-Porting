@@ -27,6 +27,14 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
   final _visited = <int, Widget>{};
+  var _settings = GlobalKey<SettingsPageState>();
+  void _openServers() {
+    setState(() => _index = 4);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _settings.currentState?.openServers();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +62,7 @@ class _AppShellState extends State<AppShell> {
       old.repository.eventNotices.removeListener(_notice);
       widget.repository.eventNotices.addListener(_notice);
       _visited.clear();
+      _settings = GlobalKey<SettingsPageState>();
     }
   }
 
@@ -84,7 +93,11 @@ class _AppShellState extends State<AppShell> {
         1 => _LibraryBrowser(repository: repository),
         2 => _ListsPage(repository: repository),
         3 => LocalLibraryPage(app: widget.app),
-        _ => SettingsPage(app: widget.app, repository: repository),
+        _ => SettingsPage(
+          key: _settings,
+          app: widget.app,
+          repository: repository,
+        ),
       },
     );
     final content = IndexedStack(
@@ -201,7 +214,7 @@ class _AppShellState extends State<AppShell> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          onTap: () => setState(() => _index = 4),
+                          onTap: _openServers,
                         ),
                       ),
                     ],

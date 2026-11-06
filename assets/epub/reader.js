@@ -932,6 +932,56 @@ class KMReaderPageSnapshot {
     }
     return null;
   }
+  const renderedAnnotations = new Map();
+  function kindlePoint(contents, value) {
+    if (!value || !Number.isSafeInteger(value.offset) || value.offset < 0) return null;
+    const element = contents.document.getElementById(String(value.id));
+    if (!element || Number(element.dataset.kmreaderKindlePosition) !== value.position || value.offset > Number(element.dataset.kmreaderKindleLength) || Number(element.dataset.kmreaderKindleLength) !== [...element.textContent].length) return null;
+    let remaining = value.offset, last;
+    const walker = contents.document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const characters = [...node.data]; last = node;
+      if (remaining <= characters.length) return [node, characters.slice(0, remaining).join('').length];
+      remaining -= characters.length;
+    }
+    return last && remaining === 0 ? [last, last.length] : null;
+  }
+  function drawKindleAnnotations() {
+    if (!config.kindlePositions || !rendition) return;
+    for (const mark of config.annotations || []) {
+      if (!mark.endLocator || mark.locator?.href !== mark.endLocator.href || renderedAnnotations.has(mark.id)) continue;
+      for (const contents of rendition.getContents()) {
+        try {
+          const cfi = kindleRange(contents, mark);
+          if (!cfi) continue;
+          // Epub.js uses a separate SVG overlay. Publication text nodes and
+          // their original position markers are never replaced or wrapped.
+          rendition.annotations.highlight(cfi, {}, null, 'kmreader-kindle-highlight', {fill:'#e6b72d','fill-opacity':'.24','mix-blend-mode':'multiply'});
+          renderedAnnotations.set(mark.id,cfi);
+          captureRevision++;capturePages.clear();
+        } catch (_) { /* Unsupported annotation ranges remain navigable in the list. */ }
+      }
+    }
+  }
+  function kindleRange(contents, mark) {
+    const start=kindlePoint(contents,mark.locator),end=kindlePoint(contents,mark.endLocator);
+    if(!start||!end)return null;
+    const range=contents.document.createRange();range.setStart(...start);range.setEnd(...end);
+    return range.collapsed?null:contents.cfiFromRange(range);
+  }
+  function updateKindleAnnotations(value) {
+    for(const cfi of renderedAnnotations.values())rendition?.annotations.remove(cfi,'highlight');
+    renderedAnnotations.clear();config.annotations=value;captureRevision++;capturePages.clear();
+    drawKindleAnnotations();return true;
+  }
+  function annotationMarkup(frame,shift){
+    return [...frame.parentElement.querySelectorAll('svg')].filter(svg=>svg.querySelector('.kmreader-kindle-highlight')).map(svg=>{
+      const box=svg.getBoundingClientRect(),clone=svg.cloneNode(true);
+      clone.removeAttribute('style');clone.setAttribute('x','0');clone.setAttribute('y','0');
+      clone.setAttribute('width',box.width);clone.setAttribute('height',box.height);
+      return `<g transform="translate(${box.x+shift} ${box.y})">${new XMLSerializer().serializeToString(clone)}</g>`;
+    }).join('');
+  }
   function position(changed = false) {
     if (!location || restoring || auxiliary || interactiveNavigation) return;
     // Delayed Epub.js reports contain a coarse paragraph CFI, which can lie on
@@ -1265,6 +1315,20 @@ class KMReaderPageSnapshot {
     try { await displayStable(target); }
     finally { restoring = false; userMove = false; position(changed); warmCurl(); }
   }
+  async function seek(value) {
+    if (auxiliary) closeAuxiliary();
+    await waitForLayout();
+    restoring = true;
+    try {
+      await displayStable(value.href);
+      let target;
+      if (value.locator) target = await restoreKindlePosition(value.locator);
+      else if (value.progression > 0) await legacyProgress(value.progression);
+      await tick();
+      refreshViewportLocation();
+      if (target && location?.start) location.start.cfi = target;
+    } finally { restoring = false; userMove = false; position(true); warmCurl(); }
+  }
   async function displayStable(target) {
     await rendition.display(target);
     await stable(rendition.getContents());
@@ -1388,12 +1452,12 @@ class KMReaderPageSnapshot {
   async function captureSheet(shift=0,sourceFrames){
     const width=innerWidth,height=innerHeight,dpr=Math.min(2,devicePixelRatio||1),revision=captureRevision;
     const frames=sourceFrames||[...document.querySelectorAll('#viewer iframe')].filter(f=>{const b=f.getBoundingClientRect();return b.right>0&&b.left<width&&b.bottom>0&&b.top<height;});
-    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift)};}));
+    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift),annotations:annotationMarkup(frame,shift)};}));
     if(!parts.length)throw Error('No visible publication');
     const key=JSON.stringify([width,height,dpr,...parts.map(p=>[p.markup.id,p.box.x,p.box.y])]);
     if(capturePages.has(key)){const value=capturePages.get(key);capturePages.delete(key);capturePages.set(key,value);return value;}
     const task=(async()=>{
-      const layers=await Promise.all(parts.map(async({box,markup})=>`<foreignObject x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}">${await markup.work}</foreignObject>`));
+      const layers=await Promise.all(parts.map(async({box,markup,annotations})=>`<foreignObject x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}">${await markup.work}</foreignObject>${annotations}`));
       const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width*dpr)}" height="${Math.round(height*dpr)}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
       if(svg.length>8*1024*1024)throw Error('Page texture exceeds markup budget');
       const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await image.decode();
@@ -1456,6 +1520,11 @@ class KMReaderPageSnapshot {
           doc.documentElement.dir='rtl';layout.format(view.contents,section,view.axis);view.expand();
         }
         await stable([view.contents]);
+        if(config.kindlePositions)for(const mark of config.annotations||[]){
+          if(!mark.endLocator||mark.locator?.href!==mark.endLocator.href)continue;
+          const cfi=kindleRange(view.contents,mark);
+          if(cfi)view.highlight(cfi,{},null,'kmreader-kindle-highlight',{fill:'#e6b72d','fill-opacity':'.24','mix-blend-mode':'multiply'});
+        }
         if(disposed||revision!==captureRevision||rendition?.manager!==manager)return null;
         const bounds=view.iframe.getBoundingClientRect(),rtl=config.direction==='rtl';
         const shift=(delta>0)!==rtl?-bounds.left:innerWidth-bounds.right;
@@ -1703,7 +1772,7 @@ class KMReaderPageSnapshot {
     }
   }
   async function open(value) {
-    config = value; preferences = value.preferences; restoring = true; captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
+    config = value; renderedAnnotations.clear(); preferences = value.preferences; restoring = true; captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;
     document.body.style.background = colors()[0];
     document.getElementById('viewer').style.background = colors()[0];
     book = ePub(value.url, {openAs: 'opf', replacements: 'none'});
@@ -1772,6 +1841,8 @@ class KMReaderPageSnapshot {
     renditionSpineHooks = book.spine.hooks.content.list().filter(callback => !before.has(callback));
     current.started.then(() => { if (rendition === current) retainLocationLayout(current.manager); });
     rendition.hooks.content.register(hook);
+    renderedAnnotations.clear();
+    rendition.on('rendered', drawKindleAnnotations);
     rendition.on('relocated', value => {
       if (rendition !== current || disposed) return;
       location = value;
@@ -1840,6 +1911,8 @@ class KMReaderPageSnapshot {
     send('auxiliary', {active: true});
   }
   window.reader = {open: value => enqueue(() => open(value)), next: () => enqueue(next), previous: () => enqueue(previous),
+    seek: value => enqueue(() => seek(value)),
+    annotations: updateKindleAnnotations,
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
     preferences: setPreferences, search: value => enqueue(() => search(value)),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),

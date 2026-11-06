@@ -1,10 +1,16 @@
-"""On-demand Android worker. File conversion only, no sessions or networking."""
+"""Private on-demand worker: local conversion and temporary cover content URLs."""
 
 import json
 import logging
 import shutil
 import zipfile
 from pathlib import Path
+
+
+def cover(request):
+    from kindle_personal.cover import remote_cover
+
+    return json.dumps({"ok": True, "cover": remote_cover(json.loads(request)["urls"])})
 
 
 def prepare(directory):
@@ -39,6 +45,7 @@ def prepare(directory):
                         "file": name,
                         "format": inspected["format"],
                         "kindle_locator_map": False,
+                        "pages": inspected.get("pages", 0),
                     },
                 }
             )

@@ -34,6 +34,7 @@ import 'password_page.dart';
 import 'library_editor.dart';
 import 'translation_settings.dart';
 import 'server_management_page.dart';
+import 'kindle_services_page.dart';
 import '../catalog/catalog_page.dart';
 import '../../ui/wheel_scroll.dart';
 
@@ -42,11 +43,27 @@ class SettingsPage extends StatefulWidget {
   final AppController app;
   final Repository repository;
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  State<SettingsPage> createState() => SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class SettingsPageState extends State<SettingsPage> {
   final _navigator = GlobalKey<NavigatorState>();
+  void openServers() {
+    final navigator = _navigator.currentState;
+    if (navigator == null) return;
+    navigator.popUntil((route) => route.isFirst);
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => _SettingsSection(
+          app: widget.app,
+          repository: widget.repository,
+          title: 'Servers',
+          section: SettingsSection.accounts,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Theme(
     data: settingsTheme(Theme.of(context)),
@@ -265,6 +282,17 @@ class _SettingsIndex extends StatelessWidget {
           ),
         ]),
         _group([
+          if (repository is KindleRepository)
+            _link(
+              context,
+              'Servizi Kindle',
+              CupertinoIcons.book,
+              Colors.orange,
+              KindleServicesPage(
+                app: app,
+                repository: repository as KindleRepository,
+              ),
+            ),
           _link(
             context,
             'Servers',
@@ -484,22 +512,19 @@ class _SettingsSection extends StatelessWidget {
                         app.settingsChanged();
                       },
                     ),
-                    SwitchListTile.adaptive(
-                      title: Text(tr(context, 'Show Amazon dictionaries')),
-                      value:
-                          repository.store.setting<bool>(
-                            'kindleDictionaries:${repository.profile.id}',
-                          ) ==
-                          true,
-                      onChanged: (value) {
-                        repository.store.setSetting(
-                          'kindleDictionaries:${repository.profile.id}',
-                          value,
-                        );
-                        (repository as KindleRepository).library.index();
-                        repository.localCatalogChanged();
-                        app.settingsChanged();
-                      },
+                    ListTile(
+                      leading: const Icon(CupertinoIcons.book),
+                      title: const Text('Servizi Kindle'),
+                      trailing: const Icon(CupertinoIcons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => KindleServicesPage(
+                            app: app,
+                            repository: repository as KindleRepository,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ],
