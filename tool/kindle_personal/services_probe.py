@@ -112,12 +112,12 @@ def services_probe(client, item):
                     "KINDLE_MAIN_ATTACHABLE",
                 }:
                     urls = _resource_urls(part)
-                    sources.append(
-                        RangeSource(
-                            lambda ranged, urls=urls: request(urls, ranged),
-                            full_limit=MAX_TRANSFER,
-                        )
+                    source = RangeSource(
+                        lambda ranged, urls=urls: request(urls, ranged),
+                        full_limit=MAX_TRANSFER,
                     )
+                    source.block_size = 256 * 1024
+                    sources.append(source)
             cover = extract_cover(sources)
             cover["transferred"] = transferred
             cover["resources_bytes"] = sum(s.size or 0 for s in sources)
