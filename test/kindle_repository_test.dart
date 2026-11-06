@@ -30,6 +30,7 @@ void main() {
   var time = '2020-01-01T00:00:00Z';
   var writes = 0;
   var confirm = true;
+  var networkUnavailable = false;
   var edition = 'SYNTHETIC-ACR';
   late List<int> resource;
   Completer<void>? delayedSidecar, sidecarStarted;
@@ -49,6 +50,7 @@ void main() {
       source: 'kindle',
     );
     position = 12;
+    networkUnavailable = false;
     delayedSidecar = null;
     sidecarStarted = null;
     writes = 0;
@@ -98,6 +100,7 @@ void main() {
       session: session,
       client: MockClient((request) async {
         if (request.url.path.endsWith('/sidecar')) {
+          if (networkUnavailable) return http.Response('', 503);
           if (request.method == 'GET') {
             expect(request.url.queryParameters['guid'], isNotEmpty);
           }
@@ -334,6 +337,23 @@ void main() {
     repo.documentPosition(current, {'kindlePosition': 42});
     expect(repo.pendingCount, 1);
   });
+  test(
+    'opening without network queues positions and synchronizes after reconnect',
+    () async {
+      networkUnavailable = true;
+      expect(await repo.externalDocumentPosition(book, publication), isNull);
+      repo.documentPosition(book, {'kindlePosition': 42});
+      expect(repo.pendingCount, 1);
+      await repo.sync(force: true);
+      expect(writes, 0);
+      expect(repo.pendingCount, 1);
+      networkUnavailable = false;
+      await repo.sync(force: true);
+      expect(position, 42);
+      expect(writes, 1);
+      expect(repo.pendingCount, 0);
+    },
+  );
   test('Fiona GUID identifies the container when its ACR names another representation', () {
     final map = KindlePositionMap([], {'CONTAINER'});
     expect(
