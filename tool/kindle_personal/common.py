@@ -50,6 +50,7 @@ class KindleError(Exception):
             "reason": AUTH_ERROR_REASONS,
             "flow": {"pkce", "token"},
             "response_format": {"json", "other", "empty"},
+            "entry": {"device_it", "kindle_ios_it"},
         }
         for key, value in details.items():
             if (

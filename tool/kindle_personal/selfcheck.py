@@ -1,6 +1,7 @@
 """Offline executable smoke check with synthetic EBOK/PDOC and Windows DPAPI."""
 
 import io
+import json
 import os
 import tempfile
 import time
@@ -121,6 +122,23 @@ def self_check(*, browser=False, fixtures=None):
 
         def handle(request):
             if request.url.path == "/auth/register":
+                body = json.loads(request.content)
+                assert body["cookies"] == {
+                    "website_cookies": [],
+                    "domain": ".amazon.it",
+                }
+                assert set(body["requested_token_type"]) == {
+                    "bearer",
+                    "mac_dms",
+                    "website_cookies",
+                    "store_authentication_cookie",
+                }
+                assert (
+                    body["auth_data"]["authorization_code"]
+                    == "synthetic+code/part+value"
+                )
+                assert body["auth_data"]["client_id"] == attempt.client_id
+                assert body["auth_data"]["code_verifier"] == attempt.verifier
                 return httpx.Response(
                     200,
                     json={
@@ -137,6 +155,15 @@ def self_check(*, browser=False, fixtures=None):
                                         "device_private_key": session[
                                             "device_private_key"
                                         ],
+                                    },
+                                    "website_cookies": [
+                                        {
+                                            "Name": "session-id",
+                                            "Value": "PRIVATE_BROWSER_COOKIE",
+                                        }
+                                    ],
+                                    "store_authentication_cookie": {
+                                        "token": "PRIVATE_STORE_COOKIE"
                                     },
                                 },
                                 "extensions": {
@@ -198,9 +225,17 @@ def self_check(*, browser=False, fixtures=None):
         client = KindleClient(vault, transport=httpx.MockTransport(handle))
         directories = []
         try:
-            client.register(
-                LoginAttempt("SYNTHETIC"), {"authorization_code": "synthetic-code"}
+            attempt = LoginAttempt("SYNTHETIC")
+            assert "openid.assoc_handle=amzn_device_it" in attempt.url()
+            assert "pageId=amzn_device_common_dark" in attempt.url()
+            auth_data = attempt.callback(
+                "https://www.amazon.it/ap/maplanding?openid.oa2.authorization_code=synthetic+code/part%2Bvalue"
             )
+            client.register(attempt, auth_data)
+            assert "PRIVATE_BROWSER_COOKIE" not in json.dumps(vault.session)
+            assert "PRIVATE_STORE_COOKIE" not in json.dumps(vault.session)
+            report["device_entry_contract"] = "passed"
+            report["opaque_credentials"] = "passed"
             snapshot = synchronize(client, full=True)
             assert snapshot["complete"] and len(snapshot["items"]) == 3
             assert len(visible_items(snapshot)) == 2

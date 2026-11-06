@@ -74,6 +74,7 @@ class Application:
         }
         write_json(self.directory / "identity.json", identity)
         attempt = LoginAttempt(identity["serial"], flow)
+        (self.directory / "last-error.json").unlink(missing_ok=True)
         print("Si apre Amazon.it in una finestra separata di Edge.")
         print(
             "Inserisci password ed eventuale codice esclusivamente nella pagina Amazon."
@@ -191,7 +192,9 @@ class Application:
             "schema": 2,
             "prototype_version": VERSION,
             "marketplace": "amazon.it",
-            "profile": PROFILE,
+            "profile": self.client.session.get("profile", PROFILE)
+            if self.client.session
+            else PROFILE,
             "connected": bool(self.client.session),
             "login_flow": self.client.session.get("flow")
             if self.client.session

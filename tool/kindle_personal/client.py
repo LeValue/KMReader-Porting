@@ -13,7 +13,6 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from .auth import (
     APP_VERSION,
     DEVICE_TYPE,
-    PROFILE,
     SOFTWARE_VERSION,
     USER_AGENT,
     registration_body,
@@ -174,9 +173,10 @@ class KindleClient:
                 "https://api.amazon.it/auth/register",
                 stage="register",
                 json=registration_body(attempt, auth_data),
+                headers={"User-Agent": USER_AGENT, "Accept-Language": "it-IT"},
             )
         except KindleError as error:
-            error.add_authentication({"flow": attempt.flow})
+            error.add_authentication({"flow": attempt.flow, "entry": attempt.entry})
             raise
         try:
             success = data["response"]["success"]
@@ -186,7 +186,7 @@ class KindleClient:
             customer_id = customer.get("user_id") or customer.get("customer_id")
             session = {
                 "marketplace": "amazon.it",
-                "profile": PROFILE,
+                "profile": attempt.profile,
                 "serial": attempt.serial,
                 "device_type": DEVICE_TYPE,
                 "customer_id": customer_id,

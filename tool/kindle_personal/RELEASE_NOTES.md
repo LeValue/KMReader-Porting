@@ -1,23 +1,24 @@
-Correzione del login sul portatile dopo OTP e `register / HTTP 400`.
+Aggiornamento del flusso di collegamento Amazon.it dopo il rifiuto di
+registrazione ancora presente nella 0.1.2.
 
-- Intercetta il ritorno Amazon in base a dominio e percorso, anche quando i
-  parametri OpenID o il codice contengono `/`. Il risultato monouso non viene
-  inviato alla pagina Amazon prima di essere consegnato al connettore.
-- Gestisce nello stesso modo i risultati nel frammento URL, senza dipendere da
-  una pagina Amazon di ritorno esistente.
-- Scambia il risultato prima della pulizia e della chiusura di Edge. Non ripete
-  automaticamente la registrazione con lo stesso codice.
-- Registra in diagnostica soltanto categorie di errore Amazon note, quando
-  presenti, senza messaggi, corpi, URL, token o valori sconosciuti.
+- Usa l'ingresso italiano per dispositivi (`amzn_device_it`, pagina
+  `amzn_device_common_dark`) mantenendo il tipo Kindle già usato per la libreria.
+- Preserva i `+` letterali nei codici restituiti da Amazon; il precedente parser
+  per moduli poteva trasformarli in spazi prima della registrazione.
+- Allinea la richiesta al protocollo dispositivo: dominio dei cookie, tipi di
+  token e nome con gestione dei duplicati. Non importa cookie dal browser e non
+  conserva i cookie aggiuntivi restituiti dal servizio.
+- Conserva sessioni, identità e libri esistenti; distingue l'ingresso nel report
+  e riconosce altre varianti dei codici d'errore, senza copiarne i messaggi.
 
 Chiudi il vecchio prototipo, estrai tutto lo ZIP e avvia **Avvia-Kindle.cmd**.
-Sul PC dove il collegamento non era riuscito, usa **1 — Collega Amazon.it** e
-completa nuovamente il login/OTP. Il menu 8 non è necessario per questa prova.
-Se il PC era già collegato, la sessione resta conservata: puoi usare il menu 2.
+Sul portatile dove il collegamento non è riuscito, usa **1 — Collega Amazon.it**
+e completa di nuovo il login/OTP. Il menu 8 non serve per questa prova.
+Sul PC già collegato continua a usare il menu 2; non occorre rifare il login.
 
-Test con browser reale, passaggio OTP simulato, parametri con slash e risultati
-in query/frammento; verifica dell'eseguibile Windows con Edge/DPAPI. I test non
-usano un account Amazon e non dimostrano quale risposta specifica abbia causato
-il 400 sul portatile: è stato riprodotto e corretto il difetto di intercettazione.
-Se il servizio restituisce ancora un errore, il nuovo `diagnostic.json` del menu 6
-permette di distinguerne meglio la causa senza condividere credenziali.
+Verifica automatica del contratto dispositivo, dei caratteri opachi, della
+registrazione, delle sessioni precedenti e della protezione delle credenziali;
+test con browser reale ed eseguibile Windows con Edge/DPAPI. Queste prove usano
+risposte simulate e non certificano l'accettazione sul proprio account Amazon.
+Se il servizio rifiuta ancora l'accesso, esporta il nuovo `diagnostic.json`
+dal menu 6, senza condividere URL di ritorno o file di sessione.
