@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from . import VERSION
 from .auth import LoginAttempt
-from .catalog import synchronize
+from .catalog import synchronize, visible_items
 from .client import CATALOG_URL, KindleClient
 from .download import download_book, _context
 from .prepare import prepare_download
@@ -115,6 +115,7 @@ def self_check(*, browser=False, fixtures=None):
             b"<response><sync_time>synthetic-time</sync_time><add_update_list>"
             b"<meta_data><ASIN>TEST-EBOK</ASIN><cde_contenttype>EBOK</cde_contenttype><title>Romanzo sintetico</title></meta_data>"
             b"<meta_data><ASIN>opaque-Pdoc-Id</ASIN><cde_contenttype>PDOC</cde_contenttype><title>Documento sintetico</title></meta_data>"
+            b"<meta_data><ASIN>FREE-DICT</ASIN><cde_contenttype>EBOK</cde_contenttype><title>Dizionario sintetico</title><content_tags><tag>DICT</tag><tag>FREE_DICT</tag></content_tags></meta_data>"
             b"</add_update_list></response>"
         )
 
@@ -141,7 +142,7 @@ def self_check(*, browser=False, fixtures=None):
                                 "extensions": {
                                     "customer_info": {"user_id": session["customer_id"]}
                                 },
-                            }
+                            },
                         }
                     },
                 )
@@ -162,13 +163,29 @@ def self_check(*, browser=False, fixtures=None):
                                 "optimalEndpoint": {
                                     "directUrl": f"https://synthetic.cloudfront.net/{identifier}"
                                 },
-                            }
+                            },
+                            {
+                                "id": identifier + "-notes",
+                                "type": "KINDLE_USER_ANOT",
+                                "requirement": "DEFERRED",
+                                "optimalEndpoint": {
+                                    "directUrl": f"https://synthetic.cloudfront.net/{identifier}-notes"
+                                },
+                            },
                         ],
                     },
                 )
             if request.url.host == "synthetic.cloudfront.net":
                 assert "x-adp-token" not in request.headers
                 assert "authorization" not in request.headers
+                if request.url.path.endswith("-notes"):
+                    return httpx.Response(
+                        200,
+                        stream=httpx.ByteStream(
+                            b'<response><book><bookmark begin="1"/></book></response>'
+                        ),
+                        headers={"content-type": "application/xml"},
+                    )
                 return httpx.Response(
                     200,
                     stream=httpx.ByteStream(
@@ -185,9 +202,11 @@ def self_check(*, browser=False, fixtures=None):
                 LoginAttempt("SYNTHETIC"), {"authorization_code": "synthetic-code"}
             )
             snapshot = synchronize(client, full=True)
-            assert snapshot["complete"] and len(snapshot["items"]) == 2
+            assert snapshot["complete"] and len(snapshot["items"]) == 3
+            assert len(visible_items(snapshot)) == 2
+            report["catalog_dictionary_filter"] = "passed"
             outputs = {}
-            for item in snapshot["items"]:
+            for item in visible_items(snapshot):
                 directory, prepared = download_book(client, item, root / "books")
                 assert prepared["state"] == "importable"
                 assert prepared["opened_in_kmreader"] is False
@@ -201,6 +220,7 @@ def self_check(*, browser=False, fixtures=None):
                     )
                 directories.append(directory)
                 receipt = (directory / "receipt.json").read_text()
+                assert '"payload_kind": "xml"' in receipt
                 assert (
                     "synthetic.cloudfront.net" not in receipt
                     and "synthetic-adp" not in receipt
@@ -209,6 +229,7 @@ def self_check(*, browser=False, fixtures=None):
                 registration="passed",
                 signed_catalog="passed",
                 download_and_prepare=outputs,
+                structured_resources="passed",
             )
         finally:
             client.close()

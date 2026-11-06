@@ -1,4 +1,4 @@
-"""Atomic, complete acquisition of one fresh delivery manifest at a time."""
+"""Atomic acquisition of reading resources; optional note failures are explicit."""
 
 import base64
 import hashlib
@@ -16,6 +16,7 @@ from .client import check_url
 from .common import KindleError, digest, write_json
 from .prepare import prepare_download, verified_receipt
 from .auth import SOFTWARE_VERSION
+from .resource_payload import validate_resource
 
 MAX_RESOURCE = 2 * 1024 * 1024 * 1024
 MAX_BOOK = 4 * 1024 * 1024 * 1024
@@ -88,15 +89,8 @@ def _resource_urls(resource):
     return urls
 
 
-def _stream_part(client, urls, destination, headers, *, max_bytes):
-    response = None
-    for index, url in enumerate(urls):
-        try:
-            response = client.request(url, stage="download", headers=headers)
-            break
-        except KindleError as error:
-            if error.status not in (401, 403) or index == len(urls) - 1:
-                raise
+def _stream_one(client, url, destination, headers, *, max_bytes, resource_type):
+    response = client.request(url, stage="download", headers=headers)
     try:
         expected = response.headers.get("content-length")
         try:
@@ -122,17 +116,6 @@ def _stream_part(client, urls, destination, headers, *, max_bytes):
                 "Codifica del trasferimento non supportata.",
                 stage="download",
             )
-        if content_type in (
-            "text/html",
-            "application/json",
-            "text/xml",
-            "application/xml",
-        ):
-            raise KindleError(
-                "resource_error_page",
-                "Il server ha restituito una pagina di servizio al posto della risorsa.",
-                stage="download",
-            )
         size, sha = 0, hashlib.sha256()
         with destination.open("wb") as output:
             for chunk in response.iter_raw():
@@ -153,7 +136,17 @@ def _stream_part(client, urls, destination, headers, *, max_bytes):
                 "Download incompleto; il titolo precedente resta disponibile.",
                 stage="download",
             )
-        return {"bytes": size, "sha256": sha.hexdigest()}
+        payload_kind = validate_resource(
+            destination,
+            resource_type=resource_type,
+            content_type=content_type,
+            status=response.status_code,
+        )
+        return {"bytes": size, "sha256": sha.hexdigest(), "payload_kind": payload_kind}
+    except KindleError as error:
+        if error.status is None:
+            error.status = response.status_code
+        raise
     except httpx.HTTPError:
         raise KindleError(
             "resource_interrupted",
@@ -162,6 +155,27 @@ def _stream_part(client, urls, destination, headers, *, max_bytes):
         ) from None
     finally:
         response.close()
+
+
+def _stream_part(client, urls, destination, headers, *, max_bytes, resource_type):
+    for index, url in enumerate(urls):
+        try:
+            return _stream_one(
+                client,
+                url,
+                destination,
+                headers,
+                max_bytes=max_bytes,
+                resource_type=resource_type,
+            )
+        except KindleError as error:
+            destination.unlink(missing_ok=True)
+            retryable = error.status in (401, 403, 404) or error.code in {
+                "resource_error_page",
+                "resource_service_error",
+            }
+            if not retryable or index == len(urls) - 1:
+                raise
 
 
 def download_book(
@@ -289,17 +303,42 @@ def download_book(
             "revision": revision,
             "download_state": "complete",
             "resources": [],
+            "optional_resources_skipped": [],
         }
         total = 0
         for index, (resource, urls, name, headers) in enumerate(planned):
             progress(f"Risorsa {index + 1}/{len(planned)}")
-            info = _stream_part(
-                client,
-                urls,
-                temporary / name,
-                headers,
-                max_bytes=min(MAX_RESOURCE, MAX_BOOK - total),
-            )
+            try:
+                info = _stream_part(
+                    client,
+                    urls,
+                    temporary / name,
+                    headers,
+                    max_bytes=min(MAX_RESOURCE, MAX_BOOK - total),
+                    resource_type=resource["type"],
+                )
+            except KindleError as error:
+                safe_type = (
+                    resource["type"] if resource["type"] in SUFFIXES else "OTHER"
+                )
+                error.add_details(
+                    {
+                        "resource_type": safe_type,
+                        "resource_index": index + 1,
+                        "resource_count": len(planned),
+                        "book_type": item["type"],
+                    }
+                )
+                optional = resource["type"] == "KINDLE_USER_ANOT" and resource.get(
+                    "requirement", ""
+                ).upper() in {"DEFERRED", "PREFERRED"}
+                if not optional:
+                    raise
+                receipt["optional_resources_skipped"].append(error.diagnostic())
+                progress(
+                    "Annotazioni accessorie non disponibili; continuo con le risorse di lettura."
+                )
+                continue
             total += info["bytes"]
             receipt["resources"].append(
                 {

@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.1.0
+# KMReader Kindle personale — prototipo Windows 0.1.1
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -8,6 +8,19 @@ file da importare nel lettore di KMReader. Non richiede un accordo con Amazon.
 Non è ancora il collegamento Kindle dentro le Impostazioni di KMReader. Prima
 verifichiamo l'acquisizione di file reali; poi integriamo i protocolli confermati.
 Il PC non è automaticamente una dipendenza permanente della futura integrazione.
+
+## Aggiornamento dalla 0.1.0
+
+Estrai il nuovo ZIP in una cartella separata e avvia `Avvia-Kindle.cmd`.
+La sessione protetta e i download sono conservati nello stesso archivio locale:
+**non serve rifare il login**. Scegli **2 — Sincronizza e mostra catalogo**, poi
+riprova il documento con **3**. La prima sincronizzazione aggiorna anche la
+classificazione dei vecchi metadati memorizzati dalla 0.1.0.
+
+I dizionari Amazon contrassegnati `DICT` / `FREE_DICT` sono nascosti dall'elenco
+principale; **9** permette di mostrarli. Non usiamo parole come "Dictionary" nel
+titolo per nascondere un libro. Un dizionario acquistato e identificato come tale
+dal catalogo e un documento personale rimangono nell'elenco principale.
 
 ## Prova sul tuo PC
 
@@ -41,13 +54,23 @@ Una pagina Amazon che continua a mostrare un errore non equivale a un login rius
   oppure Calibre ha prodotto un EPUB che supera gli stessi controlli. Il file
   `ready.epub` / `ready.pdf` è il candidato per KMReader; non è una dichiarazione
   che abbiamo già visto e verificato le pagine del tuo libro.
-- **Download completo, preparazione necessaria**: tutte le risorse dichiarate nel
-  manifest sono presenti, ma il contenuto non è ancora pronto per il nostro
+- **Download completo, preparazione necessaria**: le risorse necessarie alla
+  lettura sono presenti, ma il contenuto non è ancora pronto per il nostro
   lettore. Il motivo compare nel terminale e in `preparation.json`. Non importare
   una risorsa `.azw` rinominandola `.epub`.
 - **Errore di download**: un manifest o una risorsa non sono stati ottenuti
   integralmente. Il titolo non viene segnato completato; una revisione già
   scaricata resta intatta. Un nuovo tentativo richiede un manifest fresco.
+
+Le annotazioni facoltative (`KINDLE_USER_ANOT` con requisito `DEFERRED` o
+`PREFERRED`) possono essere XML o JSON validi: non sono considerate pagine
+d'errore solo per il tipo MIME. Se il servizio non le rende disponibili, il
+prototipo segnala l'assenza e continua con il documento; il dettaglio è nella
+ricevuta `optional_resources_skipped`. Risorse di testo, allegati, metadati,
+voucher e qualsiasi risorsa dichiarata obbligatoria devono comunque riuscire.
+Pagine HTML, payload malformati ed errori di servizio non vengono accettati come
+metadati validi. La diagnostica aggiunge tipo e numero della risorsa e stato HTTP,
+senza includerne il contenuto o gli identificativi.
 
 Per **MOBI/KF8/KFX**, il prototipo cerca `ebook-convert.exe` di un'installazione
 locale di [Calibre](https://calibre-ebook.com/download_windows). La conversione
