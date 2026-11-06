@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.1.1
+# KMReader Kindle personale — prototipo Windows 0.1.2
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -9,13 +9,21 @@ Non è ancora il collegamento Kindle dentro le Impostazioni di KMReader. Prima
 verifichiamo l'acquisizione di file reali; poi integriamo i protocolli confermati.
 Il PC non è automaticamente una dipendenza permanente della futura integrazione.
 
-## Aggiornamento dalla 0.1.0
+## Aggiornamento dalla 0.1.0 / 0.1.1
 
-Estrai il nuovo ZIP in una cartella separata e avvia `Avvia-Kindle.cmd`.
+Chiudi il vecchio prototipo, estrai il nuovo ZIP in una cartella separata e avvia `Avvia-Kindle.cmd`.
 La sessione protetta e i download sono conservati nello stesso archivio locale:
 **non serve rifare il login**. Scegli **2 — Sincronizza e mostra catalogo**, poi
 riprova il documento con **3**. La prima sincronizzazione aggiorna anche la
 classificazione dei vecchi metadati memorizzati dalla 0.1.0.
+
+Se invece il collegamento sul nuovo PC non era riuscito (`register / HTTP 400`),
+scegli **1** e completa nuovamente login e OTP. La 0.1.2 intercetta il ritorno
+Amazon anche con `/` nei parametri o nel codice opaco; quel risultato non viene
+più lasciato arrivare alla pagina Amazon `/ap/maplanding` prima dell'app.
+La registrazione avviene prima di chiudere Edge, evitando attese di pulizia sul
+percorso di scambio del codice monouso. Non vengono ripetuti tentativi con lo
+stesso codice né cambiate automaticamente identità o modalità di autenticazione.
 
 I dizionari Amazon contrassegnati `DICT` / `FREE_DICT` sono nascosti dall'elenco
 principale; **9** permette di mostrarli. Non usiamo parole come "Dictionary" nel
@@ -41,12 +49,18 @@ dal catalogo e un documento personale rimangono nell'elenco principale.
    `diagnostic.json` insieme alla fase in cui ti sei fermato. Non inviare la
    cartella dell'archivio, file di sessione, URL di ritorno o credenziali.
 
-Il login parte dal flusso con **PKCE**, ancora da verificare per questo profilo
-Kindle. Se Amazon lo rifiuta, il menu **8** permette di provare esplicitamente il
-flusso storico con token nello stesso browser locale. Non avviene un passaggio
-automatico fra profili/dispositivi. Entrambi usano un profilo Kindle iOS storico,
-documentato nel rapporto di ricerca: l'accettazione attuale è una parte della prova.
+Usa il flusso **PKCE del menu 1**, già riuscito nella prima prova reale.
+Il menu **8** resta una modalità storica facoltativa, che Amazon può non rendere
+disponibile: non è necessario usarlo per il problema corretto nella 0.1.2.
+Non avviene un passaggio automatico fra profili/dispositivi. Il profilo Kindle
+iOS storico è documentato nel rapporto di ricerca; la compatibilità continua a
+richiedere la verifica sul proprio account e dispositivo.
 Una pagina Amazon che continua a mostrare un errore non equivale a un login riuscito.
+
+Per gli errori HTTP di registrazione, la diagnostica distingue inoltre categorie
+note come `invalid_grant` e `invalid_authentication_data`, quando Amazon le
+restituisce, oppure `unknown`. Non copia messaggi, corpi di risposta, codici di
+accesso, URL o valori di errore sconosciuti. Non inviare mai l'URL di ritorno.
 
 ## Cosa significa il risultato del download
 

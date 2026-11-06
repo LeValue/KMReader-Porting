@@ -137,7 +137,16 @@ class AuthenticationTest(unittest.TestCase):
             self.assertNotIn("PRIVATE", str(failure.exception))
             self.assertEqual(
                 failure.exception.diagnostic(),
-                {"code": "amazon_http", "stage": "register", "http_status": 403},
+                {
+                    "code": "amazon_http",
+                    "stage": "register",
+                    "http_status": 403,
+                    "authentication": {
+                        "flow": "pkce",
+                        "reason": "unknown",
+                        "response_format": "json",
+                    },
+                },
             )
             self.assertIsNone(vault.load())
         finally:
