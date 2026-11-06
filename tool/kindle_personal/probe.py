@@ -289,6 +289,38 @@ def online_probe(client, item):
                     verified["sidecar_guid_matches_container"] = (
                         payload.get("guid") in mapping["container_acrs"]
                     )
+                    # Fiona can return the sidecar for a different delivered
+                    # format unless its container GUID is requested explicitly.
+                    targeted = []
+                    for parameter in ("guid", "acr"):
+                        if not mapping["container_acrs"]:
+                            break
+                        try:
+                            variant = json.loads(
+                                client.bounded_get(
+                                    "https://cde-ta-g7g.amazon.com/FionaCDEServiceEngine/sidecar",
+                                    stage="probe",
+                                    params={
+                                        "type": item["type"],
+                                        "key": item["id"],
+                                        parameter: mapping["container_acrs"][0],
+                                    },
+                                )
+                            )
+                            variant = variant.get("payload", variant)
+                            targeted.append(
+                                {
+                                    "parameter": parameter,
+                                    "edition_matches": variant.get("guid")
+                                    in mapping["container_acrs"]
+                                    or variant.get("acr") in mapping["container_acrs"],
+                                }
+                            )
+                        except (KindleError, ValueError, TypeError, AttributeError):
+                            targeted.append(
+                                {"parameter": parameter, "available": False}
+                            )
+                    verified["targeted_sidecars"] = targeted
                     records = payload.get("records", [])
                     recent = next(
                         (
