@@ -35,7 +35,21 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64") }
+        // Chaquopy needs explicit filters. Build each architecture with
+        // --target-platform rather than AGP splits, which conflict with them.
+        ndk {
+            abiFilters.clear()
+            val targets = providers.gradleProperty("target-platform").orNull
+                ?: "android-arm,android-arm64,android-x64"
+            abiFilters += targets.split(',').map {
+                when (it) {
+                    "android-arm" -> "armeabi-v7a"
+                    "android-arm64" -> "arm64-v8a"
+                    "android-x64" -> "x86_64"
+                    else -> error("Unsupported Android platform: $it")
+                }
+            }
+        }
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)

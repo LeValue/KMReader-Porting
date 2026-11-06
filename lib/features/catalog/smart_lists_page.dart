@@ -110,20 +110,23 @@ class _SmartListsPageState extends State<SmartListsPage> {
             child: Row(
               children: [
                 Expanded(
-                  child: SegmentedButton<bool>(
-                    segments: [
-                      ButtonSegment(
-                        value: true,
-                        label: Text(tr(context, 'Smart Lists')),
-                      ),
-                      ButtonSegment(
-                        value: false,
-                        label: Text(tr(context, 'Saved Filters')),
-                      ),
-                    ],
-                    selected: {_smart},
-                    onSelectionChanged: (v) => setState(() => _smart = v.first),
-                  ),
+                  child: !widget.repository.supportsRemoteLists
+                      ? Text(tr(context, 'Saved Filters'))
+                      : SegmentedButton<bool>(
+                          segments: [
+                            ButtonSegment(
+                              value: true,
+                              label: Text(tr(context, 'Smart Lists')),
+                            ),
+                            ButtonSegment(
+                              value: false,
+                              label: Text(tr(context, 'Saved Filters')),
+                            ),
+                          ],
+                          selected: {_smart},
+                          onSelectionChanged: (v) =>
+                              setState(() => _smart = v.first),
+                        ),
                 ),
                 if (!_smart)
                   IconButton(
