@@ -102,8 +102,29 @@ def extract_cover(sources):
         result["pages"] = pages
         result["estimated"] = False
     try:
-        positions = book.collect_position_map_info()
-        end = max((entry.pid + entry.length for entry in positions), default=0)
+        # Section lengths are already in the book-level position index. Do not
+        # fetch every section's position map merely to count logical pages.
+        fragment = book.fragments.get("$265", first=True)
+        value = fragment.value if fragment is not None else None
+        if isinstance(value, dict):
+            end = max(
+                (
+                    int(part.get("$184", 0)) + int(part.get("$144", 0))
+                    for part in value.get("$181", [])
+                ),
+                default=0,
+            )
+        elif value:
+            last = value[-1]
+            end = int(
+                last[0]
+                if isinstance(last, list)
+                else last.get("$184", 0)
+                if isinstance(last, dict)
+                else last
+            )
+        else:
+            end = 0
     except Exception:
         end = 0
     if end > 0:
@@ -165,6 +186,7 @@ def remote_cover(urls):
             source = RangeSource(
                 lambda headers, url=url: request(url, headers), full_limit=2 * 1024**3
             )
+            source.block_size = 256 * 1024
             sources.append(source)
         result = extract_cover(sources)
         return {**result, "transferred": transferred}
