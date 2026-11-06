@@ -30,7 +30,9 @@ button opens Servers directly.
 The reader counter describes the complete volume. When no publisher count is
 available, it uses stable logical pages of 1,024 Unicode scalars, marked `~`.
 A background/cache index weights chapters by their actual text length. It does
-not paginate all chapters in the WebView. Tapping the counter opens a compact
+not paginate all chapters in the WebView. Only a verified publisher count can
+override this index; a server chapter count is not treated as pagination.
+Closing the reader waits for background ZIP indexing before releasing its file. Tapping the counter opens a compact
 volume slider, page entry, chapter shortcuts, contents and bookmarks. Unknown
 catalog counts are not displayed as zero; native PDF preparation supplies its
 actual page count.

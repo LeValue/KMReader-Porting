@@ -88,6 +88,8 @@ class KindleLibrary {
             ? 'application/pdf'
             : 'application/epub+zip',
         'pagesCount': integer(object(existing['media'])['pagesCount']),
+        if (object(existing['media'])['pagesCountSource'] != null)
+          'pagesCountSource': object(existing['media'])['pagesCountSource'],
         if (object(existing['media'])['pagesCountEstimated'] == true)
           'pagesCountEstimated': true,
       },
@@ -168,7 +170,9 @@ class KindleLibrary {
     if (pages < 1 || pages > 1000000) return;
     final old = object(store.cached(profile.id, 'book:$id'));
     if (integer(object(old['media'])['pagesCount']) == pages &&
-        object(old['media'])['pagesCountEstimated'] == estimated) {
+        object(old['media'])['pagesCountEstimated'] == estimated &&
+        object(old['media'])['pagesCountSource'] ==
+            (estimated ? 'logical' : 'publisher')) {
       return;
     }
     final value = old.isEmpty ? bookJson(item(id)) : old;
@@ -179,6 +183,7 @@ class KindleLibrary {
           ...object(value['media']),
           'pagesCount': pages,
           'pagesCountEstimated': estimated,
+          'pagesCountSource': estimated ? 'logical' : 'publisher',
         },
       }),
     ]);
