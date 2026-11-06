@@ -29,6 +29,9 @@ void main() {
         final pdf = File('$fixtures/synthetic-PDOC.pdf');
         final ebook = await library.importFile(XFile(epub.path));
         final document = await library.importFile(XFile(pdf.path));
+        final converted = await library.importFile(
+          XFile('$fixtures/synthetic-KFX.epub'),
+        );
         expect(ebook.format, 'epub');
         expect(document.format, 'pdf');
         expect(ebook.pages, 1);
@@ -42,11 +45,17 @@ void main() {
         } finally {
           parsed.close();
         }
+        final kfx = EpubDocument.open(library.bookFile(converted).path);
+        try {
+          expect(kfx.chapter(0), contains('Questo documento sintetico'));
+        } finally {
+          kfx.close();
+        }
         library.setProgress(ebook, 1);
         library.dispose();
         library = LocalLibrary(store: store, directory: directory);
         expect(library.offline, isTrue);
-        expect(library.books, hasLength(2));
+        expect(library.books, hasLength(3));
         expect(
           library.bookFile(await library.book(ebook.id)).existsSync(),
           isTrue,

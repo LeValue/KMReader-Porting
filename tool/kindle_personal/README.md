@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.1.3
+# KMReader Kindle personale — prototipo Windows 0.1.4
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -9,7 +9,23 @@ Non è ancora il collegamento Kindle dentro le Impostazioni di KMReader. Prima
 verifichiamo l'acquisizione di file reali; poi integriamo i protocolli confermati.
 Il PC non è automaticamente una dipendenza permanente della futura integrazione.
 
-## Aggiornamento dalla 0.1.0 / 0.1.1 / 0.1.2
+## Aggiornamento alla 0.1.4: documento scaricato ma illeggibile
+
+I documenti personali possono arrivare come **KFX**, anche se il file si chiama
+`.azw`. La 0.1.3 non riconosceva la firma `CONT` e richiedeva Calibre: un download
+completo poteva quindi rimanere `unknown / calibre_missing` e non essere leggibile.
+
+La 0.1.4 include la conversione locale dei **KFX non cifrati** in EPUB con kfxlib,
+senza installare Calibre o plugin. Verifica il file prodotto prima di dichiararlo
+importabile. Conserva tutte le risorse necessarie, anche per i contenitori divisi.
+
+Chiudi il vecchio prototipo, estrai tutto il nuovo ZIP e avvia `Avvia-Kindle.cmd`.
+Per il documento già scaricato scegli **4 — Riprova preparazione**, selezionalo
+e importa il `ready.epub` indicato in **KMReader → Libri locali**. Non occorre
+rifare il login o riscaricare il documento. I nuovi download con **3** vengono
+preparati automaticamente. La conversione avviene offline sul PC.
+
+## Aggiornamenti precedenti
 
 Chiudi il vecchio prototipo, estrai il nuovo ZIP in una cartella separata e avvia `Avvia-Kindle.cmd`.
 La sessione protetta e i download sono conservati nello stesso archivio locale:
@@ -83,7 +99,7 @@ accesso, URL o valori di errore sconosciuti. Non inviare mai l'URL di ritorno.
 ## Cosa significa il risultato del download
 
 - **Importabile**: un EPUB/PDF è stato riconosciuto e verificato strutturalmente,
-  oppure Calibre ha prodotto un EPUB che supera gli stessi controlli. Il file
+  oppure il convertitore ha prodotto un EPUB che supera gli stessi controlli. Il file
   `ready.epub` / `ready.pdf` è il candidato per KMReader; non è una dichiarazione
   che abbiamo già visto e verificato le pagine del tuo libro.
 - **Download completo, preparazione necessaria**: le risorse necessarie alla
@@ -104,14 +120,16 @@ Pagine HTML, payload malformati ed errori di servizio non vengono accettati come
 metadati validi. La diagnostica aggiunge tipo e numero della risorsa e stato HTTP,
 senza includerne il contenuto o gli identificativi.
 
-Per **MOBI/KF8/KFX**, il prototipo cerca `ebook-convert.exe` di un'installazione
-locale di [Calibre](https://calibre-ebook.com/download_windows). La conversione
-dipende dal formato e dai plugin che hai installato, compreso KFX Input quando
-necessario. Il prototipo non installa plugin e non include un convertitore né una
-soluzione universale alle protezioni dei titoli acquistati. Il percorso recente
-**acquisto → risorse → conversione → lettura** va verificato sul libro reale.
-Puoi installare/configurare il convertitore e scegliere **4 — Riprova preparazione**
-senza riscaricare le risorse. La conversione non invia i file a terzi.
+Per **KFX non cifrati**, il convertitore incluso usa kfxlib in un processo separato,
+senza passargli credenziali Amazon. Riconosce il contenuto reale invece di affidarsi
+all'estensione. Un file non supportato non viene segnato importabile.
+
+Per **MOBI/KF8** rimane disponibile `ebook-convert.exe` di un'installazione locale
+di [Calibre](https://calibre-ebook.com/download_windows). Il parametro `--converter`
+permette anche di scegliere esplicitamente un convertitore esterno per KFX.
+La compatibilità dei titoli protetti va verificata separatamente: il convertitore
+incluso non li decifra. In ogni caso puoi usare **4 — Riprova preparazione** senza
+riscaricare le risorse. La conversione non invia i file a terzi.
 
 ## Archivio locale
 
@@ -159,7 +177,13 @@ e non ha una firma Authenticode. Non contiene le tue credenziali o libri.
 
 ## Sviluppo e verifica
 
-Sorgenti nel repository, senza importare i progetti GPL/AGPL nell'app MIT.
+L'app Flutter rimane MIT e non dipende da questo programma. L'eseguibile separato
+del prototipo include **kfxlib di John Howell, GPL-3.0-or-later** ed è distribuito
+nel suo insieme sotto GPL-3.0-or-later; il codice originale mantiene gli avvisi MIT.
+Lo ZIP contiene `LICENSE`, `MIT-LICENSE` e gli avvisi delle dipendenze. Nella stessa
+release si trova `KMReader-Kindle-0.1.4-source.zip`, con sorgenti corrispondenti del
+prototipo, sorgenti kfxlib della revisione fissata e istruzioni di ricompilazione.
+
 Per eseguire i sorgenti su Windows usa Python 3.11 x64: il parser Ion fissato
 nelle dipendenze ha un pacchetto binario per questa versione e non richiede CMake.
 I campi del protocollo sono stati implementati separatamente sulla base delle

@@ -19,7 +19,37 @@ from .client import CATALOG_URL, KindleClient
 from .download import download_book, _context
 from .prepare import prepare_download
 from .storage import WindowsVault
-from .common import atomic_bytes
+from .common import atomic_bytes, file_hash, write_json
+
+
+def synthetic_kfx():
+    """Generate a tiny CONT container from our own text, never a user book."""
+    import logging
+    from kfxlib import YJ_Book, set_logger
+    from kfxlib.kfx_container import KfxContainer
+    from kfxlib.yj_container import YJFragment
+
+    logger = logging.Logger("synthetic-kfx", level=logging.CRITICAL + 1)
+    logger.addHandler(logging.NullHandler())
+    set_logger(logger)
+    with tempfile.TemporaryDirectory() as temporary:
+        source = Path(temporary) / "book.ion"
+        source.write_text(
+            "'$258'::{ '$153':\"KMReader synthetic KFX\", '$10':\"it\", "
+            "'$251':\"PDOC\", '$169':[{ '$178':'$351', '$170':['section_1'] }] }\n"
+            "'section_1'::'$260'::{ '$174':'section_1', "
+            "'$141':[{ '$159':'$270', '$156':'$323', '$176':'story_1' }] }\n"
+            "'story_1'::'$259'::{ '$176':'story_1', "
+            "'$146':[{ '$159':'$269', '$145':\"Questo documento sintetico "
+            'verifica la conversione KFX in EPUB." }] }\n',
+            encoding="utf-8",
+        )
+        book = YJ_Book(str(source))
+        book.decode_book()
+        for symbol in ("section_1", "story_1"):
+            book.symtab.create_local_symbol(symbol)
+        book.fragments.append(YJFragment(book.symtab.create_import()))
+        return KfxContainer(book.symtab, fragments=book.fragments).serialize()
 
 
 def synthetic_epub():
@@ -271,6 +301,39 @@ def self_check(*, browser=False, fixtures=None):
         for directory in directories:
             assert prepare_download(directory)["state"] == "importable"
         report["offline_reopen"] = "passed"
+        kfx_directory = root / "offline-kfx"
+        kfx_directory.mkdir()
+        source = kfx_directory / "0000-document.azw"
+        source.write_bytes(synthetic_kfx())
+        write_json(
+            kfx_directory / "receipt.json",
+            {
+                "download_state": "complete",
+                "resources": [
+                    {
+                        "file": source.name,
+                        "bytes": source.stat().st_size,
+                        "sha256": file_hash(source),
+                        "type": "KINDLE_MAIN_BASE",
+                    }
+                ],
+            },
+        )
+        prepared = prepare_download(kfx_directory, convert=True)
+        assert prepared["state"] == "importable"
+        with zipfile.ZipFile(kfx_directory / prepared["file"]) as archive:
+            assert any(
+                b"Questo documento sintetico" in archive.read(name)
+                for name in archive.namelist()
+                if name.endswith(".xhtml")
+            )
+        if fixtures is not None:
+            atomic_bytes(
+                Path(fixtures) / "synthetic-KFX.epub",
+                (kfx_directory / prepared["file"]).read_bytes(),
+            )
+        assert prepare_download(kfx_directory)["state"] == "importable"
+        report["offline_kfx_conversion"] = "passed"
         import base64
 
         assert (

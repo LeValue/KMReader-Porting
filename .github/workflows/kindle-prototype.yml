@@ -74,6 +74,7 @@ jobs:
           --distpath artifacts/kindle-dist --workpath artifacts/kindle-work
           --specpath artifacts/kindle-spec --paths tool
           --collect-all playwright --collect-submodules amazon.ion
+          --collect-all kfxlib --collect-all lxml --collect-all PIL --collect-all bs4
           tool/kindle_personal_cli.py
       - name: Verify packaged DPAPI, protocol pipeline, Chrome and Edge callbacks
         run: |
@@ -81,12 +82,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Version check failed' }
           artifacts/kindle-dist/KMReader-Kindle/KMReader-Kindle.exe self-test --browser --output artifacts/kindle-executable-check.json
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable smoke check failed' }
+      - name: Obtain the exact converter source for the corresponding source archive
+        shell: bash
+        run: |
+          git init artifacts/kfxlib-source
+          git -C artifacts/kfxlib-source remote add origin https://github.com/kafkasl/ksync.git
+          git -C artifacts/kfxlib-source fetch --depth=1 origin fc00a7b7a04badfbd61f3e42aaaa5e45e1d0cfd7
+          git -C artifacts/kfxlib-source checkout --detach FETCH_HEAD
       - name: Package verified executable and dependency notices
         run: >-
           artifacts/kindle-build-env/Scripts/python.exe tool/package_kindle_prototype.py
           --binary-directory artifacts/kindle-dist/KMReader-Kindle
           --source ${{ github.sha }} --smoke-report artifacts/kindle-executable-check.json
           --output artifacts/kindle-delivery
+          --kfx-source-repository artifacts/kfxlib-source
       - uses: actions/upload-artifact@v4
         with:
           name: KMReader-Kindle-windows-x64
@@ -115,10 +124,11 @@ jobs:
           tag="kindle-personal-prototype-v$version"
           archive=$(python -c "from pathlib import Path; p=list(Path('artifacts/kindle-delivery').rglob('KMReader-Kindle-*-windows-x64.zip')); assert len(p)==1; print(p[0])")
           checksums=$(python -c "from pathlib import Path; p=list(Path('artifacts/kindle-delivery').rglob('SHA256SUMS.txt')); assert len(p)==1; print(p[0])")
+          sources=$(python -c "from pathlib import Path; p=list(Path('artifacts/kindle-delivery').rglob('KMReader-Kindle-*-source.zip')); assert len(p)==1; print(p[0])")
           (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$checksums")")
           if gh release view "$tag" --json isDraft,targetCommitish,assets > artifacts/draft.json 2>/dev/null; then
             python -c "import json,os; r=json.load(open('artifacts/draft.json')); assert r['isDraft'] and r['targetCommitish']==os.environ['GITHUB_SHA'] and not r['assets'], 'Only an empty draft for this exact source can be resumed'"
           else
             gh release create "$tag" --draft --target "$GITHUB_SHA" --title "KMReader Kindle personale $version — Amazon.it" --notes-file tool/kindle_personal/RELEASE_NOTES.md
           fi
-          gh release upload "$tag" "$archive" "$checksums"
+          gh release upload "$tag" "$archive" "$sources" "$checksums"

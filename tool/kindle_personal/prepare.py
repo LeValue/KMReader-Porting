@@ -1,8 +1,8 @@
-"""Validate native files and optionally ask a separately installed Calibre.
+"""Validate native files and prepare downloads offline.
 
-No converter, plugin or private key is bundled into KMReader. A successful
-download is never, by itself, reported as readable. Preparation is repeatable
-offline and does not call Amazon.
+The standalone companion converts unencrypted KFX in a separate process;
+Calibre remains optional for other formats. No converter or private key enters
+the Flutter app. A download is never, by itself, reported as readable.
 """
 
 import os
@@ -56,7 +56,7 @@ def inspect_file(path: Path):
             return {"format": "pdf", "importable": False, "reason": "invalid_pdf"}
     if prefix[60:68] == b"BOOKMOBI":
         return {"format": "mobi", "importable": False, "reason": "conversion_required"}
-    if prefix.startswith(b"\xeaDRMION\xee") or prefix.startswith(b"\xe0\x01\x00\xea"):
+    if prefix.startswith((b"CONT", b"\xeaDRMION\xee", b"\xe0\x01\x00\xea")):
         return {
             "format": "kfx",
             "importable": False,
@@ -173,7 +173,7 @@ def find_converter(explicit=None):
     return None
 
 
-def _run_converter(executable, source, output):
+def _run_converter(executable, source, output, *, builtin=False):
     # PyInstaller changes the Windows DLL search directory. A separately
     # installed Calibre must load its own DLLs, not the prototype's Python DLLs.
     reset_dlls = os.name == "nt" and hasattr(sys, "_MEIPASS")
@@ -182,13 +182,37 @@ def _run_converter(executable, source, output):
 
         ctypes.windll.kernel32.SetDllDirectoryW(None)
     try:
+        arguments = [executable, str(source), str(output)]
+        environment = None
+        if builtin:
+            # A frozen child starts an independent application, not another
+            # process sharing the parent's PyInstaller temporary state.
+            entry = (
+                []
+                if getattr(sys, "frozen", False)
+                else [
+                    str(
+                        Path(__file__).resolve().parent.parent
+                        / "kindle_personal_cli.py"
+                    )
+                ]
+            )
+            arguments = [
+                sys.executable,
+                *entry,
+                "convert-kfx",
+                str(source),
+                str(output),
+            ]
+            environment = {**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"}
         return subprocess.run(
-            [executable, str(source), str(output)],
+            arguments,
             shell=False,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=600,
+            env=environment,
         )
     finally:
         if reset_dlls:
@@ -274,10 +298,16 @@ def prepare_download(directory: Path, *, converter=None, convert=False):
             return result
     else:
         result.update(format="resource_set", reason="resource_set_conversion")
-    executable = find_converter(converter) if convert else None
-    if convert and not executable:
-        result.update(reason="calibre_missing")
-    if executable:
+    kfx = any(
+        inspect_file(directory / part["file"])["format"] == "kfx" for part in bases
+    )
+    executable = None
+    builtin = convert and kfx and converter is None
+    if convert and not builtin:
+        executable = find_converter(converter)
+        if not executable:
+            result.update(reason="calibre_missing")
+    if builtin or executable:
         with tempfile.TemporaryDirectory(
             prefix=".prepare-", dir=directory
         ) as temporary:
@@ -285,8 +315,7 @@ def prepare_download(directory: Path, *, converter=None, convert=False):
             if len(bases) == 1 and result.get("format") == "mobi":
                 source = directory / bases[0]["file"]
             else:
-                # KFX Input consumes the resource set; voucher files stay intact.
-                # No claim that the locally installed plugins support this book.
+                # Preserve the complete resource set, including split content.
                 source = temporary / "book.kfx-zip"
                 with zipfile.ZipFile(
                     source, "w", compression=zipfile.ZIP_STORED
@@ -295,7 +324,11 @@ def prepare_download(directory: Path, *, converter=None, convert=False):
                         archive.write(directory / part["file"], arcname=part["file"])
             output = temporary / "ready.epub"
             try:
-                process = _run_converter(executable, source, output)
+                process = (
+                    _run_converter(executable, source, output, builtin=True)
+                    if builtin
+                    else _run_converter(executable, source, output)
+                )
             except subprocess.TimeoutExpired:
                 process = None
                 result.update(reason="conversion_timeout")
@@ -319,5 +352,12 @@ def prepare_download(directory: Path, *, converter=None, convert=False):
                     )
                 else:
                     result.update(reason="conversion_unsupported")
+                    if builtin:
+                        result.update(
+                            reason={
+                                4: "kfx_protected",
+                                6: "kfx_converter_missing",
+                            }.get(process.returncode, "kfx_conversion_unsupported")
+                        )
     write_json(directory / "preparation.json", result)
     return result

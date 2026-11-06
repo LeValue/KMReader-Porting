@@ -191,6 +191,10 @@ class Application:
             print(
                 "Il file non è ancora dichiarato leggibile da KMReader. Puoi riprovare Preparazione senza riscaricarlo."
             )
+            if result["reason"] == "calibre_missing":
+                print(
+                    "Per questo formato installa Calibre, poi usa il menu 4. I KFX compatibili vengono convertiti automaticamente."
+                )
 
     def report(self, *, output=None):
         catalog = (
@@ -249,7 +253,7 @@ class Application:
             )
             print("1. Collega Amazon.it (browser / PKCE sperimentale)")
             print("2. Sincronizza e mostra catalogo")
-            print("3. Scarica un titolo (prepara con Calibre se installato)")
+            print("3. Scarica un titolo e prepara il file per KMReader")
             print("4. Riprova preparazione di un download")
             print("5. Apri cartella dei file")
             print("6. Esporta diagnostica senza credenziali")
@@ -365,6 +369,9 @@ def main(argv=None):
         "directory", type=Path, help="Cartella contenente receipt.json e le risorse"
     )
     prepare.add_argument("--converter")
+    worker = sub.add_parser("convert-kfx", help=argparse.SUPPRESS)
+    worker.add_argument("source", type=Path)
+    worker.add_argument("output", type=Path)
     sub.add_parser("status")
     sub.add_parser("logout")
     check = sub.add_parser(
@@ -383,6 +390,12 @@ def main(argv=None):
         help="Verifica anche Chrome ed Edge con risposte interamente sintetiche",
     )
     args = parser.parse_args(argv)
+    if args.command == "convert-kfx":
+        from .kfx_conversion import convert_kfx
+
+        # Run before creating an Application, vault or operation lock. A worker
+        # can also convert already downloaded files without a logged-in account.
+        return convert_kfx(args.source.resolve(), args.output.resolve())
     if args.command == "self-test":
         from .selfcheck import self_check
 

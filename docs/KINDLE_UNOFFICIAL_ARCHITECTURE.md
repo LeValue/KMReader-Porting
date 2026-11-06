@@ -316,8 +316,10 @@ su Amazon. Il catalogo è testuale, senza copertine; la paginazione non ancora
 confermata viene dichiarata parziale quando il limite o la risposta lo richiedono.
 
 EPUB/PDF sono verificati strutturalmente; altri formati possono essere sottoposti
-a un Calibre installato separatamente. Non includiamo convertitori o plugin
-GPL/AGPL nell'app MIT e non trasferiamo automaticamente le credenziali del
+a un Calibre installato separatamente. Dalla 0.1.4 il companion Windows separato
+include kfxlib GPLv3+ per convertire offline i KFX non cifrati; l'eseguibile combinato
+ha licenza GPLv3+ e viene consegnato insieme ai sorgenti corrispondenti. L'app
+Flutter MIT non importa il convertitore. Non trasferiamo automaticamente le credenziali del
 dispositivo ai plugin. Quindi un acquisto protetto può restare nello stato
 `needs_conversion` anche dopo aver scaricato tutte le risorse: non è ancora un
 risultato leggibile e non è dimostrato supporto universale ai KFX correnti.
