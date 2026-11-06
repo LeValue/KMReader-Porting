@@ -303,14 +303,35 @@ def online_probe(client, item):
                                     params={
                                         "type": item["type"],
                                         "key": item["id"],
-                                        parameter: mapping["container_acrs"][0],
+                                        parameter: mapping.get("primary_acr")
+                                        or mapping["container_acrs"][0],
                                     },
                                 )
                             )
                             variant = variant.get("payload", variant)
+                            recent_variant = next(
+                                (
+                                    r
+                                    for r in variant.get("records", [])
+                                    if isinstance(r, dict)
+                                    and r.get("type") == "kindle.most_recent_read"
+                                ),
+                                {},
+                            )
+                            try:
+                                original_position = int(recent_variant.get("location"))
+                                mapped_position = any(
+                                    e["position"]
+                                    <= original_position
+                                    < e["position"] + e["length"]
+                                    for e in mapping["entries"]
+                                )
+                            except (ValueError, TypeError):
+                                mapped_position = None
                             targeted.append(
                                 {
                                     "parameter": parameter,
+                                    "position_in_verified_map": mapped_position,
                                     "edition_matches": variant.get("guid")
                                     in mapping["container_acrs"]
                                     or variant.get("acr") in mapping["container_acrs"],

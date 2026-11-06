@@ -1,4 +1,4 @@
-La 0.2.0 aggiunge il bridge nativo per KMReader e la conversione con mappa
+La 0.2.3 aggiunge il bridge nativo per KMReader e la conversione con mappa
 delle posizioni originali, senza modificare testo o struttura del documento.
 La preparazione avviene in un processo separato dal lettore.
 
@@ -24,3 +24,7 @@ decodifica. Misura memoria RSS del processo, intervalli da 64/256 KiB e il
 percorso download completo + EPUB. Il report distingue l'estrazione del testo
 dalla disponibilità di una pagina impaginata e non promette tempi di streaming
 sulla base della sola riduzione dei byte.
+
+La verifica delle posizioni richiede esplicitamente il GUID del contenitore
+scaricato: il servizio può restituire un’altra rappresentazione senza questo
+parametro. I probe sono di sola lettura e pubblicano solo contatori e booleani.

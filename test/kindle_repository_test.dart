@@ -98,6 +98,9 @@ void main() {
       session: session,
       client: MockClient((request) async {
         if (request.url.path.endsWith('/sidecar')) {
+          if (request.method == 'GET') {
+            expect(request.url.queryParameters['guid'], isNotEmpty);
+          }
           if (request.method == 'GET' &&
               request.url.queryParameters['key'] == 'opaque+/id' &&
               delayedSidecar != null) {
@@ -262,8 +265,20 @@ void main() {
     },
   );
   test('native delivery prepares offline document and refreshes existing catalog metadata', () async {
-    final target = repo.bookFile(book);
-    await repo.library.download(book.id, target);
+    final lease = await repo.documents.open(
+      book,
+      pinned: repo.bookFile(book),
+      offline: false,
+    );
+    addTearDown(lease.close);
+    final target = lease.file;
+    final cached = await repo.documents.open(
+      book,
+      pinned: repo.bookFile(book),
+      offline: true,
+    );
+    expect(cached.file.path, target.path);
+    cached.close();
     expect(await target.readAsBytes(), resource);
     expect((await repo.resolveDocumentBook(book, target)).format, 'epub');
     expect(

@@ -47,9 +47,12 @@ Json? kindleLastRead(Json sidecar) {
 }
 
 class KindlePositionMap {
-  KindlePositionMap(this.entries, this.acrs);
+  KindlePositionMap(this.entries, this.acrs, {this.primaryAcr});
   final List<Json> entries;
   final Set<String> acrs;
+  final String? primaryAcr;
+  String? get primary =>
+      acrs.contains(primaryAcr) ? primaryAcr : acrs.firstOrNull;
   static Future<KindlePositionMap?> open(String path) =>
       Isolate.run(() => _open(path));
   static KindlePositionMap? _open(String path) {
@@ -102,6 +105,7 @@ class KindlePositionMap {
       return KindlePositionMap(
         entries,
         (metadata['container_acrs'] as List? ?? []).whereType<String>().toSet(),
+        primaryAcr: text(metadata['primary_acr']),
       );
     } catch (_) {
       return null;

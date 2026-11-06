@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.2.0
+# KMReader Kindle personale — prototipo Windows 0.2.3
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -181,7 +181,7 @@ L'app Flutter rimane MIT e non dipende da questo programma. L'eseguibile separat
 del prototipo include **kfxlib di John Howell, GPL-3.0-or-later** ed è distribuito
 nel suo insieme sotto GPL-3.0-or-later; il codice originale mantiene gli avvisi MIT.
 Lo ZIP contiene `LICENSE`, `MIT-LICENSE` e gli avvisi delle dipendenze. Nella stessa
-release si trova `KMReader-Kindle-0.2.0-source.zip`, con sorgenti corrispondenti del
+release si trova `KMReader-Kindle-0.2.3-source.zip`, con sorgenti corrispondenti del
 prototipo, sorgenti kfxlib della revisione fissata e istruzioni di ricompilazione.
 
 Per eseguire i sorgenti su Windows usa Python 3.11 x64: il parser Ion fissato

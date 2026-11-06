@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import shutil
 import zipfile
 
 from preview_metadata import apk_provenance, read_version, validate_provenance
@@ -62,6 +63,7 @@ def verify():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verify-only', action='store_true')
+    parser.add_argument('--apk-directory', type=Path, help='Locally signed APKs; all source, signature and CI checks still apply')
     args = parser.parse_args()
     repository, requested, source, version, build, release = verify()
     if args.verify_only:
@@ -74,20 +76,26 @@ def main():
     files = []
     for prefix, label, abi in [('PREVIEW', 'arm64', 'arm64-v8a'),
                                ('ARMV7', 'armv7', 'armeabi-v7a'), ('X64', 'x64', 'x86_64')]:
-        blob_id, expected = os.environ[prefix + '_BLOB'], os.environ[prefix + '_SHA256']
-        if not re.fullmatch('[0-9a-f]{40}', blob_id) or not re.fullmatch('[0-9a-f]{64}', expected):
-            raise ValueError('A verified signed APK is required: ' + label)
-        blob = api(f'repos/{repository}/git/blobs/{blob_id}')
-        if blob['encoding'] != 'base64':
-            raise ValueError('Unsupported blob encoding')
-        packed = base64.b64decode(blob['content'])
-        if hashlib.sha1(b'blob ' + str(len(packed)).encode() + b'\0' + packed).hexdigest() != blob_id:
-            raise ValueError('Git object hash mismatch')
-        content = lzma.decompress(packed)
-        if hashlib.sha256(content).hexdigest() != expected:
-            raise ValueError('APK checksum mismatch')
         target = output / f'KMReader-{version}-android-{label}-preview.apk'
-        target.write_bytes(content)
+        if args.apk_directory:
+            local = args.apk_directory / target.name
+            if not local.is_file():
+                raise ValueError('Missing locally signed APK: ' + label)
+            shutil.copyfile(local, target)
+        else:
+            blob_id, expected = os.environ[prefix + '_BLOB'], os.environ[prefix + '_SHA256']
+            if not re.fullmatch('[0-9a-f]{40}', blob_id) or not re.fullmatch('[0-9a-f]{64}', expected):
+                raise ValueError('A verified signed APK is required: ' + label)
+            blob = api(f'repos/{repository}/git/blobs/{blob_id}')
+            if blob['encoding'] != 'base64':
+                raise ValueError('Unsupported blob encoding')
+            packed = base64.b64decode(blob['content'])
+            if hashlib.sha1(b'blob ' + str(len(packed)).encode() + b'\0' + packed).hexdigest() != blob_id:
+                raise ValueError('Git object hash mismatch')
+            content = lzma.decompress(packed)
+            if hashlib.sha256(content).hexdigest() != expected:
+                raise ValueError('APK checksum mismatch')
+            target.write_bytes(content)
         validate_provenance(apk_provenance(target), source, version, build)
         signature = subprocess.check_output([str(sdk / 'apksigner'), 'verify', '--verbose', '--print-certs', str(target)], text=True)
         if 'Signer #1 certificate SHA-256 digest: ' + certificate not in signature:
@@ -108,6 +116,8 @@ def main():
     for name in ['kmreader.exe', 'flutter_windows.dll', 'data/app.so']:
         if not (bundle / name).is_file():
             raise ValueError('Incomplete Windows bundle: ' + name)
+    if not (bundle / 'kindle/KMReader-Kindle.exe').is_file() or not list(bundle.glob('KMReader-Kindle-*-source.zip')):
+        raise ValueError('Kindle converter or corresponding source missing')
     if not list(bundle.glob('vcruntime140*.dll')):
         raise ValueError('Portable MSVC runtime missing')
     if ((bundle / 'data/flutter_assets/assets/epub/reader.js').read_bytes().replace(b'\r\n', b'\n') !=
