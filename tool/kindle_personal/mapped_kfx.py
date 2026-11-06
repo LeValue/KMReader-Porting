@@ -17,6 +17,7 @@ def mapped_epub(source):
 
     book = YJ_Book(str(source))
     book.decode_book()
+    primary_acr = book.get_asset_id()
     by_eid = defaultdict(list)
     for chunk in book.collect_content_position_info():
         if chunk.text and len(chunk.text) == chunk.length:
@@ -97,6 +98,7 @@ def mapped_epub(source):
                 {
                     "schema": 1,
                     "position_units": "unicode_scalars",
+                    "primary_acr": str(primary_acr) if primary_acr else None,
                     "container_acrs": sorted(
                         {
                             str(container.container_id)

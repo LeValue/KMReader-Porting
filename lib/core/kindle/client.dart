@@ -544,11 +544,12 @@ class KindleClient {
     return (data, headers);
   }
 
-  Future<Json?> sidecar(Json item) async {
+  Future<Json?> sidecar(Json item, {String? guid}) async {
     final bytes = await get(
       Uri.https('cde-ta-g7g.amazon.com', '/FionaCDEServiceEngine/sidecar', {
         'type': text(item['type']),
         'key': text(item['id']),
+        if (guid != null && guid.isNotEmpty) 'guid': guid,
       }),
     );
     if (bytes.isEmpty) return null;
@@ -604,7 +605,7 @@ class KindleClient {
       headers: {'Content-Type': 'application/xml'},
     );
     await _bounded(response);
-    final after = await sidecar(item);
+    final after = await sidecar(item, guid: guid);
     final records = (after?['records'] as List? ?? []).map(object);
     final confirmed = records
         .where((record) => record['type'] == 'kindle.most_recent_read')

@@ -98,7 +98,10 @@ class KindleRepository extends Repository {
                     'guid': '',
                   }
                 : cachedSidecar)
-          : await library.client.sidecar(library.item(book.id));
+          : await library.client.sidecar(
+              library.item(book.id),
+              guid: mapping.primary,
+            );
       if (closed || generation != _mappingGeneration || sidecar == null) {
         return null;
       }
@@ -158,6 +161,7 @@ class KindleRepository extends Repository {
       'acr': text(sidecar['acr']),
       'acrs': _mapping!.acrs.toList(),
       'guid': text(sidecar['guid']),
+      'target_guid': _mapping!.primary,
       'base_position': remote?['position'],
       'not_before': DateTime.now().millisecondsSinceEpoch + 3000,
     };
@@ -303,7 +307,10 @@ class KindleRepository extends Repository {
           if (!force && conflicts.containsKey(entry.key)) continue;
           try {
             final item = library.item(entry.key);
-            final sidecar = await library.client.sidecar(item);
+            final sidecar = await library.client.sidecar(
+              item,
+              guid: text(local['target_guid'], text(local['guid'])),
+            );
             if (sidecar == null ||
                 text(sidecar['guid']).isEmpty ||
                 !(local['acrs'] as List? ?? [local['acr']]).any(
