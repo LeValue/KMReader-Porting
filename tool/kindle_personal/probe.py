@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import time
 import tracemalloc
+import os
 from pathlib import Path
 
 from .common import KindleError
@@ -11,8 +12,56 @@ from .kfx_progressive import ProgressiveKfx, PositionMap, quiet_library, utf16_l
 from .range_source import FileRangeSource, RangeSource
 
 
-def progressive_probe(source, *, section=None):
-    tracemalloc.start()
+def process_memory():
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        class Counters(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
+                (name, ctypes.c_size_t)
+                for name in (
+                    "PeakWorkingSetSize",
+                    "WorkingSetSize",
+                    "QuotaPeakPagedPoolUsage",
+                    "QuotaPagedPoolUsage",
+                    "QuotaPeakNonPagedPoolUsage",
+                    "QuotaNonPagedPoolUsage",
+                    "PagefileUsage",
+                    "PeakPagefileUsage",
+                )
+            ]
+
+        counters = Counters()
+        counters.cb = ctypes.sizeof(counters)
+        kernel = ctypes.WinDLL("kernel32")
+        kernel.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi = ctypes.WinDLL("psapi")
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(Counters),
+            wintypes.DWORD,
+        ]
+        if psapi.GetProcessMemoryInfo(
+            kernel.GetCurrentProcess(), ctypes.byref(counters), counters.cb
+        ):
+            return {
+                "rss_bytes": counters.WorkingSetSize,
+                "peak_rss_bytes": counters.PeakWorkingSetSize,
+            }
+    elif Path("/proc/self/status").is_file():
+        values = {}
+        for line in Path("/proc/self/status").read_text().splitlines():
+            if line.startswith(("VmRSS:", "VmHWM:")):
+                values[line.split(":")[0]] = int(line.split()[1]) * 1024
+        return {"rss_bytes": values.get("VmRSS"), "peak_rss_bytes": values.get("VmHWM")}
+    return {"rss_bytes": None, "peak_rss_bytes": None}
+
+
+def progressive_probe(source, *, section=None, profile_allocations=False):
+    if profile_allocations:
+        tracemalloc.start()
+    memory_before = process_memory()
     started = time.perf_counter()
     try:
         decoder = ProgressiveKfx(source)
@@ -60,7 +109,7 @@ def progressive_probe(source, *, section=None):
         decoder.section_chunks(selected)
         decoder.original_positions(chunks)
         repeated_bytes = source.bytes_received - before
-        _, peak = tracemalloc.get_traced_memory()
+        _, peak = tracemalloc.get_traced_memory() if profile_allocations else (0, None)
         result = {
             "schema": 1,
             "kind": "kfx_progressive_probe",
@@ -77,10 +126,14 @@ def progressive_probe(source, *, section=None):
             "revisit_additional_bytes": repeated_bytes,
             "position_roundtrips": roundtrips,
             "python_peak_allocated_bytes": peak,
+            "timings_include_allocation_profiler": profile_allocations,
+            "process_memory_before": memory_before,
+            "process_memory_after": process_memory(),
         }
         return result, mapped
     finally:
-        tracemalloc.stop()
+        if profile_allocations:
+            tracemalloc.stop()
 
 
 def file_probe(path):
@@ -89,7 +142,7 @@ def file_probe(path):
     quiet_library()
     source = FileRangeSource(path)
     try:
-        report, mapped = progressive_probe(source)
+        report, mapped = progressive_probe(source, profile_allocations=True)
     finally:
         source.close()
     # Reference decoding is separate from the measured partial-decoding phase.
@@ -130,7 +183,7 @@ def file_probe(path):
 
 
 def online_probe(client, item):
-    from .download import _resource_urls
+    from .download import _resource_urls, _stream_one
 
     manifest, headers = client.manifest(item)
     bases = [
@@ -158,6 +211,46 @@ def online_probe(client, item):
             report, _ = progressive_probe(source)
             report["transport"] = "amazon"
             report["matches_full_decode"] = None
+            # Compare fewer/larger requests and the existing faithful EPUB
+            # preparation path. No allocation tracing distorts user timings.
+            larger = RangeSource(
+                lambda range_headers: client.request(
+                    url, stage="probe", headers={**headers, **range_headers}
+                )
+            )
+            larger.block_size = 256 * 1024
+            try:
+                comparison, _ = progressive_probe(
+                    larger, section=report["section_index"]
+                )
+                report["larger_blocks"] = comparison
+            finally:
+                larger.close()
+            with tempfile.TemporaryDirectory() as temporary:
+                from kfxlib import YJ_Book
+
+                path = Path(temporary) / "book.kfx"
+                started = time.perf_counter()
+                transfer = _stream_one(
+                    client,
+                    url,
+                    path,
+                    headers,
+                    max_bytes=256 * 1024 * 1024,
+                    resource_type="KINDLE_MAIN_BASE",
+                )
+                downloaded = time.perf_counter()
+                epub = YJ_Book(str(path)).convert_to_epub()
+                report["full_download_and_epub"] = {
+                    "download_ms": round((downloaded - started) * 1000, 2),
+                    "conversion_ms": round(
+                        (time.perf_counter() - downloaded) * 1000, 2
+                    ),
+                    "total_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "transferred_bytes": transfer["bytes"],
+                    "epub_bytes": len(epub),
+                    "decoder_already_loaded": True,
+                }
             return report
         except KindleError as error:
             last_error = error

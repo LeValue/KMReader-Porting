@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.1.5
+# KMReader Kindle personale — prototipo Windows 0.1.6
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -181,7 +181,7 @@ L'app Flutter rimane MIT e non dipende da questo programma. L'eseguibile separat
 del prototipo include **kfxlib di John Howell, GPL-3.0-or-later** ed è distribuito
 nel suo insieme sotto GPL-3.0-or-later; il codice originale mantiene gli avvisi MIT.
 Lo ZIP contiene `LICENSE`, `MIT-LICENSE` e gli avvisi delle dipendenze. Nella stessa
-release si trova `KMReader-Kindle-0.1.5-source.zip`, con sorgenti corrispondenti del
+release si trova `KMReader-Kindle-0.1.6-source.zip`, con sorgenti corrispondenti del
 prototipo, sorgenti kfxlib della revisione fissata e istruzioni di ricompilazione.
 
 Per eseguire i sorgenti su Windows usa Python 3.11 x64: il parser Ion fissato
@@ -218,3 +218,11 @@ del processo; i tempi locali non predicono quelli del telefono. Gli offset del
 DOM UTF-16 vengono mappati sulle posizioni Kindle per carattere Unicode senza
 normalizzare il testo. Il probe non riproduce ancora l'impaginazione editoriale
 e non abilita scritture di sincronizzazione.
+
+Il probe 0.1.6 misura il percorso online **senza tracemalloc**, registrando RSS
+e picco del processo tramite il sistema operativo. Confronta blocchi da 64 e
+256 KiB e il download completo seguito dalla conversione EPUB; quest'ultimo
+riusa il decoder già caricato, come indicato nel report. Il probe locale mantiene
+la misura delle allocazioni e dichiara esplicitamente che il profiler altera i tempi.
+Le operazioni sui contenuti Kindle sono di sola lettura; se necessario viene
+rinnovata normalmente la sessione di autenticazione.
