@@ -196,7 +196,7 @@ class Application:
                     "Per questo formato installa Calibre, poi usa il menu 4. I KFX compatibili vengono convertiti automaticamente."
                 )
 
-    def probe(self, selector=None, *, output=None):
+    def probe(self, selector=None, *, output=None, services=False):
         from .probe import online_probe, sidecar_probe
 
         self.client.require_session()
@@ -232,6 +232,14 @@ class Application:
                 "probe_selection", "Nessun documento adatto al test.", stage="probe"
             )
         report = {"schema": 1, "prototype_version": VERSION, "amazon_writes": False}
+        if services:
+            from .services_probe import services_probe
+
+            report["services"] = services_probe(self.client, matches[0])
+            if output:
+                write_json(output, report)
+            print(json.dumps(report, indent=2))
+            return report
         try:
             report["progressive"] = online_probe(self.client, matches[0])
         except KindleError as error:
@@ -431,6 +439,7 @@ def main(argv=None):
     )
     probe.add_argument("book", nargs="?")
     probe.add_argument("--output", type=Path)
+    probe.add_argument("--services", action="store_true")
     local_probe = sub.add_parser(
         "probe-file",
         help="Confronta decodifica progressiva e completa di un KFX locale",
@@ -558,7 +567,7 @@ def main(argv=None):
             elif args.command == "status":
                 application.report()
             elif args.command == "probe":
-                application.probe(args.book, output=args.output)
+                application.probe(args.book, output=args.output, services=args.services)
             elif args.command == "logout":
                 application.client.vault.clear()
                 print(

@@ -249,7 +249,7 @@ def verified_receipt(directory: Path):
     return receipt
 
 
-def prepare_download(directory: Path, *, converter=None, convert=False):
+def prepare_download(directory: Path, *, converter=None, convert=False, inline=False):
     receipt = verified_receipt(directory)
     previous = read_json(directory / "preparation.json", {})
     name = previous.get("file", "")
@@ -324,11 +324,18 @@ def prepare_download(directory: Path, *, converter=None, convert=False):
                         archive.write(directory / part["file"], arcname=part["file"])
             output = temporary / "ready.epub"
             try:
-                process = (
-                    _run_converter(executable, source, output, builtin=True)
-                    if builtin
-                    else _run_converter(executable, source, output)
-                )
+                if builtin and inline:
+                    from .kfx_conversion import convert_kfx
+
+                    process = subprocess.CompletedProcess(
+                        [], convert_kfx(source, output)
+                    )
+                else:
+                    process = (
+                        _run_converter(executable, source, output, builtin=True)
+                        if builtin
+                        else _run_converter(executable, source, output)
+                    )
             except subprocess.TimeoutExpired:
                 process = None
                 result.update(reason="conversion_timeout")
