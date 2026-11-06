@@ -196,6 +196,55 @@ class Application:
                     "Per questo formato installa Calibre, poi usa il menu 4. I KFX compatibili vengono convertiti automaticamente."
                 )
 
+    def probe(self, selector=None, *, output=None):
+        from .probe import online_probe, sidecar_probe
+
+        self.client.require_session()
+        snapshot = read_json(self.account_directory / "catalog.json")
+        if snapshot is None:
+            snapshot = synchronize(self.client, full=True)
+            write_json(self.account_directory / "catalog.json", snapshot)
+        items = visible_items(snapshot, include_dictionaries=False)
+        if selector:
+            matches = [item for item in items if item["key"] == selector]
+            if not matches and selector.isdigit() and 0 < int(selector) <= len(items):
+                matches = [items[int(selector) - 1]]
+        else:
+            # Prefer a document already acquired by this user. Never print the
+            # catalog into automated job logs to select a test document.
+            receipts = sorted(
+                (self.account_directory / "downloads").glob("*/*/receipt.json"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+            downloaded = [
+                read_json(path, {}).get("book", {}).get("key") for path in receipts
+            ]
+            candidates = [item for item in items if item["type"] == "PDOC"]
+            matches = sorted(
+                candidates,
+                key=lambda item: downloaded.index(item["key"])
+                if item["key"] in downloaded
+                else len(downloaded),
+            )[:1]
+        if len(matches) != 1:
+            raise KindleError(
+                "probe_selection", "Nessun documento adatto al test.", stage="probe"
+            )
+        report = {"schema": 1, "prototype_version": VERSION, "amazon_writes": False}
+        try:
+            report["progressive"] = online_probe(self.client, matches[0])
+        except KindleError as error:
+            report["progressive"] = {"supported": False, "error": error.diagnostic()}
+        try:
+            report["kindle_sync"] = sidecar_probe(self.client, matches[0])
+        except KindleError as error:
+            report["kindle_sync"] = {"available": False, "error": error.diagnostic()}
+        if output:
+            write_json(output, report)
+        print(json.dumps(report, indent=2))
+        return report
+
     def report(self, *, output=None):
         catalog = (
             read_json(self.account_directory / "catalog.json", {})
@@ -273,6 +322,7 @@ class Application:
                 + " (modifica)"
             )
             print("0. Esci")
+            print("11. Test KFX progressivo e posizioni Kindle (sola lettura)")
             choice = input("> ").strip()
             try:
                 if choice == "0":
@@ -321,6 +371,8 @@ class Application:
                         self.set_login_browser(
                             "chrome" if selected == "1" else "msedge"
                         )
+                elif choice == "11":
+                    self.probe(output=self.directory / "progressive-probe.json")
             except KindleError as error:
                 self.record_error(error)
 
@@ -369,6 +421,18 @@ def main(argv=None):
         "directory", type=Path, help="Cartella contenente receipt.json e le risorse"
     )
     prepare.add_argument("--converter")
+    probe = sub.add_parser(
+        "probe",
+        help="Misura Range KFX e disponibilità delle posizioni; nessuna scrittura Amazon",
+    )
+    probe.add_argument("book", nargs="?")
+    probe.add_argument("--output", type=Path)
+    local_probe = sub.add_parser(
+        "probe-file",
+        help="Confronta decodifica progressiva e completa di un KFX locale",
+    )
+    local_probe.add_argument("file", type=Path)
+    local_probe.add_argument("--output", type=Path)
     worker = sub.add_parser("convert-kfx", help=argparse.SUPPRESS)
     worker.add_argument("source", type=Path)
     worker.add_argument("output", type=Path)
@@ -390,6 +454,21 @@ def main(argv=None):
         help="Verifica anche Chrome ed Edge con risposte interamente sintetiche",
     )
     args = parser.parse_args(argv)
+    if args.command == "probe-file":
+        from .probe import file_probe
+
+        try:
+            report = file_probe(args.file.resolve())
+            if args.output:
+                write_json(args.output, report)
+            print(json.dumps(report, indent=2))
+            return 0
+        except KindleError as error:
+            print(json.dumps(error.diagnostic()))
+            return 2
+        except Exception:
+            print("Probe KFX non riuscito (probe_decode).")
+            return 2
     if args.command == "convert-kfx":
         from .kfx_conversion import convert_kfx
 
@@ -431,6 +510,8 @@ def main(argv=None):
                 return 0 if result["state"] == "importable" else 3
             elif args.command == "status":
                 application.report()
+            elif args.command == "probe":
+                application.probe(args.book, output=args.output)
             elif args.command == "logout":
                 application.client.vault.clear()
                 print(
