@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -31,6 +32,7 @@ void main() {
   var confirm = true;
   var edition = 'SYNTHETIC-ACR';
   late List<int> resource;
+  Completer<void>? delayedSidecar, sidecarStarted;
   setUp(() async {
     root = Directory.systemTemp.createTempSync('kindle-native-');
     store = LocalStore(sqlite3.open('${root.path}/store.sqlite'));
@@ -47,6 +49,8 @@ void main() {
       source: 'kindle',
     );
     position = 12;
+    delayedSidecar = null;
+    sidecarStarted = null;
     writes = 0;
     confirm = true;
     edition = 'SYNTHETIC-ACR';
@@ -94,6 +98,12 @@ void main() {
       session: session,
       client: MockClient((request) async {
         if (request.url.path.endsWith('/sidecar')) {
+          if (request.method == 'GET' &&
+              request.url.queryParameters['key'] == 'opaque+/id' &&
+              delayedSidecar != null) {
+            sidecarStarted?.complete();
+            await delayedSidecar!.future;
+          }
           if (request.method == 'POST') {
             writes++;
             expect(request.url.queryParameters.keys, ['type']);
@@ -289,6 +299,37 @@ void main() {
       expect(map.locator(12)?['offset'], 2);
     },
   );
+  test('late sidecar cannot replace the current reader mapping', () async {
+    delayedSidecar = Completer<void>();
+    sidecarStarted = Completer<void>();
+    final previous = repo.externalDocumentPosition(book, publication);
+    await sidecarStarted!.future;
+    store.setSetting('kindleDictionaries:${repo.profile.id}', true);
+    repo.library.index();
+    final current = await repo.book(
+      repo.library.idFor(repo.library.items.last),
+    );
+    store.setSetting('kindleMapped:${repo.profile.id}:${current.id}', true);
+    expect(
+      await repo.externalDocumentPosition(current, publication),
+      isNotNull,
+    );
+    delayedSidecar!.complete();
+    expect(await previous, isNull);
+    repo.documentPosition(current, {'kindlePosition': 42});
+    expect(repo.pendingCount, 1);
+  });
+  test('Fiona GUID identifies the container when its ACR names another representation', () {
+    final map = KindlePositionMap([], {'CONTAINER'});
+    expect(
+      map.matches({'guid': 'CONTAINER', 'acr': 'ANOTHER-REPRESENTATION'}),
+      true,
+    );
+    expect(
+      map.matches({'guid': 'DIFFERENT', 'acr': 'ANOTHER-REPRESENTATION'}),
+      false,
+    );
+  });
 }
 
 class _Preparation implements KindlePreparation {

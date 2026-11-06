@@ -110,8 +110,11 @@ class KindlePositionMap {
     }
   }
 
+  // Fiona's GUID is the delivered KFX container identity. Its separate `acr`
+  // field can identify another representation of the same personal document.
   bool matches(Json sidecar) =>
-      text(sidecar['acr']).isNotEmpty && acrs.contains(text(sidecar['acr']));
+      acrs.contains(text(sidecar['guid'])) ||
+      acrs.contains(text(sidecar['acr']));
   Json? locator(int position) {
     // Overlapping parent/child spans can both be correct. Prefer the shortest
     // verified range containing the position, preserving its precise offset.
