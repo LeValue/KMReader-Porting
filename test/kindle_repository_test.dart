@@ -31,6 +31,7 @@ void main() {
   var writes = 0;
   var confirm = true;
   var networkUnavailable = false;
+  var expiredCdn = false, expiredRequests = 0;
   var edition = 'SYNTHETIC-ACR';
   late List<int> resource;
   Completer<void>? delayedSidecar, sidecarStarted;
@@ -51,6 +52,8 @@ void main() {
     );
     position = 12;
     networkUnavailable = false;
+    expiredCdn = false;
+    expiredRequests = 0;
     delayedSidecar = null;
     sidecarStarted = null;
     writes = 0;
@@ -149,6 +152,10 @@ void main() {
               'resources': [
                 {
                   'id': 'base',
+                  if (expiredCdn)
+                    'optimalEndpoint': {
+                      'directUrl': 'https://expired.cloudfront.net/book',
+                    },
                   'type': 'KINDLE_MAIN_BASE',
                   'requirement': 'REQUIRED',
                   'endpoint': {'url': 'https://fixture.cloudfront.net/book'},
@@ -157,6 +164,10 @@ void main() {
             }),
             200,
           );
+        }
+        if (request.url.host == 'expired.cloudfront.net') {
+          expiredRequests++;
+          return http.Response('', 403);
         }
         if (request.url.host == 'fixture.cloudfront.net') {
           expect(request.headers['x-adp-token'], isNull);
@@ -315,6 +326,23 @@ void main() {
       );
       expect(map.locator(15), isNull);
       expect(map.locator(12)?['offset'], 2);
+    },
+  );
+  test(
+    'expired CDN delivery falls back to the manifest alternate endpoint',
+    () async {
+      expiredCdn = true;
+      final lease = await repo.documents.open(
+        book,
+        pinned: repo.bookFile(book),
+        offline: false,
+      );
+      try {
+        expect(expiredRequests, 1);
+        expect(await lease.file.readAsBytes(), resource);
+      } finally {
+        lease.close();
+      }
     },
   );
   test('late sidecar cannot replace the current reader mapping', () async {

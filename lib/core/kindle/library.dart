@@ -261,7 +261,10 @@ class KindleLibrary {
                 response.headers['content-encoding'] != null &&
                     response.headers['content-encoding'] != 'identity') {
               await response.stream.drain<void>();
-              throw const KindleFailure('resource_response');
+              throw KindleFailure(
+                'resource_response',
+                status: response.statusCode,
+              );
             }
             final expected = response.contentLength;
             if (expected != null &&

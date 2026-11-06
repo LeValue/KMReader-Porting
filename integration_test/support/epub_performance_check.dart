@@ -78,6 +78,29 @@ void verifyNativeEpubPerformance() {
       return result?.value;
     }
 
+    Future<void> escapeReader() async {
+      // JS dispatch completes before its platform callback. A queued Escape
+      // must finish before the next native fullscreen click; otherwise it can
+      // close the fullscreen state just entered by that later action.
+      await js('''
+        const bridge = window.flutter_inappwebview;
+        const call = bridge.callHandler;
+        let delivered;
+        bridge.callHandler = function(...args) {
+          const result = call.apply(this, args);
+          if (args[0] === 'readerEvent' && args[1]?.type === 'close') delivered = result;
+          return result;
+        };
+        try {
+          document.querySelector('#viewer iframe').contentDocument.dispatchEvent(
+            new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+          if (!delivered) throw Error('Escape did not reach the native bridge');
+          await delivered;
+        } finally { bridge.callHandler = call; }
+        return true;
+      ''');
+    }
+
     Future<dynamic> jsWhilePresenting(String source) async {
       final binding = tester.binding as LiveTestWidgetsFlutterBinding;
       final policy = binding.framePolicy;
@@ -413,9 +436,7 @@ void verifyNativeEpubPerformance() {
           viewportBeforeChrome,
         );
         await visibleText();
-        await js(
-          "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
-        );
+        await escapeReader();
         await waitFor(() => find.byTooltip('Next Page').evaluate().isNotEmpty);
         if (Platform.isWindows) {
           await tester.tap(find.byTooltip('Full Screen'));
@@ -433,9 +454,7 @@ void verifyNativeEpubPerformance() {
         }
         expect(identical(controller(), retainedController), true);
         await visibleText();
-        await js(
-          "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
-        );
+        await escapeReader();
         await waitFor(() => find.byTooltip('Next Page').evaluate().isNotEmpty);
         if (Platform.isWindows) {
           expect(
