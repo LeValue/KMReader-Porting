@@ -111,10 +111,24 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   @override
   void initState() {
     super.initState();
+    widget.repository.documentAnnotationChanges.addListener(
+      _annotationsChanged,
+    );
     if (Platform.isWindows) HardwareKeyboard.instance.addHandler(_readerKey);
     _fullscreen =
         widget.repository.store.setting<bool>('autoFullscreenOnOpen') == true;
     _future = _open();
+  }
+
+  void _annotationsChanged() {
+    if (mounted && _initialized && !widget.incognito) {
+      unawaited(
+        _call(
+          'annotations',
+          widget.repository.documentAnnotations(widget.book),
+        ),
+      );
+    }
   }
 
   Future<void> _prepareEnvironment() async {
@@ -627,9 +641,163 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     controller.dispose();
   }
 
+  Future<void> _quickNavigation() async {
+    final session = _session!;
+    final total = session.totalBookPages;
+    final controller = TextEditingController();
+    var progress = session.bookProgress;
+    String? action;
+    final target = await showModalBottomSheet<double>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 520),
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => ReaderSafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              16 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Naviga nel volume',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  total == null
+                      ? '${(progress * 100).round()}%'
+                      : 'Pagina ~${(progress * total).floor().clamp(0, total - 1) + 1} di $total · ${(progress * 100).round()}%',
+                ),
+                Slider(
+                  value: progress,
+                  onChanged: (value) => update(() => progress = value),
+                  onChangeEnd: (value) => Navigator.pop(context, value),
+                ),
+                if (total != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Vai alla pagina (1–$total)',
+                          ),
+                          onSubmitted: (value) {
+                            final page = int.tryParse(value);
+                            if (page != null && page >= 1 && page <= total) {
+                              Navigator.pop(context, (page - 1) / total);
+                            }
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Vai',
+                        onPressed: () {
+                          final page = int.tryParse(controller.text);
+                          if (page != null && page >= 1 && page <= total) {
+                            Navigator.pop(context, (page - 1) / total);
+                          }
+                        },
+                        icon: const Icon(Icons.arrow_forward),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: session.chapter == 0
+                          ? null
+                          : () {
+                              action = 'previous';
+                              Navigator.pop(context);
+                            },
+                      child: const Text('Capitolo precedente'),
+                    ),
+                    TextButton(
+                      onPressed:
+                          session.chapter >=
+                              session.document.chapters.length - 1
+                          ? null
+                          : () {
+                              action = 'next';
+                              Navigator.pop(context);
+                            },
+                      child: const Text('Capitolo successivo'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        action = 'contents';
+                        Navigator.pop(context);
+                      },
+                      child: Text(tr(context, 'Table of Contents')),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        action = 'bookmarks';
+                        Navigator.pop(context);
+                      },
+                      child: Text(tr(context, 'Bookmarks')),
+                    ),
+                  ],
+                ),
+                const Text(
+                  'Le pagine stimate coprono l’intero volume e restano stabili cambiando carattere o dimensione del testo.',
+                  style: TextStyle(fontSize: 11),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (!mounted) return;
+    if (target != null) {
+      final (chapter, progression) =
+          session.pageIndex?.target(target) ??
+          (
+            (target * session.document.chapters.length).floor().clamp(
+              0,
+              session.document.chapters.length - 1,
+            ),
+            (target * session.document.chapters.length) % 1,
+          );
+      await _call('seek', {
+        'href': session.relativeHref(session.document.chapters[chapter].path),
+        'progression': progression,
+      });
+    } else if (action == 'contents') {
+      await _contents();
+    } else if (action == 'bookmarks') {
+      await _bookmarks();
+    } else if (action == 'previous' || action == 'next') {
+      final chapter = (session.chapter + (action == 'next' ? 1 : -1)).clamp(
+        0,
+        session.document.chapters.length - 1,
+      );
+      await _call('seek', {
+        'href': session.relativeHref(session.document.chapters[chapter].path),
+        'progression': 0,
+      });
+    }
+  }
+
   Future<void> _bookmarks([String? selectedText]) async {
     final selected = selectedText ?? _selection ?? '';
     final session = _session!;
+    unawaited(
+      _call('annotations', widget.repository.documentAnnotations(widget.book)),
+    );
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -648,25 +816,53 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               ),
               for (final mark in session.bookmarks)
                 ListTile(
+                  leading: Icon(
+                    mark['type'] == 'kindle.highlight'
+                        ? Icons.highlight
+                        : mark['type'] == 'kindle.note'
+                        ? Icons.sticky_note_2_outlined
+                        : CupertinoIcons.bookmark,
+                  ),
                   title: Text(text(mark['label'])),
+                  subtitle: Text(
+                    mark['source'] == 'kindle' ? 'Da Kindle' : 'KMReader',
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    unawaited(_call('display', mark['cfi']));
+                    if (mark['locator'] is Map) {
+                      final chapter = session.chapterFor(text(mark['href']));
+                      if (chapter >= 0) {
+                        unawaited(
+                          _call('seek', {
+                            'href': session.relativeHref(
+                              session.document.chapters[chapter].path,
+                            ),
+                            'locator': mark['locator'],
+                          }),
+                        );
+                      }
+                    } else {
+                      unawaited(_call('display', mark['cfi']));
+                    }
                   },
-                  trailing: IconButton(
-                    tooltip: tr(context, 'Delete'),
-                    icon: const Icon(CupertinoIcons.trash),
-                    onPressed: () {
-                      final values = session.bookmarks
-                        ..removeWhere((v) => v['cfi'] == mark['cfi']);
-                      widget.repository.store.cache(
-                        widget.repository.profile.id,
-                        session.bookmarkKey,
-                        values,
-                      );
-                      update(() {});
-                    },
-                  ),
+                  trailing: mark['source'] == 'kindle'
+                      ? null
+                      : IconButton(
+                          tooltip: tr(context, 'Delete'),
+                          icon: const Icon(CupertinoIcons.trash),
+                          onPressed: () {
+                            final values = session.bookmarks
+                              ..removeWhere((v) => v['cfi'] == mark['cfi']);
+                            widget.repository.store.cache(
+                              widget.repository.profile.id,
+                              session.bookmarkKey,
+                              values
+                                  .where((v) => v['source'] != 'kindle')
+                                  .toList(),
+                            );
+                            update(() {});
+                          },
+                        ),
                 ),
             ],
           ).withWheelScrolling(),
@@ -1103,6 +1299,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   @override
   void dispose() {
+    widget.repository.documentAnnotationChanges.removeListener(
+      _annotationsChanged,
+    );
     if (Platform.isWindows) HardwareKeyboard.instance.removeHandler(_readerKey);
     if (!_closed.isCompleted) _closed.complete();
     if (!_browserClosed.isCompleted) _browserClosed.complete();
@@ -1456,18 +1655,24 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                           ),
                                         ),
                                         Expanded(
-                                          child: Text(
-                                            epubOverlayText(
-                                              context,
-                                              session,
-                                              'controlsFooterCenter',
+                                          child: TextButton(
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: foreground,
                                             ),
-                                            key: const ValueKey(
-                                              'epub-position',
+                                            onPressed: _quickNavigation,
+                                            child: Text(
+                                              epubOverlayText(
+                                                context,
+                                                session,
+                                                'controlsFooterCenter',
+                                              ),
+                                              key: const ValueKey(
+                                                'epub-position',
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
                                           ),
                                         ),
                                         if (session.atEnd &&

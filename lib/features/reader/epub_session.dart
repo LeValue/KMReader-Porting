@@ -11,6 +11,7 @@ import 'epub_document.dart';
 import 'progress_gate.dart';
 import 'custom_fonts.dart';
 import 'epub_host.dart';
+import 'epub_page_index.dart';
 
 class EpubPreferences {
   const EpubPreferences({
@@ -209,6 +210,69 @@ class EpubSession extends ChangeNotifier {
   String cfi = '', href = '';
   int chapter = 0, page = 1, pages = 1;
   double progression = 0;
+  EpubPageIndex? pageIndex;
+  double get bookProgress =>
+      pageIndex?.fraction(chapter, progression) ??
+      (chapter + progression) / document.chapters.length;
+  int? get totalBookPages =>
+      book.pages > 0 && !book.estimatedPages ? book.pages : pageIndex?.pages;
+  String get bookPosition => totalBookPages == null
+      ? '${(bookProgress * 100).round()}%'
+      : '~${(bookProgress * totalBookPages!).floor().clamp(0, totalBookPages! - 1) + 1}/$totalBookPages';
+  Future<void> _index(File file) async {
+    try {
+      final size = await file.length();
+      final key = 'epubPageIndex:${book.id}';
+      final saved = object(repository.store.cached(repository.profile.id, key));
+      final hash = text(book.json['fileHash']);
+      final cached = saved['weights'];
+      final weights =
+          saved['schema'] == 1 &&
+              saved['size'] == size &&
+              saved['hash'] == hash &&
+              cached is List &&
+              cached.length == document.chapters.length &&
+              cached.every((v) => v is int && v > 0)
+          ? cached.cast<int>()
+          : await compute(indexEpubFile, file.path);
+      if (_closed ||
+          repository.closed ||
+          weights.length != document.chapters.length) {
+        return;
+      }
+      pageIndex = EpubPageIndex(weights);
+      repository.store.cache(repository.profile.id, key, {
+        'schema': 1,
+        'size': size,
+        'hash': hash,
+        'weights': weights,
+      });
+      final latest = object(
+        repository.store.cached(repository.profile.id, 'book:${book.id}'),
+      );
+      if (book.format == 'epub' &&
+          (integer(object(latest['media'])['pagesCount']) == 0 ||
+              object(latest['media'])['pagesCountEstimated'] == true)) {
+        repository.store.cacheBooks(repository.profile.id, [
+          CatalogItem('books', {
+            ...book.json,
+            ...latest,
+            'media': {
+              ...book.media,
+              ...object(latest['media']),
+              'pagesCount': pageIndex!.pages,
+              'pagesCountEstimated': true,
+            },
+          }),
+        ]);
+        repository.localCatalogChanged();
+      }
+      notifyListeners();
+    } catch (_) {
+      /* A missing optional index never prevents reading. */
+    }
+  }
+
   bool layoutBusy = false;
   bool ready = false,
       auxiliary = false,
@@ -225,11 +289,12 @@ class EpubSession extends ChangeNotifier {
   Timer? _saveTimer;
   String get key => 'epub:${book.id}';
   String get bookmarkKey => 'epubBookmarks:${book.id}';
-  List<Json> get bookmarks =>
-      (repository.store.cached(repository.profile.id, bookmarkKey) as List? ??
-              [])
-          .map(object)
-          .toList();
+  List<Json> get bookmarks => [
+    ...(repository.store.cached(repository.profile.id, bookmarkKey) as List? ??
+            [])
+        .map(object),
+    ...repository.documentAnnotations(book),
+  ];
 
   static Future<EpubSession> open(
     Repository repository,
@@ -263,6 +328,18 @@ class EpubSession extends ChangeNotifier {
       final saved = object(
         repository.store.cached(repository.profile.id, 'epub:${book.id}'),
       );
+      if (repository.store.setting<bool>('epubVolumeCounterMigrated') != true) {
+        final overlay = object(
+          repository.store.setting<dynamic>('epubOverlay'),
+        );
+        if (overlay['controlsFooterCenter'] == 'chapterPosition') {
+          repository.store.setSetting('epubOverlay', {
+            ...overlay,
+            'controlsFooterCenter': 'bookPosition',
+          });
+        }
+        repository.store.setSetting('epubVolumeCounterMigrated', true);
+      }
       final session = EpubSession._(
         repository,
         book,
@@ -333,6 +410,7 @@ class EpubSession extends ChangeNotifier {
         }
       }
       await session.prepareFont();
+      unawaited(session._index(file));
       return session;
     } catch (_) {
       await host?.close();
@@ -369,6 +447,7 @@ class EpubSession extends ChangeNotifier {
     'progression': progression,
     if (repository.profile.isKindle && !incognito) 'kindlePositions': true,
     if (_externalPosition != null) 'kindleResume': _externalPosition,
+    'annotations': repository.documentAnnotations(book),
   };
 
   void receive(Json event) {
@@ -482,7 +561,8 @@ class EpubSession extends ChangeNotifier {
       book,
       pending.href,
       pending.progression,
-      (pending.chapter + pending.progression) / document.chapters.length,
+      pageIndex?.fraction(pending.chapter, pending.progression) ??
+          (pending.chapter + pending.progression) / document.chapters.length,
       cfi: pending.cfi,
     );
     _pending = null;
@@ -504,7 +584,11 @@ class EpubSession extends ChangeNotifier {
         'created': DateTime.now().toUtc().toIso8601String(),
       });
     }
-    repository.store.cache(repository.profile.id, bookmarkKey, values);
+    repository.store.cache(
+      repository.profile.id,
+      bookmarkKey,
+      values.where((v) => v['source'] != 'kindle').toList(),
+    );
     notifyListeners();
   }
 

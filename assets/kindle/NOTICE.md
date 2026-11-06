@@ -11,6 +11,8 @@ https://github.com/LeValue/KMReader-Porting
 Use the exact source revision in the build metadata. The pinned kfxlib source
 above and the requirements in android/app/build.gradle.kts reproduce the worker.
 
-Python starts only in a private Android worker process for file preparation.
-The worker receives local content paths, never Amazon credentials. The app's
-normal reader uses the prepared publication and does not load Python.
+Python starts on demand in a private worker for file preparation and cover
+metadata. The worker receives local content paths and bounded loopback
+capabilities for specific reading resources, never Amazon credentials.
+Request signing stays in the app. The normal reader uses the prepared
+publication and does not load Python.

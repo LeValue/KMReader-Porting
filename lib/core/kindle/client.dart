@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pointycastle/export.dart' as pc;
 import 'package:xml/xml.dart';
@@ -419,19 +419,20 @@ class KindleClient {
         final activeSession = session!;
         final requestUri = uri;
         request.headers.addAll(
-          await Isolate.run(
-            () => kindleSigningHeaders(
-              uri: requestUri,
-              session: activeSession,
-              method: method,
-              body: body,
-            ),
-          ),
+          await compute(_signRequest, (
+            requestUri,
+            activeSession.json,
+            method,
+            body,
+          )),
         );
       } else {
         for (final entry in headers.entries) {
           if (const {'range', 'if-range'}.contains(entry.key.toLowerCase())) {
             request.headers[entry.key] = entry.value;
+          } else if (entry.key.toLowerCase() == 'accept-encoding' &&
+              entry.value == 'identity') {
+            request.headers[entry.key] = 'identity';
           }
         }
       }
@@ -478,7 +479,7 @@ class KindleClient {
         },
       ),
     );
-    final parsed = await Isolate.run(() => parseKindleCatalog(bytes));
+    final parsed = await compute(parseKindleCatalog, bytes);
     final items = <String, Json>{
       if (incremental && parsed['full_response'] != true)
         for (final item in (previous?['items'] as List? ?? []).map(object))
@@ -544,7 +545,11 @@ class KindleClient {
     return (data, headers);
   }
 
-  Future<Json?> sidecar(Json item, {String? guid}) async {
+  Future<Json?> sidecar(
+    Json item, {
+    String? guid,
+    bool annotations = false,
+  }) async {
     final bytes = await get(
       Uri.https('cde-ta-g7g.amazon.com', '/FionaCDEServiceEngine/sidecar', {
         'type': text(item['type']),
@@ -554,39 +559,18 @@ class KindleClient {
     );
     if (bytes.isEmpty) return null;
     try {
-      return await Isolate.run(() {
-        final root = object(jsonDecode(utf8.decode(bytes)));
-        final payload = object(root['payload'] ?? root);
-        // Reading state never needs note passages. Keep those out of the
-        // persistent resume cache and the foreground reader's memory.
-        return <String, dynamic>{
-          for (final key in ['guid', 'acr']) key: text(payload[key]),
-          'records': [
-            for (final record in (payload['records'] as List? ?? []).map(
-              object,
-            ))
-              if (const {
-                'kindle.most_recent_read',
-                'kindle.lpr',
-              }.contains(record['type']))
-                {
-                  for (final key in [
-                    'type',
-                    'location',
-                    'creationTime',
-                    'lastModificationTime',
-                  ])
-                    if (record[key] != null) key: record[key],
-                },
-          ],
-        };
-      });
+      return await compute(_readSidecar, (bytes, annotations));
     } catch (_) {
       throw const KindleFailure('sidecar_shape');
     }
   }
 
-  Future<Json> pushPosition(Json item, String guid, int position) async {
+  Future<Json> pushPosition(
+    Json item,
+    String guid,
+    int position, {
+    bool annotations = false,
+  }) async {
     if (guid.isEmpty || position < 0) {
       throw const KindleFailure('position_invalid');
     }
@@ -605,7 +589,7 @@ class KindleClient {
       headers: {'Content-Type': 'application/xml'},
     );
     await _bounded(response);
-    final after = await sidecar(item, guid: guid);
+    final after = await sidecar(item, guid: guid, annotations: annotations);
     final records = (after?['records'] as List? ?? []).map(object);
     final confirmed = records
         .where((record) => record['type'] == 'kindle.most_recent_read')
@@ -734,5 +718,48 @@ Json parseKindleCatalog(List<int> bytes) {
     'sync_time': value(response, 'sync_time'),
     'full_response': response.getAttribute('syncType')?.toLowerCase() == 'full',
     'complete': !paging && count < 10000,
+  };
+}
+
+Map<String, String> _signRequest((Uri, Json, String, List<int>) value) =>
+    kindleSigningHeaders(
+      uri: value.$1,
+      session: KindleSession(value.$2),
+      method: value.$3,
+      body: value.$4,
+    );
+
+Json _readSidecar((Uint8List, bool) input) {
+  final root = object(jsonDecode(utf8.decode(input.$1)));
+  final payload = object(root['payload'] ?? root);
+  return {
+    for (final key in ['guid', 'acr', 'syncToken']) key: text(payload[key]),
+    'annotations_loaded': input.$2,
+    'records': [
+      for (final record in (payload['records'] as List? ?? []).map(object))
+        if (const {
+          'kindle.most_recent_read',
+          'kindle.lpr',
+        }.contains(record['type']))
+          {
+            for (final key in [
+              'type',
+              'location',
+              'creationTime',
+              'lastModificationTime',
+            ])
+              if (record[key] != null) key: record[key],
+          }
+        else if (input.$2 &&
+            const {
+              'kindle.bookmark',
+              'kindle.highlight',
+              'kindle.note',
+            }.contains(record['type']) &&
+            text(record['annotationId']).isNotEmpty &&
+            int.tryParse('${record['startPosition']}') != null &&
+            int.parse('${record['startPosition']}') >= 0)
+          record,
+    ],
   };
 }

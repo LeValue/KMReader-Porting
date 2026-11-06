@@ -1,3 +1,8 @@
+La 0.3.1 aggiunge il processo nativo riutilizzabile per la preparazione e
+l’estrazione parziale di copertine e metadati. Il worker non riceve le credenziali
+Amazon: le richieste firmate rimangono nell’app. I test includono il protocollo
+JSON, le copertine sintetiche e controlli GET di sola lettura sull’account.
+
 La 0.2.3 aggiunge il bridge nativo per KMReader e la conversione con mappa
 delle posizioni originali, senza modificare testo o struttura del documento.
 La preparazione avviene in un processo separato dal lettore.

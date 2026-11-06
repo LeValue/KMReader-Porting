@@ -119,6 +119,9 @@ class Book {
   Json get media => object(json['media']);
   Json get progress => object(json['readProgress']);
   int get pages => integer(media['pagesCount']);
+  bool get estimatedPages => media['pagesCountEstimated'] == true;
+  String get pageCountLabel =>
+      pages > 0 ? '${estimatedPages ? '~' : ''}$pages' : '—';
   int get page => integer(progress['page']);
   bool get completed => progress['completed'] == true;
   String get format =>

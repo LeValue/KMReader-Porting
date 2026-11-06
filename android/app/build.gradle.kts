@@ -92,7 +92,7 @@ val prepareKindleSources by tasks.registering(Sync::class) {
     into(kindlePythonSources)
     from("../../tool/kindle_android") { include("*.py") }
     from("../../tool/kindle_personal") {
-        include("__init__.py", "mapped_kfx.py", "prepare.py", "common.py")
+        include("__init__.py", "mapped_kfx.py", "prepare.py", "common.py", "cover.py", "range_source.py", "kfx_progressive.py")
         into("kindle_personal")
     }
 }
@@ -106,6 +106,7 @@ chaquopy {
             install("beautifulsoup4==4.14.3")
             install("pypdf==6.21.4")
             install("defusedxml==0.7.1")
+            install("httpx==0.28.1")
             install("kfxlib @ git+https://github.com/kafkasl/ksync.git@fc00a7b7a04badfbd61f3e42aaaa5e45e1d0cfd7#subdirectory=vendor/kfxlib")
         }
     }
