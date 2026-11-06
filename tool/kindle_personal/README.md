@@ -1,4 +1,4 @@
-# KMReader Kindle personale — prototipo Windows 0.1.2
+# KMReader Kindle personale — prototipo Windows 0.1.3
 
 Questo è il primo esperimento eseguibile per **Amazon.it**: accesso dal browser,
 catalogo di acquisti e documenti personali, download completo e preparazione di
@@ -9,7 +9,7 @@ Non è ancora il collegamento Kindle dentro le Impostazioni di KMReader. Prima
 verifichiamo l'acquisizione di file reali; poi integriamo i protocolli confermati.
 Il PC non è automaticamente una dipendenza permanente della futura integrazione.
 
-## Aggiornamento dalla 0.1.0 / 0.1.1
+## Aggiornamento dalla 0.1.0 / 0.1.1 / 0.1.2
 
 Chiudi il vecchio prototipo, estrai il nuovo ZIP in una cartella separata e avvia `Avvia-Kindle.cmd`.
 La sessione protetta e i download sono conservati nello stesso archivio locale:
@@ -18,12 +18,22 @@ riprova il documento con **3**. La prima sincronizzazione aggiorna anche la
 classificazione dei vecchi metadati memorizzati dalla 0.1.0.
 
 Se invece il collegamento sul nuovo PC non era riuscito (`register / HTTP 400`),
-scegli **1** e completa nuovamente login e OTP. La 0.1.2 intercetta il ritorno
-Amazon anche con `/` nei parametri o nel codice opaco; quel risultato non viene
-più lasciato arrivare alla pagina Amazon `/ap/maplanding` prima dell'app.
-La registrazione avviene prima di chiudere Edge, evitando attese di pulizia sul
-percorso di scambio del codice monouso. Non vengono ripetuti tentativi con lo
-stesso codice né cambiate automaticamente identità o modalità di autenticazione.
+scegli **1** e completa nuovamente login e OTP. La 0.1.3 usa l'ingresso italiano
+per dispositivi `amzn_device_it` / `amzn_device_common_dark`, anziché quello
+del vecchio client iOS. Allinea anche la richiesta completa di registrazione:
+dominio dei cookie, token richiesti e nome dispositivo con gestione dei duplicati.
+Non copia i cookie dal browser e non conserva quelli aggiuntivi ricevuti:
+l'archivio DPAPI mantiene soltanto le credenziali necessarie al connettore.
+
+Il codice opaco nel risultato del login viene percent-decodificato una sola volta:
+un `+` letterale rimane `+`, senza diventare uno spazio come accadeva usando un
+parser per moduli HTML. Rimangono l'intercettazione prima della pagina di ritorno
+Amazon e lo scambio prima della chiusura di Edge. Identità del dispositivo,
+sessioni e libri già salvati non vengono eliminati; il codice non viene ritentato.
+
+Il percorso è stato confrontato con il client dispositivo di
+[whispersync, revisione 7b5527b](https://github.com/bunkford/whispersync.koplugin/blob/7b5527b464c4e67a3b76838682bcfc0b2c98290d/whispersync.koplugin/amazon.lua#L554).
+Questo è un riferimento del protocollo, non una prova del login sul tuo account.
 
 I dizionari Amazon contrassegnati `DICT` / `FREE_DICT` sono nascosti dall'elenco
 principale; **9** permette di mostrarli. Non usiamo parole come "Dictionary" nel
@@ -49,9 +59,10 @@ dal catalogo e un documento personale rimangono nell'elenco principale.
    `diagnostic.json` insieme alla fase in cui ti sei fermato. Non inviare la
    cartella dell'archivio, file di sessione, URL di ritorno o credenziali.
 
-Usa il flusso **PKCE del menu 1**, già riuscito nella prima prova reale.
+Usa il flusso **PKCE del menu 1**. Le sessioni già collegate con l'ingresso
+precedente vengono riutilizzate: non sono costrette a un nuovo login.
 Il menu **8** resta una modalità storica facoltativa, che Amazon può non rendere
-disponibile: non è necessario usarlo per il problema corretto nella 0.1.2.
+disponibile: non serve usarlo per la nuova prova con la 0.1.3.
 Non avviene un passaggio automatico fra profili/dispositivi. Il profilo Kindle
 iOS storico è documentato nel rapporto di ricerca; la compatibilità continua a
 richiedere la verifica sul proprio account e dispositivo.

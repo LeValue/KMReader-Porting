@@ -48,7 +48,8 @@ class AuthenticationTest(unittest.TestCase):
         attempt = LoginAttempt("stable-serial")
         values = parse_qs(urlsplit(attempt.url()).query)
         self.assertEqual(urlsplit(attempt.url()).hostname, "www.amazon.it")
-        self.assertEqual(values["openid.assoc_handle"], ["amzn_kindle_for_ios_it"])
+        self.assertEqual(values["openid.assoc_handle"], ["amzn_device_it"])
+        self.assertEqual(values["pageId"], ["amzn_device_common_dark"])
         self.assertEqual(values["openid.oa2.response_type"], ["code"])
         self.assertEqual(values["openid.oa2.scope"], ["device_auth_access"])
         expected = (
@@ -143,6 +144,7 @@ class AuthenticationTest(unittest.TestCase):
                     "http_status": 403,
                     "authentication": {
                         "flow": "pkce",
+                        "entry": "device_it",
                         "reason": "unknown",
                         "response_format": "json",
                     },
