@@ -10,12 +10,54 @@ from pathlib import Path
 class KindleError(Exception):
     """Only public diagnostics belong in this exception (never response bodies)."""
 
-    def __init__(self, code: str, message: str, *, stage: str = "local", status=None):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        stage: str = "local",
+        status=None,
+        details=None,
+    ):
         super().__init__(message)
         self.code, self.stage, self.status = code, stage, status
+        self.details = {}
+        self.add_details(details or {})
+
+    def add_details(self, details):
+        # Diagnostics accept protocol categories and counters, never arbitrary
+        # response strings, content IDs, URLs, tokens, titles or response bodies.
+        categories = {
+            "resource_type": {
+                "KINDLE_MAIN_BASE",
+                "KINDLE_MAIN_METADATA",
+                "KINDLE_MAIN_ATTACHABLE",
+                "KINDLE_USER_ANOT",
+                "DRM_VOUCHER",
+                "OTHER",
+            },
+            "payload_kind": {"binary", "json", "xml", "html", "empty", "unknown"},
+            "book_type": {"EBOK", "PDOC"},
+        }
+        for key, value in details.items():
+            if (
+                key in categories
+                and isinstance(value, str)
+                and value in categories[key]
+            ):
+                self.details[key] = value
+            elif (
+                key in {"resource_index", "resource_count"}
+                and type(value) is int
+                and 0 < value <= 4096
+            ):
+                self.details[key] = value
 
     def diagnostic(self):
-        return {"code": self.code, "stage": self.stage, "http_status": self.status}
+        result = {"code": self.code, "stage": self.stage, "http_status": self.status}
+        if self.details:
+            result["resource"] = self.details
+        return result
 
 
 def digest(value: str) -> str:

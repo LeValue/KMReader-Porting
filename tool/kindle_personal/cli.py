@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import VERSION
 from .auth import LoginAttempt, PROFILE, new_serial
-from .catalog import synchronize
+from .catalog import CLASSIFICATION_VERSION, synchronize, visible_items
 from .client import KindleClient
 from .common import KindleError, read_json, write_json
 from .download import download_book
@@ -56,6 +56,7 @@ class Application:
     def __init__(self, directory, *, client=None):
         self.directory = directory
         self.client = client or KindleClient(WindowsVault(directory))
+        self.include_dictionaries = False
 
     @property
     def account_directory(self):
@@ -96,15 +97,18 @@ class Application:
         self.show_items(snapshot)
         return snapshot
 
-    @staticmethod
-    def show_items(snapshot):
-        for index, item in enumerate(snapshot.get("items", []), 1):
+    def show_items(self, snapshot):
+        items = visible_items(snapshot, include_dictionaries=self.include_dictionaries)
+        for index, item in enumerate(items, 1):
             print(
                 f"{index:4}. [{item['type']}] {item['title']} — {', '.join(item['authors'])}"
             )
-        print(
-            f"{len(snapshot.get('items', []))} titoli nella copia locale del catalogo."
-        )
+        print(f"{len(items)} titoli mostrati nella copia locale del catalogo.")
+        hidden = len(snapshot.get("items", [])) - len(items)
+        if hidden:
+            print(
+                f"{hidden} dizionari Amazon nascosti. Il menu 9 permette di includerli."
+            )
         if not snapshot.get("complete"):
             print(
                 "CATALOGO PARZIALE: il server segnala altri risultati o ha raggiunto il limite. Non considero l'elenco completo."
@@ -112,14 +116,22 @@ class Application:
 
     def cached_library(self):
         snapshot = read_json(self.account_directory / "catalog.json")
-        return snapshot or self.library(full=True)
+        if (
+            snapshot is None
+            or snapshot.get("classification_version") != CLASSIFICATION_VERSION
+        ):
+            return self.library(full=True)
+        return snapshot
 
     def download(self, selector, *, converter=None, convert=True):
         snapshot = self.cached_library()
         matches = [item for item in snapshot["items"] if item["key"] == selector]
         if not matches and selector.isdigit():
             index = int(selector) - 1
-            matches = snapshot["items"][index : index + 1] if index >= 0 else []
+            items = visible_items(
+                snapshot, include_dictionaries=self.include_dictionaries
+            )
+            matches = items[index : index + 1] if index >= 0 else []
         if len(matches) != 1:
             raise KindleError(
                 "book_selection",
@@ -133,6 +145,7 @@ class Application:
             convert=convert,
             converter=converter,
         )
+        (self.directory / "last-error.json").unlink(missing_ok=True)
         self.show_result(directory, result)
         return directory, result
 
@@ -158,7 +171,7 @@ class Application:
             if self.client.session
             else {}
         )
-        prepared, pending = 0, 0
+        prepared, pending, optional_skipped = 0, 0, 0
         if self.client.session:
             for path in (self.account_directory / "downloads").glob(
                 "*/*/preparation.json"
@@ -166,8 +179,13 @@ class Application:
                 record = read_json(path, {})
                 prepared += record.get("state") == "importable"
                 pending += record.get("state") != "importable"
+                optional_skipped += len(
+                    read_json(path.parent / "receipt.json", {}).get(
+                        "optional_resources_skipped", []
+                    )
+                )
         report = {
-            "schema": 1,
+            "schema": 2,
             "prototype_version": VERSION,
             "marketplace": "amazon.it",
             "profile": PROFILE,
@@ -176,9 +194,15 @@ class Application:
             if self.client.session
             else None,
             "catalog_count": len(catalog.get("items", [])),
+            "library_count": len(visible_items(catalog)),
+            "amazon_dictionary_count": sum(
+                bool(item.get("is_amazon_dictionary"))
+                for item in catalog.get("items", [])
+            ),
             "catalog_complete": catalog.get("complete"),
             "importable_count": prepared,
             "needs_preparation_count": pending,
+            "optional_resources_skipped_count": optional_skipped,
             "last_error": read_json(self.directory / "last-error.json"),
             "amazon_reading_verified": False,
         }
@@ -201,6 +225,14 @@ class Application:
             print("6. Esporta diagnostica senza credenziali")
             print("7. Scollega il prototipo (mantiene libri e dispositivo Amazon)")
             print("8. Login alternativo storico con token (se PKCE non accettato)")
+            print(
+                "9. "
+                + (
+                    "Nascondi dizionari Amazon"
+                    if self.include_dictionaries
+                    else "Mostra anche i dizionari Amazon"
+                )
+            )
             print("0. Esci")
             choice = input("> ").strip()
             try:
@@ -240,6 +272,9 @@ class Application:
                     print(
                         "Credenziali locali rimosse. Libri conservati. Nessun dispositivo Amazon scollegato."
                     )
+                elif choice == "9":
+                    self.include_dictionaries = not self.include_dictionaries
+                    self.show_items(self.cached_library())
             except KindleError as error:
                 self.record_error(error)
 
@@ -249,7 +284,11 @@ class Application:
         )
         write_json(
             self.directory / "last-error.json",
-            {**error.diagnostic(), "at": int(time.time())},
+            {
+                **error.diagnostic(),
+                "at": int(time.time()),
+                "prototype_version": VERSION,
+            },
         )
 
 
@@ -269,10 +308,12 @@ def main(argv=None):
     login.add_argument("--browser", choices=("msedge", "chrome"), default="msedge")
     library = sub.add_parser("library")
     library.add_argument("--full", action="store_true")
+    library.add_argument("--include-dictionaries", action="store_true")
     download = sub.add_parser("download")
     download.add_argument("book", help="Numero locale oppure EBOK:ID / PDOC:ID")
     download.add_argument("--converter", help="Percorso ebook-convert.exe di Calibre")
     download.add_argument("--no-convert", action="store_true")
+    download.add_argument("--include-dictionaries", action="store_true")
     prepare = sub.add_parser("prepare")
     prepare.add_argument(
         "directory", type=Path, help="Cartella contenente receipt.json e le risorse"
@@ -309,6 +350,9 @@ def main(argv=None):
         directory = args.data_dir or default_directory()
         with exclusive(directory):
             application = Application(directory)
+            application.include_dictionaries = getattr(
+                args, "include_dictionaries", False
+            )
             if args.command is None:
                 application.menu()
             elif args.command == "login":

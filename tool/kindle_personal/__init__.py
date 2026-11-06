@@ -1,3 +1,3 @@
 """Isolated personal Kindle download experiment; no dependency of the app."""
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"

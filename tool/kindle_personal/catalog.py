@@ -1,12 +1,46 @@
 """Catalog metadata only; opaque PDOC identifiers and Unicode remain intact."""
 
 import time
+import re
 
 from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
 
 from .client import CATALOG_URL
 from .common import KindleError
+
+CLASSIFICATION_VERSION = 1
+
+
+def _dictionary_flags(element, kind):
+    tags = set()
+    for group in element:
+        if local_name(group) == "content_tags":
+            for part in group.iter():
+                tags.update(re.split(r"[\s,;|]+", (part.text or "").strip().upper()))
+    tags.intersection_update({"DICT", "FREE_DICT"})
+    dictionary = bool(tags) or any(
+        value(element, key).lower() in ("true", "1")
+        for key in ("is_dictionary", "isDictionary")
+    )
+    purchased = any(
+        local_name(e) == "origin" and value(e, "type").casefold() == "purchase"
+        for e in element.iter()
+    )
+    bundled = kind == "EBOK" and dictionary and ("FREE_DICT" in tags or not purchased)
+    return {
+        "content_tags": sorted(tags),
+        "is_dictionary": dictionary,
+        "is_amazon_dictionary": bundled,
+    }
+
+
+def visible_items(snapshot, *, include_dictionaries=False):
+    return [
+        item
+        for item in snapshot.get("items", [])
+        if include_dictionaries or not item.get("is_amazon_dictionary", False)
+    ]
 
 
 def local_name(element):
@@ -62,10 +96,11 @@ def parse_catalog(raw, *, limit):
                 "revision": value(element, "content_version")
                 or value(element, "version"),
                 "publication_date": value(element, "publication_date"),
+                **_dictionary_flags(element, kind),
             }
     removed = []
     for group in response:
-        if local_name(group) in ("delete_list", "remove_list"):
+        if local_name(group) in ("delete_list", "remove_list", "removal_list"):
             for element in group:
                 identifier = value(element, "ASIN") or (element.text or "").strip()
                 kind = value(element, "cde_contenttype")
@@ -85,19 +120,30 @@ def parse_catalog(raw, *, limit):
             "next_page_token",
         )
     )
-    count = sum(1 for e in response.iter() if local_name(e) == "meta_data")
+    count = sum(
+        1
+        for group in response
+        if local_name(group) == "add_update_list"
+        for e in group
+        if local_name(e) == "meta_data"
+    )
     return {
         "items": list(items.values()),
         "removed": removed,
         "sync_time": value(response, "sync_time"),
         "complete": not more and count < limit,
+        "classification_version": CLASSIFICATION_VERSION,
+        "full_response": response.attrib.get("syncType", "").casefold() == "full",
     }
 
 
 def synchronize(client, previous=None, *, full=False, limit=10000):
     previous = previous or {}
     incremental = bool(
-        previous.get("complete") and previous.get("sync_time") and not full
+        previous.get("complete")
+        and previous.get("sync_time")
+        and not full
+        and previous.get("classification_version") == CLASSIFICATION_VERSION
     )
     params = {"item_count": limit}
     if incremental:
@@ -105,7 +151,9 @@ def synchronize(client, previous=None, *, full=False, limit=10000):
     raw = client.bounded_get(CATALOG_URL, stage="catalog", params=params)
     current = parse_catalog(raw, limit=limit)
     items = (
-        {item["key"]: item for item in previous.get("items", [])} if incremental else {}
+        {item["key"]: item for item in previous.get("items", [])}
+        if incremental and not current["full_response"]
+        else {}
     )
     for removed in current["removed"]:
         items = {
@@ -118,7 +166,8 @@ def synchronize(client, previous=None, *, full=False, limit=10000):
         }
     items.update({item["key"]: item for item in current["items"]})
     return {
-        "schema": 1,
+        "schema": 2,
+        "classification_version": CLASSIFICATION_VERSION,
         "marketplace": "amazon.it",
         "fetched_at": int(time.time()),
         "sync_time": current["sync_time"],
