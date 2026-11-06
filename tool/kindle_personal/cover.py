@@ -18,6 +18,19 @@ MAX_TRANSFER = 4 * 1024 * 1024
 def allowed_cover_url(value):
     uri = urlsplit(value)
     host = (uri.hostname or "").lower()
+    if host == "127.0.0.1":
+        import re
+
+        return (
+            uri.scheme == "http"
+            and uri.port is not None
+            and uri.port > 1024
+            and not uri.username
+            and not uri.query
+            and not uri.fragment
+            and re.fullmatch(r"/kindle-cover/[A-Za-z0-9_-]{32}/[0-5]", uri.path)
+            is not None
+        )
     return (
         uri.scheme == "https"
         and uri.port in (None, 443)
@@ -107,7 +120,10 @@ def remote_cover(urls):
     quiet_library()
     transferred = 0
     client = httpx.Client(
-        timeout=25, follow_redirects=False, headers={"Accept-Encoding": "identity"}
+        trust_env=False,
+        timeout=25,
+        follow_redirects=False,
+        headers={"Accept-Encoding": "identity"},
     )
     sources = []
 
