@@ -53,6 +53,7 @@ class KindleRepository extends Repository {
   Timer? _kindleTimer;
   String? _mappedBook;
   KindlePositionMap? _mapping;
+  int _mappingGeneration = 0;
   final _verifiedSidecars = <String, Json>{};
   bool get kindleSyncEnabled =>
       store.setting<bool>('kindleSync:${profile.id}') != false;
@@ -70,6 +71,7 @@ class KindleRepository extends Repository {
 
   @override
   Future<Json?> externalDocumentPosition(Book book, File file) async {
+    final generation = ++_mappingGeneration;
     if (!kindleSyncEnabled ||
         closed ||
         book.format != 'epub' ||
@@ -78,7 +80,11 @@ class KindleRepository extends Repository {
     }
     try {
       final mapping = await KindlePositionMap.open(file.path);
-      if (closed || mapping == null || mapping.entries.isEmpty) return null;
+      if (closed ||
+          generation != _mappingGeneration ||
+          mapping == null ||
+          mapping.entries.isEmpty)
+        return null;
       _mapping = mapping;
       _mappedBook = book.id;
       final cachedSidecar = object(
@@ -92,7 +98,8 @@ class KindleRepository extends Repository {
                   }
                 : cachedSidecar)
           : await library.client.sidecar(library.item(book.id));
-      if (closed || sidecar == null) return null;
+      if (closed || generation != _mappingGeneration || sidecar == null)
+        return null;
       final matches = mapping.matches(sidecar);
       store.cache(profile.id, 'kindle:availability:${book.id}', {
         'mapped': true,

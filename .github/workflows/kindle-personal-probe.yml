@@ -28,13 +28,33 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+      - if: inputs.prototype_run == 'source'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run read-only source probe in an isolated environment
+        if: inputs.prototype_run == 'source'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $environment = Join-Path $env:RUNNER_TEMP ('kindle-source-' + $env:GITHUB_RUN_ID)
+          python -m venv $environment
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot create isolated probe environment' }
+          $python = Join-Path $environment 'Scripts/python.exe'
+          & $python -m pip install -r tool/kindle_personal/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot install pinned probe dependencies' }
+          New-Item artifacts/kindle-personal-probe -ItemType Directory -Force | Out-Null
+          & $python -m tool.kindle_personal probe --output artifacts/kindle-personal-probe/report.json
+          if ($LASTEXITCODE -ne 0) { throw 'Read-only source probe did not complete' }
       - uses: actions/download-artifact@v4
+        if: inputs.prototype_run != 'source'
         with:
           name: KMReader-Kindle-windows-x64
           run-id: ${{ inputs.prototype_run }}
           github-token: ${{ github.token }}
           path: artifacts/kindle-probe-build
       - name: Validate the exact-source companion and run GET-only Amazon probes
+        if: inputs.prototype_run != 'source'
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'

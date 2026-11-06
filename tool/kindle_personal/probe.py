@@ -270,6 +270,7 @@ def online_probe(client, item):
                         (time.perf_counter() - mapped_started) * 1000, 2
                     ),
                     "sidecar_edition_matches": None,
+                    "container_id_count": len(mapping["container_acrs"]),
                 }
                 try:
                     payload = json.loads(
@@ -284,6 +285,30 @@ def online_probe(client, item):
                         bool(payload.get("acr"))
                         and payload.get("acr") in mapping["container_acrs"]
                     )
+                    verified["sidecar_acr_available"] = bool(payload.get("acr"))
+                    verified["sidecar_guid_matches_container"] = (
+                        payload.get("guid") in mapping["container_acrs"]
+                    )
+                    records = payload.get("records", [])
+                    recent = next(
+                        (
+                            r
+                            for r in records
+                            if isinstance(r, dict)
+                            and r.get("type") == "kindle.most_recent_read"
+                        ),
+                        {},
+                    )
+                    location = recent.get("location")
+                    try:
+                        position = int(location)
+                        verified["position_in_verified_map"] = any(
+                            e["position"] <= position < e["position"] + e["length"]
+                            for e in mapping["entries"]
+                        )
+                        verified["position_numeric"] = True
+                    except (TypeError, ValueError):
+                        verified["position_numeric"] = False
                 except (KindleError, ValueError, TypeError, AttributeError):
                     pass
                 report["normalized_position_map"] = verified
