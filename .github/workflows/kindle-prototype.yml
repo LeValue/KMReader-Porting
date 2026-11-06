@@ -30,9 +30,11 @@ jobs:
           cache: pip
           cache-dependency-path: tool/kindle_personal/requirements.txt
       - run: python -m pip install -r tool/kindle_personal/requirements.txt
-      - if: runner.os == 'Linux'
-        run: python -m playwright install --with-deps chromium
-      - if: runner.os == 'Windows'
+      # Hosted images include Chrome/Chromium and their system libraries.
+      # Download the pinned test browser without a redundant apt update, which
+      # can stall on distribution mirrors unrelated to this Windows prototype.
+      - name: Install pinned test browser
+        timeout-minutes: 5
         run: python -m playwright install chromium
       - name: Protocol, download, privacy, offline and real browser boundary tests
         env:
