@@ -73,6 +73,13 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     sdk = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0'
     certificate = (ROOT / 'tool/preview-certificate.sha256').read_text().strip()
+    delta_base = None
+    if os.environ.get('APK_DELTAS', '').lower() == 'true':
+        base_directory = output / 'verified-ci-base'
+        subprocess.check_call(['gh', 'run', 'download', requested, '--repo', repository,
+                               '--name', 'android-release-unsigned', '--dir', str(base_directory)])
+        delta_base = base_directory / 'app-release.apk'
+        validate_provenance(apk_provenance(delta_base), source, version, build)
     files = []
     for prefix, label, abi in [('PREVIEW', 'arm64', 'arm64-v8a'),
                                ('ARMV7', 'armv7', 'armeabi-v7a'), ('X64', 'x64', 'x86_64')]:
@@ -92,7 +99,11 @@ def main():
             packed = base64.b64decode(blob['content'])
             if hashlib.sha1(b'blob ' + str(len(packed)).encode() + b'\0' + packed).hexdigest() != blob_id:
                 raise ValueError('Git object hash mismatch')
-            content = lzma.decompress(packed)
+            if delta_base is not None:
+                from apk_delta import apply_delta
+                content = apply_delta(delta_base, packed, expected)
+            else:
+                content = lzma.decompress(packed)
             if hashlib.sha256(content).hexdigest() != expected:
                 raise ValueError('APK checksum mismatch')
             target.write_bytes(content)

@@ -9,6 +9,10 @@ on:
         description: Deliver already verified signed builds to an existing review draft without publishing
         type: boolean
         default: false
+      apk_deltas:
+        description: Reconstruct byte-exact locally signed APKs from the verified CI APK and transport blobs
+        type: boolean
+        default: false
       draft_tag:
         description: Existing empty versioned EPUB candidate draft
         type: string
@@ -422,6 +426,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       VERIFIED_RUN: ${{ inputs.verified_run }}
+      APK_DELTAS: ${{ inputs.apk_deltas }}
       DRAFT_TAG: ${{ inputs.draft_tag }}
       PREVIEW_BLOB: ${{ inputs.preview_blob }}
       PREVIEW_SHA256: ${{ inputs.preview_sha256 }}
