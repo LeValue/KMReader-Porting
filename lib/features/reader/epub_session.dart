@@ -211,11 +211,14 @@ class EpubSession extends ChangeNotifier {
   int chapter = 0, page = 1, pages = 1;
   double progression = 0;
   EpubPageIndex? pageIndex;
+  Future<void>? _indexing;
   double get bookProgress =>
       pageIndex?.fraction(chapter, progression) ??
       (chapter + progression) / document.chapters.length;
   int? get totalBookPages =>
-      book.pages > 0 && !book.estimatedPages ? book.pages : pageIndex?.pages;
+      book.pages > 0 && book.media['pagesCountSource'] == 'publisher'
+      ? book.pages
+      : pageIndex?.pages;
   String get bookPosition => totalBookPages == null
       ? '${(bookProgress * 100).round()}%'
       : '~${(bookProgress * totalBookPages!).floor().clamp(0, totalBookPages! - 1) + 1}/$totalBookPages';
@@ -410,7 +413,8 @@ class EpubSession extends ChangeNotifier {
         }
       }
       await session.prepareFont();
-      unawaited(session._index(file));
+      session._indexing = session._index(file);
+      unawaited(session._indexing);
       return session;
     } catch (_) {
       await host?.close();
@@ -597,6 +601,7 @@ class EpubSession extends ChangeNotifier {
     save();
     _closed = true;
     _saveTimer?.cancel();
+    await _indexing;
     await host.close();
     document.close();
     dispose();
