@@ -304,8 +304,8 @@ class KindleRepository extends Repository {
             final sidecar = await library.client.sidecar(item);
             if (sidecar == null ||
                 text(sidecar['guid']).isEmpty ||
-                !(local['acrs'] as List? ?? [local['acr']]).contains(
-                  sidecar['acr'],
+                !(local['acrs'] as List? ?? [local['acr']]).any(
+                  (id) => id == sidecar['guid'] || id == sidecar['acr'],
                 ) ||
                 text(local['guid']).isNotEmpty &&
                     sidecar['guid'] != local['guid']) {
