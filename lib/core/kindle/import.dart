@@ -67,7 +67,9 @@ class KindleImporter {
       final response = await client
           .importRequest(request)
           .timeout(
-            const Duration(seconds: 90),
+            request.method == 'PUT'
+                ? const Duration(minutes: 15)
+                : const Duration(seconds: 90),
             onTimeout: () {
               cancel.cancel();
               throw const KindleFailure('import_network');
