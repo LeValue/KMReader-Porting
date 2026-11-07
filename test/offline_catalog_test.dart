@@ -47,6 +47,37 @@ void main() {
     ]);
   }
 
+  test('dashboard date sort aliases use the stored catalog dates', () {
+    store.cacheBooks('a', [
+      CatalogItem('books', {
+        ...book('old', 'Old'),
+        'created': '2020-01-01',
+        'lastModified': '2024-01-01',
+      }),
+      CatalogItem('books', {
+        ...book('new', 'New'),
+        'created': '2026-01-01',
+        'lastModified': '2025-01-01',
+      }),
+    ]);
+    expect(
+      store.offlineCatalog
+          .query('a', 'books', sort: 'createdDate,desc')
+          .items
+          .first
+          .id,
+      'new',
+    );
+    expect(
+      store.offlineCatalog
+          .query('a', 'books', sort: 'lastModifiedDate,asc')
+          .items
+          .first
+          .id,
+      'old',
+    );
+  });
+
   test('offline full-text search, Unicode, filters, sort, pagination and account isolation', () {
     seed();
     final index = store.offlineCatalog;

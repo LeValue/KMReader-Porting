@@ -6,12 +6,12 @@ on:
       runner_label:
         description: Target a specific registered PC
         type: choice
-        options: [kmreader-laptop, self-hosted]
+        options: [kmreader-laptop, kmreader-android-desktop, self-hosted]
         default: kmreader-laptop
       mode:
         description: Environment, native regression tests, or profile frame timings
         type: choice
-        options: [inspect, native, profile, responsiveness]
+        options: [inspect, native, profile, responsiveness, android-epub-recovery, kindle-probe, kindle-runtime]
         default: inspect
       publication:
         description: Profile fixture or the requested Alice download in KMReader
@@ -19,23 +19,61 @@ on:
         options: [generated, cached-alice, alice-gutenberg]
         default: generated
       prebuilt_run:
-        description: Reuse an existing main-branch responsiveness bundle with identical app/probe source
+        description: Reuse an existing responsiveness bundle or Android diagnostic APK with identical app/test source
         type: string
         default: ''
+      expected_runner:
+        description: Optional exact PC runner name for the Android USB test
+        type: string
+        default: ''
+      android_renderer:
+        description: Flutter renderer for the isolated Android diagnostic app
+        type: choice
+        options: [default, skia]
+        default: default
+      android_composition:
+        description: WebView composition for the isolated Android diagnostic app
+        type: choice
+        options: [auto, texture, hybrid]
+        default: auto
 
 permissions:
   contents: read
   actions: read
 
 jobs:
+  kindle_probe:
+    if: inputs.mode == 'kindle-probe'
+    uses: ./.github/workflows/kindle-personal-probe.yml
+    with:
+      prototype_run: ${{ inputs.prebuilt_run }}
+      runner_label: ${{ inputs.runner_label }}
+  kindle_runtime:
+    if: inputs.mode == 'kindle-runtime'
+    uses: ./.github/workflows/kindle-runtime-probe.yml
+    with:
+      verified_run: ${{ inputs.prebuilt_run }}
+      runner_label: ${{ inputs.runner_label }}
+  android_recovery:
+    if: inputs.mode == 'android-epub-recovery'
+    uses: ./.github/workflows/local-android.yml
+    with:
+      runner_label: ${{ inputs.runner_label }}
+      prebuilt_run: ${{ inputs.prebuilt_run }}
+      expected_runner: ${{ inputs.expected_runner }}
+      renderer: ${{ inputs.android_renderer }}
+      composition: ${{ inputs.android_composition }}
   build_test:
-    if: inputs.mode != 'inspect' && inputs.prebuilt_run == ''
+    if: inputs.mode != 'inspect' && inputs.mode != 'android-epub-recovery' && inputs.mode != 'kindle-probe' && inputs.mode != 'kindle-runtime' && inputs.prebuilt_run == ''
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'
@@ -106,7 +144,7 @@ jobs:
           retention-days: 7
   inspect:
     needs: build_test
-    if: ${{ !cancelled() && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
+    if: ${{ !cancelled() && inputs.mode != 'android-epub-recovery' && inputs.mode != 'kindle-probe' && inputs.mode != 'kindle-runtime' && (needs.build_test.result == 'success' || needs.build_test.result == 'skipped') }}
     runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
     concurrency:
       group: kmreader-local-windows-pc-${{ inputs.runner_label }}

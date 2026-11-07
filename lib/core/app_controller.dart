@@ -12,6 +12,8 @@ export 'credentials.dart';
 
 import 'api.dart';
 import 'local_library.dart';
+import 'kindle/client.dart';
+import 'kindle/repository.dart';
 import 'network_preferences.dart';
 import 'reader_defaults.dart';
 import 'credentials.dart';
@@ -27,6 +29,7 @@ class AppController extends ChangeNotifier {
     required this.directory,
     required this.vault,
     this.apiFactory,
+    this.kindleClientFactory,
   });
   late final BackgroundDownloads backgroundDownloads = BackgroundDownloads(
     store,
@@ -41,6 +44,11 @@ class AppController extends ChangeNotifier {
   final Directory directory;
   final CredentialVault vault;
   final KomgaApi Function(Uri, Authentication, String)? apiFactory;
+  final KindleClient Function(
+    KindleSession,
+    Future<void> Function(KindleSession),
+  )?
+  kindleClientFactory;
   KomgaApi _api(Uri base, Authentication authentication, String credential) {
     final api =
         apiFactory?.call(base, authentication, credential) ??
@@ -311,12 +319,39 @@ class AppController extends ChangeNotifier {
     backgroundDownloads.attach(null);
     await repository?.stopDownloadWork();
     if (generation != _selection) return;
-    repository = Repository(
-      profile: profile,
-      api: _api(Uri.parse(profile.url), profile.authentication, credential),
-      store: store,
-      directory: directory,
-    );
+    if (profile.isKindle) {
+      KindleSession session;
+      try {
+        session = KindleSession(object(jsonDecode(credential)));
+      } catch (_) {
+        throw const KindleFailure('session_invalid');
+      }
+      if (session.id != profile.id) {
+        throw const KindleFailure('account_identity');
+      }
+      Future<void> save(KindleSession value) async {
+        if (!store.accountRemoved(profile.id)) {
+          await vault.write(profile.id, jsonEncode(value.json));
+        }
+      }
+
+      final client =
+          kindleClientFactory?.call(session, save) ??
+          KindleClient(session: session, saveSession: save);
+      repository = KindleRepository(
+        profile: profile,
+        store: store,
+        directory: directory,
+        client: client,
+      );
+    } else {
+      repository = Repository(
+        profile: profile,
+        api: _api(Uri.parse(profile.url), profile.authentication, credential),
+        store: store,
+        directory: directory,
+      );
+    }
     store.setSetting('activeServer', profile.id);
     startupError = null;
     repository!.offline = store.setting<bool>('offline:${profile.id}') == true;
@@ -347,6 +382,21 @@ class AppController extends ChangeNotifier {
     final dir = Directory(p.join(directory.path, profile.id));
     if (await dir.exists()) await dir.delete(recursive: true);
     notifyListeners();
+  }
+
+  Future<void> connectKindle(KindleSession session) async {
+    final profile = ServerProfile(
+      id: session.id,
+      name: 'Kindle',
+      url: 'https://www.amazon.it',
+      email: 'Amazon.it',
+      authentication: Authentication.apiKey,
+      source: 'kindle',
+    );
+    await vault.write(profile.id, jsonEncode(session.json));
+    store.saveServer(profile);
+    store.setSetting('offline:${profile.id}', false);
+    await activate(profile);
   }
 
   void disconnect() {

@@ -1,0 +1,2087 @@
+{
+  "captured_on": "2026-11-07",
+  "repository": "LeValue/KMReader-Porting",
+  "main": "21997b92525a9bc91e55d4d12a4476d6da5fc90c",
+  "working_baseline": "a5e51aa44e59a4ff5d01dedfb83a70c53c126aa7",
+  "diagnostic_followups": "63ad4e7430b7c59b3f7982aa41a86dbda41019b0",
+  "branches": [
+    {
+      "name": "codex/native-epub-diagnostics-081",
+      "sha": "8a4db52d72fb2ad529485f62a0df3283a814c388",
+      "protected": false,
+      "behind_main": 76,
+      "ahead_main": 2,
+      "action": "retain"
+    },
+    {
+      "name": "codex/native-epub-post-turn-081",
+      "sha": "68cfb4404316f701660c5eee2d45cee15f659f52",
+      "protected": false,
+      "behind_main": 74,
+      "ahead_main": 1,
+      "action": "retain"
+    },
+    {
+      "name": "codex/windows-capture-interval",
+      "sha": "94dd447c8d33e15fa2e9376ccea597509656fbbe",
+      "protected": false,
+      "behind_main": 17,
+      "ahead_main": 2,
+      "action": "retain"
+    },
+    {
+      "name": "fix/android-epub-recovery",
+      "sha": "63ad4e7430b7c59b3f7982aa41a86dbda41019b0",
+      "protected": false,
+      "behind_main": 0,
+      "ahead_main": 62,
+      "action": "retain"
+    },
+    {
+      "name": "main",
+      "sha": "21997b92525a9bc91e55d4d12a4476d6da5fc90c",
+      "protected": false,
+      "behind_main": 0,
+      "ahead_main": 0,
+      "action": "retain"
+    },
+    {
+      "name": "work",
+      "sha": "21997b92525a9bc91e55d4d12a4476d6da5fc90c",
+      "protected": false,
+      "behind_main": 0,
+      "ahead_main": 0,
+      "action": "retain"
+    }
+  ],
+  "tags": [
+    {
+      "ref": "refs/tags/v0.1.0-dev.1",
+      "sha": "39988b1c7e279b0c9c76038bd3b5ffa6211e431b",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.2.0-preview.1",
+      "sha": "fc5b32be6c613eb936696134cb598b40037f950b",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.3.0-preview.1",
+      "sha": "77a5786fb19c173e7925b6a64e5d424ffb843eb3",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.4.0-preview.1",
+      "sha": "f23eaa42ec5713df1ce4f66d03c0124c9817690e",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.4.1-preview.1",
+      "sha": "9332ee4bf67fcfa11db645b3941b4c5ae03c15a1",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.5.0-preview.1",
+      "sha": "d95a360f48d3045dc133458f19f3b539715cd19a",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.6.0-preview.1",
+      "sha": "98c42f7ea84d732e7079df795dc26b97caabd0fc",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.6.1-preview.1",
+      "sha": "e94e45ef58d74ead79bcdcf91a58cce03ae9b7f4",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.7.0-preview.1",
+      "sha": "4041b8ca631f4113c6d9f81c8c6fccbc851b4ef8",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.0-preview.1",
+      "sha": "eb40fbddb6452ea124f7f17e0a4d72581d0ba55b",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.1-preview.1",
+      "sha": "3aaeafc32f13c8b6469806d26d970f86f02ea998",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.10-preview.1",
+      "sha": "22b3d13541257da7b91952267494e58664e6427d",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.11-preview.1",
+      "sha": "f4f0d806d83471c3cecf61cfdf9bb3f17132bb04",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.12-preview.1",
+      "sha": "da6545fe21941f036db784b5538ed85aaad2c88d",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.2-preview.1",
+      "sha": "1bb75274855204c554a48122af281e28b6661670",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.3-preview.1",
+      "sha": "43bc0e127aa8c7392482817ceacd4115e0980416",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.4-preview.1",
+      "sha": "469ea3a6a8f6bd24c31d7c5ca1e3f850ba8a5995",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.5-preview.1",
+      "sha": "0628968e2ad2dc80856ae017caf307fa2bdbca7e",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.6-preview.1",
+      "sha": "3d04cd82715a768f0b05c4ec328b46cfd1a24a6b",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.7-preview.1",
+      "sha": "20641b8b95e4028587bedb5fdf60be99d655c392",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.8-preview.1",
+      "sha": "82881fda76ecc653e7dc027cced65114d23af040",
+      "action": "retain"
+    },
+    {
+      "ref": "refs/tags/v0.8.9-preview.1",
+      "sha": "bc785e1f6b1f541473f2ea8b1deda1fd6f7856e5",
+      "action": "retain"
+    }
+  ],
+  "releases": [
+    {
+      "id": 437138822,
+      "tag_name": "v0.9.1-epub-candidate.1",
+      "target_commitish": "a5e51aa44e59a4ff5d01dedfb83a70c53c126aa7",
+      "name": "KMReader 0.9.1 — correzioni Kindle",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-8bfb43c3022b397460bc",
+      "created_at": "2026-11-06T22:48:08Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 718904688,
+          "name": "KMReader-0.9.1-android-arm64-preview.apk",
+          "size": 105621751,
+          "digest": "sha256:c2d2cfe0112236ab5b30990c61a7ed90420d8a4f2918063fe0a81ae3b6bdbdb0",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8bfb43c3022b397460bc/KMReader-0.9.1-android-arm64-preview.apk"
+        },
+        {
+          "id": 718904689,
+          "name": "KMReader-0.9.1-android-armv7-preview.apk",
+          "size": 86332367,
+          "digest": "sha256:7d8457f85e0e3a991f4007350608d98005d2f5e59bbe2ea6bafba2de4e0a0759",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8bfb43c3022b397460bc/KMReader-0.9.1-android-armv7-preview.apk"
+        },
+        {
+          "id": 718904690,
+          "name": "KMReader-0.9.1-android-x64-preview.apk",
+          "size": 112072799,
+          "digest": "sha256:77a5777c31e91a286f2f211e66b1d9779baf291fe97df7b2a8789a55d23ac72f",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8bfb43c3022b397460bc/KMReader-0.9.1-android-x64-preview.apk"
+        },
+        {
+          "id": 718904687,
+          "name": "KMReader-0.9.1-windows-x64-preview.zip",
+          "size": 104119759,
+          "digest": "sha256:f3a9fc725e71efc74593b2e41fb43fc1d2c341fb4e10c5024dfcd6ba563f5a99",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8bfb43c3022b397460bc/KMReader-0.9.1-windows-x64-preview.zip"
+        },
+        {
+          "id": 718904691,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:a8830f573b85cc1bdf54905eba5f82f96ec4d2baa347d36b45fe0c6a83c3fbe6",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8bfb43c3022b397460bc/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436780904,
+      "tag_name": "v0.9.0-epub-candidate.1",
+      "target_commitish": "2877d50ed932927d6e01eba6ff2ecb154671c58d",
+      "name": "KMReader 0.9.0 — Kindle integrato e navigazione aggiornata",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-07eaa6b8492c20ff4528",
+      "created_at": "2026-11-06T17:15:58Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 718184188,
+          "name": "KMReader-0.9.0-android-arm64-preview.apk",
+          "size": 104655051,
+          "digest": "sha256:9f41ba1021554c8439075b9ce777519b5d3b7b1e3ccf1a02c9a0ead16b5ee8ff",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-07eaa6b8492c20ff4528/KMReader-0.9.0-android-arm64-preview.apk"
+        },
+        {
+          "id": 718184185,
+          "name": "KMReader-0.9.0-android-armv7-preview.apk",
+          "size": 85349587,
+          "digest": "sha256:33c9e9ada92d1fc80b18482bc1f21a394b588c8d2f985d4dde94c354af7fb78d",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-07eaa6b8492c20ff4528/KMReader-0.9.0-android-armv7-preview.apk"
+        },
+        {
+          "id": 718184182,
+          "name": "KMReader-0.9.0-android-x64-preview.apk",
+          "size": 111090059,
+          "digest": "sha256:c8a996a9a950bdb02c399f85417f781f4f19cf22d8510a43f641107f3b19b90f",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-07eaa6b8492c20ff4528/KMReader-0.9.0-android-x64-preview.apk"
+        },
+        {
+          "id": 718184187,
+          "name": "KMReader-0.9.0-windows-x64-preview.zip",
+          "size": 104044631,
+          "digest": "sha256:1f1248a8cd981dddb38e332ba6e681b2479d609c2040abe42087fabdbb5a22d4",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-07eaa6b8492c20ff4528/KMReader-0.9.0-windows-x64-preview.zip"
+        },
+        {
+          "id": 718184186,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:cf196c404346249b96ec716d5f9e5c05d51c2d294737765dc9223e27370d3452",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-07eaa6b8492c20ff4528/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436981031,
+      "tag_name": "kindle-personal-prototype-v0.3.1",
+      "target_commitish": "dbff418fc7f9d17157975924422e7df00fd15fa8",
+      "name": "KMReader Kindle personale 0.3.1 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-57c7b72cb6ac3723b6d7",
+      "created_at": "2026-11-06T20:30:18Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 718463706,
+          "name": "KMReader-Kindle-0.3.1-source.zip",
+          "size": 348072,
+          "digest": "sha256:b0dbb5dce52f5ee4d987779b6d610fcea8ccb6f32d6241c912df88d73200e40e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-57c7b72cb6ac3723b6d7/KMReader-Kindle-0.3.1-source.zip"
+        },
+        {
+          "id": 718463708,
+          "name": "KMReader-Kindle-0.3.1-windows-x64.zip",
+          "size": 69305156,
+          "digest": "sha256:f80f9ea50561184d23e0097edac6b61928b4338ce9e198da7f06ebd81e26cca5",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-57c7b72cb6ac3723b6d7/KMReader-Kindle-0.3.1-windows-x64.zip"
+        },
+        {
+          "id": 718463707,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:c1b8874dd950f73e85c612b034d4ef5539264b98e4d48a6d5f8ae21b8bc6152f",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-57c7b72cb6ac3723b6d7/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436936002,
+      "tag_name": "kindle-personal-prototype-v0.3.0",
+      "target_commitish": "ce8f83d3f69e5b334ad2e8fd2d2a3f804263a2bb",
+      "name": "KMReader Kindle personale 0.3.0 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-54b44c68c2dab173fc0b",
+      "created_at": "2026-11-06T19:53:14Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 718365664,
+          "name": "KMReader-Kindle-0.3.0-source.zip",
+          "size": 344849,
+          "digest": "sha256:fd66bdf83ac1005fcdcba05b63a52c8c0428c8c0b993694184cbbdedbf33110f",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-54b44c68c2dab173fc0b/KMReader-Kindle-0.3.0-source.zip"
+        },
+        {
+          "id": 718365658,
+          "name": "KMReader-Kindle-0.3.0-windows-x64.zip",
+          "size": 69301623,
+          "digest": "sha256:ff4ed9af2a7ccb221ee5ed73bf20f5ae1fbbe13a875fec5da5a2b373dc2e12fa",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-54b44c68c2dab173fc0b/KMReader-Kindle-0.3.0-windows-x64.zip"
+        },
+        {
+          "id": 718365662,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:1150549d1e649bd3c1eb706d01eca25e1057f5312fc263515c2539b9c9f96efd",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-54b44c68c2dab173fc0b/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436814913,
+      "tag_name": "kindle-personal-prototype-v0.2.3",
+      "target_commitish": "49b9366ea5299767f62101aa4747fcfe2ce60822",
+      "name": "KMReader Kindle personale 0.2.3 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-425498b5974666574bf1",
+      "created_at": "2026-11-06T17:51:45Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 718019287,
+          "name": "KMReader-Kindle-0.2.3-source.zip",
+          "size": 340561,
+          "digest": "sha256:2926af2d04144c897a86660d58686fab678862ca9ae19f971f0132f74947b8ff",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-425498b5974666574bf1/KMReader-Kindle-0.2.3-source.zip"
+        },
+        {
+          "id": 718019286,
+          "name": "KMReader-Kindle-0.2.3-windows-x64.zip",
+          "size": 69291243,
+          "digest": "sha256:b7847040381215bc7b16b101f03b0b6e7e844b26bd0f060d74e9742e2facabaf",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-425498b5974666574bf1/KMReader-Kindle-0.2.3-windows-x64.zip"
+        },
+        {
+          "id": 718019280,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:92082f1a811162358a35b6b8924f8d4b88f35d3e1de8a7fa02e7a8f4d7ef0f6c",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-425498b5974666574bf1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436800581,
+      "tag_name": "kindle-personal-prototype-v0.2.2",
+      "target_commitish": "02e8fe5209943e3bfaad933530141edb5f3aa036",
+      "name": "KMReader Kindle personale 0.2.2 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-1aa8d0d1ead39a9b562b",
+      "created_at": "2026-11-06T17:36:17Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 717972575,
+          "name": "KMReader-Kindle-0.2.2-source.zip",
+          "size": 340276,
+          "digest": "sha256:5d8858c4699c24b3b392b5f520095b7e10899243226c06b35025a5c4a2c7b8ce",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-1aa8d0d1ead39a9b562b/KMReader-Kindle-0.2.2-source.zip"
+        },
+        {
+          "id": 717972569,
+          "name": "KMReader-Kindle-0.2.2-windows-x64.zip",
+          "size": 69290553,
+          "digest": "sha256:75a6658424f037588d5174c1c74ecf600a6ade3900dbc1551db2f7ead2935e8b",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-1aa8d0d1ead39a9b562b/KMReader-Kindle-0.2.2-windows-x64.zip"
+        },
+        {
+          "id": 717972571,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:86eebb2582544767429d9aa239ceaf053331d895ff2f6adbdff4ceef0dc34bd4",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-1aa8d0d1ead39a9b562b/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436795699,
+      "tag_name": "kindle-personal-prototype-v0.2.1",
+      "target_commitish": "7464fe219a9a1955c1a07c8db5a16a0778954fc3",
+      "name": "KMReader Kindle personale 0.2.1 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-a94689793989a5842877",
+      "created_at": "2026-11-06T17:31:07Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 717956877,
+          "name": "KMReader-Kindle-0.2.1-source.zip",
+          "size": 340011,
+          "digest": "sha256:06901119d352f454d618e7a1921ae5e19ec8127246e0e8b9433d668a5cc8eecb",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-a94689793989a5842877/KMReader-Kindle-0.2.1-source.zip"
+        },
+        {
+          "id": 717956876,
+          "name": "KMReader-Kindle-0.2.1-windows-x64.zip",
+          "size": 69289251,
+          "digest": "sha256:8b1f8aefec0ce08232e0d619147581438274d36b0743b3d8411bb18d8ab3208d",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-a94689793989a5842877/KMReader-Kindle-0.2.1-windows-x64.zip"
+        },
+        {
+          "id": 717956880,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:135ecec462209a0e203e60b0300d407f2c37c1ff5febb3d5df8f3022a728d841",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-a94689793989a5842877/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436781840,
+      "tag_name": "kindle-personal-prototype-v0.2.0",
+      "target_commitish": "76d58bbd621c3925c5055a8b7036aa885e03d7df",
+      "name": "KMReader Kindle personale 0.2.0 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-c2e740cb7bebcaa17976",
+      "created_at": "2026-11-06T17:16:43Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 717915906,
+          "name": "KMReader-Kindle-0.2.0-source.zip",
+          "size": 339611,
+          "digest": "sha256:ded37ffd009421d4a2efaa587fd06b452eee0ee2bf538195e88cabffb3831f3a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-c2e740cb7bebcaa17976/KMReader-Kindle-0.2.0-source.zip"
+        },
+        {
+          "id": 717915905,
+          "name": "KMReader-Kindle-0.2.0-windows-x64.zip",
+          "size": 69290039,
+          "digest": "sha256:efafc0a951149eb8c1304658048970bf32ff450b1c34e6859395c173aca0bbbc",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-c2e740cb7bebcaa17976/KMReader-Kindle-0.2.0-windows-x64.zip"
+        },
+        {
+          "id": 717915908,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:5dc2f231a5c2c82e50a1c812bd3c3a7d18bb5491e70b7e395bc1d259f906696e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-c2e740cb7bebcaa17976/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436683731,
+      "tag_name": "kindle-personal-prototype-v0.1.6",
+      "target_commitish": "b432342d0f49d17e50c3996ecdc19185c3fed8df",
+      "name": "KMReader Kindle personale 0.1.6 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-876d6ecfa5561f4ccf38",
+      "created_at": "2026-11-06T15:43:03Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 717640292,
+          "name": "KMReader-Kindle-0.1.6-source.zip",
+          "size": 328580,
+          "digest": "sha256:a2ab796c475f8c71929505933128b2f568175a3fd5362e66f2e00df19defcf49",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-876d6ecfa5561f4ccf38/KMReader-Kindle-0.1.6-source.zip"
+        },
+        {
+          "id": 717640299,
+          "name": "KMReader-Kindle-0.1.6-windows-x64.zip",
+          "size": 69284181,
+          "digest": "sha256:06087866d781715dcba08b89ef0d7232f9d369d88a7c1aba573cc4d7c2f16059",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-876d6ecfa5561f4ccf38/KMReader-Kindle-0.1.6-windows-x64.zip"
+        },
+        {
+          "id": 717640293,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:a955670cb964ea1b5cf5df23389ea79f2e9cdd39df3d46ffe97d983324b73401",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-876d6ecfa5561f4ccf38/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436668001,
+      "tag_name": "kindle-personal-prototype-v0.1.5",
+      "target_commitish": "55e74e9d0de3192bff96b5b83631be01c9d3a1da",
+      "name": "KMReader Kindle personale 0.1.5 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e7808e832ca2d378031a",
+      "created_at": "2026-11-06T15:33:05Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 717612387,
+          "name": "KMReader-Kindle-0.1.5-source.zip",
+          "size": 326795,
+          "digest": "sha256:67ca05b95f56dc7a04fdd2f6d638c3841351438eb5030fd11468a73fed249051",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-e7808e832ca2d378031a/KMReader-Kindle-0.1.5-source.zip"
+        },
+        {
+          "id": 717612379,
+          "name": "KMReader-Kindle-0.1.5-windows-x64.zip",
+          "size": 69282428,
+          "digest": "sha256:448901d7e81d7888167422bd1b2f7a8d6497adb0f16c5a8faf14e944d0e3823a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-e7808e832ca2d378031a/KMReader-Kindle-0.1.5-windows-x64.zip"
+        },
+        {
+          "id": 717612380,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:46c29da1d3198fc670a3e9165b5579d46bf10adc8fa093af8fbe22300aa25706",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-e7808e832ca2d378031a/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436510192,
+      "tag_name": "kindle-personal-prototype-v0.1.4",
+      "target_commitish": "f506c88f5f2f426f99925fc0aa53c338c978396c",
+      "name": "KMReader Kindle personale 0.1.4 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-6ec5447e36aceb9aa6f5",
+      "created_at": "2026-11-06T13:05:09Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 717202051,
+          "name": "KMReader-Kindle-0.1.4-source.zip",
+          "size": 314512,
+          "digest": "sha256:f2ba3dda5c612cdb97dd80827d8649480872392d9e22b105be72950f1c646e65",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-6ec5447e36aceb9aa6f5/KMReader-Kindle-0.1.4-source.zip"
+        },
+        {
+          "id": 717202049,
+          "name": "KMReader-Kindle-0.1.4-windows-x64.zip",
+          "size": 69257379,
+          "digest": "sha256:711df4d5aa4f648b567421a43765f7f572d0e7d74e180bde4fe1a3c17f440bb2",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-6ec5447e36aceb9aa6f5/KMReader-Kindle-0.1.4-windows-x64.zip"
+        },
+        {
+          "id": 717202050,
+          "name": "SHA256SUMS.txt",
+          "size": 205,
+          "digest": "sha256:11bca2f81ab69c4a0a8f46e1c27d9feb906b5b199f76fb5137dcee941a29fb23",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-6ec5447e36aceb9aa6f5/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436477950,
+      "tag_name": "kindle-personal-prototype-v0.1.3",
+      "target_commitish": "bce44a941da6543899b77e2347fa06cfd964acd2",
+      "name": "KMReader Kindle personale 0.1.3 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-50723a2a9530b5d250a0",
+      "created_at": "2026-11-06T12:31:00Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 717108048,
+          "name": "KMReader-Kindle-0.1.3-windows-x64.zip",
+          "size": 54952646,
+          "digest": "sha256:b6f65730468379f36e5c4504175c2ce5b4467a007cd2105b5efa7f3554947a5d",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-50723a2a9530b5d250a0/KMReader-Kindle-0.1.3-windows-x64.zip"
+        },
+        {
+          "id": 717108044,
+          "name": "SHA256SUMS.txt",
+          "size": 105,
+          "digest": "sha256:bbc0604e6c5b8976c8e38c0cd5e3a64832d1b9c8fb8f2fd87a7e467d59f3f5fe",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-50723a2a9530b5d250a0/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436431592,
+      "tag_name": "kindle-personal-prototype-v0.1.2",
+      "target_commitish": "ad2819812250c1878c5d41a3d90c5ea6b8df1e6a",
+      "name": "KMReader Kindle personale 0.1.2 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-ec4549deaa9479e09508",
+      "created_at": "2026-11-06T11:39:52Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 716967718,
+          "name": "KMReader-Kindle-0.1.2-windows-x64.zip",
+          "size": 54948771,
+          "digest": "sha256:2059c132ef1bfd1ecdafadeac969748a586eb6ff7e4d1680227aa644222e218c",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-ec4549deaa9479e09508/KMReader-Kindle-0.1.2-windows-x64.zip"
+        },
+        {
+          "id": 716967717,
+          "name": "SHA256SUMS.txt",
+          "size": 105,
+          "digest": "sha256:eceff479a6acdb450f4f45d3fea309881ca3434dcc1841e5457222f5d40924f1",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-ec4549deaa9479e09508/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 436370928,
+      "tag_name": "kindle-personal-prototype-v0.1.1",
+      "target_commitish": "41ec50fd596723a68f7e1ac960cfffc7030d1b09",
+      "name": "KMReader Kindle personale 0.1.1 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-685d38f3fcc10396e146",
+      "created_at": "2026-11-06T10:34:10Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 716791648,
+          "name": "KMReader-Kindle-0.1.1-windows-x64.zip",
+          "size": 54945426,
+          "digest": "sha256:933c18d1cacc7cbdd78a72307c577770906eef87830493d2d1cd2f09388e905e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-685d38f3fcc10396e146/KMReader-Kindle-0.1.1-windows-x64.zip"
+        },
+        {
+          "id": 716791650,
+          "name": "SHA256SUMS.txt",
+          "size": 105,
+          "digest": "sha256:ffd879a615501672d3d2b64e0624cfe365ff95ad3a63dad82da8fcdc0954d582",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-685d38f3fcc10396e146/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 434372702,
+      "tag_name": "v0.8.17-epub-candidate.1",
+      "target_commitish": "23f410c2175d307585fa47b84e83f36be543648d",
+      "name": "KMReader 0.8.17 — curl opaco nelle doppie pagine",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-7529aafbd0219164d203",
+      "created_at": "2026-11-04T19:45:37Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 710700515,
+          "name": "KMReader-0.8.17-android-arm64-preview.apk",
+          "size": 77644590,
+          "digest": "sha256:890f66d0c909853674ed381fd923e544870ae03b22dd783ac0254c848d4e83eb",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-7529aafbd0219164d203/KMReader-0.8.17-android-arm64-preview.apk"
+        },
+        {
+          "id": 710700517,
+          "name": "KMReader-0.8.17-android-armv7-preview.apk",
+          "size": 64010880,
+          "digest": "sha256:1047490c54b43b4632306e76c1d51fe3758b949a296435d74984df0f7bc0c73e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-7529aafbd0219164d203/KMReader-0.8.17-android-armv7-preview.apk"
+        },
+        {
+          "id": 710700514,
+          "name": "KMReader-0.8.17-android-x64-preview.apk",
+          "size": 83945971,
+          "digest": "sha256:421eb98716ac578e3770e669ed9237b974d3b9136ac7f967bfc2ca7f6aceb861",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-7529aafbd0219164d203/KMReader-0.8.17-android-x64-preview.apk"
+        },
+        {
+          "id": 710700516,
+          "name": "KMReader-0.8.17-windows-x64-preview.zip",
+          "size": 34464980,
+          "digest": "sha256:f0070d235e4fbfb1c7adc2abe485064e38a0e5ec3e1af4b23976ba11ceef2d9b",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-7529aafbd0219164d203/KMReader-0.8.17-windows-x64-preview.zip"
+        },
+        {
+          "id": 710700518,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:243e98ffcd03e21d0edc247ee9ddd38122fc56269ae56ed68691169d30f24606",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-7529aafbd0219164d203/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 433971353,
+      "tag_name": "v0.8.16-epub-candidate.1",
+      "target_commitish": "d4c495e39ae83cd9701b4576b9987b2ede850503",
+      "name": "KMReader 0.8.16 — EPUB: testo e avvio delle animazioni",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-8150b0e5b1326d4017c6",
+      "created_at": "2026-11-04T13:37:43Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 709648614,
+          "name": "KMReader-0.8.16-android-arm64-preview.apk",
+          "size": 77644590,
+          "digest": "sha256:b49cec310891c80237a2b9704c42e63dce41e2c87eef6bad7483c639b401e55a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8150b0e5b1326d4017c6/KMReader-0.8.16-android-arm64-preview.apk"
+        },
+        {
+          "id": 709648617,
+          "name": "KMReader-0.8.16-android-armv7-preview.apk",
+          "size": 64010880,
+          "digest": "sha256:3453ac99c4d76e79ee39f259e6f8882a7e2e5b4acb31a27f3eb2c6dbf9fd9db9",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8150b0e5b1326d4017c6/KMReader-0.8.16-android-armv7-preview.apk"
+        },
+        {
+          "id": 709648611,
+          "name": "KMReader-0.8.16-android-x64-preview.apk",
+          "size": 83945971,
+          "digest": "sha256:50580b323689c625cd673ac94fe2f7e04a9650690853a43120b7cf6d78e6fcd4",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8150b0e5b1326d4017c6/KMReader-0.8.16-android-x64-preview.apk"
+        },
+        {
+          "id": 709648609,
+          "name": "KMReader-0.8.16-windows-x64-preview.zip",
+          "size": 34464787,
+          "digest": "sha256:77e9a16ce6425e10650e1ab08b723abf678e8b7fec46c216d00a5382da00a18f",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8150b0e5b1326d4017c6/KMReader-0.8.16-windows-x64-preview.zip"
+        },
+        {
+          "id": 709648615,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:4690270d59522e3ca5b524217fb33fb5f7a60a8a8c3b5d348b7f42fcb7264740",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-8150b0e5b1326d4017c6/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 433794574,
+      "tag_name": "v0.8.15-epub-candidate.1",
+      "target_commitish": "0d42ce3da7ce719b59faca4a6a813626551d3b24",
+      "name": "KMReader 0.8.15 - curl fumetti e barra inferiore",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-52714c5c6b72fd1014e6",
+      "created_at": "2026-11-04T10:44:34Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 709145848,
+          "name": "KMReader-0.8.15-android-arm64-preview.apk",
+          "size": 77642910,
+          "digest": "sha256:0e7ecc7baedd4dd2676283e7981412d9e6c856239a7de0090b215a7e5bc08be6",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-52714c5c6b72fd1014e6/KMReader-0.8.15-android-arm64-preview.apk"
+        },
+        {
+          "id": 709145836,
+          "name": "KMReader-0.8.15-android-armv7-preview.apk",
+          "size": 64009200,
+          "digest": "sha256:dc0c5f6c849db36cfed7008d3fd386f70b50bf6a64bbcd22b95351356735ee7e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-52714c5c6b72fd1014e6/KMReader-0.8.15-android-armv7-preview.apk"
+        },
+        {
+          "id": 709145872,
+          "name": "KMReader-0.8.15-android-x64-preview.apk",
+          "size": 83944291,
+          "digest": "sha256:7edbcede13a8fa6babd2b5f18245f1eb19f415699638b4d246561ad8f8ba0c07",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-52714c5c6b72fd1014e6/KMReader-0.8.15-android-x64-preview.apk"
+        },
+        {
+          "id": 709145850,
+          "name": "KMReader-0.8.15-windows-x64-preview.zip",
+          "size": 34463086,
+          "digest": "sha256:1bd9348c08366676dcb1e4c67b1639db3aef3085e9a3deda31a5c22eb521c930",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-52714c5c6b72fd1014e6/KMReader-0.8.15-windows-x64-preview.zip"
+        },
+        {
+          "id": 709146101,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:5b901bb55ee15f033f451a14b9a237c81804545bd4d8c71de35ffdf0109c89f9",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-52714c5c6b72fd1014e6/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 433704193,
+      "tag_name": "v0.8.14-epub-candidate.1",
+      "target_commitish": "05ec4772dbddf5c50fa3d555353e2ed887624df6",
+      "name": "KMReader 0.8.14 - correzioni EPUB e curl",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-ac014fa343dbd9a6d5da",
+      "created_at": "2026-11-04T08:52:20Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 708871464,
+          "name": "KMReader-0.8.14-android-arm64-preview.apk",
+          "size": 77642906,
+          "digest": "sha256:bd415944613f8ac009dd174956688806508b5bf9019acfba3b087ee9d4a1bb15",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-ac014fa343dbd9a6d5da/KMReader-0.8.14-android-arm64-preview.apk"
+        },
+        {
+          "id": 708871463,
+          "name": "KMReader-0.8.14-android-armv7-preview.apk",
+          "size": 64009196,
+          "digest": "sha256:3ff6d4c4cc7252f56fefccc64328fe7bfe919ad5062a97e39b393789bd1d169a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-ac014fa343dbd9a6d5da/KMReader-0.8.14-android-armv7-preview.apk"
+        },
+        {
+          "id": 708871462,
+          "name": "KMReader-0.8.14-android-x64-preview.apk",
+          "size": 83944287,
+          "digest": "sha256:3a863802f8cfc6acc88dcae5b30965fc4eac18f068142d4d47efa36975313396",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-ac014fa343dbd9a6d5da/KMReader-0.8.14-android-x64-preview.apk"
+        },
+        {
+          "id": 708871466,
+          "name": "KMReader-0.8.14-windows-x64-preview.zip",
+          "size": 34460173,
+          "digest": "sha256:85e854fef4ad1e5cf28b4e0bf8406a516ada66f99d9ddd78c64550ff31a6b196",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-ac014fa343dbd9a6d5da/KMReader-0.8.14-windows-x64-preview.zip"
+        },
+        {
+          "id": 708871465,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:c155f7f13fca563feeeddc1c19ef635a4ee4f206f5c5e816ca61914d9c27f3a1",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-ac014fa343dbd9a6d5da/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 433352108,
+      "tag_name": "v0.8.13-epub-candidate.1",
+      "target_commitish": "8b84da08f5853e03ea40e5b244958795f1326c41",
+      "name": "KMReader 0.8.13 - build per verifica EPUB",
+      "draft": true,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-db93647cfa982d5d6da6",
+      "created_at": "2026-11-04T00:02:13Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 707591698,
+          "name": "KMReader-0.8.13-android-arm64-preview.apk",
+          "size": 77641906,
+          "digest": "sha256:431892f58f3c4350554a094a7c49043089a4008c5186e64c43e079c972591546",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-db93647cfa982d5d6da6/KMReader-0.8.13-android-arm64-preview.apk"
+        },
+        {
+          "id": 707591699,
+          "name": "KMReader-0.8.13-android-armv7-preview.apk",
+          "size": 64008196,
+          "digest": "sha256:e1117aa5f919899c0febd3a4330a21b1fe2228ffe0a9b691aa2593b38caf734e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-db93647cfa982d5d6da6/KMReader-0.8.13-android-armv7-preview.apk"
+        },
+        {
+          "id": 707591702,
+          "name": "KMReader-0.8.13-android-x64-preview.apk",
+          "size": 83943287,
+          "digest": "sha256:6cc5979a774e807b5cf407efb4b2086e552ca8530149d60d08f0786bb30d3bd5",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-db93647cfa982d5d6da6/KMReader-0.8.13-android-x64-preview.apk"
+        },
+        {
+          "id": 707591706,
+          "name": "KMReader-0.8.13-windows-x64-preview.zip",
+          "size": 34454973,
+          "digest": "sha256:d67dd81cd322df1986a8f1fabe92a94104aa4d1a5a67d3926af39a169f1b6669",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-db93647cfa982d5d6da6/KMReader-0.8.13-windows-x64-preview.zip"
+        },
+        {
+          "id": 707591708,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:ed23e257e3088cafe876defaff90a1ea316a7d7d618d91403ca5de4d67985284",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-db93647cfa982d5d6da6/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 434522862,
+      "tag_name": "kindle-personal-prototype-v0.1.0",
+      "target_commitish": "c13b43d915855b1d45d77b0ec4c7fa255e1d0360",
+      "name": "KMReader Kindle personale 0.1.0 — Amazon.it",
+      "draft": true,
+      "prerelease": false,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-144a8ed3c4041506f2a9",
+      "created_at": "2026-11-04T22:23:31Z",
+      "published_at": null,
+      "action": "retain",
+      "assets": [
+        {
+          "id": 711154725,
+          "name": "KMReader-Kindle-0.1.0-windows-x64.zip",
+          "size": 54935660,
+          "digest": "sha256:a679a1df28af25ea5a882cc5658440d1aebf102f165e2cb0e472a426f8e08270",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-144a8ed3c4041506f2a9/KMReader-Kindle-0.1.0-windows-x64.zip"
+        },
+        {
+          "id": 711154727,
+          "name": "SHA256SUMS.txt",
+          "size": 105,
+          "digest": "sha256:287bc01fbcf395ef59c713cc7823d98e3d5282d898196bd5ab33e5b189a216b4",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/untagged-144a8ed3c4041506f2a9/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 432509571,
+      "tag_name": "v0.8.12-preview.1",
+      "target_commitish": "da6545fe21941f036db784b5538ed85aaad2c88d",
+      "name": "KMReader 0.8.12 Preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1",
+      "created_at": "2026-11-03T10:22:34Z",
+      "published_at": "2026-11-03T10:43:09Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 705237953,
+          "name": "KMReader-0.8.12-android-arm64-preview.apk",
+          "size": 77637646,
+          "digest": "sha256:eb75b7e661bc06f2b46e185ae5ff40bc88fa95278381fe8b8c4d2b688df38499",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-android-arm64-preview.apk"
+        },
+        {
+          "id": 705237943,
+          "name": "KMReader-0.8.12-android-armv7-preview.apk",
+          "size": 64003936,
+          "digest": "sha256:dd4d6d467fe6b5bbf669b70082aac4232ae186c32c4ab4deeecde3084075bdbd",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-android-armv7-preview.apk"
+        },
+        {
+          "id": 705237951,
+          "name": "KMReader-0.8.12-android-x64-preview.apk",
+          "size": 83939027,
+          "digest": "sha256:8b90ea3019ff498094d18fa2b82ae914e92a61d6a76855a7f7667269e1ec5335",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-android-x64-preview.apk"
+        },
+        {
+          "id": 705237948,
+          "name": "KMReader-0.8.12-windows-x64-preview.zip",
+          "size": 34451673,
+          "digest": "sha256:679d197f38a4251d23c76af8075055d219c6a9e1df6ca351b465f85fc35241e3",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/KMReader-0.8.12-windows-x64-preview.zip"
+        },
+        {
+          "id": 705237941,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:1ecb22e284323742b33e2d8aa870b8fdb5163f4bfa8e62cdd2459d92fb40e9d9",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.12-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 432099538,
+      "tag_name": "v0.8.11-preview.1",
+      "target_commitish": "f4f0d806d83471c3cecf61cfdf9bb3f17132bb04",
+      "name": "KMReader Port 0.8.11 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.11-preview.1",
+      "created_at": "2026-11-02T23:40:50Z",
+      "published_at": "2026-11-03T00:01:57Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 703620314,
+          "name": "KMReader-0.8.11-android-arm64-preview.apk",
+          "size": 77635170,
+          "digest": "sha256:378462f3229195e92eb76e45eff26ea20feb2e22c79c9788657dfc87fea103b6",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-android-arm64-preview.apk"
+        },
+        {
+          "id": 703620311,
+          "name": "KMReader-0.8.11-android-armv7-preview.apk",
+          "size": 64001460,
+          "digest": "sha256:f4e0047c39312992c542ffb5ba26c6effb18a65cd4497967e4735530aa691796",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-android-armv7-preview.apk"
+        },
+        {
+          "id": 703620313,
+          "name": "KMReader-0.8.11-android-x64-preview.apk",
+          "size": 83936551,
+          "digest": "sha256:177c47f8649aa0261843b097d0c79d715ec1365e156dc23aef5b2ced3e94ecb2",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-android-x64-preview.apk"
+        },
+        {
+          "id": 703620315,
+          "name": "KMReader-0.8.11-windows-x64-preview.zip",
+          "size": 34449588,
+          "digest": "sha256:ea0cedc07546bfdf879d9e3a9e45d95c44244610fb88b9b698c37f97b72b6ee7",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/KMReader-0.8.11-windows-x64-preview.zip"
+        },
+        {
+          "id": 703620316,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:0b5443c269f54e3328b334b3fb8d4790727c11411bfce1f30ec3fc3a4128a666",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.11-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 431932223,
+      "tag_name": "v0.8.10-preview.1",
+      "target_commitish": "22b3d13541257da7b91952267494e58664e6427d",
+      "name": "KMReader Port 0.8.10 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.10-preview.1",
+      "created_at": "2026-11-02T16:31:27Z",
+      "published_at": "2026-11-02T20:26:25Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 703074456,
+          "name": "KMReader-0.8.10-android-arm64-preview.apk",
+          "size": 77635170,
+          "digest": "sha256:00a6b6a71d558a143466032da3070a538290021d32c037c647cda0679d8dd29e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-android-arm64-preview.apk"
+        },
+        {
+          "id": 703074471,
+          "name": "KMReader-0.8.10-android-armv7-preview.apk",
+          "size": 64001460,
+          "digest": "sha256:245996ca68eaaa18d288259bb44b0e7c9d107d8040a5b53fc1041be06c106087",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-android-armv7-preview.apk"
+        },
+        {
+          "id": 703074459,
+          "name": "KMReader-0.8.10-android-x64-preview.apk",
+          "size": 83936551,
+          "digest": "sha256:d78ee0753ee090ff8127db22243d00c884449878e604594a5b5ac2b0203afd8d",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-android-x64-preview.apk"
+        },
+        {
+          "id": 703074466,
+          "name": "KMReader-0.8.10-windows-x64-preview.zip",
+          "size": 34448821,
+          "digest": "sha256:20e6cd7c9480b4e9abd8cfa6225b2bd2e9b084ab3ca1e2737ab7e9e73f6f4f87",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/KMReader-0.8.10-windows-x64-preview.zip"
+        },
+        {
+          "id": 703074462,
+          "name": "SHA256SUMS.txt",
+          "size": 428,
+          "digest": "sha256:ce2ae0e42a4719cd4d16442d3d8d451a688a62d10d68bc7c0993697cea69ebbb",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.10-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 431379490,
+      "tag_name": "v0.8.9-preview.1",
+      "target_commitish": "bc785e1f6b1f541473f2ea8b1deda1fd6f7856e5",
+      "name": "KMReader Port 0.8.9 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.9-preview.1",
+      "created_at": "2026-11-02T11:06:09Z",
+      "published_at": "2026-11-02T11:27:40Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 701523217,
+          "name": "KMReader-0.8.9-android-arm64-preview.apk",
+          "size": 77634570,
+          "digest": "sha256:2924478851e7732ff25f5785b5201a88cf0755c74be6aeb5d5a4807e7caf6694",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-android-arm64-preview.apk"
+        },
+        {
+          "id": 701523225,
+          "name": "KMReader-0.8.9-android-armv7-preview.apk",
+          "size": 63984476,
+          "digest": "sha256:2c182f038f2318836689f430749e30ca1da925424dace566a382c2146078f971",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-android-armv7-preview.apk"
+        },
+        {
+          "id": 701523223,
+          "name": "KMReader-0.8.9-android-x64-preview.apk",
+          "size": 83870415,
+          "digest": "sha256:03268afee2f743d7d184878b16adeadf9273d458f8d414ec0520a7672c2cb377",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-android-x64-preview.apk"
+        },
+        {
+          "id": 701523218,
+          "name": "KMReader-0.8.9-windows-x64-preview.zip",
+          "size": 34444841,
+          "digest": "sha256:19039189c67ffb262231519a5a26a787ad3e8dd3849055a7dac823d69764e318",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/KMReader-0.8.9-windows-x64-preview.zip"
+        },
+        {
+          "id": 701523219,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:0382aafb470186166a4438ebdb16b587b3b0f9f2ddd2f7b4696019250c259714",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.9-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 430817296,
+      "tag_name": "v0.8.8-preview.1",
+      "target_commitish": "82881fda76ecc653e7dc027cced65114d23af040",
+      "name": "KMReader Port 0.8.8 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.8-preview.1",
+      "created_at": "2026-11-01T19:30:06Z",
+      "published_at": "2026-11-01T19:51:09Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 699354382,
+          "name": "KMReader-0.8.8-android-arm64-preview.apk",
+          "size": 77633114,
+          "digest": "sha256:ff02d581a7431b50df323df72d39c49b7cdb7381a0ea8d6b5508095aa5ee3542",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-android-arm64-preview.apk"
+        },
+        {
+          "id": 699354378,
+          "name": "KMReader-0.8.8-android-armv7-preview.apk",
+          "size": 63983020,
+          "digest": "sha256:dcc9283e297c409a90c935820f2f884a9208d0490b29d81f3cde27f3f856c0c2",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-android-armv7-preview.apk"
+        },
+        {
+          "id": 699354379,
+          "name": "KMReader-0.8.8-android-x64-preview.apk",
+          "size": 83868959,
+          "digest": "sha256:aeef69619396043f754028e9a758dcf889c3bfd5924d4f30d370af81fd6be728",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-android-x64-preview.apk"
+        },
+        {
+          "id": 699354377,
+          "name": "KMReader-0.8.8-windows-x64-preview.zip",
+          "size": 34435889,
+          "digest": "sha256:5a2a087495521aa8b77909fb4adc43c094b0a3c845646c2490285206ea36abe8",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/KMReader-0.8.8-windows-x64-preview.zip"
+        },
+        {
+          "id": 699354383,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:7ea37005ce2eb1d5905b334eb17d8547ccbdc9947d4def5559e10e77a6665a6e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.8-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 430679051,
+      "tag_name": "v0.8.7-preview.1",
+      "target_commitish": "20641b8b95e4028587bedb5fdf60be99d655c392",
+      "name": "KMReader Port 0.8.7 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.7-preview.1",
+      "created_at": "2026-11-01T15:21:50Z",
+      "published_at": "2026-11-01T15:42:53Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 698745488,
+          "name": "KMReader-0.8.7-android-arm64-preview.apk",
+          "size": 77633278,
+          "digest": "sha256:68dfc0998f9db346f72d9f748c12cf2447ad5a95a57f2fb1e87aa2f91c72bd53",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-android-arm64-preview.apk"
+        },
+        {
+          "id": 698745485,
+          "name": "KMReader-0.8.7-android-armv7-preview.apk",
+          "size": 63950416,
+          "digest": "sha256:6b76c6543b226d10e46f5fb55ca3a03fb42d263f5442f36410c66a0aad6f4bc7",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-android-armv7-preview.apk"
+        },
+        {
+          "id": 698745486,
+          "name": "KMReader-0.8.7-android-x64-preview.apk",
+          "size": 83869123,
+          "digest": "sha256:77ecbd868670ce904b2a16145e239ba6c4e1c842e7c2070bf6257865abf1f611",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-android-x64-preview.apk"
+        },
+        {
+          "id": 698745483,
+          "name": "KMReader-0.8.7-windows-x64-preview.zip",
+          "size": 34430825,
+          "digest": "sha256:293f94a8d4f71a01dab68d3389b755e1a2699a30ce6285e1a0c6d15d1b8b8a47",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/KMReader-0.8.7-windows-x64-preview.zip"
+        },
+        {
+          "id": 698745487,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:c12f11fbb0c32d10e9f730895c779178373fbab0791d5d4b4d43cdbfcb01a6ef",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.7-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 430302538,
+      "tag_name": "v0.8.6-preview.1",
+      "target_commitish": "3d04cd82715a768f0b05c4ec328b46cfd1a24a6b",
+      "name": "KMReader Port 0.8.6 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.6-preview.1",
+      "created_at": "2026-10-31T13:34:12Z",
+      "published_at": "2026-11-01T01:49:05Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 697028197,
+          "name": "KMReader-0.8.6-android-arm64-preview.apk",
+          "size": 77567362,
+          "digest": "sha256:2a0fc2d5422f583afa0f16c056f85e04adcea40299eea8f9d6a9e20701c08b55",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-android-arm64-preview.apk"
+        },
+        {
+          "id": 697028196,
+          "name": "KMReader-0.8.6-android-armv7-preview.apk",
+          "size": 63900884,
+          "digest": "sha256:fe28aacaae55c7b1b6ef82df67eef7f378643939d3a2d13af571bc6799b26acc",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-android-armv7-preview.apk"
+        },
+        {
+          "id": 697028195,
+          "name": "KMReader-0.8.6-android-x64-preview.apk",
+          "size": 83868743,
+          "digest": "sha256:157bfec8ab449e769ffdc5bb89c43d8b9bd3eaa964b992e17969b2ce520e1cbf",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-android-x64-preview.apk"
+        },
+        {
+          "id": 697028198,
+          "name": "KMReader-0.8.6-windows-x64-preview.zip",
+          "size": 34404220,
+          "digest": "sha256:7d710e5af060a6902c38078344ea2733d838229377a310fb74eb0df02c38f43b",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/KMReader-0.8.6-windows-x64-preview.zip"
+        },
+        {
+          "id": 697028194,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:00cad39f2267d2c8e56c0aa23ece323e01a13844afd09323e166aa46ad7cf7cf",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.6-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 429903382,
+      "tag_name": "v0.8.5-preview.1",
+      "target_commitish": "0628968e2ad2dc80856ae017caf307fa2bdbca7e",
+      "name": "KMReader Port 0.8.5 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.5-preview.1",
+      "created_at": "2026-10-31T11:27:23Z",
+      "published_at": "2026-10-31T11:50:35Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 695248659,
+          "name": "KMReader-0.8.5-android-arm64-preview.apk",
+          "size": 77565814,
+          "digest": "sha256:a2d8b1b82061aeccae76ecb4d207b285dffb97ae46c20732b1627bfe55d86ade",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-android-arm64-preview.apk"
+        },
+        {
+          "id": 695248661,
+          "name": "KMReader-0.8.5-android-armv7-preview.apk",
+          "size": 63882952,
+          "digest": "sha256:2241e90c779446396b9f9f97fc9d2717841e61a043924c1cc4ef326d57f10271",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-android-armv7-preview.apk"
+        },
+        {
+          "id": 695248663,
+          "name": "KMReader-0.8.5-android-x64-preview.apk",
+          "size": 83801659,
+          "digest": "sha256:215d3e7c6fbac32659a3fdd1d6acaac2456c6f3e2b627e2fa11404e128c3d020",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-android-x64-preview.apk"
+        },
+        {
+          "id": 695248662,
+          "name": "KMReader-0.8.5-windows-x64-preview.zip",
+          "size": 34392357,
+          "digest": "sha256:5defa0fa19a8f7b024943fc5a4b7e345245a1e78e29db33a9a795987a755c118",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/KMReader-0.8.5-windows-x64-preview.zip"
+        },
+        {
+          "id": 695248665,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:ea8cd0b5d29c17beea5545b4e772e4d11e8e267efd5b26aba7ab1029759c4f0e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.5-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 429809983,
+      "tag_name": "v0.8.4-preview.1",
+      "target_commitish": "469ea3a6a8f6bd24c31d7c5ca1e3f850ba8a5995",
+      "name": "KMReader Port 0.8.4 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.4-preview.1",
+      "created_at": "2026-10-31T00:34:57Z",
+      "published_at": "2026-10-31T08:25:05Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 694821235,
+          "name": "KMReader-0.8.4-android-arm64-preview.apk",
+          "size": 77560174,
+          "digest": "sha256:ae7dacf896c36411440d2628f2b40b019e804f42ccfa8a84fd075ed25d1b4bcc",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-android-arm64-preview.apk"
+        },
+        {
+          "id": 694821233,
+          "name": "KMReader-0.8.4-android-armv7-preview.apk",
+          "size": 63877312,
+          "digest": "sha256:c905d891adbc576946b05b502981fac4923e5523ff62ef658c1e10a4a0855e42",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-android-armv7-preview.apk"
+        },
+        {
+          "id": 694821229,
+          "name": "KMReader-0.8.4-android-x64-preview.apk",
+          "size": 83796019,
+          "digest": "sha256:518d4f234edfce75d64f40141157fc23ee4c45febb2556b0b6c244466fd9146a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-android-x64-preview.apk"
+        },
+        {
+          "id": 694821234,
+          "name": "KMReader-0.8.4-windows-x64-preview.zip",
+          "size": 34378917,
+          "digest": "sha256:4672fd1a838169e00a9032331812c0e4be85db66213c7e7619c834da5c0be80e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/KMReader-0.8.4-windows-x64-preview.zip"
+        },
+        {
+          "id": 694821236,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:1acdcb87646485d98ccbb372ebb685fb7775436760783c171539a6e2d253ef76",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.4-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 429554262,
+      "tag_name": "v0.8.3-preview.1",
+      "target_commitish": "43bc0e127aa8c7392482817ceacd4115e0980416",
+      "name": "KMReader Port 0.8.3 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.3-preview.1",
+      "created_at": "2026-10-30T22:21:12Z",
+      "published_at": "2026-10-30T22:41:06Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 693637356,
+          "name": "KMReader-0.8.3-android-arm64-preview.apk",
+          "size": 77554182,
+          "digest": "sha256:e7c0820eef0d44cd4d6229453e33da67ac2611505bf3eb31dd6dcf88ee35ac34",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-android-arm64-preview.apk"
+        },
+        {
+          "id": 693637352,
+          "name": "KMReader-0.8.3-android-armv7-preview.apk",
+          "size": 63822168,
+          "digest": "sha256:44c7ad958a958bcbd4a74acc960176e19ff2272053045eb42f7679082ddc503e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-android-armv7-preview.apk"
+        },
+        {
+          "id": 693637357,
+          "name": "KMReader-0.8.3-android-x64-preview.apk",
+          "size": 83790027,
+          "digest": "sha256:b829e36c9ac55662281c95bf4aed553bb4fb45dce82fa1fbd6f58b4cfaf44022",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-android-x64-preview.apk"
+        },
+        {
+          "id": 693637354,
+          "name": "KMReader-0.8.3-windows-x64-preview.zip",
+          "size": 34355985,
+          "digest": "sha256:1465a3d013f5c2e0014e06ef87174302276cbba43338732208e9ab677c8062cd",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/KMReader-0.8.3-windows-x64-preview.zip"
+        },
+        {
+          "id": 693637359,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:ce4b4e991b372ef9a858e98495b566918bfcaad44f30ebf368df46d4a508cfd0",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.3-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 429344950,
+      "tag_name": "v0.8.2-preview.1",
+      "target_commitish": "1bb75274855204c554a48122af281e28b6661670",
+      "name": "KMReader Port 0.8.2 Preview — smooth Windows wheel scrolling",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.2-preview.1",
+      "created_at": "2026-10-30T18:52:35Z",
+      "published_at": "2026-10-30T19:11:37Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 693136403,
+          "name": "KMReader-0.8.2-android-arm64-preview.apk",
+          "size": 77553682,
+          "digest": "sha256:3ce679f2f466f0b00586112354a40436c793fbc4c0c95b18a3367742700cedb1",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-android-arm64-preview.apk"
+        },
+        {
+          "id": 693136401,
+          "name": "KMReader-0.8.2-android-armv7-preview.apk",
+          "size": 63821668,
+          "digest": "sha256:70632b1e4dae4a4c7af5446b966ea6688ebd93ee175ca3014757c3f3233c8720",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-android-armv7-preview.apk"
+        },
+        {
+          "id": 693136404,
+          "name": "KMReader-0.8.2-android-x64-preview.apk",
+          "size": 83789527,
+          "digest": "sha256:ccf368b5373327bd393bb0492ad20bae1af92d3af201fd5336cf1b0b76d6fcc3",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-android-x64-preview.apk"
+        },
+        {
+          "id": 693136399,
+          "name": "KMReader-0.8.2-windows-x64-preview.zip",
+          "size": 34350899,
+          "digest": "sha256:042f6aa32337e58dad06ec64c8ab7d2139eba3014bb8283955def02e77b1024a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/KMReader-0.8.2-windows-x64-preview.zip"
+        },
+        {
+          "id": 693136400,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:a1d9cc4b4906158f0ee30ec5853c8d87998d86449dccf004b969c33f275ff069",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.2-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 428852406,
+      "tag_name": "v0.8.1-preview.1",
+      "target_commitish": "3aaeafc32f13c8b6469806d26d970f86f02ea998",
+      "name": "KMReader 0.8.1 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.1-preview.1",
+      "created_at": "2026-10-30T17:10:10Z",
+      "published_at": "2026-10-30T17:28:25Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 692869151,
+          "name": "KMReader-0.8.1-android-arm64-preview.apk",
+          "size": 77553682,
+          "digest": "sha256:5028ad785c9b2bfce72f3f9ed4b834622de91403d724d557bea896092fc12ae8",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.1-preview.1/KMReader-0.8.1-android-arm64-preview.apk"
+        },
+        {
+          "id": 692869159,
+          "name": "KMReader-0.8.1-android-armv7-preview.apk",
+          "size": 63821668,
+          "digest": "sha256:55ec01e65d28b8c141d7b56dcf422a4f989431ed45ed5a2fd2d748fcbed3060a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.1-preview.1/KMReader-0.8.1-android-armv7-preview.apk"
+        },
+        {
+          "id": 692869155,
+          "name": "KMReader-0.8.1-android-x64-preview.apk",
+          "size": 83789527,
+          "digest": "sha256:dde08748b9f66124224d3bb928d7e749515e05a8c3337d7482d5ea4309c12666",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.1-preview.1/KMReader-0.8.1-android-x64-preview.apk"
+        },
+        {
+          "id": 692869157,
+          "name": "KMReader-0.8.1-windows-x64-preview.zip",
+          "size": 34349764,
+          "digest": "sha256:d91ef78fabd621613bf25ef38ec4ccd3db07eb6c2eec54e4f89d895436f0cfb1",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.1-preview.1/KMReader-0.8.1-windows-x64-preview.zip"
+        },
+        {
+          "id": 692869153,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:b6c2f6b963be9b8668704311b9d905c3b83d5a3a62eb1a2f93c487c94408565a",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.1-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 428271573,
+      "tag_name": "v0.8.0-preview.1",
+      "target_commitish": "eb40fbddb6452ea124f7f17e0a4d72581d0ba55b",
+      "name": "KMReader Port 0.8.0 preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.0-preview.1",
+      "created_at": "2026-10-30T00:22:54Z",
+      "published_at": "2026-10-30T00:42:58Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 690410384,
+          "name": "KMReader-0.8.0-android-arm64-preview.apk",
+          "size": 77552622,
+          "digest": "sha256:f4f950e97bd220d7b622b0075b9efcbf71d3a9289b5cf32c4eab730942a86b84",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.0-preview.1/KMReader-0.8.0-android-arm64-preview.apk"
+        },
+        {
+          "id": 690410390,
+          "name": "KMReader-0.8.0-android-armv7-preview.apk",
+          "size": 63787840,
+          "digest": "sha256:a30988c1afee863cf86a3d10b8a5fcc83234faeacd724a9d177384cb6b24a75d",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.0-preview.1/KMReader-0.8.0-android-armv7-preview.apk"
+        },
+        {
+          "id": 690410388,
+          "name": "KMReader-0.8.0-android-x64-preview.apk",
+          "size": 83788467,
+          "digest": "sha256:7718ce36b56df06ed9b381a89a81f3c20faf15205932b710e60123a87f3a5d6c",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.0-preview.1/KMReader-0.8.0-android-x64-preview.apk"
+        },
+        {
+          "id": 690410389,
+          "name": "KMReader-0.8.0-windows-x64-preview.zip",
+          "size": 34345710,
+          "digest": "sha256:fef07045991e0fa953ac8174cefa7a86d2ffe13d4b30250f5cd103975c617277",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.0-preview.1/KMReader-0.8.0-windows-x64-preview.zip"
+        },
+        {
+          "id": 690410387,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:9fe62f4d5e5f00b4465b75cd1c73ac4574d4adb702c74fb4f0daf76720d809b9",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.8.0-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 428140749,
+      "tag_name": "v0.7.0-preview.1",
+      "target_commitish": "4041b8ca631f4113c6d9f81c8c6fccbc851b4ef8",
+      "name": "KMReader 0.7.0 — Settings preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.7.0-preview.1",
+      "created_at": "2026-10-29T16:51:17Z",
+      "published_at": "2026-10-29T17:11:42Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 689288359,
+          "name": "KMReader-0.7.0-android-arm64-preview.apk",
+          "size": 77355518,
+          "digest": "sha256:67542e2b139709e20a3cff5756d3a203a6637e49f4a69586c43f41f16afaed85",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.7.0-preview.1/KMReader-0.7.0-android-arm64-preview.apk"
+        },
+        {
+          "id": 689288360,
+          "name": "KMReader-0.7.0-android-armv7-preview.apk",
+          "size": 63656272,
+          "digest": "sha256:925dc940ad66faf95476a03b1b5b8e2ba61c568d71a4df5e7d9c5f2255f36eae",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.7.0-preview.1/KMReader-0.7.0-android-armv7-preview.apk"
+        },
+        {
+          "id": 689288363,
+          "name": "KMReader-0.7.0-android-x64-preview.apk",
+          "size": 83591363,
+          "digest": "sha256:e00214cb00bd00ebe3b9ce5150b6686cf31e615cb7a7c87670f9686cf7f94aa6",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.7.0-preview.1/KMReader-0.7.0-android-x64-preview.apk"
+        },
+        {
+          "id": 689288361,
+          "name": "KMReader-0.7.0-windows-x64-preview.zip",
+          "size": 34296829,
+          "digest": "sha256:bd6d40a568b84aef5e7c058f989e847ae08044e1db264f7acd3cc047e4c0f3c6",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.7.0-preview.1/KMReader-0.7.0-windows-x64-preview.zip"
+        },
+        {
+          "id": 689288362,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:0198d7b4dba6a6fd26eb284c319c77a9479e424b39eb36da3d747fb41931eb7d",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.7.0-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 427651354,
+      "tag_name": "v0.6.1-preview.1",
+      "target_commitish": "e94e45ef58d74ead79bcdcf91a58cce03ae9b7f4",
+      "name": "KMReader 0.6.1 Preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.6.1-preview.1",
+      "created_at": "2026-10-29T09:58:01Z",
+      "published_at": "2026-10-29T10:17:02Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 688145675,
+          "name": "KMReader-0.6.1-android-arm64-preview.apk",
+          "size": 76095456,
+          "digest": "sha256:048092f1023c98c034f268f0f63a321303033373ce7649b42a55007ca1a217ae",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.1-preview.1/KMReader-0.6.1-android-arm64-preview.apk"
+        },
+        {
+          "id": 688145674,
+          "name": "KMReader-0.6.1-android-armv7-preview.apk",
+          "size": 62297906,
+          "digest": "sha256:325a67eb0c1d8d6be6729142bcfcadd6d00582bf011dd3e37ae5361a474ab32f",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.1-preview.1/KMReader-0.6.1-android-armv7-preview.apk"
+        },
+        {
+          "id": 688145673,
+          "name": "KMReader-0.6.1-android-x64-preview.apk",
+          "size": 82265765,
+          "digest": "sha256:8a834f81667ca9c9e90f9074924e20306a1e577712bb69700fdd9ff8a7d84ca5",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.1-preview.1/KMReader-0.6.1-android-x64-preview.apk"
+        },
+        {
+          "id": 688145672,
+          "name": "KMReader-0.6.1-windows-x64-preview.zip",
+          "size": 33606087,
+          "digest": "sha256:b80eac325cb2501b35239eeed6653585f2165c73cd1b13cddd3fae562900d325",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.1-preview.1/KMReader-0.6.1-windows-x64-preview.zip"
+        },
+        {
+          "id": 688145670,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:caffd7174ea73255b77f2e98e95d0732549a2b7f21bd844ed5d0c3bde5431c0e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.1-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 427608947,
+      "tag_name": "v0.6.0-preview.1",
+      "target_commitish": "98c42f7ea84d732e7079df795dc26b97caabd0fc",
+      "name": "KMReader 0.6.0 Preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.6.0-preview.1",
+      "created_at": "2026-10-29T08:19:55Z",
+      "published_at": "2026-10-29T08:47:58Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 687921283,
+          "name": "KMReader-0.6.0-android-arm64-preview.apk",
+          "size": 76092697,
+          "digest": "sha256:58aca72e9c7ea441973089636e428c5a78edfc7189a244db920a8b2522fd1e12",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.0-preview.1/KMReader-0.6.0-android-arm64-preview.apk"
+        },
+        {
+          "id": 687921276,
+          "name": "KMReader-0.6.0-android-armv7-preview.apk",
+          "size": 62278763,
+          "digest": "sha256:b3df9d04f5c55e6e10b23b4fa976107dea1799b04c2c666273e6454a7735a212",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.0-preview.1/KMReader-0.6.0-android-armv7-preview.apk"
+        },
+        {
+          "id": 687921279,
+          "name": "KMReader-0.6.0-android-x64-preview.apk",
+          "size": 82263006,
+          "digest": "sha256:c86c8bc2ae79d77aab5e4f8dd2023a3ad1b69e475359bd82159687384be510bc",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.0-preview.1/KMReader-0.6.0-android-x64-preview.apk"
+        },
+        {
+          "id": 687921278,
+          "name": "KMReader-0.6.0-windows-x64-preview.zip",
+          "size": 33602400,
+          "digest": "sha256:651ea0462b55a7428549ab2e07930ac3e7e9dd071bc4d05c8c3952d4dd08a5dc",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.0-preview.1/KMReader-0.6.0-windows-x64-preview.zip"
+        },
+        {
+          "id": 687921277,
+          "name": "SHA256SUMS.txt",
+          "size": 424,
+          "digest": "sha256:638731e01ead443723964f1aa4a37a12b1f22dc7a3e27ae6e4893547adc0901d",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.6.0-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 426082594,
+      "tag_name": "v0.5.0-preview.1",
+      "target_commitish": "d95a360f48d3045dc133458f19f3b539715cd19a",
+      "name": "KMReader 0.5.0 Preview — Notch e lettori",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.5.0-preview.1",
+      "created_at": "2026-10-27T23:45:20Z",
+      "published_at": "2026-10-27T23:59:40Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 683258541,
+          "name": "KMReader-0.5.0-android-preview.apk",
+          "size": 90797216,
+          "digest": "sha256:0243474d3cb0ec756982f2ff40e5858379ee3783a8211cc79eefa825720c9efe",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.5.0-preview.1/KMReader-0.5.0-android-preview.apk"
+        },
+        {
+          "id": 683258537,
+          "name": "KMReader-0.5.0-windows-x64-preview.zip",
+          "size": 19986126,
+          "digest": "sha256:9e4cf92d961d2bc97aa181b428f789e363c7149ec64599cad90877b4ba074aa0",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.5.0-preview.1/KMReader-0.5.0-windows-x64-preview.zip"
+        },
+        {
+          "id": 683258536,
+          "name": "SHA256SUMS.txt",
+          "size": 206,
+          "digest": "sha256:fe4e79c16b252456bebe611ead0d9bf59cc868126afa30734486c3dcc8de2be6",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.5.0-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 425949063,
+      "tag_name": "v0.4.1-preview.1",
+      "target_commitish": "9332ee4bf67fcfa11db645b3941b4c5ae03c15a1",
+      "name": "KMReader 0.4.1 Preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.4.1-preview.1",
+      "created_at": "2026-10-27T20:20:55Z",
+      "published_at": "2026-10-27T20:38:30Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 682807806,
+          "name": "KMReader-0.4.1-android-preview.apk",
+          "size": 90534136,
+          "digest": "sha256:2fba6a5a42b73b636e0af3ac6e7b0f683b5a41556764af49e4c201a18aa8f3bc",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.4.1-preview.1/KMReader-0.4.1-android-preview.apk"
+        },
+        {
+          "id": 682807805,
+          "name": "KMReader-0.4.1-windows-x64-preview.zip",
+          "size": 19967519,
+          "digest": "sha256:be231c0b66545f11733e66972653f1f96c43b99e624999950d5046190ae3ddaa",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.4.1-preview.1/KMReader-0.4.1-windows-x64-preview.zip"
+        },
+        {
+          "id": 682807804,
+          "name": "SHA256SUMS.txt",
+          "size": 206,
+          "digest": "sha256:6934bcb1236ee1f5970ace5cf78fa9e1bcea6715d9e75c21be4acc1aa42f3204",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.4.1-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 425785570,
+      "tag_name": "v0.4.0-preview.1",
+      "target_commitish": "f23eaa42ec5713df1ce4f66d03c0124c9817690e",
+      "name": "KMReader 0.4.0 Preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.4.0-preview.1",
+      "created_at": "2026-10-27T17:47:09Z",
+      "published_at": "2026-10-27T17:58:57Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 682410952,
+          "name": "KMReader-0.4.0-android-preview.apk",
+          "size": 90533968,
+          "digest": "sha256:b3b06a59f52eebfb457aaa0ecdb5c69607c5b9df1b06e1180c520599b2fc9bdf",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.4.0-preview.1/KMReader-0.4.0-android-preview.apk"
+        },
+        {
+          "id": 682410951,
+          "name": "KMReader-0.4.0-windows-x64-preview.zip",
+          "size": 19961165,
+          "digest": "sha256:8064f7b9e6da0c36064874e06cf30eec225e84c612d1508d3663414907aefb5e",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.4.0-preview.1/KMReader-0.4.0-windows-x64-preview.zip"
+        },
+        {
+          "id": 682410949,
+          "name": "SHA256SUMS.txt",
+          "size": 206,
+          "digest": "sha256:cccfea6a2570217c2d0dcb86848cadc60c6076080540d669ead0ddcb9acd3c71",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.4.0-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 425495976,
+      "tag_name": "v0.3.0-preview.1",
+      "target_commitish": "77a5786fb19c173e7925b6a64e5d424ffb843eb3",
+      "name": "KMReader 0.3.0 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.3.0-preview.1",
+      "created_at": "2026-10-27T13:51:40Z",
+      "published_at": "2026-10-27T14:04:05Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 681773620,
+          "name": "KMReader-0.3.0-android-preview.apk",
+          "size": 90320204,
+          "digest": "sha256:496ab8d6c83cff9e390a11771d28c70e9374c24390640fce8ce79eb49d99b3e7",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.3.0-preview.1/KMReader-0.3.0-android-preview.apk"
+        },
+        {
+          "id": 681773617,
+          "name": "KMReader-0.3.0-windows-x64-preview.zip",
+          "size": 19924818,
+          "digest": "sha256:be669e3de514c4830c60770a77e467f3a68442a697951f7c7e2cb951ca96ced2",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.3.0-preview.1/KMReader-0.3.0-windows-x64-preview.zip"
+        },
+        {
+          "id": 681773618,
+          "name": "SHA256SUMS.txt",
+          "size": 206,
+          "digest": "sha256:62f5acda8788af71b537e7e3fc6f94ff96ed31daf17095a0f7b668a1b6756f71",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.3.0-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 425257093,
+      "tag_name": "v0.2.0-preview.1",
+      "target_commitish": "fc5b32be6c613eb936696134cb598b40037f950b",
+      "name": "KMReader 0.2.0 optimized preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.2.0-preview.1",
+      "created_at": "2026-10-27T09:37:09Z",
+      "published_at": "2026-10-27T09:49:18Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 681148939,
+          "name": "KMReader-0.2.0-android-preview.apk",
+          "size": 88332640,
+          "digest": "sha256:174194343bf8a974d0da4cb715b3a6de4a626974eee21043b388d54e344e49b9",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.2.0-preview.1/KMReader-0.2.0-android-preview.apk"
+        },
+        {
+          "id": 681148940,
+          "name": "SHA256SUMS.txt",
+          "size": 101,
+          "digest": "sha256:6fc608e676f28990730c50a1f292455b638864189c7f3e11cc74958bee97b440",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.2.0-preview.1/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 425158766,
+      "tag_name": "v0.1.0-dev.1",
+      "target_commitish": "39988b1c7e279b0c9c76038bd3b5ffa6211e431b",
+      "name": "KMReader 0.1.0 development preview",
+      "draft": false,
+      "prerelease": true,
+      "html_url": "https://github.com/LeValue/KMReader-Porting/releases/tag/v0.1.0-dev.1",
+      "created_at": "2026-10-27T07:54:16Z",
+      "published_at": "2026-10-27T08:05:10Z",
+      "action": "retain",
+      "assets": [
+        {
+          "id": 680893465,
+          "name": "KMReader-0.1.0-android-debug.apk",
+          "size": 198405673,
+          "digest": "sha256:657d84ddbd74d4d6f3bff0ae8c6ffd0c1f5bf978e4f36714d374538e41227303",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.1.0-dev.1/KMReader-0.1.0-android-debug.apk"
+        },
+        {
+          "id": 680893468,
+          "name": "SHA256SUMS.txt",
+          "size": 99,
+          "digest": "sha256:47c9f335467c8631ec3f77828f88085cb5b606ccf1218744b58c2f0dc258dcca",
+          "state": "uploaded",
+          "browser_download_url": "https://github.com/LeValue/KMReader-Porting/releases/download/v0.1.0-dev.1/SHA256SUMS.txt"
+        }
+      ]
+    }
+  ]
+}

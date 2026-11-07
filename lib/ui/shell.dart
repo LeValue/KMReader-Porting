@@ -1,3 +1,4 @@
+import 'shell_navigation.dart';
 import '../features/local/local_library_page.dart';
 
 import 'package:flutter/cupertino.dart';
@@ -26,6 +27,14 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
   final _visited = <int, Widget>{};
+  var _settings = GlobalKey<SettingsPageState>();
+  void _openServers() {
+    setState(() => _index = 4);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _settings.currentState?.openServers();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +62,7 @@ class _AppShellState extends State<AppShell> {
       old.repository.eventNotices.removeListener(_notice);
       widget.repository.eventNotices.addListener(_notice);
       _visited.clear();
+      _settings = GlobalKey<SettingsPageState>();
     }
   }
 
@@ -60,7 +70,6 @@ class _AppShellState extends State<AppShell> {
     'title.dashboard',
     'Library',
     'Lists',
-    'Search',
     'Local Books',
     'Settings',
   ];
@@ -68,7 +77,6 @@ class _AppShellState extends State<AppShell> {
     CupertinoIcons.house,
     CupertinoIcons.book,
     CupertinoIcons.rectangle_stack,
-    CupertinoIcons.search,
     CupertinoIcons.folder,
     CupertinoIcons.gear,
   ];
@@ -84,15 +92,18 @@ class _AppShellState extends State<AppShell> {
         0 => Dashboard(repository: repository),
         1 => _LibraryBrowser(repository: repository),
         2 => _ListsPage(repository: repository),
-        3 => _SearchPage(repository: repository),
-        4 => LocalLibraryPage(app: widget.app),
-        _ => SettingsPage(app: widget.app, repository: repository),
+        3 => LocalLibraryPage(app: widget.app),
+        _ => SettingsPage(
+          key: _settings,
+          app: widget.app,
+          repository: repository,
+        ),
       },
     );
     final content = IndexedStack(
       index: _index,
       children: [
-        for (var i = 0; i < 6; i++)
+        for (var i = 0; i < _labels.length; i++)
           TickerMode(
             enabled: i == _index,
             child: _visited[i] ?? const SizedBox.shrink(),
@@ -100,7 +111,7 @@ class _AppShellState extends State<AppShell> {
       ],
     );
     return Scaffold(
-      appBar: wide || _index == 5
+      appBar: wide || _index == 4
           ? null
           : AppBar(
               title: Text(tr(context, _labels[_index])),
@@ -203,7 +214,7 @@ class _AppShellState extends State<AppShell> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          onTap: () => setState(() => _index = 5),
+                          onTap: _openServers,
                         ),
                       ),
                     ],
@@ -213,7 +224,7 @@ class _AppShellState extends State<AppShell> {
             Expanded(
               child: Column(
                 children: [
-                  if (wide && _index != 5)
+                  if (wide && _index != 4)
                     SizedBox(
                       height: 64,
                       child: Padding(
@@ -270,19 +281,11 @@ class _AppShellState extends State<AppShell> {
       ),
       bottomNavigationBar: wide
           ? null
-          : NavigationBar(
+          : ShellNavigationBar(
               selectedIndex: _index,
-              labelTextStyle: const WidgetStatePropertyAll(
-                TextStyle(fontSize: 11),
-              ),
-              onDestinationSelected: (i) => setState(() => _index = i),
-              destinations: [
-                for (var i = 0; i < _labels.length; i++)
-                  NavigationDestination(
-                    icon: Icon(_icons[i]),
-                    label: tr(context, _labels[i]),
-                  ),
-              ],
+              onSelected: (i) => setState(() => _index = i),
+              labels: [for (final label in _labels) tr(context, label)],
+              icons: _icons,
             ),
     );
   }
@@ -293,12 +296,12 @@ class _LibraryBrowser extends StatelessWidget {
   final Repository repository;
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 3,
+    length: repository.supportsSeries ? 3 : 2,
     child: Column(
       children: [
         TabBar(
           tabs: [
-            Tab(text: tr(context, 'Series')),
+            if (repository.supportsSeries) Tab(text: tr(context, 'Series')),
             Tab(text: tr(context, 'Books')),
             Tab(text: tr(context, 'Libraries')),
           ],
@@ -306,7 +309,8 @@ class _LibraryBrowser extends StatelessWidget {
         Expanded(
           child: TabBarView(
             children: [
-              CatalogPageView(repository: repository),
+              if (repository.supportsSeries)
+                CatalogPageView(repository: repository),
               CatalogPageView(repository: repository, kind: 'books'),
               AsyncPanel<dynamic>(
                 load: () =>
@@ -330,6 +334,9 @@ class _LibraryBrowser extends StatelessWidget {
                               ),
                               body: CatalogPageView(
                                 repository: repository,
+                                kind: repository.supportsSeries
+                                    ? 'series'
+                                    : 'books',
                                 condition: {
                                   'libraryId': {
                                     'operator': 'is',
@@ -356,62 +363,37 @@ class _ListsPage extends StatelessWidget {
   const _ListsPage({required this.repository});
   final Repository repository;
   @override
-  Widget build(BuildContext context) => DefaultTabController(
-    length: 3,
-    child: Column(
-      children: [
-        TabBar(
-          tabs: [
-            Tab(text: tr(context, 'Read Lists')),
-            Tab(text: tr(context, 'Collections')),
-            Tab(text: tr(context, 'Smart Lists')),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
+  Widget build(BuildContext context) => !repository.supportsRemoteLists
+      ? SmartListsPage(repository: repository)
+      : DefaultTabController(
+          length: 3,
+          child: Column(
             children: [
-              CatalogPageView(
-                repository: repository,
-                kind: 'readlists',
-                path: '/api/v1/readlists',
+              TabBar(
+                tabs: [
+                  Tab(text: tr(context, 'Read Lists')),
+                  Tab(text: tr(context, 'Collections')),
+                  Tab(text: tr(context, 'Smart Lists')),
+                ],
               ),
-              CatalogPageView(
-                repository: repository,
-                kind: 'collections',
-                path: '/api/v1/collections',
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    CatalogPageView(
+                      repository: repository,
+                      kind: 'readlists',
+                      path: '/api/v1/readlists',
+                    ),
+                    CatalogPageView(
+                      repository: repository,
+                      kind: 'collections',
+                      path: '/api/v1/collections',
+                    ),
+                    SmartListsPage(repository: repository),
+                  ],
+                ),
               ),
-              SmartListsPage(repository: repository),
             ],
           ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _SearchPage extends StatelessWidget {
-  const _SearchPage({required this.repository});
-  final Repository repository;
-  @override
-  Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
-    child: Column(
-      children: [
-        TabBar(
-          tabs: [
-            Tab(text: tr(context, 'Series')),
-            Tab(text: tr(context, 'Books')),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            children: [
-              CatalogPageView(repository: repository),
-              CatalogPageView(repository: repository, kind: 'books'),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
+        );
 }

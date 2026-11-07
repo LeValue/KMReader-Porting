@@ -251,7 +251,7 @@ class _BookDetail extends StatelessWidget {
                 ],
                 const SizedBox(height: 12),
                 Text(
-                  '${book.pages} ${tr(context, 'Pages')} · ${text(book.json['size'])}',
+                  '${book.pageCountLabel} ${tr(context, 'Pages')} · ${text(book.json['size'])}',
                 ),
                 const SizedBox(height: 20),
                 Wrap(
@@ -357,10 +357,11 @@ class _BookDetail extends StatelessWidget {
                         }
                       },
                       itemBuilder: (_) => [
-                        PopupMenuItem(
-                          value: 'list',
-                          child: Text(tr(context, 'Add to Read List')),
-                        ),
+                        if (repository.supportsRemoteLists)
+                          PopupMenuItem(
+                            value: 'list',
+                            child: Text(tr(context, 'Add to Read List')),
+                          ),
                         PopupMenuItem(
                           value: 'read',
                           child: Text(tr(context, 'Mark as Read')),
@@ -384,7 +385,10 @@ class _BookDetail extends StatelessWidget {
                     child: LinearProgressIndicator(value: book.fraction),
                   ),
                   const SizedBox(height: 8),
-                  Text('${book.page} / ${book.pages} ${tr(context, 'Pages')}'),
+                  if (book.pages > 0)
+                    Text(
+                      '${book.page} / ${book.pageCountLabel} ${tr(context, 'Pages')}',
+                    ),
                 ],
                 if (downloaded?['status'] == 'failed')
                   Padding(

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
@@ -18,6 +19,7 @@ import 'package:kmreader/features/reader/epub_session.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
 import 'package:kmreader/ui/strings.dart';
 import 'package:kmreader/ui/theme.dart';
+import 'package:kmreader/ui/reader_options.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../test/support/epub_fixture.dart';
@@ -76,23 +78,53 @@ void verifyNativeEpubPerformance() {
       return result?.value;
     }
 
+    Future<void> escapeReader() async {
+      // JS dispatch completes before its platform callback. A queued Escape
+      // must finish before the next native fullscreen click; otherwise it can
+      // close the fullscreen state just entered by that later action.
+      await js('''
+        const bridge = window.flutter_inappwebview;
+        const call = bridge.callHandler;
+        let delivered;
+        bridge.callHandler = function(...args) {
+          const result = call.apply(this, args);
+          if (args[0] === 'readerEvent' && args[1]?.type === 'close') delivered = result;
+          return result;
+        };
+        try {
+          document.querySelector('#viewer iframe').contentDocument.dispatchEvent(
+            new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+          if (!delivered) throw Error('Escape did not reach the native bridge');
+          await delivered;
+        } finally { bridge.callHandler = call; }
+        return true;
+      ''');
+    }
+
     Future<dynamic> jsWhilePresenting(String source) async {
-      var finished = false;
-      final reply = controller()!
-          .callAsyncJavaScript(functionBody: source)
-          .timeout(const Duration(seconds: 60))
-          .whenComplete(() => finished = true);
-      // The live test binding only draws requested frames. Keep the real
-      // platform texture consumer active while the browser animates, then
-      // assert outside any guarded pump.
-      final deadline = Stopwatch()..start();
-      while (!finished && deadline.elapsed < const Duration(seconds: 65)) {
-        await tester.pump(const Duration(milliseconds: 16));
-        await Future<void>.delayed(const Duration(milliseconds: 16));
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      final policy = binding.framePolicy;
+      // Functional animation delivery needs the platform texture consumer to
+      // honor native frame requests between explicit test pumps. This scoped
+      // policy is not used to measure production idle frames or device FPS.
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+      try {
+        var finished = false;
+        final reply = controller()!
+            .callAsyncJavaScript(functionBody: source)
+            .timeout(const Duration(seconds: 60))
+            .whenComplete(() => finished = true);
+        final deadline = Stopwatch()..start();
+        while (!finished && deadline.elapsed < const Duration(seconds: 65)) {
+          await tester.pump(const Duration(milliseconds: 16));
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+        }
+        final result = await reply;
+        expect(result?.error, isNull);
+        return result?.value;
+      } finally {
+        binding.framePolicy = policy;
       }
-      final result = await reply;
-      expect(result?.error, isNull);
-      return result?.value;
     }
 
     Future<void> visibleText() async {
@@ -129,7 +161,8 @@ void verifyNativeEpubPerformance() {
         view.markNeedsPaint();
       }
       await tester.pump(const Duration(milliseconds: 100));
-      ui.Image image;
+      late ByteData data;
+      late int imageWidth, imageHeight;
       if (Platform.isAndroid) {
         Uint8List? bytes;
         for (var attempt = 0; attempt < 5; attempt++) {
@@ -152,9 +185,15 @@ void verifyNativeEpubPerformance() {
           }
         }
         expect(bytes, isNotEmpty);
-        final codec = await ui.instantiateImageCodec(bytes!);
-        image = (await codec.getNextFrame()).image;
-        codec.dispose();
+        // PixelCopy has already captured the actual app surface. A Flutter
+        // image decode/readback adds unrelated GPU allocations/blits before
+        // the animation probe, and crashed the physical Mate 20 IO thread.
+        final image = img.decodePng(bytes!)!;
+        imageWidth = image.width;
+        imageHeight = image.height;
+        data = ByteData.sublistView(
+          image.getBytes(order: img.ChannelOrder.rgba),
+        );
       } else {
         final boundary = tester.renderObject<RenderRepaintBoundary>(
           find
@@ -164,42 +203,42 @@ void verifyNativeEpubPerformance() {
               )
               .first,
         );
-        image = await boundary.toImage();
+        final image = await boundary.toImage();
+        try {
+          imageWidth = image.width;
+          imageHeight = image.height;
+          data = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+        } finally {
+          image.dispose();
+        }
       }
-      try {
-        final data = (await image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
-        ))!;
-        var dark = 0, light = 0;
-        // Ignore window controls/bars; the center must contain actual glyphs.
-        for (var y = image.height ~/ 4; y < image.height * 3 ~/ 4; y++) {
-          for (var x = image.width ~/ 4; x < image.width * 3 ~/ 4; x++) {
-            final index = (y * image.width + x) * 4;
-            if (data.getUint8(index) < 120 &&
-                data.getUint8(index + 1) < 120 &&
-                data.getUint8(index + 2) < 120) {
-              dark++;
-            }
-            if (data.getUint8(index) > 180 &&
-                data.getUint8(index + 1) > 180 &&
-                data.getUint8(index + 2) > 160) {
-              light++;
-            }
+      var dark = 0, light = 0;
+      // Ignore window controls/bars; the center must contain actual glyphs.
+      for (var y = imageHeight ~/ 4; y < imageHeight * 3 ~/ 4; y++) {
+        for (var x = imageWidth ~/ 4; x < imageWidth * 3 ~/ 4; x++) {
+          final index = (y * imageWidth + x) * 4;
+          if (data.getUint8(index) < 120 &&
+              data.getUint8(index + 1) < 120 &&
+              data.getUint8(index + 2) < 120) {
+            dark++;
+          }
+          if (data.getUint8(index) > 180 &&
+              data.getUint8(index + 1) > 180 &&
+              data.getUint8(index + 2) > 160) {
+            light++;
           }
         }
-        expect(
-          dark,
-          greaterThan(150),
-          reason: 'The native reader surface must render text, not only report a DOM locator',
-        );
-        expect(
-          light,
-          greaterThan(150),
-          reason: 'A missing black texture must not count as rendered glyphs',
-        );
-      } finally {
-        image.dispose();
       }
+      expect(
+        dark,
+        greaterThan(150),
+        reason: 'The native reader surface must render text, not only report a DOM locator',
+      );
+      expect(
+        light,
+        greaterThan(150),
+        reason: 'A missing black texture must not count as rendered glyphs',
+      );
     }
 
     try {
@@ -244,6 +283,67 @@ void verifyNativeEpubPerformance() {
       }
 
       final initial = await js('return reader.position().start.cfi;');
+      final settingsController = controller();
+      final retainedSize = tester.getSize(find.byType(InAppWebView));
+      await js(
+        '''window.preferenceApplications=0; const applyPreferences=reader.preferences;
+        reader.preferences=(...args)=>{preferenceApplications++;return applyPreferences(...args);};return true;''',
+      );
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Text Settings'));
+      await tester.pumpAndSettle();
+      final hiddenBrowser = find.byType(InAppWebView, skipOffstage: false);
+      expect(hiddenBrowser, findsOneWidget);
+      expect(
+        find.byType(InAppWebView),
+        findsNothing,
+        reason: 'Scrolling settings must not composite the native WebView',
+      );
+      expect(tester.getSize(hiddenBrowser), retainedSize);
+      final settingsList = find.descendant(
+        of: find.byType(ReaderOptionsPanel),
+        matching: find.byType(ListView),
+      );
+      final sizeSlider = find
+          .descendant(
+            of: find.byType(ReaderOptionsPanel),
+            matching: find.byType(Slider),
+          )
+          .first;
+      await tester.ensureVisible(sizeSlider);
+      await tester.drag(sizeSlider, const Offset(60, 0));
+      await tester.pumpAndSettle();
+      expect(
+        await js('return preferenceApplications;'),
+        0,
+        reason: 'Settings input must not queue hidden chapter reflows',
+      );
+      for (var i = 0; i < 3; i++) {
+        await tester.fling(settingsList, const Offset(0, -350), 900);
+        await tester.pumpAndSettle();
+      }
+      expect(controller(), same(settingsController));
+      expect(await js('return reader.position().start.cfi;'), initial);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ReaderOptionsPanel),
+          matching: find.byTooltip('Close'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(InAppWebView), findsOneWidget);
+      expect(controller(), same(settingsController));
+      expect(tester.getSize(find.byType(InAppWebView)), retainedSize);
+      for (var i = 0; i < 60; i++) {
+        if (await js('return preferenceApplications;') == 1) break;
+        await tester.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(await js('return preferenceApplications;'), 1);
+      await jsWhilePresenting('await reader.whenIdle(); return true;');
+      expect(await js('return reader.position().start.cfi;'), initial);
+      await visibleText();
       await js(
         '''window.turnArguments=[]; window.completedTurns=0; const turn=reader.turn;
         reader.turn=async value=>{turnArguments.push(value); await turn(value); completedTurns++; return true;}; return true;''',
@@ -336,9 +436,7 @@ void verifyNativeEpubPerformance() {
           viewportBeforeChrome,
         );
         await visibleText();
-        await js(
-          "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
-        );
+        await escapeReader();
         await waitFor(() => find.byTooltip('Next Page').evaluate().isNotEmpty);
         if (Platform.isWindows) {
           await tester.tap(find.byTooltip('Full Screen'));
@@ -356,9 +454,7 @@ void verifyNativeEpubPerformance() {
         }
         expect(identical(controller(), retainedController), true);
         await visibleText();
-        await js(
-          "document.querySelector('#viewer iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;",
-        );
+        await escapeReader();
         await waitFor(() => find.byTooltip('Next Page').evaluate().isNotEmpty);
         if (Platform.isWindows) {
           expect(
@@ -378,7 +474,7 @@ void verifyNativeEpubPerformance() {
           window.matchMedia=query=>query.includes('prefers-reduced-motion')?{matches:false}:nativeMedia.call(window,query);
           window.nativeStart=KMReaderSheetEffect.prototype.start;
           window.nativeAnimate=KMReaderSheetEffect.prototype.animateTo;
-          KMReaderSheetEffect.prototype.start=async function(move){window.nativeCurl=this;return nativeStart.call(this,move);};
+          KMReaderSheetEffect.prototype.start=async function(...args){window.nativeCurl=this;return nativeStart.apply(this,args);};
           KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
           await reader.turn({delta:1,style:'curl'});
           if(!window.nativeCurl)throw Error('GPU effect did not start: supported='+KMReaderSheetEffect.supported('curl')+', reduced='+matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -391,7 +487,7 @@ void verifyNativeEpubPerformance() {
       await visibleText();
       // Observe automatic playback before the synchronous GPU readback probes
       // below can saturate a software emulator's render queue.
-      await jsWhilePresenting("""
+      final automaticDelivery = await jsWhilePresenting("""
           nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
           const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
@@ -402,16 +498,20 @@ void verifyNativeEpubPerformance() {
           const initialCompositor=!!automatic.compositor;
           // Observe delivered render frames instead of assuming a 90ms wall
           // timer runs before a software-rendered emulator finishes the turn.
-          const samples=[];
+          const samples=[],deliveries=[];
           for(let frame=0;frame<120;frame++){
-            await new Promise(requestAnimationFrame);samples.push(automatic.progress);
+            const stamp=await new Promise(requestAnimationFrame),animation=automatic.compositor?.animations[0];
+            samples.push(automatic.progress);
+            deliveries.push({frame:stamp,wall:performance.now()-started,progress:automatic.progress,
+              animationTime:animation?.currentTime,pending:animation?.pending,state:animation?.playState});
             if(automatic.progress>0&&automatic.progress<1)break;
             if(automatic.stopped||automatic.progress>=1)break;
           }
-          if(!samples.some(p=>p>0&&p<1))throw Error('Native automatic slide skipped its intermediate frames: '+JSON.stringify({samples,stopped:automatic.stopped,compositor:!!automatic.compositor}));
+          if(!samples.some(p=>p>0&&p<1))throw Error('Native automatic slide skipped its intermediate frames: '+JSON.stringify({samples,deliveries,initialCompositor,stopped:automatic.stopped,compositor:!!automatic.compositor}));
           await flight;automatic.stop();window.matchMedia=nativeMedia;
-          await reader.previous();return true;
+          await reader.previous();return {initialCompositor,deliveries};
       """);
+      debugPrint('Native automatic slide delivery: $automaticDelivery');
       await js("""
           // Check both receiving planes on actual native GPU pixels. Removing
           // the flat front's receiver in the control must recreate the seam.

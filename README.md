@@ -2,123 +2,85 @@
 
 A Flutter implementation of the [KMReader](https://github.com/kmworks/kmreader)
 Komga client, based on upstream commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9`.
-The core browsing, reading, download, and progress workflow is implemented.
-**Full functional and visual parity has not yet been achieved.** See the
-[parity matrix](docs/PARITY.md) for gaps and validation limits.
-Current build and test evidence is recorded in [validation results](docs/VALIDATION.md).
-The [settings audit](docs/SETTINGS_AUDIT.md) maps upstream reader, theme, cache,
-network, translation and appearance preferences to their implementations and
-explicit remaining differences.
+Browsing, reading, local books, downloads, progress and the Amazon.it Kindle
+adapter are implemented. **Full functional and visual parity is not yet
+achieved**; see the [parity matrix](docs/PARITY.md) and
+[settings audit](docs/SETTINGS_AUDIT.md).
 
-The Android development APK is available in the
-[v0.8.11-preview.1 release](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.11-preview.1).
-Sign into a GitHub account with access to this private repository before downloading.
-In the release's **Assets**, select `KMReader-0.8.11-android-arm64-preview.apk`.
-ARMv7 and x86_64 APKs are also available for older devices and emulators. Each APK
-is a complete application for its architecture; install only one.
-This optimized build installs as **KMReader Preview** alongside the original
-debug preview, and updates earlier Preview builds while retaining their local data.
-The same release includes `KMReader-0.8.11-windows-x64-preview.zip`: extract the
-whole folder and run `KMReader/kmreader.exe` on Windows 10/11 x64. The MSVC runtime
-is bundled; the portable Windows build is not Authenticode signed. See [performance changes](docs/PERFORMANCE.md) for cache behavior,
-test evidence and device-validation limits.
+## Current version and downloads
 
-## Local books
+The current source is **0.9.1+29**, based on working commit `a5e51aa` and the
+subsequent diagnostic fixes through `63ad4e7`. The matching
+[0.9.1 candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-8bfb43c3022b397460bc)
+is a **draft** with Android and Windows binaries; it is not published.
+Viewing a draft requires repository write access. See the
+[0.9.1 changes](docs/KINDLE_0.9.1.md) and
+[repository audit](docs/REPOSITORY_AUDIT.md) for source, CI and retained assets.
 
-Open **Local Books / Libri locali** from navigation or the welcome screen, then
-choose **Import Files**. EPUB, PDF and CBZ/ZIP files are copied into the app and
-can be read without an account or network connection. Reading progress stays
-on the device. Removing an imported copy preserves the original selected file.
-RAR/CBR is not supported yet.
+The latest **published** development preview is
+[0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1).
+Sign into GitHub with access to this private repository to download it.
+Choose one complete APK for your architecture (`android-arm64`, `android-armv7`
+or `android-x64`). The optimized app installs as **KMReader Preview** and
+retains earlier Preview data when updated with the same signing certificate.
+For Windows, extract the complete `windows-x64-preview.zip` and run
+`KMReader/kmreader.exe`. The MSVC runtime is bundled; Windows is not Authenticode
+signed. Published 0.8.12 does not include the later Kindle integration.
 
 ## Development
 
-Use Flutter **3.47.8** / Dart **3.13.7**. Android builds require Java 21, SDK/Build
-Tools 36 and NDK 28.2.13676358; minimum Android version is API 24. Host-side PDF
-tests also require a C compiler (Clang on Linux). Windows requires Visual Studio
-with Desktop development with C++ and the Windows SDK.
+Use Flutter **3.47.8** / Dart **3.13.7**. Android needs Java 21, SDK/Build Tools 36,
+NDK 28.2.13676358 and Python 3.11 for Chaquopy; minimum API is 24. Windows needs
+Visual Studio's C++ desktop tools and the separately built Kindle worker.
 
 ```sh
 flutter pub get --enforce-lockfile
+python3 tool/preview_metadata.py
 flutter analyze
 flutter test
 flutter run -d <android-device-id>
 ```
 
-On Windows, run `flutter run -d windows`. CI is configured for Android and
-Windows; see [validation results](docs/VALIDATION.md) for observed remote checks.
-In the prepared Codex environment, initialize each shell with:
+Start with [development](docs/DEVELOPMENT.md), [testing](docs/TESTING.md) and
+[build/sign/distribution](docs/RELEASING.md). The
+[documentation index](docs/README.md) distinguishes current procedures from
+historical measurements and [archived experiments](archive/README.md).
+`ci.yml` owns automatic PR/main builds; device and account diagnostics remain
+manual. Dependency versions and local plugin patches are pinned.
 
-```sh
-source /workspace/shared/kmreader-setup/activate.sh
-python3 /workspace/shared/kmreader-setup/configure-java-network.py
-```
+## Local books and accounts
 
-## Real backend validation
+Open **Local Books / Libri locali**, then **Import Files**. EPUB, PDF and CBZ/ZIP
+files are copied into the app and work offline without an account. Progress
+stays on the device; removing an imported copy preserves the original file.
+RAR/CBR is not supported yet.
 
-```sh
-python3 tool/komga_smoke.py --jar /path/to/komga-1.29.1.jar
-```
-
-This verifies the official JAR's SHA256, starts a temporary loopback server,
-creates random credentials in memory, imports synthetic CBZ/EPUB/PDF fixtures,
-and runs the actual Dart client against it. It then stops its process and removes
-its files. Existing Komga servers are never modified. The integration test is
-skipped in ordinary `flutter test` runs and executed explicitly by this tool and CI.
-
-Other tests cover authentication headers, scoped caches, durable progress,
-conflicts, reader anchors/incognito, EPUB parsing, the native PDF engine and
-mobile/desktop layouts. Set `KMREADER_SCREENSHOT_DIR` to save visual review
-artifacts. These screenshots do not establish pixel parity with the Apple app.
-
-EPUB navigation reads hierarchical EPUB 3 and EPUB 2 indexes, with the spine as
-a fallback. Internal links and index entries jump to the target section, including
-escaped filenames/fragments. Text changes retain the chapter's scroll fraction;
-opening or restyling a chapter does not send new reading progress.
-
-See [preview packaging and publication](docs/RELEASING.md) for versioning, signing
-and exact-source CI gates.
-
-## Build
-
-```sh
-flutter build apk --debug
-flutter build windows --release
-```
-
-Android output is `build/app/outputs/flutter-apk/app-debug.apk`, signed with the
-development debug key. Windows output is the complete
-`build/windows/x64/runner/Release` directory, including DLLs and `data`.
-Windows binaries cannot be built on Linux.
-
-For Android release signing, create a git-ignored `android/key.properties` with
-`storeFile`, `storePassword`, `keyAlias`, and `keyPassword`, using your own
-keystore outside version control. Without that file, release output is unsigned;
-the debug key is never silently substituted for release signing.
-
-## Architecture
-
-- `lib/core`: Komga transport, models, SQLite, secure credential vault, server
-  selection, offline repository, durable outbox and SSE lifecycle.
-- `lib/features`: authentication, dashboard/catalog/details/lists, readers,
-  downloads, API keys, settings and library tasks.
-- `lib/ui`: adaptive navigation, upstream theme colors and ten-language strings.
-
-Credentials use OS secure storage. Metadata, queries, files and progress are
-partitioned by server/account. Downloads retain the source file and comic pages
-on disk. Network images are deduplicated while loading without retaining an
-entire library in RAM. Redirects do not automatically receive credentials, and
-TLS verification stays enabled. HTTP supports local Komga installations.
-
-Progress edits coalesce by book and revision. Acknowledgements cannot delete
-newer edits, and newer remote progress requires explicit resolution. EPUB
-locators use the server's canonical Readium positions. No production credentials
+Komga credentials use OS secure storage. Metadata, files, queries and progress
+are partitioned by server/account. Progress edits coalesce by book and revision;
+new remote conflicts require explicit resolution. TLS verification stays enabled
+and redirects do not automatically receive credentials. No production credentials
 or demo account are bundled.
 
-MIT; see [LICENSE](LICENSE). Original copyright and artwork attribution are
-preserved. Flutter dependencies register their notices in the in-app license
-screen; original reference notices remain in `assets/upstream-licenses.json`.
+Kindle services are managed through Settings / Servers. Kindle conversion uses
+shared Python modules and an on-demand native worker; the historical
+`tool/kindle_personal/` name does **not** mean those scripts are disposable.
+Read the [runtime dependency map](docs/KINDLE_RUNTIME.md) before moving them.
+Cloud annotation import is one-way; local bookmarks are not represented as
+successfully uploaded to Amazon.
 
-For an isolated local profile or CI startup check, set `KMREADER_DATA_DIR` to
-a writable application-data directory before launching. It never changes the
-normal profile unless explicitly configured.
+## Repository layout
+
+- `lib/core`, `lib/features`, `lib/ui`: service/persistence logic, app features and
+  adaptive controls.
+- `android`, `windows`, `assets`, `third_party`: native hosts, shipped resources
+  and patched dependencies.
+- `test`, `integration_test`, `test_driver`: host, browser and native checks.
+- `tool`: [active tools and shared runtimes](tool/README.md).
+- `docs`: current guides, release notes and versioned validation evidence.
+- `archive`: superseded research and standalone workflow, preserved for reference.
+
+MIT; see [LICENSE](LICENSE). Original artwork/copyright attribution and
+`assets/upstream-licenses.json` are retained. Kindle worker GPL notices and
+corresponding source accompany native distributions. See
+[releasing](docs/RELEASING.md). For an isolated test profile, set
+`KMREADER_DATA_DIR` to a writable directory before launching.

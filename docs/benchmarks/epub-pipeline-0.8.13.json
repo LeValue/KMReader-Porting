@@ -1,0 +1,113 @@
+{
+  "date": "2026-11-03",
+  "baselineSource": "da6545fe21941f036db784b5538ed85aaad2c88d",
+  "candidateVersion": "0.8.13+23",
+  "readerJsSha256": "a9dcfeae6efc0624ce0131ba4b8da18e294688bb984d24ac2d7818c9fc0901f4",
+  "method": "Sequential Chromium headless runs, generated 2-chapter prose, 3000 paragraphs/chapter, 390x780, CPU throttling 6. Browser command readiness and TaskDuration; not native display FPS. First turn has no warm-up delay. Later inputs are 650 ms apart. Pause work may include delayed cosmetic preparation.",
+  "baseline": {
+    "cpuRate": 6,
+    "paragraphsPerChapter": 3000,
+    "viewport": {
+      "width": 390,
+      "height": 780
+    },
+    "cases": [
+      {
+        "mode": "none",
+        "openMs": 3299.1334199978155,
+        "firstTurnMs": 192,
+        "followingTurnsMs": [
+          28,
+          26.799999997019768,
+          21.399999998509884,
+          28
+        ],
+        "verticalScroll": null,
+        "idleTaskMs": 1.7719999999998848
+      },
+      {
+        "mode": "curl",
+        "openMs": 3590.4608220007503,
+        "firstTurnMs": 2569.60000000149,
+        "followingTurnsMs": [
+          1068,
+          1018.1999999955297,
+          837.2000000029802,
+          1062.8999999985099
+        ],
+        "verticalScroll": null,
+        "idleTaskMs": 1160.546
+      },
+      {
+        "mode": "vertical",
+        "openMs": 2731.3479219956207,
+        "firstTurnMs": 18.100000001490116,
+        "followingTurnsMs": [
+          13,
+          14.5,
+          11.5,
+          12.5
+        ],
+        "verticalScroll": {
+          "taskMs": 366.4320000000001,
+          "layouts": 78
+        },
+        "idleTaskMs": 0.3340000000000565
+      }
+    ],
+    "engine": "151.0.7922.34"
+  },
+  "candidate": {
+    "cpuRate": 6,
+    "paragraphsPerChapter": 3000,
+    "viewport": {
+      "width": 390,
+      "height": 780
+    },
+    "cases": [
+      {
+        "mode": "none",
+        "openMs": 1705.9501400071895,
+        "firstTurnMs": 157.69999999552965,
+        "followingTurnsMs": [
+          27.399999998509884,
+          17.700000002980232,
+          16.80000000447035,
+          18.100000001490116
+        ],
+        "verticalScroll": null,
+        "idleTaskMs": 0.9209999999999496
+      },
+      {
+        "mode": "curl",
+        "openMs": 1692.1752089983784,
+        "firstTurnMs": 1839.5999999940395,
+        "followingTurnsMs": [
+          283,
+          252.09999999403954,
+          202.69999999552965,
+          252.89999999850988
+        ],
+        "verticalScroll": null,
+        "idleTaskMs": 1.3430000000003162
+      },
+      {
+        "mode": "vertical",
+        "openMs": 1400.2744530007476,
+        "firstTurnMs": 16.69999999552965,
+        "followingTurnsMs": [
+          10.899999998509884,
+          12.200000002980232,
+          10.899999998509884,
+          10.899999998509884
+        ],
+        "verticalScroll": {
+          "taskMs": 214.3790000000001,
+          "layouts": 0
+        },
+        "idleTaskMs": 5.49199999999983
+      }
+    ],
+    "engine": "151.0.7922.34"
+  }
+}

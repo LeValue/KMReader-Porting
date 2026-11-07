@@ -36,6 +36,14 @@ class Repository extends ChangeNotifier {
     api.readNetworkPreferences = () => NetworkPreferences.fromStore(store);
   }
   final ServerProfile profile;
+  bool get supportsSeries => true;
+  bool get supportsRemoteLists => true;
+  Future<Book> resolveDocumentBook(Book book, File file) async => book;
+  Future<Json?> externalDocumentPosition(Book book, File file) async => null;
+  void documentPosition(Book book, Json event) {}
+  List<Json> documentAnnotations(Book book) => const [];
+  final documentAnnotationChanges = ValueNotifier(0);
+  bool get prefetchDownloadCover => true;
   final KomgaApi api;
   final LocalStore store;
   late final BrowsePreferences browse = BrowsePreferences(store);
@@ -1513,12 +1521,14 @@ class Repository extends ChangeNotifier {
         }
       });
       try {
-        await Future.any([
-          image('/api/v1/books/${Uri.encodeComponent(book.id)}/thumbnail'),
-          abort.future.then<Uint8List>(
-            (_) => throw const ApiFailure('Download cancelled.'),
-          ),
-        ]);
+        if (prefetchDownloadCover) {
+          await Future.any([
+            image('/api/v1/books/${Uri.encodeComponent(book.id)}/thumbnail'),
+            abort.future.then<Uint8List>(
+              (_) => throw const ApiFailure('Download cancelled.'),
+            ),
+          ]);
+        }
       } catch (_) {}
       if (_cancelled.contains(book.id) || _disposed) {
         throw const ApiFailure('Download cancelled.');
@@ -1700,6 +1710,7 @@ class Repository extends ChangeNotifier {
     eventNotices.dispose();
     taskQueueStatus.dispose();
     catalogChanges.dispose();
+    documentAnnotationChanges.dispose();
     browse.dispose();
     api.close();
     super.dispose();

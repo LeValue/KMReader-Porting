@@ -43,6 +43,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        flutterEngine.plugins.add(KindlePlugin())
         transferConditions = TransferConditions(this, flutterEngine.dartExecutor.binaryMessenger)
         ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
         exporter = FileExporter(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -89,6 +90,25 @@ class MainActivity : FlutterFragmentActivity() {
                     ownsKeepAwake = false
                 }
                 result.success(null)
+            } else if (call.method == "getEpubWebViewConfiguration") {
+                // Huawei's Android 10 graphics stack can reject the offscreen
+                // SurfaceProducer buffers while WebView's DOM remains healthy.
+                // Direct hybrid composition keeps hardware-accelerated text
+                // visible on the verified Mate 20 Pro configuration.
+                val diagnostic = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+                    packageName == "dev.levalue.kmreader.epubdiagnostic"
+                val diagnosticMode = if (diagnostic) intent.getStringExtra("route") else null
+                val hybrid = when (diagnosticMode) {
+                    "/kmreader-epub-diagnostic/texture" -> false
+                    "/kmreader-epub-diagnostic/hybrid" -> true
+                    else -> Build.VERSION.SDK_INT == Build.VERSION_CODES.Q &&
+                        Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true)
+                }
+                result.success(mapOf("hybridComposition" to hybrid,
+                    "impellerRequested" to if (diagnostic && intent.hasExtra("enable-impeller"))
+                        intent.getBooleanExtra("enable-impeller", true) else null,
+                    "diagnosticOverride" to (diagnosticMode == "/kmreader-epub-diagnostic/texture" ||
+                        diagnosticMode == "/kmreader-epub-diagnostic/hybrid")))
             } else if (call.method == "getWebViewRenderingStats") {
                 fun findWebView(view: View): WebView? {
                     if (view is WebView) return view

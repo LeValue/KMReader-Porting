@@ -54,7 +54,7 @@ class DownloadWorker {
         !DownloadPolicy.read(store).background;
     try {
       final profile = store.servers.where((p) => p.id == server).firstOrNull;
-      if (profile == null || cancelled()) return true;
+      if (profile == null || profile.isKindle || cancelled()) return true;
       final credential = await vault.read(server);
       if (_stopped) return false;
       if (credential == null) return true;

@@ -1,0 +1,72 @@
+name: Kindle app read-only runtime check
+on:
+  workflow_call:
+    inputs:
+      verified_run:
+        type: string
+        required: true
+      runner_label:
+        type: string
+        default: kmreader-android-desktop
+permissions:
+  contents: read
+  actions: read
+jobs:
+  runtime:
+    runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
+    timeout-minutes: 18
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          run-id: ${{ inputs.verified_run }}
+          github-token: ${{ github.token }}
+          path: artifacts/kindle-runtime-build
+      - name: Set up the verified Windows Flutter SDK without WSL
+        run: ./tool/setup_local_flutter.ps1
+      - name: Resolve locked Dart dependencies without requiring Developer Mode
+        run: |
+          $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve locked runtime probe dependencies' }
+      - name: Check covers and the real download queue without cloud annotation writes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $binaryRoot = Join-Path $PWD 'artifacts/kindle-runtime-build'
+          $build = Get-Content (Join-Path $binaryRoot 'data/flutter_assets/assets/build/source.json') -Raw | ConvertFrom-Json
+          git fetch --no-tags origin $build.source
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify runtime source' }
+          git diff --exit-code $build.source $env:GITHUB_SHA -- lib assets android windows third_party pubspec.yaml pubspec.lock tool/kindle_personal tool/kindle_android tool/kindle_personal_cli.py
+          if ($LASTEXITCODE -ne 0) { throw 'Runtime source mismatch' }
+          $private = Join-Path $env:RUNNER_TEMP ('kindle-runtime-private-' + $env:GITHUB_RUN_ID)
+          New-Item $private -ItemType Directory -Force | Out-Null
+          New-Item artifacts/kindle-runtime-report -ItemType Directory -Force | Out-Null
+          try {
+            $worker = Join-Path $binaryRoot 'kindle/KMReader-Kindle.exe'
+            # Capture the private IPC response, never echo it into Actions logs.
+            $response = & $worker --data-dir $private connect-json --import-existing --import-only
+            if ($LASTEXITCODE -ne 0) { throw 'Existing prototype session unavailable; no login or registration attempted' }
+            $session = Join-Path $private 'native-session.json'
+            [IO.File]::WriteAllText($session, ($response -join "`n"), (New-Object Text.UTF8Encoding($false)))
+            $env:KMREADER_KINDLE_PRIVATE_SESSION = $session
+            $env:KMREADER_KINDLE_WORKER = $worker
+            $env:KMREADER_KINDLE_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-runtime-report/report.json'
+            flutter test test/kindle_runtime_probe_test.dart --no-pub
+            if ($LASTEXITCODE -ne 0) { throw 'Kindle runtime check failed; only sanitized metrics will be uploaded' }
+          } finally {
+            Remove-Item Env:KMREADER_KINDLE_PRIVATE_SESSION -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_WORKER -ErrorAction SilentlyContinue
+            $response = $null
+            Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kindle-runtime-read-only-metrics
+          path: artifacts/kindle-runtime-report/report.json
+          if-no-files-found: error

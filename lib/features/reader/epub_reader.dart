@@ -1,4 +1,3 @@
-import '../../ui/reader_preview.dart';
 import '../../ui/reader_chrome.dart';
 
 import 'dart:async';
@@ -57,6 +56,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Completer<void> _browserClosed = Completer<void>();
   int _browserGeneration = 0, _recoveries = 0;
   bool _recovering = false, _recoveryFailed = false;
+  bool _androidHybridComposition = false;
   bool _initialized = false, _controls = true, _fullscreen = false;
   Timer? _chromeTimer;
   void _scheduleControlsHide() {
@@ -70,6 +70,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   bool _fixedLayout = false, _settingsOpen = false;
+  bool _settingsHidden = false;
   bool _verticalWriting = false;
   final _closed = Completer<void>();
   String? _error, _selection, _actionSelection;
@@ -110,13 +111,32 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   @override
   void initState() {
     super.initState();
+    widget.repository.documentAnnotationChanges.addListener(
+      _annotationsChanged,
+    );
     if (Platform.isWindows) HardwareKeyboard.instance.addHandler(_readerKey);
     _fullscreen =
         widget.repository.store.setting<bool>('autoFullscreenOnOpen') == true;
     _future = _open();
   }
 
+  void _annotationsChanged() {
+    if (mounted && _initialized && !widget.incognito) {
+      unawaited(
+        _call(
+          'annotations',
+          widget.repository.documentAnnotations(widget.book),
+        ),
+      );
+    }
+  }
+
   Future<void> _prepareEnvironment() async {
+    if (Platform.isAndroid) {
+      final configuration = await ReaderDisplay.channel
+          .invokeMapMethod<String, dynamic>('getEpubWebViewConfiguration');
+      _androidHybridComposition = configuration?['hybridComposition'] == true;
+    }
     if (Platform.isWindows) {
       if (await WebViewEnvironment.getAvailableVersion() == null) {
         throw StateError(
@@ -216,7 +236,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     if (_initialized || _session == null || _browser == null) return;
     _initialized = true;
     _session!.darkEnvironment = Theme.of(context).brightness == Brightness.dark;
-    await _call('open', _session!.configuration(_nonce));
+    await _call('open', {
+      ..._session!.configuration(_nonce),
+      // A renderer that has just died must restore the readable publication
+      // before attempting the same graphics path again. Keep saved preferences.
+      if (_recoveries > 0) 'disableMotion': true,
+    });
   }
 
   Future<void> _turn(int delta) async {
@@ -616,9 +641,163 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     controller.dispose();
   }
 
+  Future<void> _quickNavigation() async {
+    final session = _session!;
+    final total = session.totalBookPages;
+    final controller = TextEditingController();
+    var progress = session.bookProgress;
+    String? action;
+    final target = await showModalBottomSheet<double>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 520),
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => ReaderSafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              16 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Naviga nel volume',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  total == null
+                      ? '${(progress * 100).round()}%'
+                      : 'Pagina ~${(progress * total).floor().clamp(0, total - 1) + 1} di $total · ${(progress * 100).round()}%',
+                ),
+                Slider(
+                  value: progress,
+                  onChanged: (value) => update(() => progress = value),
+                  onChangeEnd: (value) => Navigator.pop(context, value),
+                ),
+                if (total != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Vai alla pagina (1–$total)',
+                          ),
+                          onSubmitted: (value) {
+                            final page = int.tryParse(value);
+                            if (page != null && page >= 1 && page <= total) {
+                              Navigator.pop(context, (page - 1) / total);
+                            }
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Vai',
+                        onPressed: () {
+                          final page = int.tryParse(controller.text);
+                          if (page != null && page >= 1 && page <= total) {
+                            Navigator.pop(context, (page - 1) / total);
+                          }
+                        },
+                        icon: const Icon(Icons.arrow_forward),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: session.chapter == 0
+                          ? null
+                          : () {
+                              action = 'previous';
+                              Navigator.pop(context);
+                            },
+                      child: const Text('Capitolo precedente'),
+                    ),
+                    TextButton(
+                      onPressed:
+                          session.chapter >=
+                              session.document.chapters.length - 1
+                          ? null
+                          : () {
+                              action = 'next';
+                              Navigator.pop(context);
+                            },
+                      child: const Text('Capitolo successivo'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        action = 'contents';
+                        Navigator.pop(context);
+                      },
+                      child: Text(tr(context, 'Table of Contents')),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        action = 'bookmarks';
+                        Navigator.pop(context);
+                      },
+                      child: Text(tr(context, 'Bookmarks')),
+                    ),
+                  ],
+                ),
+                const Text(
+                  'Le pagine stimate coprono l’intero volume e restano stabili cambiando carattere o dimensione del testo.',
+                  style: TextStyle(fontSize: 11),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (!mounted) return;
+    if (target != null) {
+      final (chapter, progression) =
+          session.pageIndex?.target(target) ??
+          (
+            (target * session.document.chapters.length).floor().clamp(
+              0,
+              session.document.chapters.length - 1,
+            ),
+            (target * session.document.chapters.length) % 1,
+          );
+      await _call('seek', {
+        'href': session.relativeHref(session.document.chapters[chapter].path),
+        'progression': progression,
+      });
+    } else if (action == 'contents') {
+      await _contents();
+    } else if (action == 'bookmarks') {
+      await _bookmarks();
+    } else if (action == 'previous' || action == 'next') {
+      final chapter = (session.chapter + (action == 'next' ? 1 : -1)).clamp(
+        0,
+        session.document.chapters.length - 1,
+      );
+      await _call('seek', {
+        'href': session.relativeHref(session.document.chapters[chapter].path),
+        'progression': 0,
+      });
+    }
+  }
+
   Future<void> _bookmarks([String? selectedText]) async {
     final selected = selectedText ?? _selection ?? '';
     final session = _session!;
+    unawaited(
+      _call('annotations', widget.repository.documentAnnotations(widget.book)),
+    );
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -637,25 +816,53 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               ),
               for (final mark in session.bookmarks)
                 ListTile(
+                  leading: Icon(
+                    mark['type'] == 'kindle.highlight'
+                        ? Icons.highlight
+                        : mark['type'] == 'kindle.note'
+                        ? Icons.sticky_note_2_outlined
+                        : CupertinoIcons.bookmark,
+                  ),
                   title: Text(text(mark['label'])),
+                  subtitle: Text(
+                    mark['source'] == 'kindle' ? 'Da Kindle' : 'KMReader',
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    unawaited(_call('display', mark['cfi']));
+                    if (mark['locator'] is Map) {
+                      final chapter = session.chapterFor(text(mark['href']));
+                      if (chapter >= 0) {
+                        unawaited(
+                          _call('seek', {
+                            'href': session.relativeHref(
+                              session.document.chapters[chapter].path,
+                            ),
+                            'locator': mark['locator'],
+                          }),
+                        );
+                      }
+                    } else {
+                      unawaited(_call('display', mark['cfi']));
+                    }
                   },
-                  trailing: IconButton(
-                    tooltip: tr(context, 'Delete'),
-                    icon: const Icon(CupertinoIcons.trash),
-                    onPressed: () {
-                      final values = session.bookmarks
-                        ..removeWhere((v) => v['cfi'] == mark['cfi']);
-                      widget.repository.store.cache(
-                        widget.repository.profile.id,
-                        session.bookmarkKey,
-                        values,
-                      );
-                      update(() {});
-                    },
-                  ),
+                  trailing: mark['source'] == 'kindle'
+                      ? null
+                      : IconButton(
+                          tooltip: tr(context, 'Delete'),
+                          icon: const Icon(CupertinoIcons.trash),
+                          onPressed: () {
+                            final values = session.bookmarks
+                              ..removeWhere((v) => v['cfi'] == mark['cfi']);
+                            widget.repository.store.cache(
+                              widget.repository.profile.id,
+                              session.bookmarkKey,
+                              values
+                                  .where((v) => v['source'] != 'kindle')
+                                  .toList(),
+                            );
+                            update(() {});
+                          },
+                        ),
                 ),
             ],
           ).withWheelScrolling(),
@@ -684,26 +891,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   Future<void> _settings() async {
     if (_settingsOpen) return;
-    _settingsOpen = true;
+    setState(() {
+      _settingsOpen = true;
+      _settingsHidden = true;
+    });
     _chromeTimer?.cancel();
     // The native sheet can open while the browser finishes outstanding work.
     // Keep suspension ordered before preference changes and resuming input,
     // without making Flutter's controls wait for the JavaScript thread.
     final suspended = _call('suspendInput', true);
     var draft = _session!.preferences.toJson();
-    final preview = ReaderPreview<EpubPreferences>(
-      (next) async {
-        await suspended;
-        if (!mounted) return;
-        final session = _session!;
-        session.setPreferences(next);
-        await session.prepareFont();
-        if (mounted) await _call('preferences', session.browserPreferences);
-      },
-      onError: (error) {
-        if (mounted) showError(context, error);
-      },
-    );
+    final original = jsonEncode(draft);
     if (!mounted) return;
     try {
       await showModalBottomSheet<void>(
@@ -731,9 +929,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   'advancedLayout': true,
               });
               draft = next.toJson();
-              preview.schedule(next);
               update(() {});
-              await preview.flush();
             }
 
             Widget slider(
@@ -762,7 +958,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                 }.contains(key)) {
                   draft['advancedLayout'] = true;
                 }
-                preview.schedule(EpubPreferences.fromJson(draft));
               },
               onChangeEnd: (v) => apply(key, v),
             );
@@ -953,8 +1148,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         motion: p.motion,
                         onChanged: (motion) {
                           draft = {...draft, ...motion.toJson()};
-                          preview.schedule(EpubPreferences.fromJson(draft));
-                          unawaited(preview.flush());
                           update(() {});
                         },
                       ),
@@ -1003,10 +1196,27 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       );
     } finally {
       await suspended;
-      await preview.flush();
-      _settingsOpen = false;
-      await _call('suspendInput', false);
-      _scheduleControlsHide();
+      if (mounted) setState(() => _settingsHidden = false);
+      // Keep panel scrolling and slider input independent of chapter layout.
+      // The offstage native browser may suspend RAF; restore its presentation
+      // before applying the final draft once, rather than reflowing invisibly.
+      try {
+        if (mounted) {
+          await WidgetsBinding.instance.endOfFrame;
+          if (jsonEncode(draft) != original) {
+            final session = _session!;
+            session.setPreferences(EpubPreferences.fromJson(draft));
+            await session.prepareFont();
+            if (mounted) await _call('preferences', session.browserPreferences);
+          }
+        }
+      } catch (error) {
+        if (mounted) showError(context, error);
+      } finally {
+        await _call('suspendInput', false);
+        _settingsOpen = false;
+        _scheduleControlsHide();
+      }
     }
   }
 
@@ -1020,10 +1230,13 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
-        // SurfaceAndroidView uses texture composition with native fallback.
-        // Avoid forcing legacy hybrid composition (and its hardware layer),
-        // which makes Flutter controls share the WebView's platform work.
-        useHybridComposition: false,
+        // Retain texture composition where supported. Huawei Android 10 needs
+        // hybrid composition to deliver visible frames; diagnostic builds can
+        // explicitly compare both paths without changing saved preferences.
+        useHybridComposition:
+            const bool.hasEnvironment('KMREADER_EPUB_HYBRID_COMPOSITION')
+            ? const bool.fromEnvironment('KMREADER_EPUB_HYBRID_COMPOSITION')
+            : _androidHybridComposition,
         useOnRenderProcessGone: true,
         allowFileAccess: false,
         allowContentAccess: false,
@@ -1086,6 +1299,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   @override
   void dispose() {
+    widget.repository.documentAnnotationChanges.removeListener(
+      _annotationsChanged,
+    );
     if (Platform.isWindows) HardwareKeyboard.instance.removeHandler(_readerKey);
     if (!_closed.isCompleted) _closed.complete();
     if (!_browserClosed.isCompleted) _browserClosed.complete();
@@ -1260,7 +1476,16 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                               retry: () => _restartBrowser(manual: true),
                             )
                           else if (!_recovering)
-                            RepaintBoundary(child: _readerView(session)),
+                            // Retain the browser and its viewport while removing
+                            // its native surface from modal composition. Android
+                            // 10 hybrid WebViews otherwise force costly copies
+                            // beneath every scrolling frame of the settings.
+                            Offstage(
+                              offstage: _settingsHidden,
+                              child: RepaintBoundary(
+                                child: _readerView(session),
+                              ),
+                            ),
                           if (_controls)
                             Positioned(
                               top: 8,
@@ -1430,18 +1655,24 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                           ),
                                         ),
                                         Expanded(
-                                          child: Text(
-                                            epubOverlayText(
-                                              context,
-                                              session,
-                                              'controlsFooterCenter',
+                                          child: TextButton(
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: foreground,
                                             ),
-                                            key: const ValueKey(
-                                              'epub-position',
+                                            onPressed: _quickNavigation,
+                                            child: Text(
+                                              epubOverlayText(
+                                                context,
+                                                session,
+                                                'controlsFooterCenter',
+                                              ),
+                                              key: const ValueKey(
+                                                'epub-position',
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
                                           ),
                                         ),
                                         if (session.atEnd &&

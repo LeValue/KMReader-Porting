@@ -11,6 +11,7 @@ import 'epub_document.dart';
 import 'progress_gate.dart';
 import 'custom_fonts.dart';
 import 'epub_host.dart';
+import 'epub_page_index.dart';
 
 class EpubPreferences {
   const EpubPreferences({
@@ -159,6 +160,7 @@ class EpubSession extends ChangeNotifier {
   final Repository repository;
   final Book book;
   final bool incognito;
+  Json? _externalPosition;
   final EpubHost host;
   EpubDocument get document => host.document;
   EpubPreferences preferences;
@@ -208,6 +210,72 @@ class EpubSession extends ChangeNotifier {
   String cfi = '', href = '';
   int chapter = 0, page = 1, pages = 1;
   double progression = 0;
+  EpubPageIndex? pageIndex;
+  Future<void>? _indexing;
+  double get bookProgress =>
+      pageIndex?.fraction(chapter, progression) ??
+      (chapter + progression) / document.chapters.length;
+  int? get totalBookPages =>
+      book.pages > 0 && book.media['pagesCountSource'] == 'publisher'
+      ? book.pages
+      : pageIndex?.pages;
+  String get bookPosition => totalBookPages == null
+      ? '${(bookProgress * 100).round()}%'
+      : '~${(bookProgress * totalBookPages!).floor().clamp(0, totalBookPages! - 1) + 1}/$totalBookPages';
+  Future<void> _index(File file) async {
+    try {
+      final size = await file.length();
+      final key = 'epubPageIndex:${book.id}';
+      final saved = object(repository.store.cached(repository.profile.id, key));
+      final hash = text(book.json['fileHash']);
+      final cached = saved['weights'];
+      final weights =
+          saved['schema'] == 1 &&
+              saved['size'] == size &&
+              saved['hash'] == hash &&
+              cached is List &&
+              cached.length == document.chapters.length &&
+              cached.every((v) => v is int && v > 0)
+          ? cached.cast<int>()
+          : await compute(indexEpubFile, file.path);
+      if (_closed ||
+          repository.closed ||
+          weights.length != document.chapters.length) {
+        return;
+      }
+      pageIndex = EpubPageIndex(weights);
+      repository.store.cache(repository.profile.id, key, {
+        'schema': 1,
+        'size': size,
+        'hash': hash,
+        'weights': weights,
+      });
+      final latest = object(
+        repository.store.cached(repository.profile.id, 'book:${book.id}'),
+      );
+      if (book.format == 'epub' &&
+          (integer(object(latest['media'])['pagesCount']) == 0 ||
+              object(latest['media'])['pagesCountEstimated'] == true)) {
+        repository.store.cacheBooks(repository.profile.id, [
+          CatalogItem('books', {
+            ...book.json,
+            ...latest,
+            'media': {
+              ...book.media,
+              ...object(latest['media']),
+              'pagesCount': pageIndex!.pages,
+              'pagesCountEstimated': true,
+            },
+          }),
+        ]);
+        repository.localCatalogChanged();
+      }
+      notifyListeners();
+    } catch (_) {
+      /* A missing optional index never prevents reading. */
+    }
+  }
+
   bool layoutBusy = false;
   bool ready = false,
       auxiliary = false,
@@ -224,11 +292,12 @@ class EpubSession extends ChangeNotifier {
   Timer? _saveTimer;
   String get key => 'epub:${book.id}';
   String get bookmarkKey => 'epubBookmarks:${book.id}';
-  List<Json> get bookmarks =>
-      (repository.store.cached(repository.profile.id, bookmarkKey) as List? ??
-              [])
-          .map(object)
-          .toList();
+  List<Json> get bookmarks => [
+    ...(repository.store.cached(repository.profile.id, bookmarkKey) as List? ??
+            [])
+        .map(object),
+    ...repository.documentAnnotations(book),
+  ];
 
   static Future<EpubSession> open(
     Repository repository,
@@ -238,6 +307,12 @@ class EpubSession extends ChangeNotifier {
   }) async {
     // Start remote resume and ZIP inspection together; only the resource worker
     // opens the archive. The UI receives a small immutable navigation index.
+    final externalPosition = incognito
+        ? Future<Json?>.value()
+        : repository
+              .externalDocumentPosition(book, file)
+              .timeout(const Duration(seconds: 4))
+              .then<Json?>((value) => value, onError: (Object _) => null);
     final remoteProgress =
         !repository.offline &&
             !repository.store.isPending(repository.profile.id, book.id)
@@ -256,6 +331,18 @@ class EpubSession extends ChangeNotifier {
       final saved = object(
         repository.store.cached(repository.profile.id, 'epub:${book.id}'),
       );
+      if (repository.store.setting<bool>('epubVolumeCounterMigrated') != true) {
+        final overlay = object(
+          repository.store.setting<dynamic>('epubOverlay'),
+        );
+        if (overlay['controlsFooterCenter'] == 'chapterPosition') {
+          repository.store.setSetting('epubOverlay', {
+            ...overlay,
+            'controlsFooterCenter': 'bookPosition',
+          });
+        }
+        repository.store.setSetting('epubVolumeCounterMigrated', true);
+      }
       final session = EpubSession._(
         repository,
         book,
@@ -314,7 +401,20 @@ class EpubSession extends ChangeNotifier {
         session.cfi = '';
         session.progression = 0;
       }
+      final external = await externalPosition;
+      if (external != null) {
+        final chapter = session.chapterFor(text(external['href']));
+        if (chapter >= 0) {
+          session._externalPosition = external;
+          session.chapter = chapter;
+          session.href = doc.chapters[chapter].path;
+          session.cfi = '';
+          session.progression = 0;
+        }
+      }
       await session.prepareFont();
+      session._indexing = session._index(file);
+      unawaited(session._indexing);
       return session;
     } catch (_) {
       await host?.close();
@@ -349,10 +449,26 @@ class EpubSession extends ChangeNotifier {
     if (cfi.isNotEmpty) 'cfi': cfi,
     'href': relativeHref(href),
     'progression': progression,
+    if (repository.profile.isKindle && !incognito) 'kindlePositions': true,
+    if (_externalPosition != null) 'kindleResume': _externalPosition,
+    'annotations': repository.documentAnnotations(book),
   };
 
   void receive(Json event) {
     if (_closed) return;
+    final before = (
+      layoutBusy,
+      ready,
+      auxiliary,
+      chapter,
+      page,
+      pages,
+      atStart,
+      atEnd,
+      cfi,
+      href,
+      progression,
+    );
     switch (event['type']) {
       case 'layout':
         layoutBusy = event['active'] == true;
@@ -381,6 +497,7 @@ class EpubSession extends ChangeNotifier {
         atStart = event['atStart'] == true;
         atEnd = event['atEnd'] == true;
         if (event['changed'] == true) {
+          if (!incognito) repository.documentPosition(book, event);
           _remember();
           _saveTimer?.cancel();
           _saveTimer = Timer(const Duration(milliseconds: 400), save);
@@ -391,8 +508,25 @@ class EpubSession extends ChangeNotifier {
           _remember();
           save();
         }
+      default:
+        return;
     }
-    notifyListeners();
+    if (before !=
+        (
+          layoutBusy,
+          ready,
+          auxiliary,
+          chapter,
+          page,
+          pages,
+          atStart,
+          atEnd,
+          cfi,
+          href,
+          progression,
+        )) {
+      notifyListeners();
+    }
   }
 
   void setPreferences(EpubPreferences value) {
@@ -431,7 +565,8 @@ class EpubSession extends ChangeNotifier {
       book,
       pending.href,
       pending.progression,
-      (pending.chapter + pending.progression) / document.chapters.length,
+      pageIndex?.fraction(pending.chapter, pending.progression) ??
+          (pending.chapter + pending.progression) / document.chapters.length,
       cfi: pending.cfi,
     );
     _pending = null;
@@ -453,7 +588,11 @@ class EpubSession extends ChangeNotifier {
         'created': DateTime.now().toUtc().toIso8601String(),
       });
     }
-    repository.store.cache(repository.profile.id, bookmarkKey, values);
+    repository.store.cache(
+      repository.profile.id,
+      bookmarkKey,
+      values.where((v) => v['source'] != 'kindle').toList(),
+    );
     notifyListeners();
   }
 
@@ -462,6 +601,7 @@ class EpubSession extends ChangeNotifier {
     save();
     _closed = true;
     _saveTimer?.cancel();
+    await _indexing;
     await host.close();
     document.close();
     dispose();

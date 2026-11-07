@@ -1,0 +1,10 @@
+httpx==0.28.1
+cryptography==50.0.0
+defusedxml==0.7.1
+playwright==1.62.0
+amazon.ion==0.13.0
+pypdf==6.21.4
+lxml==6.1.1
+Pillow==12.3.0
+beautifulsoup4==4.14.3
+kfxlib @ git+https://github.com/kafkasl/ksync.git@fc00a7b7a04badfbd61f3e42aaaa5e45e1d0cfd7#subdirectory=vendor/kfxlib

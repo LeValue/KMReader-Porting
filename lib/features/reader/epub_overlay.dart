@@ -13,12 +13,10 @@ String epubOverlayText(BuildContext context, EpubSession session, String slot) {
     'readerFooterLeading': 'chapterTitle',
     'readerFooterTrailing': 'chapterRemaining',
     'controlsHeaderCenter': 'bookProgressPercent',
-    'controlsFooterCenter': 'chapterPosition',
+    'controlsFooterCenter': 'bookPosition',
   };
   final item = text(values[slot], defaults[slot] ?? 'none');
-  final bookProgress =
-      (session.chapter + session.progression) /
-      session.document.chapters.length;
+  final bookProgress = session.bookProgress;
   return switch (item) {
     'bookTitle' => session.book.title,
     'chapterTitle' => session.document.chapters[session.chapter].title,
@@ -28,6 +26,7 @@ String epubOverlayText(BuildContext context, EpubSession session, String slot) {
     'chapterRemaining' =>
       '${(session.pages - session.page).clamp(0, session.pages)} ${tr(context, 'Pages')}',
     'chapterPosition' => '${session.page}/${session.pages}',
+    'bookPosition' => session.bookPosition,
     _ => '',
   };
 }

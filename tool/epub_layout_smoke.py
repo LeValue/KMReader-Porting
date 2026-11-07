@@ -174,7 +174,7 @@ with sync_playwright() as playwright:
           window.savedAnimate=KMReaderSheetEffect.prototype.animateTo;
           window.savedStart=KMReaderSheetEffect.prototype.start;
           KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
-          KMReaderSheetEffect.prototype.start=async function(move){window.artworkEffect=this;return savedStart.call(this,move);};
+          KMReaderSheetEffect.prototype.start=async function(...args){window.artworkEffect=this;return savedStart.apply(this,args);};
         }""")
         page.evaluate("reader.turn({delta:1,style:'curl'})")
         assert page.evaluate('!!artworkEffect.surface'), 'Authored-page GPU curl unavailable'

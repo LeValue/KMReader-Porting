@@ -1,0 +1,20 @@
+{
+  "notice": "Generated synthetic test key and tokens. Never used for an Amazon account.",
+  "session": {
+    "marketplace": "amazon.it",
+    "customer_id": "SYNTHETIC-TEST-ACCOUNT-NOT-A-REAL-CREDENTIAL",
+    "serial": "SYNTHETIC",
+    "device_type": "TEST",
+    "profile": "test",
+    "flow": "pkce",
+    "expires": 1793983719.742995,
+    "adp_token": "synthetic-adp",
+    "access_token": "synthetic-access",
+    "refresh_token": "synthetic-refresh",
+    "device_private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCGTVRkxjKHF3Cx\nFWa0jmhEWdloHcWvQP7ujsdlIXJwjtFr/4v49Jq18NytQQV0AXLdJHYTgYnGgc91\nqAxHo3nr3aNdfrC58cxlB1VGfE3GlshOee3/l+sw/xyzXF0Lf21OaGrT1ZOCVWNP\nE2AZ9PCp+HAmbG0X8pENuIzNfWi/LlR3GcsHMtaRiWpHgkIfHTWCnDij2fs62deh\n4XUAoZe5NLli13mQaBEX1sFhogFGnW+m+Q1226zbxTwr4Atil9vHucJgO0O7wquU\nd4C8UXFEYrE8NrvGdmHBv7PpVOxDrPplcgcrI8hAUSciGsYv+BvUB8QcI5P90/1d\nHhjDnDyrAgMBAAECggEAEt9NpgDum2qBJ3aTwXjm0KlfkkXnau0okGqikmTU1ART\nDBNo8/RLbpheKj/M0wmxE7+f6Asin9vLRK6iAHR0bt9CVE0NQH6TSPnIKJN8dRTo\nfj6cDHf9+3Cd89uy0il3OWFq7EGYQjmwLth7f1TwIge18Br5vuJoh75l6tUIocoI\nxNlIFttMrnX1PY3mFGeckNsZlqosg7BMki/jbcubPsL5KnWYRHKcTYwJ7mOL3Q+P\nx45plsUYjEiCfodhQGRNACvQPTDV4KDsdmGDeNQcmAzNszZjCf3I0fxELaoplwyj\ne7KIpCbOxTPZLhS+JZ+e13WamU30GfxmASPZ9EaCQQKBgQC6mzqQBp+J6W9+4lrN\nds0QAXieLD+jGvbBi964fo+X7990kJfyC3kDRMxksoC1lkMpkRgMYbX/eFl0PD2o\nMI1bcPXZBOc9DNKlqpcc00niaSDGZzzj2JtDO46MlrIaPozZ/6P2QbiSuPBAwK5x\n/dvp6dRJgSIlBgwVYNc1/RwRyQKBgQC4PsaFFssq4S4qKGSyAhvcB+maye2mRwp6\nWUTQN2BcO2QYrOwY07BItuZGv7sMSvZAjOd1ZKYMYblHRvEUg+iyjB1V0JGA/YvY\npBFDVxVq3OxvvhFteKMcmm+LyUlU+FBGtlzdGJROSYUxfg6gCWbnG8e209ifyFzB\nP38Gk1b00wKBgA1eR4C/6LgBkCo/3w9vHluyL0jtlJWDvf+5nHgNIQ5aceCw5yHA\n7qdsS1Q/cXcQz7jvmxBwA5DMt2PbWPNunwHZAtPMRSCbhY+2u+KlxFpC+8Ua6kLM\nZrsXTiwGM7Yrmv2XEdD3fliMhTGuXBDwhcupI7ssVBzg5Qa3DFPi0Rr5AoGAYq1c\nbZNTpNeNfg68P4pZmXKzbq+PlGqf9f8xl8LQ3RUB+yVCHdnipE8w7dtqNp8/XDsb\nDAin1iHQtZgNLkunqVjZrUhTZZ5l89WLWWGemulPyFknxFXEJmGgNGHN4LBNblHl\nUpUDeRpvN56n/paKgmSihgzYDFunMejsA32OKPkCgYAZL/YGgkPDB/9Dk/YJYEF8\no3BUGM3+UHBCtEFsIIoRWX/i/inw0fAdsbyyEZ0senv0YHQiQ+8IbdsbWMEKBrVU\n/TAA3UBjkBzY0E1qy+ipzz+4IvRMdVNe6ue3A5d1IdGqbBmP8pt3J5XxBUTAyj9d\nNm5XmJkpt7Qj4IKPN+qpsg==\n-----END PRIVATE KEY-----\n"
+  },
+  "url": "https://cde-ta-g7g.amazon.com/test/a%2Fb?encoded=a%2Bb&space=one+two",
+  "timestamp": "2026-01-01T12:00:00Z",
+  "body": "<test>\nUnicode: \ud83d\ude00</test>",
+  "expected_signature": "WQ22J/A9nZzQLMOf4z0sQ3gRmv3EQfWqJM2CnW+Ah+MJWa1g6uPz+jWbwmefKHX5q9ToOs3MCgsbXhMjo5ZwPEwP4MM9WzrlT2uOCmdNEjxEX9bjwO+TQxBqPeCP3gytbYqdocGisA487KYwiAfcj6ua+s6yMCg42mpo+py3hEmbrNYmdEsVaPYBNnD9I4zAvxZB9LzeVtN58I1EgOS8aepBmYZUxOmP6Qou7hMevJdz0nRgoaZ+0bFFawSAyWdnogDgGM6CS+rpFZJadfVXaxpjacvIf8gJuj22LuicvqtOQ7r4nyHQ6QawJVL6cJf2PAuw5Oe28lFYXIM6E6B4fQ==:2026-01-01T12:00:00Z"
+}

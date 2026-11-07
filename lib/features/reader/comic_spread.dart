@@ -23,8 +23,13 @@ List<Rect> comicLeafBounds(
     );
   }
   final total = safe.fold<double>(0, (a, b) => a + b);
-  final height = math.min(viewport.height, viewport.width / total);
-  var left = (viewport.width - height * total) / 2;
+  final height = math.min(
+    viewport.height,
+    viewport.width / (safe.length == 2 ? 2 * safe.reduce(math.max) : total),
+  );
+  var left = safe.length == 2
+      ? viewport.width / 2 - height * safe.first
+      : (viewport.width - height * total) / 2;
   return [
     for (final aspect in safe)
       (() {

@@ -1,5 +1,12 @@
 # Reader rendering performance
 
+## EPUB pipeline audit in 0.8.13
+
+The [pipeline audit](EPUB_RENDERING_AUDIT.md) covers initial layout, repeated
+vertical-scroll restyling, source/resource retention, compact curl snapshots,
+idle-job cancellation and graphics recovery. It includes reproducible browser
+measurements, pixel regressions and the limits of the physical Android evidence.
+
 ## EPUB input and location work in 0.8.12
 
 Epub.js 0.3.93 reformats its live iframes inside `currentLocation()` and walks

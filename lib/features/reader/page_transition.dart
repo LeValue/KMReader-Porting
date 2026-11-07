@@ -14,10 +14,17 @@ import 'curl_sheet.dart';
 import 'package:flutter/services.dart';
 
 class PreparedPageTurn {
-  PreparedPageTurn(this.before, this.after, this.bounds, this.backBounds);
+  PreparedPageTurn(
+    this.before,
+    this.after,
+    this.bounds,
+    this.backBounds, {
+    this.stationaryBounds,
+  });
   final ui.Image before, after;
   final Rect bounds;
   final Rect? backBounds;
+  final Rect? stationaryBounds;
 }
 
 /// Raster overlays keep native browser views stationary while Flutter paints
@@ -32,6 +39,7 @@ class ReaderPageTransition extends StatefulWidget {
     this.captureImage,
     this.sheetBounds,
     this.backBounds,
+    this.stationaryBounds,
     this.motion = const PageMotion(),
   });
   final PreparedPageTurn? Function(int direction)? prepare;
@@ -41,6 +49,7 @@ class ReaderPageTransition extends StatefulWidget {
   final Future<ui.Image?> Function()? captureImage;
   final Rect Function(Size size, int direction)? sheetBounds;
   final Rect? Function(Size size, int direction)? backBounds;
+  final Rect? Function(Size size, int direction)? stationaryBounds;
   final PageMotion motion;
   @override
   State<ReaderPageTransition> createState() => ReaderPageTransitionState();
@@ -53,7 +62,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
     duration: Duration(milliseconds: widget.motion.duration),
   );
   ui.Image? _before, _after;
-  Rect? _sheetBounds, _backBounds;
+  Rect? _sheetBounds, _backBounds, _stationaryBounds;
   String _style = 'none';
   int _direction = 1;
   bool _running = false, _interrupt = false, _previewReady = true;
@@ -119,6 +128,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
           _after = after;
           _sheetBounds = prepared.bounds;
           _backBounds = prepared.backBounds;
+          _stationaryBounds = prepared.stationaryBounds;
           _style = style;
           _direction = direction;
           _animation.value = 0;
@@ -146,6 +156,9 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
           : null;
       _backBounds = box is RenderBox
           ? widget.backBounds?.call(box.size, direction)
+          : null;
+      _stationaryBounds = box is RenderBox
+          ? widget.stationaryBounds?.call(box.size, direction)
           : null;
       before = await _capture();
       if (!mounted) return;
@@ -218,6 +231,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
         after = prepared.after;
         _sheetBounds = prepared.bounds;
         _backBounds = prepared.backBounds;
+        _stationaryBounds = prepared.stationaryBounds;
         setState(() {
           _before = before;
           _after = after;
@@ -233,6 +247,9 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
             : null;
         _backBounds = box is RenderBox
             ? widget.backBounds?.call(box.size, drag.physical)
+            : null;
+        _stationaryBounds = box is RenderBox
+            ? widget.stationaryBounds?.call(box.size, drag.physical)
             : null;
         before = await _capture();
         if (!mounted || drag.canceled) return;
@@ -346,6 +363,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
                   grabY: _grabY,
                   sheetBounds: _sheetBounds,
                   backBounds: _backBounds,
+                  stationaryBounds: _stationaryBounds,
                 ),
               ),
             ),
@@ -367,9 +385,10 @@ class PageTurnPainter extends CustomPainter {
     this.grabY = .5,
     this.sheetBounds,
     this.backBounds,
+    this.stationaryBounds,
   });
   final double foldSlope, grabY;
-  final Rect? sheetBounds, backBounds;
+  final Rect? sheetBounds, backBounds, stationaryBounds;
   final ui.Image before;
   final ui.Image? after;
   final double progress;
@@ -435,209 +454,228 @@ class PageTurnPainter extends CustomPainter {
   void _curl(Canvas canvas, Size size, double p) {
     final bounds = sheetBounds ?? Offset.zero & size;
     if (bounds.isEmpty) return;
-    final width = bounds.width, height = bounds.height;
-    // In a spread, the stationary leaf stays in the old spread. The back of
-    // the turning leaf is the opposite leaf of the incoming spread.
-    if (backBounds != null) {
-      canvas.save();
-      canvas.clipRect(
-        direction > 0
+    final back = after != null ? backBounds : null;
+    final stationary =
+        stationaryBounds ??
+        (backBounds == null
+            ? null
+            : direction > 0
             ? Rect.fromLTWH(0, 0, bounds.left, size.height)
             : Rect.fromLTWH(
                 bounds.right,
                 0,
                 size.width - bounds.right,
                 size.height,
-              ),
-      );
-      image(
-        canvas,
-        before,
-        size,
-        Offset.zero,
-        1 - Curves.easeInOut.transform(((p - .72) / .28).clamp(0, 1)),
-      );
+              ));
+    final settle = Curves.easeInOut.transform(((p - .72) / .28).clamp(0, 1));
+    final hinge = direction > 0 ? bounds.left : bounds.right;
+    final width = math.max(bounds.width, back?.width ?? 0);
+    final height = math.max(bounds.height, back?.height ?? 0);
+    // Retire subpixel geometry at the exact destination. A fixed mesh cell
+    // straddling the front/back normal can otherwise leave a whole old-ink
+    // triangle after the real fold is smaller than a quarter texture pixel.
+    final resolution = math.max(
+      before.width / size.width,
+      (after?.width ?? before.width) / size.width,
+    );
+    if (width * (1 - p) * resolution < .25) return;
+    CurlProjection projection(double hinge) => CurlProjection(
+      width: width,
+      height: height,
+      progress: p,
+      hinge: hinge,
+      originY: bounds.top + bounds.height * grabY,
+      direction: direction,
+      foldSlope: foldSlope,
+      grabY: grabY,
+      exit: back == null
+          ? settle *
+                (direction > 0
+                    ? bounds.left + 16
+                    : size.width - bounds.right + 16)
+          : 0,
+    );
+    final front = projection(hinge);
+
+    // Letterbox pixels stay outside the sheet, and are revealed by the same
+    // fold as the artwork. A differently sized next page must not instantly
+    // replace all the margins as soon as progress becomes nonzero.
+    final margin = (size.width + size.height) * 3;
+    final edge = direction > 0 ? -margin : size.width + margin;
+    final unturned = Path()..moveTo(edge, -margin);
+    for (var i = 0; i <= 48; i++) {
+      final r = front.ridge(-margin + margin * 2 * i / 48);
+      unturned.lineTo(r.x, r.y);
+    }
+    unturned
+      ..lineTo(edge, margin)
+      ..close();
+    canvas.save();
+    canvas.clipRect(bounds, clipOp: ui.ClipOp.difference);
+    if (stationary != null) {
+      canvas.clipRect(stationary, clipOp: ui.ClipOp.difference);
+    }
+    canvas.clipPath(unturned);
+    image(canvas, before, size);
+    canvas.restore();
+    if (stationary != null) {
+      canvas.save();
+      canvas.clipRect(stationary);
+      // The old stationary leaf stays opaque until the turning sheet covers
+      // it. Its free edge sweeps the replacement across the leaf, including
+      // mixed fitted sizes; a timed crossfade ghosts both pages together.
+      final uncovered = Path()..moveTo(edge, -margin);
+      for (var i = 0; i <= 48; i++) {
+        final outer = front.point(
+          hinge + direction * width,
+          -margin + margin * 2 * i / 48,
+        );
+        uncovered.lineTo(
+          hinge + (outer.x - hinge) * stationary.width / width,
+          outer.y,
+        );
+      }
+      uncovered
+        ..lineTo(edge, margin)
+        ..close();
+      canvas.clipPath(uncovered);
+      image(canvas, before, size);
       canvas.restore();
     }
-    const columns = 96, rows = 16, count = (columns + 1) * (rows + 1);
-    final positions = Float32List(count * 2);
-    final textures = Float32List(count * 2);
-    final backTextures = Float32List(count * 2);
-    final colors = Int32List(count);
-    final normals = Float32List(count);
-    final depths = Float32List(count);
-    final frontIndices = <int>[], backIndices = <int>[];
-    final wave = math.sin(math.pi * p);
-    final slope = foldSlope * wave;
-    final nx = 1 / math.sqrt(1 + slope * slope),
-        ny = slope / math.sqrt(1 + slope * slope);
-    final settle = Curves.easeInOut.transform(((p - .72) / .28).clamp(0, 1));
-    final exit = backBounds == null
-        ? settle *
-              (direction > 0
-                  ? bounds.left + 16
-                  : size.width - bounds.right + 16)
-        : 0.0;
-    final originY = height * grabY;
-    final hinge = direction > 0 ? bounds.left : bounds.right;
-    final cone = ((.5 - grabY) * .65 + foldSlope * .35).clamp(-.45, .45);
-    for (var col = 0; col <= columns; col++) {
-      final sx = width * col / columns;
-      for (var row = 0; row <= rows; row++) {
-        final sy = height * row / rows;
-        final u = nx * sx + ny * (sy - originY);
-        final v = -ny * sx + nx * (sy - originY);
-        final sheet = CurlSheet(
-          width,
-          p,
-          cone: (1 + cone * v / height).clamp(.65, 1.35),
-        );
-        final point = sheet.point(u);
-        final x = nx * point.x - ny * v;
-        final y = ny * point.x + nx * v;
-        final scale = width * 3 / (width * 3 - point.z);
-        final i = col * (rows + 1) + row, j = i * 2;
-        positions[j] = hinge + direction * (x * scale - exit);
-        positions[j + 1] = bounds.top + originY + y * scale;
-        final landing = backBounds;
-        if (landing != null && settle > 0) {
-          final targetX =
-              landing.left +
-              landing.width *
-                  (direction > 0 ? 1 - col / columns : col / columns);
-          final targetY = landing.top + landing.height * row / rows;
-          positions[j] += (targetX - positions[j]) * settle;
-          positions[j + 1] += (targetY - positions[j + 1]) * settle;
-        }
-        textures[j] =
-            (bounds.left + (direction > 0 ? sx : width - sx)) *
-            before.width /
-            size.width;
-        textures[j + 1] = (bounds.top + sy) * before.height / size.height;
-        final back = after == null ? null : backBounds;
-        backTextures[j] = back == null
-            ? textures[j]
-            : (back.left +
-                      back.width *
-                          (direction > 0 ? 1 - col / columns : col / columns)) *
-                  after!.width /
-                  size.width;
-        backTextures[j + 1] = back == null
-            ? textures[j + 1]
-            : (back.top + back.height * row / rows) *
-                  after!.height /
-                  size.height;
-        normals[i] = math.cos(point.angle);
-        depths[i] = point.z;
-        final rawShade = 1 - .28 * math.pow(math.sin(point.angle).abs(), 1.4);
-        final shade =
-            ((backBounds == null
-                        ? rawShade
-                        : rawShade * (1 - settle) + settle) *
-                    255)
-                .round();
-        colors[i] = 0xff000000 | shade << 16 | shade << 8 | shade;
-      }
-    }
-    for (var col = 0; col < columns; col++) {
-      for (var row = 0; row < rows; row++) {
-        final a = col * (rows + 1) + row, b = a + rows + 1;
-        final first = normals[a] + normals[b] + normals[a + 1] >= 0
-            ? frontIndices
-            : backIndices;
-        first.add(a);
-        first.add(b);
-        first.add(a + 1);
-        final second = normals[a + 1] + normals[b] + normals[b + 1] >= 0
-            ? frontIndices
-            : backIndices;
-        second.add(a + 1);
-        second.add(b);
-        second.add(b + 1);
-      }
-    }
-    // A folded outline crosses itself. Filling it as a shadow made a black
-    // diagonal curtain; only cast a soft stroke from the raised free edges.
-    final shadow = Paint()
-      ..color = Colors.black.withValues(alpha: .26 * wave)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    for (final row in [0, rows]) {
-      final edge = Path();
-      var started = false;
+
+    void sheet(
+      Rect rect,
+      CurlProjection projection, {
+      required bool reverseFace,
+      required bool onlyBack,
+    }) {
+      const columns = 96, rows = 20, count = (columns + 1) * (rows + 1);
+      final positions = Float32List(count * 2),
+          textures = Float32List(count * 2);
+      final colors = Int32List(count),
+          normals = Float32List(count),
+          depths = Float32List(count);
+      final frontIndices = <int>[], backIndices = <int>[];
+      final source = reverseFace ? after! : before;
       for (var col = 0; col <= columns; col++) {
-        final i = col * (rows + 1) + row;
-        if (depths[i] < 1) {
-          started = false;
-          continue;
-        }
-        final x = positions[i * 2] + 3, y = positions[i * 2 + 1] + 5;
-        if (started) {
-          edge.lineTo(x, y);
-        } else {
-          edge.moveTo(x, y);
-          started = true;
+        final fraction = col / columns;
+        final x =
+            rect.left +
+            rect.width *
+                ((direction > 0) != reverseFace ? fraction : 1 - fraction);
+        for (var row = 0; row <= rows; row++) {
+          final y = rect.top + rect.height * row / rows;
+          final point = projection.point(x, y, back: reverseFace);
+          final i = col * (rows + 1) + row, j = i * 2;
+          positions[j] = point.x;
+          positions[j + 1] = point.y;
+          // Absolute fitted coordinates preserve scale on both faces. Never
+          // stretch the incoming image to the outgoing page's rectangle.
+          textures[j] = x * source.width / size.width;
+          textures[j + 1] = y * source.height / size.height;
+          normals[i] = math.cos(point.angle);
+          depths[i] = point.z;
+          final shade =
+              ((1 - .28 * math.pow(math.sin(point.angle).abs(), 1.4)) * 255)
+                  .round();
+          colors[i] = 0xff000000 | shade << 16 | shade << 8 | shade;
         }
       }
-      canvas.drawPath(edge, shadow);
-    }
-    void draw(List<int> indices, bool back) {
-      if (indices.isEmpty) return;
-      final source = back && backBounds != null && after != null
-          ? after!
-          : before;
-      final mesh = ui.Vertices.raw(
-        ui.VertexMode.triangles,
-        positions,
-        textureCoordinates: back ? backTextures : textures,
-        colors: colors,
-        indices: Uint16List.fromList(indices),
-      );
-      final paint = Paint()
-        ..shader = ImageShader(
-          source,
-          TileMode.clamp,
-          TileMode.clamp,
-          Matrix4.identity().storage,
-        )
-        ..filterQuality = FilterQuality.medium
-        ..color = Colors.white.withValues(
-          alpha: back
-              ? 1
-              : 1 - Curves.easeInOut.transform(((p - .96) / .04).clamp(0, 1)),
+      void triangle(int a, int b, int c) {
+        final isBack = normals[a] + normals[b] + normals[c] < 0;
+        if (onlyBack && !isBack || !onlyBack && back != null && isBack) return;
+        (isBack ? backIndices : frontIndices).addAll([a, b, c]);
+      }
+
+      for (var col = 0; col < columns; col++) {
+        for (var row = 0; row < rows; row++) {
+          final a = col * (rows + 1) + row, b = a + rows + 1;
+          triangle(a, b, a + 1);
+          triangle(a + 1, b, b + 1);
+        }
+      }
+      final shadow = Paint()
+        ..color = Colors.black.withValues(alpha: .26 * math.sin(math.pi * p))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      for (final row in [0, rows]) {
+        final path = Path();
+        var started = false;
+        for (var col = 0; col <= columns; col++) {
+          final i = col * (rows + 1) + row;
+          if (depths[i] < 1) {
+            started = false;
+            continue;
+          }
+          final x = positions[i * 2] + 3, y = positions[i * 2 + 1] + 5;
+          if (started) {
+            path.lineTo(x, y);
+          } else {
+            path.moveTo(x, y);
+            started = true;
+          }
+        }
+        canvas.drawPath(path, shadow);
+      }
+      void draw(List<int> indices, bool backside) {
+        if (indices.isEmpty) return;
+        final mesh = ui.Vertices.raw(
+          ui.VertexMode.triangles,
+          positions,
+          textureCoordinates: textures,
+          colors: colors,
+          indices: Uint16List.fromList(indices),
         );
-      if (back && backBounds == null) {
-        // Paper transmits a faint mirrored impression on a single leaf.
-        paint.colorFilter = const ColorFilter.matrix([
-          .45,
-          0,
-          0,
-          0,
-          140,
-          0,
-          .45,
-          0,
-          0,
-          140,
-          0,
-          0,
-          .45,
-          0,
-          140,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]);
+        final paint = Paint()
+          ..shader = ImageShader(
+            source,
+            TileMode.clamp,
+            TileMode.clamp,
+            Matrix4.identity().storage,
+          )
+          ..filterQuality = FilterQuality.high;
+        if (backside && !reverseFace) {
+          paint.colorFilter = const ColorFilter.matrix([
+            .45,
+            0,
+            0,
+            0,
+            140,
+            0,
+            .45,
+            0,
+            0,
+            140,
+            0,
+            0,
+            .45,
+            0,
+            140,
+            0,
+            0,
+            0,
+            1,
+            0,
+          ]);
+        }
+        canvas.drawVertices(mesh, BlendMode.modulate, paint);
+        mesh.dispose();
       }
-      canvas.drawVertices(mesh, BlendMode.modulate, paint);
-      mesh.dispose();
+
+      draw(frontIndices, false);
+      draw(backIndices, true);
     }
 
-    draw(frontIndices, false);
-    draw(backIndices, true);
+    sheet(bounds, front, reverseFace: false, onlyBack: false);
+    if (back != null) {
+      sheet(
+        back,
+        projection(direction > 0 ? back.right : back.left),
+        reverseFace: true,
+        onlyBack: true,
+      );
+    }
   }
 
   void _shadow(Canvas canvas, Size size, double edge) {
@@ -662,6 +700,7 @@ class PageTurnPainter extends CustomPainter {
       old.grabY != grabY ||
       old.sheetBounds != sheetBounds ||
       old.backBounds != backBounds ||
+      old.stationaryBounds != stationaryBounds ||
       old.motion != motion ||
       old.before != before ||
       old.after != after ||

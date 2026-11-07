@@ -171,6 +171,9 @@ class BackgroundDownloads with WidgetsBindingObserver {
     final wanted = <String>{};
     final windowsWanted = <String>{};
     for (final profile in store.servers) {
+      // Kindle preparation uses its own on-demand native worker. Never send a
+      // Kindle session through the Komga-only OS transfer implementation.
+      if (profile.isKindle) continue;
       final enabled =
           currentPolicy.background &&
           store.setting<bool>('offline:${profile.id}') != true;

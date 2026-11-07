@@ -970,7 +970,9 @@ class BookCard extends StatelessWidget {
             subtitle: book == null ? null : item.subtitle,
             detail: book == null
                 ? '${item.subtitle} ${tr(context, item.kind == 'collections' ? 'Series' : 'Books')}'
-                : '${book.pages} ${tr(context, 'Pages')}',
+                : book.pages > 0
+                ? '${book.pageCountLabel} ${tr(context, 'Pages')}'
+                : '',
             unread: book == null
                 ? item.kind == 'series' &&
                       integer(item.json['booksReadCount']) == 0 &&

@@ -137,9 +137,7 @@ class _ReaderPageState extends State<ReaderPage>
     // context still owned by the native view on Android. The returned image
     // retains its scene and is ready before the raster thread draws the overlay.
     return boundary.toImageSync(
-      pixelRatio: boundary.size.longestSide > 2048
-          ? 2048 / boundary.size.longestSide
-          : 1,
+      pixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
   }
 
@@ -205,7 +203,7 @@ class _ReaderPageState extends State<ReaderPage>
 
   final _frames = ComicFrames();
   String _frameKey(int index, Size size) =>
-      '$index:$size:${_session.preferences.toJson()}';
+      '$index:$size:${MediaQuery.devicePixelRatioOf(context)}:${Theme.of(context).colorScheme.surface.toARGB32()}:${_session.preferences.toJson()}';
   bool get _composable =>
       !_split &&
       _session.preferences.mode == ReadingMode.paged &&
@@ -233,15 +231,39 @@ class _ReaderPageState extends State<ReaderPage>
       'system' => Theme.of(context).colorScheme.surface,
       _ => Colors.black,
     };
-    unawaited(() async {
-      for (final index in [_viewIndex, _viewIndex + 1, _viewIndex - 1]) {
-        if (!mounted || index < 0 || index >= _viewCount) continue;
-        try {
-          await _frames.warm(
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final origin = _viewIndex;
+    final candidates = [_viewIndex, _viewIndex + 1, _viewIndex - 1]
+        .where((index) => index >= 0 && index < _viewCount)
+        .take(ComicFrames.capacity(size, pixelRatio))
+        .map(
+          (index) => (
+            index: index,
             key: _frameKey(index, size),
-            size: size,
             first: _session.firstPage(index),
             count: _session.visiblePages(index),
+          ),
+        )
+        .toList();
+    unawaited(() async {
+      for (final request in candidates) {
+        if (!mounted ||
+            _viewIndex != origin ||
+            !_composable ||
+            request.key != _frameKey(request.index, size)) {
+          return;
+        }
+        final current = _pageBoundary.currentContext?.findRenderObject();
+        if (current is! RenderBox || !current.hasSize || current.size != size) {
+          return;
+        }
+        try {
+          await _frames.warm(
+            key: request.key,
+            size: size,
+            pixelRatio: pixelRatio,
+            first: request.first,
+            count: request.count,
             pageCount: widget.book.pages,
             rtl: p.direction == ReadingDirection.rtl,
             background: background,
@@ -275,7 +297,15 @@ class _ReaderPageState extends State<ReaderPage>
               ? after.leaves.first
               : after.leaves.last
         : null;
-    return PreparedPageTurn(before.image, after.image, sourceLeaf, backLeaf);
+    return PreparedPageTurn(
+      before.image,
+      after.image,
+      sourceLeaf,
+      backLeaf,
+      stationaryBounds: before.leaves.length == 2
+          ? (physical > 0 ? before.leaves.first : before.leaves.last)
+          : null,
+    );
   }
 
   bool _previewing = false;
@@ -1740,6 +1770,10 @@ class _ReaderPageState extends State<ReaderPage>
                     },
                     captureImage: _capturePageImage,
                     sheetBounds: _sheetBounds,
+                    stationaryBounds: (size, physical) =>
+                        !_split && _session.visiblePages(_viewIndex) == 2
+                        ? _sheetBounds(size, -physical)
+                        : null,
                     backBounds: (size, physical) {
                       final delta = settings.direction == ReadingDirection.rtl
                           ? -physical

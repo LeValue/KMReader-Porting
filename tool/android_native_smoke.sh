@@ -14,6 +14,14 @@ adb logcat -v threadtime > "${RUNNER_TEMP:-/tmp}/reader-logcat.txt" &
 km_log_pid=$!
 trap 'kill "$km_log_pid" 2>/dev/null || true' EXIT
 
+# This disposable emulator verifies actual animation playback. Record and
+# normalize the system clock rather than bypassing only its JS media query.
+for km_animation_setting in window_animation_scale transition_animation_scale animator_duration_scale; do
+  adb -s emulator-5554 shell settings put global "$km_animation_setting" 1.0
+  printf '%s: ' "$km_animation_setting"
+  adb -s emulator-5554 shell settings get global "$km_animation_setting"
+done
+
 adb shell cmd overlay enable --user 0 com.android.internal.display.cutout.emulation.tall
 # The driver needs the authenticated VM connection directly. A stalled DDS
 # handshake previously left a healthy emulator app paused before any test ran.

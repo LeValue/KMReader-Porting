@@ -1,0 +1,166 @@
+name: Android EPUB recovery diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Windows PC with the authorized USB phone
+        type: choice
+        options: [kmreader-android-desktop, kmreader-laptop, self-hosted]
+        default: kmreader-android-desktop
+  workflow_call:
+    inputs:
+      runner_label:
+        type: string
+        default: kmreader-android-desktop
+      prebuilt_run:
+        type: string
+        default: ''
+      expected_runner:
+        type: string
+        default: ''
+      renderer:
+        type: string
+        default: default
+      composition:
+        type: string
+        default: auto
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    if: inputs.prebuilt_run == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle.kts
+            android/gradle/wrapper/gradle-wrapper.properties
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Restore the pinned Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+          key: kmreader-ndk-${{ runner.os }}-28.2.13676358
+      - run: bash tool/install_android_ndk.sh
+      - run: python3 tool/prepare_build_metadata.py
+      - name: Build isolated ARM64 diagnostic APK (not a release)
+        env:
+          ORG_GRADLE_PROJECT_kmreaderEpubDiagnostic: 'true'
+          EPUB_COMPOSITION: ${{ inputs.composition }}
+        run: |
+          case "$EPUB_COMPOSITION" in
+            auto) flutter build apk --debug --target-platform android-arm64 --target=integration_test/epub_recovery_test.dart --no-pub ;;
+            hybrid|texture)
+              hybrid=false; if [ "$EPUB_COMPOSITION" = hybrid ]; then hybrid=true; fi
+              flutter build apk --debug --target-platform android-arm64 --target=integration_test/epub_recovery_test.dart --dart-define=KMREADER_EPUB_HYBRID_COMPOSITION=$hybrid --no-pub ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-epub-recovery-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+  phone:
+    needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
+    concurrency:
+      group: kmreader-android-phone-${{ inputs.runner_label }}
+      cancel-in-progress: false
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Verify the requested PC before any setup or device access
+        env:
+          EXPECTED_RUNNER: ${{ inputs.expected_runner }}
+        run: |
+          if ($env:EXPECTED_RUNNER -and $env:RUNNER_NAME -ne $env:EXPECTED_RUNNER) { throw "Expected runner $env:EXPECTED_RUNNER; assigned $env:RUNNER_NAME. No device test was started." }
+          Write-Output "Diagnostic PC: $env:RUNNER_NAME"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify reused diagnostic APK source and successful build job
+        if: inputs.prebuilt_run != ''
+        env:
+          PREBUILT_RUN: ${{ inputs.prebuilt_run }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ($env:PREBUILT_RUN -notmatch '^[1-9][0-9]*$') { throw 'A numbered diagnostic run is required.' }
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }
+          $base = "https://api.github.com/repos/$env:GH_REPO/actions/runs/$env:PREBUILT_RUN"
+          $run = Invoke-RestMethod -Headers $headers -Uri $base
+          if ($run.repository.full_name -ne $env:GH_REPO -or $run.event -ne 'workflow_dispatch' -or $run.path -ne '.github/workflows/local-windows.yml' -or $run.head_branch -notin @('main', 'fix/android-epub-recovery') -or $run.head_sha -notmatch '^[0-9a-f]{40}$') { throw 'Unrecognized diagnostic build source.' }
+          $jobs = Invoke-RestMethod -Headers $headers -Uri "$base/jobs?per_page=100"
+          if (-not @($jobs.jobs | Where-Object { $_.name -eq 'android_recovery / build' -and $_.conclusion -eq 'success' }).Count) { throw 'The diagnostic APK build did not succeed.' }
+          git fetch --no-tags origin $run.head_sha
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $changed = git diff --name-only $run.head_sha HEAD -- lib assets pubspec.yaml pubspec.lock third_party android integration_test/epub_recovery_test.dart integration_test/support/epub_recovery_check.dart test/support/epub_fixture.dart test_driver/native_reader_driver.dart
+          if ($LASTEXITCODE -ne 0 -or $changed) { throw 'The diagnostic app or test source differs from the existing APK.' }
+          Write-Output "Verified unchanged application and test source from run $env:PREBUILT_RUN."
+      - name: Set up the pinned Flutter driver in the runner cache
+        run: ./tool/setup_local_flutter.ps1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install the Android driver SDK with PowerShell 5 compatible extraction
+        run: ./tool/setup_local_android.ps1
+      - name: Resolve driver dependencies without Windows plugin links
+        run: |
+          $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Locate the diagnostic APK in the runner cache
+        id: apk
+        env:
+          BUILD_RUN: ${{ inputs.prebuilt_run || github.run_id }}
+        run: |
+          $directory = Join-Path $env:RUNNER_TOOL_CACHE "kmreader-android-apks/$env:BUILD_RUN"
+          "directory=$directory" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "file=$(Join-Path $directory 'app-debug.apk')" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "present=$((Test-Path (Join-Path $directory 'app-debug.apk')).ToString().ToLowerInvariant())" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - uses: actions/download-artifact@v4
+        if: steps.apk.outputs.present != 'true'
+        with:
+          name: android-epub-recovery-apk
+          path: ${{ steps.apk.outputs.directory }}
+          run-id: ${{ inputs.prebuilt_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Run on the single connected authorized ARM64 phone
+        env:
+          DIAGNOSTIC_APK: ${{ steps.apk.outputs.file }}
+          ANDROID_RENDERER: ${{ inputs.renderer }}
+          ANDROID_COMPOSITION: ${{ inputs.composition }}
+        run: ./tool/android_epub_recovery.ps1 -Apk $env:DIAGNOSTIC_APK -DisableImpeller:($env:ANDROID_RENDERER -eq 'skia') -Composition $env:ANDROID_COMPOSITION
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-epub-recovery-results
+          path: artifacts/android-epub-recovery
+          if-no-files-found: ignore
+          retention-days: 7

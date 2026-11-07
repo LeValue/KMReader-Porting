@@ -1,0 +1,117 @@
+{
+  "date": "2026-11-03",
+  "device": {
+    "model": "Huawei Mate 20 Pro (LYA-L09)",
+    "android": "10",
+    "sdk": 29,
+    "webView": "156.0.8078.47"
+  },
+  "publication": "Generated 2-chapter EPUB, 1400 paragraphs/chapter; no user library/account data.",
+  "testedRuntimeSource": "1340ddc63d31c6e447519d9c8f4ebf308f9b7818",
+  "binding": "IntegrationTestWidgetsFlutterBinding with controlled frame scheduling; a fullyLive comparison was queued but has not run.",
+  "scope": "Earlier recovery candidate, not final validation or performance of the subsequent 0.8.13 pipeline audit.",
+  "runs": [
+    {
+      "run": 41690247315,
+      "requestedComposition": "auto",
+      "passed": true,
+      "probes": [
+        {
+          "phase": "cold-open",
+          "hybrid": true,
+          "compositionOverride": false,
+          "impellerRequested": null,
+          "darkPixels": 50503,
+          "lightPixels": 575821,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        },
+        {
+          "phase": "settings-close",
+          "hybrid": true,
+          "compositionOverride": false,
+          "impellerRequested": null,
+          "darkPixels": 50503,
+          "lightPixels": 575821,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        },
+        {
+          "phase": "normal-curl",
+          "hybrid": true,
+          "compositionOverride": false,
+          "impellerRequested": null,
+          "darkPixels": 45131,
+          "lightPixels": 581834,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        },
+        {
+          "phase": "draw-failure",
+          "hybrid": true,
+          "compositionOverride": false,
+          "impellerRequested": null,
+          "darkPixels": 50128,
+          "lightPixels": 576457,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        },
+        {
+          "phase": "direct-turn",
+          "hybrid": true,
+          "compositionOverride": false,
+          "impellerRequested": null,
+          "darkPixels": 49974,
+          "lightPixels": 576714,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        },
+        {
+          "phase": "reader-reopen",
+          "hybrid": true,
+          "compositionOverride": false,
+          "impellerRequested": null,
+          "darkPixels": 49974,
+          "lightPixels": 576714,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        },
+        {
+          "phase": "context-loss",
+          "hybrid": true,
+          "compositionOverride": false,
+          "impellerRequested": null,
+          "darkPixels": 50204,
+          "lightPixels": 576505,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        }
+      ],
+      "apkSha256": "Algorithm : SHA256\r\nHash      : 98A049EB9F81242DD0403D79BC212C34AF8E38BE261DBE41493F02DCF0BC4341\r\nPath      : C:\\Users\\gaeta\\actions-runner\\_work\\_tool\\kmreader-android-apks\\41690247315\\app-debug.apk",
+      "normalCurl": {
+        "configuredDurationMs": 900,
+        "readyMs": 87.79999999701977,
+        "durationMs": 911.1000000014901
+      }
+    },
+    {
+      "run": 41691470387,
+      "requestedComposition": "texture",
+      "passed": false,
+      "probes": [
+        {
+          "phase": "cold-open",
+          "hybrid": false,
+          "compositionOverride": true,
+          "impellerRequested": null,
+          "darkPixels": 0,
+          "lightPixels": 631800,
+          "imageWidth": 1080,
+          "imageHeight": 2340
+        }
+      ],
+      "apkSha256": "Algorithm : SHA256\r\nHash      : 98A049EB9F81242DD0403D79BC212C34AF8E38BE261DBE41493F02DCF0BC4341\r\nPath      : C:\\Users\\gaeta\\actions-runner\\_work\\_tool\\kmreader-android-apks\\41690247315\\app-debug.apk"
+    }
+  ],
+  "excludedComparisons": "Launches requesting Skia or texture before 1340ddc discarded launcher extras; they are not renderer/composition comparisons."
+}

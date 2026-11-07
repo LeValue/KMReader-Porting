@@ -1,0 +1,80 @@
+{
+  "publication": "https://www.gutenberg.org/ebooks/2701.epub3.images",
+  "epub_sha256": "c3a458e4dd8c37e2c2553622ce41250f61a95d7d7de73874e8663caa4b5c9bbd",
+  "section": "CHAPTER 25. Postscript; range beginning old Gay-Head Indian once",
+  "renderer": "Bundled Epub.js in headless Chromium; PNG comparison against live iframe, RGB mean absolute error; not physical device FPS",
+  "preferences": {
+    "font": "serif",
+    "lineHeight": 1.65,
+    "columns": 1,
+    "paragraphSpacing": 0.5,
+    "theme": "sepia"
+  },
+  "baseline": {
+    "source": "0d42ce3da7ce719b59faca4a6a813626551d3b24",
+    "width": 393,
+    "height": 844,
+    "fontSize": 19,
+    "margin": 24,
+    "compact_vs_live_mae": [
+      23.73999975881239,
+      22.917173160643006,
+      20.68624205588317
+    ],
+    "full_vs_live_mae": [
+      0,
+      0,
+      0
+    ]
+  },
+  "candidate": [
+    {
+      "width": 390,
+      "height": 844,
+      "fontSize": 19,
+      "margin": 24,
+      "compact_vs_live_mae": [
+        0,
+        0,
+        0
+      ],
+      "full_vs_live_mae": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "width": 393,
+      "height": 844,
+      "fontSize": 19,
+      "margin": 24,
+      "compact_vs_live_mae": [
+        0,
+        0,
+        0
+      ],
+      "full_vs_live_mae": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "width": 591,
+      "height": 1280,
+      "fontSize": 28,
+      "margin": 39,
+      "compact_vs_live_mae": [
+        0,
+        0,
+        0
+      ],
+      "full_vs_live_mae": [
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}
