@@ -22,8 +22,17 @@ Local checks after this change:
   once on unchanged source; the original server interruption is not attributed
   to a known server defect.
 
-Hosted native/build verification remains part of the readiness checks for this
-source. No target-device/account acceptance or 1.0 publication is claimed here.
+[Main CI 42364220405](https://github.com/LeValue/KMReader-Porting/actions/runs/42364220405)
+passed `android`, `windows` and `android_reader_display` for source
+`e19fd64f13cdf0f5317f44b5e6dc59110fece6bb`, including the real backend,
+Chromium, ONNX, native integrations, release builds and Windows startup.
+Publication and draft-delivery jobs were skipped.
+
+The local ARM64 APK from that source passed retained certificate/package/ABI,
+embedded provenance, version 0.9.1+29 and 16 KiB alignment checks. The private
+signing configuration and keystore hashes are unchanged. APK SHA256:
+`82d94032adccc67b31d5d57913af40fc8dff62f831392d3142c75cc0c2f253b2`.
+No target-device/account acceptance or 1.0 publication is claimed here.
 
 ## Repository organization from working 0.9.1 — 2026-11-07
 

@@ -17,7 +17,7 @@ full upstream parity belongs in 1.0 is a separate scope decision.
 
 | Area | Existing evidence | Work required before calling 1.0 ready |
 |---|---|---|
-| Continuous verification | [PR CI 42322719036](https://github.com/LeValue/KMReader-Porting/actions/runs/42322719036) passed all three jobs for the 0.9.1 organization tree | Resolve or explain the subsequent main-branch Komga failure and obtain complete CI for the final 1.0 source |
+| Continuous verification | [Main CI 42364220405](https://github.com/LeValue/KMReader-Porting/actions/runs/42364220405) passed all three jobs for metadata-recovery source `e19fd64` | Obtain complete CI again for the final 1.0 source; investigate any recurrence of the original transport interruption |
 | Reading and offline use | Host, Chromium and native tests cover EPUB, PDF, comic motion, prepared Kindle conversion, local import and offline progress | Check the complete login → browse → download → read → close/reopen journey on target Android and Windows, including interrupted transfer and network loss |
 | Data and upgrades | Account-scoped persistence, durable outbox, download resume, cache protection and versioned document tests exist | Verify an in-place upgrade from the signed 0.9.1 build without losing accounts, downloads, progress, bookmarks or preferences; test removing/reconnecting one account while another remains usable |
 | Device behavior | Hosted emulator/WebView2 checks and earlier named-device measurements are retained | Validate secure storage/app lock, background downloads, resume, rotation/fullscreen, long-book memory and responsive navigation on actual target hardware; record source and device with results |
@@ -30,7 +30,7 @@ exact Apple visuals. Do not mark a skipped or unavailable check as passed.
 
 ## First observed blocker
 
-[Main CI 42360711583](https://github.com/LeValue/KMReader-Porting/actions/runs/42360711583)
+[Main CI 42360711583, attempt 1](https://github.com/LeValue/KMReader-Porting/actions/runs/42360711583/attempts/1)
 at merge commit `79cf68d` passed Windows and native Android, but the Android host
 job failed in `test/live_komga_test.dart` during `DocumentCache.revalidate` for a
 PDF. The metadata HEAD request reported an interrupted connection. This is not
@@ -47,7 +47,11 @@ Six new regressions cover cached-document preservation, conditional 304 headers,
 response interruption, retry limits and immediate authentication failures. The
 real-backend fixture explicitly enables one safe-read retry. This closes the
 policy inconsistency; it does not identify why the original server connection
-was interrupted. Complete main CI remains required for the updated source.
+was interrupted. The unchanged source also passed its failed-job retry.
+The updated source `e19fd64f13cdf0f5317f44b5e6dc59110fece6bb` passed all three
+jobs in [main CI 42364220405](https://github.com/LeValue/KMReader-Porting/actions/runs/42364220405).
+Its local signed ARM64 APK retains the original Preview identity/certificate,
+version/build and 16 KiB alignment. Target-device upgrade testing remains open.
 
 ## Acceptance record
 
