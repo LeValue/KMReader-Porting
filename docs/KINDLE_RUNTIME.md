@@ -40,3 +40,16 @@ Only superseded research documents, two browser experiments and the former
 standalone release workflow move to `archive/`. The active CI owns protocol,
 browser, prepared import and worker packaging checks. Personal-account probes
 stay manual and are not dispatched by CI.
+
+## Native Dart document management (build 31)
+
+`send_login.dart` and `import.dart` handle dedicated Send-to-Kindle authorization
+and upload. `management.dart` handles PDOC-only remote deletion, account-scoped
+backups/journals and acceptance readback; `document_edit.dart` prepares a new EPUB
+without altering its original. These paths do not replace or remove the Python
+conversion/runtime modules listed above. Complete cloud bookmark/state migration
+remains unimplemented; see [management limits](KINDLE_LIBRARY_MANAGEMENT.md).
+
+The existing locked `image` 4.12.0 package now belongs to production dependencies
+for JPEG/PNG cover validation, resizing and encoding in a worker isolate. Its
+version is unchanged; no Python/native dependency or override was upgraded.

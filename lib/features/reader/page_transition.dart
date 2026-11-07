@@ -546,7 +546,19 @@ class PageTurnPainter extends CustomPainter {
       uncovered
         ..lineTo(edge, margin)
         ..close();
-      canvas.clipPath(uncovered);
+      // The incoming stationary-side artwork is the reverse of the turning
+      // sheet. It must never also appear flat underneath that same sheet.
+      // Keep the old leaf there until the reverse face physically covers it.
+      // Outside its fitted rectangle the swept edge still retires old margins.
+      canvas.clipPath(
+        back == null
+            ? uncovered
+            : Path.combine(
+                PathOperation.union,
+                uncovered,
+                Path()..addRect(back),
+              ),
+      );
       image(canvas, before, size);
       canvas.restore();
     }

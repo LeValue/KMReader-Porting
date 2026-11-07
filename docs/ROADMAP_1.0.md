@@ -2,7 +2,7 @@
 
 The next publication target is **1.0.0**. Existing 0.9.x candidates stay in draft
 while work continues; previous builds and releases remain available for recovery.
-Current source is **1.0.0+30 candidate**; stable publication remains gated by the checks below.
+Current source is **1.0.0+31 development candidate**; stable publication remains gated by the checks below.
 Changing the version number alone does not complete this milestone.
 
 ## Working scope
@@ -26,6 +26,17 @@ Android/Windows porting. The seven changes above describe this candidate; the
 remaining applicable functionality, scope audits and target-device acceptance
 must be resolved before calling the port finished or proceeding to stable
 release. The matrix records future work and platform exclusions explicitly.
+
+## Additional requested Kindle service
+
+Build 31 introduces remote PDOC deletion with backup/journal/catalog verification,
+and EPUB title/author/language/description/cover editing followed by sending an
+updated copy. Dedicated send OAuth and sanitized stage diagnostics address
+concrete client authorization gaps. Full overwrite with cloud bookmark/state
+migration is still missing: the original remains protected and F-13 stays open.
+See [the service record](KINDLE_LIBRARY_MANAGEMENT.md) and K-01–K-06 for the
+remaining API work and real-account/device acceptance. Purchased Amazon books
+remain excluded.
 
 ## Readiness work
 
@@ -84,8 +95,8 @@ does not belong in logs, fixtures, source archives or CI artifacts.
 
 ## Version and publication
 
-Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+30 for this candidate,
-strictly above distributed build 29. Passing the readiness checks is still
+Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+31 for this candidate,
+strictly above the retained build 30 candidate. Passing the readiness checks is still
 required before stable publication. Preserve the
 existing Preview application ID and signing certificate for upgrade continuity.
 Add accurate 1.0 release notes and embed the exact source in each final build.

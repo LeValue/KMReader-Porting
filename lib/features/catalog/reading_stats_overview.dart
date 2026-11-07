@@ -143,7 +143,9 @@ class ReadingStatsOverview extends StatelessWidget {
             child: Text(
               tr(
                 context,
-                data['offline'] == true ? 'Offline Mode' : 'Cached Books Only',
+                data['offline'] == true && data['complete'] == true
+                    ? 'Offline Mode'
+                    : 'Cached Books Only',
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),

@@ -1,6 +1,6 @@
 # Documentation
 
-Current source: **1.0.0+30 candidate**, based on working 0.9.1. Existing 0.9.x
+Current source: **1.0.0+31 development candidate**, based on working 0.9.1. Existing 0.9.x
 binaries remain in draft; the latest published preview remains 0.8.12.
 See the [verified candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55),
 [1.0 changes](releases/v1.0.0.md), [readiness](ROADMAP_1.0.md) and
@@ -15,6 +15,7 @@ See the [verified candidate](https://github.com/LeValue/KMReader-Porting/release
 | Build, sign and distribute | [Releasing](RELEASING.md) |
 | Understand shared Kindle scripts | [Kindle runtime dependencies](KINDLE_RUNTIME.md) |
 | Import local documents into Kindle | [Send to Kindle](KINDLE_IMPORT.md) |
+| Track the new remote Kindle management service | [Personal documents, replacement and state migration](KINDLE_LIBRARY_MANAGEMENT.md) |
 | Review the 0.9.1 behavior | [Kindle corrections](KINDLE_0.9.1.md), [release notes](releases/v0.9.1-preview.1.md) |
 | Review the cleanup and retained history | [Repository audit](REPOSITORY_AUDIT.md), [machine-readable inventory](inventory/repository-before-2026-11-07.json) |
 | Finish porting before stable release | [Closure matrix and acceptance criteria](PARITY.md), [settings audit](SETTINGS_AUDIT.md), [reference](IPAD_REFERENCE.md) |

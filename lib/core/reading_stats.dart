@@ -79,6 +79,51 @@ class ReadingStats {
       }
     }
     if (repository.offline) {
+      final snapshot = object(
+        store.setting<dynamic>('offlineCatalogSnapshot:$server'),
+      );
+      if (snapshot.isNotEmpty) {
+        final books = <Json>[], series = <Json>[];
+        final generation = repository.contentRevision;
+        for (final (kind, target) in [('books', books), ('series', series)]) {
+          for (var page = 0; ; page++) {
+            if (repository.closed) {
+              throw const ApiFailure('The server connection was closed.');
+            }
+            final chunk = store.offlineCatalog.query(
+              server,
+              kind,
+              page: page,
+              size: 200,
+              libraryId: libraryId,
+            );
+            target.addAll(
+              chunk.items.map(
+                (item) => kind == 'books'
+                    ? repository.overlay(item.book).json
+                    : item.json,
+              ),
+            );
+            if (chunk.last) break;
+            await Future<void>.delayed(Duration.zero);
+          }
+        }
+        final result = await compute(aggregateReadingStats, {
+          'books': books,
+          'series': series,
+          'total': books.length,
+          'complete':
+              snapshot['complete'] != false &&
+              snapshot['inProgress'] != true &&
+              generation == repository.contentRevision,
+        });
+        return {
+          ...result,
+          'source': 'offline-index',
+          'offline': true,
+          'generatedAt': snapshot['modified'],
+        };
+      }
       final raw = store.cached(server, '${key}Input');
       if (raw != null) {
         final input = object(raw);

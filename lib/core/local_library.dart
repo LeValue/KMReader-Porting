@@ -38,6 +38,8 @@ class LocalLibrary extends Repository {
     );
     setOffline(true);
   }
+  @override
+  bool get offlineMetadataComplete => true;
   static const scope = 'device-library';
   Directory get root => Directory(p.join(directory.path, scope, 'originals'));
   List<Book> get books => store.db

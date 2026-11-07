@@ -14,9 +14,11 @@ import 'package:kmreader/features/kindle/kindle_import_page.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
-  for (final accepted in [true, false]) {
+  for (final scenario in ['accepted', 'uncertain', 'devices_error']) {
+    final accepted = scenario == 'accepted';
+    final deviceError = scenario == 'devices_error';
     testWidgets(
-      'file picker -> chosen device -> ${accepted ? 'accepted' : 'uncertain'}; cannot send twice',
+      'file picker -> $scenario; retains failures and cannot send twice',
       (tester) async {
         tester.view.physicalSize = const Size(1000, 1000);
         tester.view.devicePixelRatio = 1;
@@ -45,6 +47,7 @@ void main() {
           }),
           client: MockClient((request) async {
             if (request.url.path.endsWith('get-device-list')) {
+              if (deviceError) return http.Response('PRIVATE SERVER BODY', 503);
               return http.Response(
                 jsonEncode({
                   'statusCode': 0,
@@ -114,6 +117,24 @@ void main() {
             () => Future<void>.delayed(const Duration(milliseconds: 30)),
           );
           await tester.pump();
+        }
+        if (deviceError) {
+          expect(find.textContaining('HTTP 503'), findsOneWidget);
+          expect(find.textContaining('PRIVATE SERVER BODY'), findsNothing);
+          await tester.tap(find.text('Choose file'));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pump();
+          expect(find.text('Local document.txt'), findsOneWidget);
+          expect(find.textContaining('HTTP 503'), findsOneWidget);
+          expect(find.text('Authorize Send to Kindle'), findsOneWidget);
+          expect(
+            tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+            isNull,
+          );
+          await tester.pumpWidget(const SizedBox());
+          return;
         }
         expect(find.text('My Kindle'), findsOneWidget);
         expect(find.text('Chosen Kindle account'), findsOneWidget);

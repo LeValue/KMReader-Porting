@@ -1,5 +1,48 @@
 # Development validation
 
+## 1.0.0+31 development — 2026-11-07
+
+This source revision adds the curl layer correction, separate Send-to-Kindle
+OAuth/diagnostics, partial PDOC management, and F-08/F-09 offline/live metadata
+work. The retained downloadable draft is still build 30; no old asset is replaced.
+
+Local checks on the development source:
+
+- `flutter analyze --no-pub`: no issues.
+- Complete `flutter test --no-pub`: **416 passed, 34 skipped**. Skipped opt-in
+  checks are not counted as executed.
+- `python3 -m unittest discover -s tool/tests`: **13 passed**.
+- Real, isolated Komga 1.29.1: authentication, search, CBZ/EPUB/PDF downloads,
+  offline progress and WebPub synchronization passed. The final source is also
+  exercised by the main CI backend job.
+- The tilted spread pixel regression fails with the former painter in both
+  directions and passes with the correction; it is included in the shared native
+  Android spread checks as well as host tests. Native execution awaits the new CI.
+- EPUB editing tests cover original/content/identity preservation, real cover
+  encoding, proportional 2048-pixel bound, existing cover replacement, unsupported
+  layout rejection and accurate UTF-8 declarations for UTF-16 source metadata.
+- Remote mutation fixtures cover PDOC-only scope, backups/journal, uncertain
+  responses without replay, catalog readback and retaining the original during
+  incomplete state migration. OAuth fixtures reject unrelated accounts and keep
+  reading credentials separate.
+- The retained Android certificate matches
+  `d95f940bec20cec8563c946df8c62de1922852b9b5d3bf3a7765e9dc1b10322e`.
+  Five pre-existing APK outputs were preserved before building. Remote inventory
+  still contains **43 releases / 171 assets**, with main as the only remote head.
+
+New signed-package and hosted Android/Windows results are recorded after the
+main build completes. These local checks do not establish real Amazon upload,
+current consumer-web deletion availability, physical-device acceptance, or full
+porting parity. See [the matrix](PARITY.md) and
+[PDOC management limits](KINDLE_LIBRARY_MANAGEMENT.md).
+
+Historical read-only report
+[42308712643](https://github.com/LeValue/KMReader-Porting/actions/runs/42308712643)
+(source `a5e51aa`, artifact `kindle-personal-read-only-probe`) exposes bookmark
+field names in JSON. All four legacy XML filters returned only last-read records;
+that report supplies no verified cloud bookmark-write contract. It is not a test
+of build 31 and does not close K-04 or AT-06.
+
 ## 1.0.0+30 candidate — 2026-11-07
 
 Application source: `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, on main.

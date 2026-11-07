@@ -9,16 +9,17 @@ achieved**; see the [porting closure matrix](docs/PARITY.md) and
 
 ## Current version and downloads
 
-The current source is the **1.0.0+30 candidate**, built on working 0.9.1.
+The current source is the **1.0.0+31 development candidate**, built on working 0.9.1.
 [1.0 changes](docs/releases/v1.0.0.md) include single-page comic gestures/curl,
 local-file Send to Kindle, dictionary filtering, responsive Kindle indexing and
 separate recently added books/comics on the dashboard.
+Build 31 additionally fixes tilted spread curl layers, adds dedicated Kindle send authorization, personal-document management with recovery records, and improves live/offline metadata. [Kindle management limits](docs/KINDLE_LIBRARY_MANAGEMENT.md) include the still incomplete bookmark/state migration.
 AI/model/translation extensions and Komga server upload are future work.
 See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION.md)
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
-[Download the signed Android / Windows 1.0 candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55).
+[Download the retained Android / Windows candidate (build 30)](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55).
 It is a draft requiring repository write access to view; [complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059)
 and [delivery checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42383704677)
 passed. Device/account acceptance remains open as recorded above.

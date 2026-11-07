@@ -506,6 +506,15 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   @override
   Widget build(BuildContext context) => Column(
     children: [
+      if (widget.repository.offline &&
+          !widget.repository.offlineMetadataComplete)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            tr(context, 'Cached Books Only'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
       if (_selecting)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

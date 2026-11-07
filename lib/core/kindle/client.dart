@@ -25,12 +25,13 @@ const _signedHosts = {
 };
 
 class KindleFailure implements Exception {
-  const KindleFailure(this.code, {this.status});
+  const KindleFailure(this.code, {this.status, this.stage});
   final String code;
   final int? status;
+  final String? stage;
   @override
   String toString() =>
-      status == null ? 'Kindle: $code' : 'Kindle: $code (HTTP $status)';
+      'Kindle: $code${stage == null ? '' : ' [$stage]'}${status == null ? '' : ' (HTTP $status)'}';
 }
 
 String kindleRandom([int count = 32]) => base64UrlEncode(

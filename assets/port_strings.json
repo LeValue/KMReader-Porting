@@ -1714,5 +1714,157 @@
     "zh-Hant": "最近新增的漫畫",
     "ru": "Недавно добавленные комиксы",
     "es": "Cómics añadidos recientemente"
+  },
+  "Author": {
+    "en": "Author",
+    "it": "Autore",
+    "de": "Autor",
+    "fr": "Auteur",
+    "ja": "著者",
+    "ko": "저자",
+    "zh-Hans": "作者",
+    "zh-Hant": "作者",
+    "ru": "Автор",
+    "es": "Autor"
+  },
+  "Authorize Send to Kindle": {
+    "en": "Authorize Send to Kindle",
+    "it": "Autorizza Invio a Kindle"
+  },
+  "Unable to open the browser.": {
+    "en": "Unable to open the browser.",
+    "it": "Impossibile aprire il browser."
+  },
+  "Use the same Amazon account as this Kindle library. Account matching could not be confirmed.": {
+    "en": "Use the same Amazon account as this Kindle library. Account matching could not be confirmed.",
+    "it": "Usa lo stesso account Amazon di questa libreria Kindle. Non è stato possibile confermare la corrispondenza dell’account."
+  },
+  "Amazon authorization failed. Retry with a new login.": {
+    "en": "Amazon authorization failed. Retry with a new login.",
+    "it": "Autorizzazione Amazon non riuscita. Riprova con un nuovo accesso."
+  },
+  "Copy the complete Amazon return address from your browser.": {
+    "en": "Copy the complete Amazon return address from your browser.",
+    "it": "Copia dal browser l’indirizzo completo di ritorno di Amazon."
+  },
+  "Sign in with the same Amazon account. This authorizes sending documents and keeps your reading connection.": {
+    "en": "Sign in with the same Amazon account. This authorizes sending documents and keeps your reading connection.",
+    "it": "Accedi con lo stesso account Amazon. Autorizzi l’invio dei documenti conservando il collegamento per la lettura."
+  },
+  "Open Amazon sign-in": {
+    "en": "Open Amazon sign-in",
+    "it": "Apri l’accesso Amazon"
+  },
+  "After signing in, copy the complete return address and paste it here.": {
+    "en": "After signing in, copy the complete return address and paste it here.",
+    "it": "Dopo l’accesso, copia l’indirizzo completo di ritorno e incollalo qui."
+  },
+  "Complete with copied address": {
+    "en": "Complete with copied address",
+    "it": "Completa con l’indirizzo copiato"
+  },
+  "Update Kindle document": {
+    "en": "Update Kindle document",
+    "it": "Aggiorna documento Kindle"
+  },
+  "Amazon receives an updated copy. The original is kept until reading position and bookmarks can be migrated and verified. Automatic replacement is not yet available.": {
+    "en": "Amazon receives an updated copy. The original is kept until reading position and bookmarks can be migrated and verified. Automatic replacement is not yet available.",
+    "it": "Amazon riceverà una copia aggiornata. L’originale viene conservato finché posizione e segnalibri non possono essere trasferiti e verificati. La sostituzione automatica non è ancora disponibile."
+  },
+  "Choose cover (EPUB)": {
+    "en": "Choose cover (EPUB)",
+    "it": "Scegli copertina (EPUB)"
+  },
+  "Remove selected cover": {
+    "en": "Remove selected cover",
+    "it": "Rimuovi copertina selezionata"
+  },
+  "Updated copy accepted. The original is preserved; reading position and bookmarks have not been migrated yet.": {
+    "en": "Updated copy accepted. The original is preserved; reading position and bookmarks have not been migrated yet.",
+    "it": "Copia aggiornata accettata. L’originale è conservato; posizione e segnalibri non sono ancora stati trasferiti."
+  },
+  "Manage Kindle document": {
+    "en": "Manage Kindle document",
+    "it": "Gestisci documento Kindle"
+  },
+  "Edit metadata and cover": {
+    "en": "Edit metadata and cover",
+    "it": "Modifica metadati e copertina"
+  },
+  "Prepare and send an updated EPUB copy; the original remains available.": {
+    "en": "Prepare and send an updated EPUB copy; the original remains available.",
+    "it": "Prepara e invia una copia EPUB aggiornata; l’originale resta disponibile."
+  },
+  "Delete from Kindle library": {
+    "en": "Delete from Kindle library",
+    "it": "Elimina dalla libreria Kindle"
+  },
+  "Permanently removes this personal document from Amazon, not just this device. Local files and recovery data are kept.": {
+    "en": "Permanently removes this personal document from Amazon, not just this device. Local files and recovery data are kept.",
+    "it": "Elimina definitivamente questo documento personale da Amazon, non solo da questo dispositivo. File locali e dati di recupero vengono conservati."
+  },
+  "Deletion confirmed by Amazon catalog": {
+    "en": "Deletion confirmed by Amazon catalog",
+    "it": "Eliminazione confermata dal catalogo Amazon"
+  },
+  "Operation stopped before sending": {
+    "en": "Operation stopped before sending",
+    "it": "Operazione interrotta prima dell’invio"
+  },
+  "Updated copy sent; state migration incomplete": {
+    "en": "Updated copy sent; state migration incomplete",
+    "it": "Copia aggiornata inviata; trasferimento dello stato incompleto"
+  },
+  "Delivery uncertain. Check your Kindle library before sending again.": {
+    "en": "Delivery uncertain. Check your Kindle library before sending again.",
+    "it": "Esito dell’invio incerto. Controlla la libreria Kindle prima di inviare di nuovo."
+  },
+  "Delivery interrupted. Check your Kindle library before sending again.": {
+    "en": "Delivery interrupted. Check your Kindle library before sending again.",
+    "it": "Invio interrotto. Controlla la libreria Kindle prima di inviare di nuovo."
+  },
+  "Deletion awaiting verification": {
+    "en": "Deletion awaiting verification",
+    "it": "Eliminazione in attesa di verifica"
+  },
+  "Check deletion": {
+    "en": "Check deletion",
+    "it": "Verifica eliminazione"
+  },
+  "Choose a valid JPG or PNG cover up to 20 MB.": {
+    "en": "Choose a valid JPG or PNG cover up to 20 MB.",
+    "it": "Scegli una copertina JPG o PNG valida fino a 20 MB."
+  },
+  "An operation is already pending for this document. Check its status before trying again.": {
+    "en": "An operation is already pending for this document. Check its status before trying again.",
+    "it": "C’è già un’operazione in sospeso su questo documento. Controllane lo stato prima di riprovare."
+  },
+  "Finish pending downloads and reading synchronization before changing this document.": {
+    "en": "Finish pending downloads and reading synchronization before changing this document.",
+    "it": "Completa i download e la sincronizzazione della lettura prima di modificare questo documento."
+  },
+  "Connect this Kindle account before changing its cloud library.": {
+    "en": "Connect this Kindle account before changing its cloud library.",
+    "it": "Collega questo account Kindle prima di modificarne la libreria cloud."
+  },
+  "Cover editing requires an EPUB file.": {
+    "en": "Cover editing requires an EPUB file.",
+    "it": "Per modificare la copertina serve un file EPUB."
+  },
+  "Session expired. Reconnect your account.": {
+    "en": "Session expired. Reconnect your account.",
+    "it": "Sessione scaduta. Ricollega l’account."
+  },
+  "Open Amazon content manager": {
+    "en": "Open Amazon content manager",
+    "it": "Apri la gestione contenuti Amazon"
+  },
+  "Cancel operation before sending": {
+    "en": "Cancel operation before sending",
+    "it": "Annulla operazione prima dell’invio"
+  },
+  "This EPUB uses a cover format that cannot be replaced safely. Use an EPUB with a JPG or PNG cover.": {
+    "en": "This EPUB uses a cover format that cannot be replaced safely. Use an EPUB with a JPG or PNG cover.",
+    "it": "Questo EPUB usa un formato di copertina che non può essere sostituito in modo sicuro. Usa un EPUB con copertina JPG o PNG."
   }
 }
