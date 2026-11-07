@@ -2,29 +2,64 @@
 
 ## 1.0.0+30 candidate — 2026-11-07
 
-The candidate implements the agreed single-page comic curl/gesture changes,
-local-file Kindle cloud import, full/legacy dictionary filtering and asynchronous
-Kindle catalog initialization with bounded cover work. AI/model/translation
-extensions and Komga server upload are future features. See
-[release notes](releases/v1.0.0.md) and [import behavior/limits](KINDLE_IMPORT.md).
+Application source: `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, on main.
+The [downloadable candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-84902e8784cf41cdcf31) is a new draft; existing 0.9.x drafts and
+published releases are preserved. No stable publication or new PR was made.
 
-Local checks: analyzer without issues; 11 release-tool Python tests; 39 Kindle
-protocol/catalog/repository/import/widget tests; 24 comic transition/gesture
-checks. The ordinary host suite also passed before the final startup-path
-adjustments. Complete CI and signed candidate artifact evidence are recorded
-below after building the exact committed source.
+[CI 42371503059](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059)
+passed `android`, `windows` and `android_reader_display` for this exact source.
+This includes both host suites, the real Komga backend, Chromium, prepared Kindle
+runtime, ONNX checks, native Android/Windows readers, release builds and Windows
+startup in an isolated profile. Local analysis has no issues. Release-tool tests
+also pass: 13 after adding support for version-matched 1.0 draft delivery.
 
-New coverage includes a 2,400-book UI-event regression, closing during index or
-queued cover work, full/incremental purchased-dictionary filtering, first offline
-catalog migration, paper-relative mouse turns in a 1600x600 window, single-sheet
-fade pixels, independent raw-RSA import signature, streamed uploads, selected
-account/device, cancellation and lost delivery replies without duplicate writes.
+The [first native Android attempt](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059/attempts/1)
+printed successful WindowInsets and reader results, then lost its VM-service/ADB
+connection before the driver accepted the final response. That job failed and
+is not counted as a pass. Re-running only that job on unchanged source completed
+successfully, including the driver response. The underlying interruption is not
+attributed to a confirmed app or emulator defect; both attempts remain recorded.
 
-The existing Android signing files match their pre-change hashes. No older
-release/tag/build or signing key is replaced. Real Amazon upload/conversion,
-upgrade from a signed 0.9.1 installation and the reported Windows freeze on the
-affected physical device remain acceptance checks. Synthetic tests are not
-reported as successful personal-account delivery or physical-device evidence.
+[Delivery 42383704677](https://github.com/LeValue/KMReader-Porting/actions/runs/42383704677)
+rechecked complete CI and unchanged application/runtime paths, reconstructed the
+byte-exact locally signed APKs from bounded transport blobs, verified their
+certificate, ABI, package/version, provenance and 16 KiB alignment, then attached
+them with the matching Windows bundle and SHA256SUMS. The Android private key
+never left the local build environment. Delivery did not publish the draft.
+
+All five release assets were downloaded again. Their bytes match GitHub's asset
+digests and SHA256SUMS; each APK also matches the original local signed file.
+All **710 files** in the Windows archive match the source-verified CI artifact,
+including native libraries, the MSVC runtime, Kindle converter, corresponding
+source archive and notices. APK/Windows checksums:
+
+| Candidate artifact | SHA256 |
+|---|---|
+| `KMReader-1.0.0-android-arm64-preview.apk` | `e6be47e5b5872477d0d22071eb32f5d05961efec8d5e75c9ca70ebec5703b771` |
+| `KMReader-1.0.0-android-armv7-preview.apk` | `7bddb997d853918be0b18aecbd74a9c065a094500d0d205bdb6c57e4c2cc7591` |
+| `KMReader-1.0.0-android-x64-preview.apk` | `abcc8cb0a0811fcce950322e99af72aaa0b777f6f4e9b6ea7c9cd452ad587961` |
+| `KMReader-1.0.0-windows-x64-preview.zip` | `f9d6edab9687ff5bc7f8133699edb2992cdfdadf5ba5ce70fe71303b21fff06b` |
+
+The seven requested changes are described in the [release notes](releases/v1.0.0.md)
+and [Kindle import guide](KINDLE_IMPORT.md). New coverage checks paper-relative
+mouse gestures and fading single sheets, a 2,400-book UI-event regression,
+account closure during queued/index work, full/incremental dictionary filtering
+including classification recovery from old snapshots, and streamed Kindle import
+with cancellation and non-replayed ambiguous delivery. Dashboard regressions
+separate EPUB/PDF books from DIVINA comics **before pagination**, cover old or
+missing publication dates, and preserve Kindle acquisition/first-seen dates.
+The split queries also passed against real Komga 1.29.1. See All shares them.
+
+The original signing configuration/keystore hashes are unchanged. The initial
+inventory's **42 releases and 166 assets** retain their IDs, names, sizes and
+available digests; the new candidate adds five assets without replacing them.
+Application data schema, account boundaries and archived source history are kept.
+
+Still open for target-device/account acceptance: real Amazon upload/conversion
+and delivery, an in-place upgrade from signed 0.9.1, and confirmation on the
+Windows machine that reported the freeze. Synthetic/hosted tests do not establish
+those results. AI/model/translation extensions and Komga server upload remain
+future features. The 1.0 candidate stays in draft pending that acceptance.
 
 ## Pre-1.0 document metadata recovery — 2026-11-07
 
