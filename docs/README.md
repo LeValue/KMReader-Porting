@@ -17,7 +17,7 @@ See the [verified candidate](https://github.com/LeValue/KMReader-Porting/release
 | Import local documents into Kindle | [Send to Kindle](KINDLE_IMPORT.md) |
 | Review the 0.9.1 behavior | [Kindle corrections](KINDLE_0.9.1.md), [release notes](releases/v0.9.1-preview.1.md) |
 | Review the cleanup and retained history | [Repository audit](REPOSITORY_AUDIT.md), [machine-readable inventory](inventory/repository-before-2026-11-07.json) |
-| Review functional gaps | [Parity](PARITY.md), [settings audit](SETTINGS_AUDIT.md), [reference](IPAD_REFERENCE.md) |
+| Finish porting before stable release | [Closure matrix and acceptance criteria](PARITY.md), [settings audit](SETTINGS_AUDIT.md), [reference](IPAD_REFERENCE.md) |
 | Review evidence and performance | [Validation history](VALIDATION.md), [performance](PERFORMANCE.md), [Android recovery](ANDROID_EPUB_RECOVERY.md), [EPUB audit](EPUB_RENDERING_AUDIT.md), [comic curl](COMIC_CURL_RENDERING.md) |
 | Run personal device diagnostics | [Local Windows tests](LOCAL_WINDOWS_TESTS.md) |
 | Reproduce image assets | [Bubble model](BUBBLE_MODEL.md), [tools](../tool/README.md) |
