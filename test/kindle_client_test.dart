@@ -141,6 +141,7 @@ void main() {
           previous: incremental
               ? {
                   'complete': true,
+                  'dictionary_filter_version': 1,
                   'sync_time': '1',
                   'items': [
                     {
@@ -159,6 +160,37 @@ void main() {
       },
     );
   }
+  test('legacy snapshots force a full metadata sync to recover lost dictionary classifications', () async {
+    final client = KindleClient(
+      session: session(),
+      client: MockClient((request) async {
+        expect(request.url.queryParameters, isNot(contains('last_sync_time')));
+        return http.Response(
+          '''<response syncType="full"><sync_time>2</sync_time><add_update_list>
+<meta_data><ASIN>paid</ASIN><cde_contenttype>EBOK</cde_contenttype><title>Reference without a dictionary title</title><is_dictionary>true</is_dictionary><origins><origin><type>Purchase</type></origin></origins></meta_data>
+<meta_data><ASIN>novel</ASIN><cde_contenttype>PDOC</cde_contenttype><title>Novel</title></meta_data>
+</add_update_list></response>''',
+          200,
+        );
+      }),
+    );
+    addTearDown(client.close);
+    final result = await client.catalog(
+      previous: {
+        'complete': true,
+        'sync_time': '1',
+        'items': [
+          {
+            'key': 'EBOK:paid',
+            'title': 'Reference without a dictionary title',
+            'is_amazon_dictionary': false,
+          },
+        ],
+      },
+    );
+    expect(result['dictionary_filter_version'], 1);
+    expect((result['items'] as List).map((v) => object(v)['title']), ['Novel']);
+  });
   test('service failures contain no payload, tokens or signed URL', () async {
     final client = KindleClient(
       session: session(),

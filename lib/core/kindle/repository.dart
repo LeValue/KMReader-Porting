@@ -302,8 +302,9 @@ class KindleRepository extends Repository {
           final fetched =
               DateTime.tryParse('$value')?.millisecondsSinceEpoch ??
               integer(value) * 1000;
-          if (DateTime.now().millisecondsSinceEpoch - fetched >
-              15 * 60 * 1000) {
+          if (library.snapshot['dictionary_filter_version'] != 1 ||
+              DateTime.now().millisecondsSinceEpoch - fetched >
+                  15 * 60 * 1000) {
             refreshContent();
           }
         },
