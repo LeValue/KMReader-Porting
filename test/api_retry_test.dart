@@ -5,8 +5,84 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/models.dart';
+import 'package:kmreader/core/network_preferences.dart';
 
 void main() {
+  for (final retries in [0, 1, 2]) {
+    test('HEAD respects the configured limit of $retries retries', () async {
+      var count = 0;
+      final api = KomgaApi(
+        Uri.parse('https://example.invalid'),
+        authentication: Authentication.apiKey,
+        credential: '',
+        client: MockClient((request) async {
+          expect(request.method, 'HEAD');
+          count++;
+          throw http.ClientException('Connection closed before headers');
+        }),
+      );
+      api.readNetworkPreferences = () => NetworkPreferences(retries: retries);
+      addTearDown(api.close);
+      await expectLater(
+        api.head('/file'),
+        throwsA(isA<ApiFailure>().having((e) => e.offline, 'offline', true)),
+      );
+      expect(count, retries + 1);
+    });
+  }
+  test('HEAD preserves conditional headers and accepts 304 after a response stream interruption', () async {
+    var count = 0;
+    final api = KomgaApi(
+      Uri.parse('https://example.invalid'),
+      authentication: Authentication.apiKey,
+      credential: '',
+      client: MockClient.streaming((request, body) async {
+        expect(request.method, 'HEAD');
+        expect(request.headers['If-None-Match'], '"v1"');
+        count++;
+        if (count == 1) {
+          return http.StreamedResponse(
+            Stream.error(http.ClientException('Interrupted response')),
+            200,
+          );
+        }
+        return http.StreamedResponse(
+          const Stream.empty(),
+          304,
+          headers: {'etag': '"v1"'},
+        );
+      }),
+    );
+    api.readNetworkPreferences = () => const NetworkPreferences(retries: 1);
+    addTearDown(api.close);
+    final response = await api.head(
+      '/file',
+      extra: {'If-None-Match': '"v1"'},
+      acceptedStatuses: {304},
+    );
+    expect(response.statusCode, 304);
+    expect(response.headers['etag'], '"v1"');
+    expect(count, 2);
+  });
+  test('HEAD never retries an authentication failure', () async {
+    var count = 0;
+    final api = KomgaApi(
+      Uri.parse('https://example.invalid'),
+      authentication: Authentication.apiKey,
+      credential: '',
+      client: MockClient((request) async {
+        count++;
+        return http.Response('', 401);
+      }),
+    );
+    api.readNetworkPreferences = () => const NetworkPreferences(retries: 2);
+    addTearDown(api.close);
+    await expectLater(
+      api.head('/file'),
+      throwsA(isA<ApiFailure>().having((e) => e.status, 'status', 401)),
+    );
+    expect(count, 1);
+  });
   test('original-file GET retries an interrupted connection but never retries authentication failure', () async {
     final directory = Directory.systemTemp.createTempSync('transfer-retry-');
     var calls = 0, unauthorized = false;

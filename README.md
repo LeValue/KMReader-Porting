@@ -9,6 +9,9 @@ achieved**; see the [parity matrix](docs/PARITY.md) and
 
 ## Current version and downloads
 
+The next publication target is **1.0.0**. Existing candidates remain in draft
+while we complete the [1.0 readiness work](docs/ROADMAP_1.0.md).
+
 The current source is **0.9.1+29**, based on working commit `a5e51aa` and the
 subsequent diagnostic fixes through `63ad4e7`. The matching
 [0.9.1 candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-8bfb43c3022b397460bc)

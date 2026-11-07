@@ -239,9 +239,8 @@ class DocumentCache {
     }
   });
   Future<Json> _head(Book book, [Json entry = const {}]) async {
-    final response = await api.send(
+    final response = await api.head(
       '/api/v1/books/${Uri.encodeComponent(book.id)}/file',
-      method: 'HEAD',
       acceptedStatuses: const {304},
       extra: {
         'Accept': '*/*',
@@ -251,7 +250,6 @@ class DocumentCache {
           'If-Modified-Since': text(entry['modified']),
       },
     );
-    await response.stream.drain<void>();
     return {
       'status': response.statusCode,
       'etag': response.headers['etag'],
