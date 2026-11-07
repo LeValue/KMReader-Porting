@@ -3,7 +3,7 @@
 ## 1.0.0+30 candidate — 2026-11-07
 
 Application source: `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, on main.
-The [downloadable candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-84902e8784cf41cdcf31) is a new draft; existing 0.9.x drafts and
+The [downloadable candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55) is a new draft; existing 0.9.x drafts and
 published releases are preserved. No stable publication or new PR was made.
 
 [CI 42371503059](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059)
