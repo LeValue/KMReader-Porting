@@ -36,6 +36,15 @@ class Repository extends ChangeNotifier {
     api.readNetworkPreferences = () => NetworkPreferences.fromStore(store);
   }
   final ServerProfile profile;
+  bool get offlineMetadataComplete {
+    final snapshot = object(
+      store.setting<dynamic>('offlineCatalogSnapshot:${profile.id}'),
+    );
+    return snapshot.isNotEmpty &&
+        snapshot['complete'] != false &&
+        snapshot['inProgress'] != true;
+  }
+
   bool get supportsSeries => true;
   bool get supportsRemoteLists => true;
   Future<Book> resolveDocumentBook(Book book, File file) async => book;
@@ -92,6 +101,7 @@ class Repository extends ChangeNotifier {
   bool _disposed = false;
   StreamSubscription<ServerEvent>? _events;
   String? _lastEventId;
+  bool _hadEventConnection = false, _eventsSessionExpired = false;
   final imageChanges = ValueNotifier<Set<String>>({});
   final eventNotices = ValueNotifier<String?>(null);
   late final taskQueueStatus = ValueNotifier<Json>(
@@ -113,6 +123,8 @@ class Repository extends ChangeNotifier {
   final catalogChanges = ValueNotifier<int>(0);
   final _queries = <String, Future<dynamic>>{};
   final _storedBookBatches = Expando<bool>();
+  final _fetchedGenerations = Expando<int>();
+  final _removalGenerations = <String, int>{};
   final _queryValues = WeightedCache<String, dynamic>(
     maxWeight: 8 * 1024 * 1024,
     weight: (value) => jsonEncode(value).length * 2,
@@ -317,6 +329,7 @@ class Repository extends ChangeNotifier {
   void removeCatalogItem(String kind, String id) {
     if (_disposed) return;
     _removed.add('$kind:$id');
+    _removalGenerations['$kind:$id'] = _invalidationGeneration + 1;
     store.offlineCatalog.remove(profile.id, kind, id);
     store.setSetting('removed:${profile.id}', _removed.toList());
     store.deleteCache(profile.id, 'detail:$kind:$id');
@@ -350,34 +363,42 @@ class Repository extends ChangeNotifier {
         offline: true,
       );
     }
-    Future<dynamic> fetch({bool background = false}) =>
-        _queries.putIfAbsent(key, () async {
-          final generation = _invalidationGeneration;
-          try {
-            final value = await api.request(
-              path,
-              method: method,
-              body: body,
-              query: query,
-            );
-            if (_disposed) return value;
-            final different =
-                background && jsonEncode(cached) != jsonEncode(value);
-            store.cache(profile.id, key, value);
-            _queryValues.put(key, value);
-            _stampQuery(key, generation);
-            if (different) {
-              cacheRevision++;
-              _cacheEvents ??= Timer(const Duration(milliseconds: 50), () {
-                _cacheEvents = null;
-                if (!_disposed) catalogChanges.value++;
-              });
-            }
-            return value;
-          } finally {
-            _queries.remove(key);
-          }
-        });
+    Future<dynamic> fetch({
+      bool background = false,
+    }) => _queries.putIfAbsent(key, () async {
+      final generation = _invalidationGeneration;
+      try {
+        final value = await api.request(
+          path,
+          method: method,
+          body: body,
+          query: query,
+        );
+        if (value is Map || value is List) {
+          _fetchedGenerations[value] = generation;
+        }
+        if (_disposed ||
+            key.startsWith('book:') &&
+                _removed.contains('books:${key.substring(5)}') ||
+            key.startsWith('detail:') && _removed.contains(key.substring(7))) {
+          return value;
+        }
+        final different = background && jsonEncode(cached) != jsonEncode(value);
+        store.cache(profile.id, key, value);
+        _queryValues.put(key, value);
+        _stampQuery(key, generation);
+        if (different) {
+          cacheRevision++;
+          _cacheEvents ??= Timer(const Duration(milliseconds: 50), () {
+            _cacheEvents = null;
+            if (!_disposed) catalogChanges.value++;
+          });
+        }
+        return value;
+      } finally {
+        _queries.remove(key);
+      }
+    });
     if (cacheFirst && cached != null && !force) {
       final date = _queryDates[key] ?? store.cachedAt(profile.id, key);
       final generation = _queryGenerations[key];
@@ -533,6 +554,24 @@ class Repository extends ChangeNotifier {
       force: force,
     );
     final parsed = CatalogPage.parse(kind, data);
+    // A fresh server list can restore an item whose Added event was missed.
+    // Cached/in-flight responses from before deletion cannot clear tombstones.
+    final fetched = data is Map || data is List
+        ? _fetchedGenerations[data]
+        : null;
+    var restored = false;
+    if (fetched != null) {
+      for (final item in parsed.items) {
+        final token = '$kind:${item.id}';
+        if (_removed.contains(token) &&
+            fetched >= (_removalGenerations[token] ?? 0)) {
+          _removed.remove(token);
+          _removalGenerations.remove(token);
+          restored = true;
+        }
+      }
+    }
+    if (restored) store.setSetting('removed:${profile.id}', _removed.toList());
     final kept = parsed.items
         .where((item) => !_removed.contains('$kind:${item.id}'))
         .toList();
@@ -572,6 +611,11 @@ class Repository extends ChangeNotifier {
   Future<void> prepareOfflineCatalog() async {
     if (metadataIndexing || offline || _disposed) return;
     metadataIndexing = true;
+    store.setSetting('offlineCatalogSnapshot:${profile.id}', {
+      ...object(store.setting<dynamic>('offlineCatalogSnapshot:${profile.id}')),
+      'inProgress': true,
+      'complete': false,
+    });
     metadataIndexed = 0;
     _cancelMetadata = false;
     metadataIndexError = null;
@@ -617,6 +661,8 @@ class Repository extends ChangeNotifier {
       store.setSetting('offlineCatalogSnapshot:${profile.id}', {
         'modified': DateTime.now().toUtc().toIso8601String(),
         'items': metadataIndexed,
+        'inProgress': false,
+        'complete': true,
       });
       localCatalogChanged();
     } catch (error) {
@@ -1204,6 +1250,7 @@ class Repository extends ChangeNotifier {
   }
 
   Future<void> applyEventPreferences() async {
+    _eventsSessionExpired = false;
     _eventReconnect?.cancel();
     _refreshTimer?.cancel();
     _imageEventTimer?.cancel();
@@ -1221,6 +1268,7 @@ class Repository extends ChangeNotifier {
     if (_disposed ||
         offline ||
         _events != null ||
+        _eventsSessionExpired ||
         store.setting<bool>('enableSSE') == false) {
       return;
     }
@@ -1231,6 +1279,15 @@ class Repository extends ChangeNotifier {
           (event) {
             if (!connectedNotice) {
               connectedNotice = true;
+              if (_hadEventConnection &&
+                  store.setting<bool>('enableSSEAutoRefresh') != false) {
+                _refreshTimer?.cancel();
+                _refreshTimer = Timer(
+                  const Duration(milliseconds: 600),
+                  refreshContent,
+                );
+              }
+              _hadEventConnection = true;
               if (store.setting<bool>('enableSSENotify') == true) {
                 eventNotices.value = 'Connected';
               }
@@ -1238,6 +1295,21 @@ class Repository extends ChangeNotifier {
             _lastEventId = event.id ?? _lastEventId;
             final type = event.type;
             final data = event.object;
+            if ((type.startsWith('ReadProgress') || type == 'SessionExpired') &&
+                data?['userId'] != null &&
+                profile.userId != null &&
+                data!['userId'] != profile.userId) {
+              return;
+            }
+            if (type == 'SessionExpired') {
+              _eventsSessionExpired = true;
+              eventNotices.value = 'Session expired. Reconnect your account.';
+              final expired = _events;
+              _events = null;
+              _eventReconnect?.cancel();
+              unawaited(expired?.cancel());
+              return;
+            }
             if (type == 'TaskQueueStatus') {
               if (data == null) return;
               final encoded = jsonEncode(data);
@@ -1280,7 +1352,32 @@ class Repository extends ChangeNotifier {
               }
               return;
             }
-            if (type == 'message') return;
+            final change = catalogEventChange(type, data);
+            if (change == null) return;
+            final indexKey = 'offlineCatalogSnapshot:${profile.id}';
+            final indexed = object(store.setting<dynamic>(indexKey));
+            if (indexed.isNotEmpty) {
+              store.setSetting(indexKey, {...indexed, 'complete': false});
+            }
+            if (change.id.isNotEmpty) {
+              final token = '${change.kind}:${change.id}';
+              if (change.deleted) {
+                _removalGenerations[token] = ++_invalidationGeneration;
+                _removed.add(token);
+                store.setSetting('removed:${profile.id}', _removed.toList());
+                store.offlineCatalog.remove(profile.id, change.kind, change.id);
+                final key = change.kind == 'books'
+                    ? 'book:${change.id}'
+                    : 'detail:${change.kind}:${change.id}';
+                store.deleteCache(profile.id, key);
+                _queryValues.remove(key);
+                _queryDates.remove(key);
+                _queryGenerations.remove(key);
+              } else if (_removed.remove(token)) {
+                _removalGenerations.remove(token);
+                store.setSetting('removed:${profile.id}', _removed.toList());
+              }
+            }
             _refreshTimer?.cancel();
             _refreshTimer = Timer(
               const Duration(milliseconds: 600),
@@ -1291,6 +1388,7 @@ class Repository extends ChangeNotifier {
             _events = null;
             if (_disposed ||
                 offline ||
+                _eventsSessionExpired ||
                 store.setting<bool>('enableSSE') == false) {
               return;
             }
@@ -1304,6 +1402,7 @@ class Repository extends ChangeNotifier {
             _events = null;
             if (_disposed ||
                 offline ||
+                _eventsSessionExpired ||
                 store.setting<bool>('enableSSE') == false) {
               return;
             }

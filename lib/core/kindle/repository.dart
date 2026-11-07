@@ -280,6 +280,9 @@ class KindleRepository extends Repository {
   }
 
   @override
+  bool get offlineMetadataComplete =>
+      library.hasCatalog && library.snapshot['complete'] == true;
+  @override
   bool get supportsSeries => false;
   @override
   bool get prefetchDownloadCover => false;

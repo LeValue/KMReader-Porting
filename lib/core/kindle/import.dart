@@ -9,6 +9,7 @@ import 'package:xml/xml.dart';
 
 import '../models.dart';
 import 'client.dart';
+import 'send_login.dart';
 
 const kindleImportExtensions = [
   'epub',
@@ -99,59 +100,20 @@ class KindleImporter {
   }
 
   Future<Json> _device(KindleImportCancellation cancel) async {
-    await client.refresh();
     cancel.check();
     final saved = object(client.session!.json['send_device']);
     if (text(saved['adp_token']).isNotEmpty &&
         text(saved['device_private_key']).isNotEmpty) {
       return saved;
     }
+    await _stage('authentication', client.refresh);
     if (_registering != null) return _registering!;
     final work = () async {
-      final fields = {
-        'deviceType': 'A1K6D1WRW0MALS',
-        'deviceSerialNumber': kindleRandom(24)
-            .replaceAll('-', 'A')
-            .replaceAll('_', 'B')
-            .toUpperCase(),
-        'pid': 'D21NN3GG',
-        'authToken': text(client.session!.json['access_token']),
-        'authTokenType': 'AccessToken',
-        'softwareVersion': '253',
-        'os_version': 'MacOSX_10.14.6_x64',
-        'device_model': 'KMReader Send to Kindle',
-      };
-      // Use XML nodes to escape tokens without interpolating them into markup.
-      final xml = XmlElement(XmlName.parts('request'), [], [
-        XmlElement(XmlName.parts('parameters'), [], [
-          for (final entry in fields.entries)
-            XmlElement(XmlName.parts(entry.key), [], [XmlText(entry.value)]),
-        ]),
-      ]);
-      final request =
-          http.AbortableRequest(
-              'POST',
-              Uri.https(
-                'firs-ta-g7g.amazon.com',
-                '/FirsProxy/registerDeviceWithToken',
-              ),
-              abortTrigger: cancel.future,
-            )
-            ..followRedirects = false
-            ..headers.addAll({
-              'Content-Type': 'text/xml',
-              'User-Agent': 'Mozilla/5.0',
-              'Accept-Language': 'en-US,*',
-            })
-            ..body = xml.toXmlString();
-      final bytes = await _send(request, cancel);
-      // Keep parser and private response off the UI isolate.
-      final device = await compute(_parseImportDevice, bytes);
-      cancel.check();
-      await client.saveImportDevice({
-        ...device,
-        'serial': fields['deviceSerialNumber'],
-      });
+      final device = await _register(
+        text(client.session!.json['access_token']),
+        cancel,
+      );
+      await client.saveImportDevice(device);
       return device;
     }();
     _registering = work;
@@ -162,12 +124,63 @@ class KindleImporter {
     }
   }
 
+  Future<Json> _register(
+    String accessToken,
+    KindleImportCancellation cancel,
+  ) async {
+    final fields = {
+      'deviceType': 'A1K6D1WRW0MALS',
+      'deviceSerialNumber': kindleRandom(24)
+          .replaceAll('-', 'A')
+          .replaceAll('_', 'B')
+          .toUpperCase(),
+      'pid': 'D21NN3GG',
+      'authToken': accessToken,
+      'authTokenType': 'AccessToken',
+      'softwareVersion': '253',
+      'os_version': 'MacOSX_10.14.6_x64',
+      'device_model': 'KMReader Send to Kindle',
+    };
+    // Use XML nodes to escape tokens without interpolating them into markup.
+    final xml = XmlElement(XmlName.parts('request'), [], [
+      XmlElement(XmlName.parts('parameters'), [], [
+        for (final entry in fields.entries)
+          XmlElement(XmlName.parts(entry.key), [], [XmlText(entry.value)]),
+      ]),
+    ]);
+    final request =
+        http.AbortableRequest(
+            'POST',
+            Uri.https(
+              'firs-ta-g7g.amazon.com',
+              '/FirsProxy/registerDeviceWithToken',
+            ),
+            abortTrigger: cancel.future,
+          )
+          ..followRedirects = false
+          ..headers.addAll({
+            'Content-Type': 'text/xml',
+            'User-Agent': 'Mozilla/5.0',
+            'Accept-Language': 'en-US,*',
+          })
+          ..body = xml.toXmlString();
+    final bytes = await _stage('registration', () => _send(request, cancel));
+    // Keep parser and private response off the UI isolate.
+    final device = await _stage(
+      'registration',
+      () => compute(_parseImportDevice, bytes),
+    );
+    cancel.check();
+    return {...device, 'serial': fields['deviceSerialNumber']};
+  }
+
   Future<Json> _post(
     String path,
     Json data,
-    KindleImportCancellation cancel,
-  ) async {
-    final device = await _device(cancel);
+    KindleImportCancellation cancel, {
+    Json? credentials,
+  }) async {
+    final device = credentials ?? await _device(cancel);
     final body = jsonEncode({'clientInfo': _clientInfo, ...data});
     final headers = await compute(kindleImportSigningHeaders, (
       device,
@@ -191,16 +204,86 @@ class KindleImporter {
             ...headers,
           })
           ..body = body;
-    final bytes = await _send(request, cancel);
+    final stage = path.endsWith('get-device-list')
+        ? 'devices'
+        : path.endsWith('upload-url')
+        ? 'upload_url'
+        : 'delivery';
+    final bytes = await _stage(stage, () => _send(request, cancel));
     try {
       final value = object(jsonDecode(utf8.decode(bytes)));
       if (value['statusCode'] != 0) {
-        throw const KindleFailure('import_rejected');
+        throw KindleFailure('import_rejected', stage: stage);
       }
       return value;
     } on FormatException {
-      throw const KindleFailure('import_response');
+      throw KindleFailure('import_response', stage: stage);
     }
+  }
+
+  /// Explicit STK OAuth authorization. Never replace the reading-device keys.
+  Future<void> authorize(
+    KindleSendLoginAttempt attempt,
+    Uri callback,
+    KindleImportCancellation cancel,
+  ) async {
+    final code = attempt.code(callback);
+    final request =
+        http.AbortableRequest(
+            'POST',
+            Uri.https('api.amazon.com', '/auth/token'),
+            abortTrigger: cancel.future,
+          )
+          ..followRedirects = false
+          ..headers.addAll({
+            'Content-Type': 'application/json',
+            'x-amzn-identity-auth-domain': 'api.amazon.com',
+            'User-Agent': 'Mozilla/5.0',
+          })
+          ..body = jsonEncode({
+            'app_name': 'Unknown',
+            'client_domain': 'DeviceLegacy',
+            'client_id': KindleSendLoginAttempt.clientId,
+            'code_algorithm': 'SHA-256',
+            'code_verifier': attempt.verifier,
+            'requested_token_type': 'access_token',
+            'source_token': code,
+            'source_token_type': 'authorization_code',
+          });
+    final bytes = await _stage(
+      'send_authentication',
+      () => _send(request, cancel),
+    );
+    String token;
+    try {
+      token = text(object(jsonDecode(utf8.decode(bytes)))['access_token']);
+      if (token.isEmpty) throw const FormatException();
+    } catch (_) {
+      throw const KindleFailure(
+        'import_response',
+        stage: 'send_authentication',
+      );
+    }
+    final device = await _register(token, cancel);
+    final devices = await _post(
+      '/import/kindle-doc/get-device-list',
+      {},
+      cancel,
+      credentials: device,
+    );
+    // An independent browser can already be signed in to another Amazon account.
+    // Bind the STK identity before persisting it or exposing an upload action.
+    final reader = client.session?.json;
+    final sameAccount =
+        reader != null &&
+        (text(device['user_directed_id']).isNotEmpty &&
+                device['user_directed_id'] == reader['customer_id'] ||
+            (devices['ownedDevices'] as List? ?? [])
+                .map(object)
+                .any((d) => d['deviceSerialNumber'] == reader['serial']));
+    if (!sameAccount) throw const KindleFailure('import_account_unconfirmed');
+    cancel.check();
+    await client.saveImportDevice(device);
   }
 
   Future<List<KindleImportDevice>> devices(
@@ -212,7 +295,7 @@ class KindleImporter {
       cancel,
     );
     if (result['ownedDevices'] is! List) {
-      throw const KindleFailure('import_response');
+      throw const KindleFailure('import_response', stage: 'devices');
     }
     return [
       for (final value in result['ownedDevices'])
@@ -282,7 +365,7 @@ class KindleImporter {
 
     final request = _ImportStreamRequest(uri, contents(), cancel.future)
       ..contentLength = size;
-    await _send(request, cancel);
+    await _stage('transfer', () => _send(request, cancel));
     cancel.check();
     onSubmitting?.call();
     // Delivery is a single mutation. A lost reply must never trigger a replay.
@@ -343,10 +426,22 @@ Json _parseImportDevice(List<int> bytes) {
     if (result.values.any((v) => v.isEmpty)) {
       throw const KindleFailure('import_registration');
     }
-    return result;
+    return {...result, 'user_directed_id': value('user_directed_id')};
   } on KindleFailure {
     rethrow;
   } catch (_) {
     throw const KindleFailure('import_registration');
+  }
+}
+
+Future<T> _stage<T>(String stage, Future<T> Function() action) async {
+  try {
+    return await action();
+  } on KindleFailure catch (error) {
+    throw KindleFailure(
+      error.code,
+      status: error.status,
+      stage: error.stage ?? stage,
+    );
   }
 }

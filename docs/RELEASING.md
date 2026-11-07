@@ -3,7 +3,7 @@
 The next publication target is **1.0.0**; keep existing 0.9.x candidates in draft
 until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
-Current source: **1.0.0+30 candidate**. Existing 0.9.x releases remain in draft;
+Current source: **1.0.0+31 development candidate**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.
 
@@ -116,7 +116,7 @@ First close the scope audits, functional gaps and target acceptance in the
 The seven candidate changes and successful package delivery do not establish
 complete functional parity. Keep unresolved requirements visible.
 
-The source version is now 1.0.0+30; the preview tool remains useful for identity,
+The source version is now 1.0.0+31; the preview tool remains useful for identity,
 ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
 [the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to
 represent a stable 1.0 release: it deliberately generates a preview tag/prerelease.
@@ -124,7 +124,8 @@ represent a stable 1.0 release: it deliberately generates a preview tag/prerelea
 After the final source has passed all required jobs, verify the three signed
 APKs and the complete matching Windows archive as above. Record the actual
 upgrade/Kindle delivery/Windows responsiveness acceptance in `VALIDATION.md`.
-Prepare a **new** `v1.0.0` draft targeting that verified source, attach those exact
+The existing `v1.0.0` draft retains build 30. Prepare a **new**, empty
+`v1.0.0-candidate.2` draft targeting the next verified source, attach those exact
 verified binaries, runtime source/notices and SHA256SUMS, then download and check
 all asset hashes. Preserve every existing draft/tag/asset. Stable promotion is a
 separate explicit publication step (`draft=false`, `prerelease=false`) after

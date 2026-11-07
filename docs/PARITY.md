@@ -3,10 +3,11 @@
 **Stato: porting ancora aperto; release stabile non pronta.**
 Aggiornamento del documento: 7 novembre 2026. Piattaforme: Android e Windows.
 
-Questa è la lista di lavoro per concludere il porting. La candidata **1.0.0+30**
-contiene i sette interventi richiesti, ma non chiude tutte le aree sottostanti.
-Il codice dell'app verificato è `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`;
-le successive modifiche di consegna/documentazione non cambiano quel runtime.
+Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
+**1.0.0+31 in sviluppo**. La candidata distribuita **1.0.0+30**, verificata al
+commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
+aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
+non chiude tutte le aree della matrice.
 
 Il riferimento rimane [kmworks/kmreader](https://github.com/kmworks/kmreader/tree/e2b35f8796cc830fc6e7464e161b2172d8f916e9)
 al commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9`. Aggiornare il riferimento
@@ -17,7 +18,7 @@ checkpoint sono [conservati nell'archivio](../archive/docs/parity-before-closure
 
 - [ ] **Perimetro chiuso:** A-01–A-03 identificano tutte le operazioni applicabili
   del riferimento, i relativi adattamenti e le esclusioni motivate.
-- [ ] **Parità funzionale chiusa:** F-01–F-12 hanno un esito verificato; nessuna
+- [ ] **Parità funzionale chiusa:** F-01–F-13 hanno un esito verificato; nessuna
   funzione applicabile rimane mancante o parziale senza una decisione esplicita.
 - [ ] **Accettazione conclusa:** AT-01–AT-08 hanno evidenze per Android e Windows,
   oltre ai backend richiesti dalle funzioni effettivamente supportate.
@@ -77,11 +78,11 @@ dell'intera riga. Gli ID indicano il lavoro necessario per chiuderla.
 | Libri locali | Importazione streaming EPUB/PDF/CBZ/ZIP, copie proprie, deduplicazione, lettura/progresso indipendenti dagli account | Implementato / da delimitare | A-03, AT-06; [test importazione](../test/local_library_test.dart) |
 | Download e offline | Coda limitata, annulla/riprova/ripresa, Range/If-Range, lease, protezione account e worker Android/Windows | Parziale / da validare | F-02, F-07, AT-03; [ripresa](../test/download_resume_test.dart), [worker](../test/download_worker_test.dart) |
 | Progresso e sincronizzazione | Outbox durevole, revisioni, conflitti e avanzamento nei lettori; locatori Kindle verificati rispetto all'edizione | Implementato / da validare | AT-05; [repository Kindle](../test/kindle_repository_test.dart), [procedure](TESTING.md) |
-| Aggiornamenti live | SSE, riconnessione, Last-Event-ID, invalidazioni mirate, refresh e stato task | Parziale | F-08; [test eventi](../test/server_event_test.dart) |
+| Aggiornamenti live | SSE, riconnessione, Last-Event-ID, invalidazioni mirate, refresh e stato task; rimozione metadati eliminati, riconciliazione dopo riconnessione e SessionExpired per account | Implementato / da validare | F-08; [test eventi](../test/server_event_test.dart) |
 | Cache e prestazioni | Cache persistenti, quote immagini/documenti, rivalidazione condizionale, protezione originali e lavoro in isolate | Implementato / da validare | F-05, F-07, A-03, AT-07 |
 | Impostazioni e API key | Navigazione adattiva, preferenze globali/per libro, preset/font, cache/rete/privacy, API key e attività autenticazione | Parziale / da validare | A-02, F-11, F-12, AT-01; [audit](SETTINGS_AUDIT.md), [test impostazioni](../test/settings_parity_test.dart) |
 | Cronologia e statistiche | Cronologia locale/server, filtri di libreria, riepiloghi/heatmap/grafici ed endpoint estesi con fallback | Parziale / da delimitare | A-01, F-09, F-10, AT-04; [test statistiche](../test/reading_stats_test.dart) |
-| Kindle integrato | Catalogo, conversione/lettura/offline, copertine e locatori; importazione file locali nel cloud; dizionari esclusi, recupero classificazioni vecchie, indicizzazione asincrona e copertine limitate | Implementato / da validare | AT-01, AT-05, AT-06, AT-07; [limiti e protocollo](KINDLE_IMPORT.md), [test invio](../test/kindle_import_test.dart) |
+| Kindle integrato | Catalogo, conversione/lettura/offline, copertine e locatori; importazione file locali nel cloud; dizionari esclusi, recupero classificazioni vecchie, indicizzazione asincrona e copertine limitate | Implementato / da validare; gestione remota parziale | F-13, AT-01, AT-05, AT-06, AT-07; [limiti e protocollo](KINDLE_IMPORT.md), [test invio](../test/kindle_import_test.dart) |
 | Sistema operativo e distribuzione | Avvio Android/Windows, icone, protezione cattura, fullscreen/keep-awake, worker e pacchetto Windows portabile | Adattamento da validare / da delimitare | A-03, F-04, AT-01, AT-03, AT-08, R-01–R-05 |
 | Interfaccia, accessibilità e lingue | Asset originali, temi chiaro/scuro, layout adattivi e cataloghi di traduzione | Parziale | F-10, F-12, AT-08; [riferimenti iPad](IPAD_REFERENCE.md) |
 | AI/OCR/modelli/traduzione | Esistono controlli sperimentali e componenti già integrati | Futuro per la chiusura richiesta | FUT-01; conservare codice, preferenze e descrizione dei limiti |
@@ -118,6 +119,20 @@ richiede implementazione e verifica del comportamento.
 | F-10 | Layout dei dettagli, sidebar, offline e coerenza dei lettori | Confronto schermata per schermata con A-01 e riferimenti iPad: destinazioni Offline/Server, librerie/collasso sidebar, riepiloghi offline, layout dei dettagli, tipografia e controlli. Implementare differenze funzionali e documentare gli adattamenti nativi; raccogliere screenshot comparabili. |
 | F-11 | Predefiniti, unità, visibilità e precedenza delle impostazioni | Confrontare nuove installazioni e aggiornamenti, preferenze globali/per libro, preset/font e controlli condizionali. Una modifica deve avere l'effetto previsto senza cancellare locatori o scelte non coinvolte; mantenere distinto il fallback HTML EPUB ridotto. |
 | F-12 | Completare localizzazione di controlli, nuovi flussi ed errori | Verificare tutte le lingue dichiarate in `Strings.locales`, compresi importazione Kindle e dashboard. Nessuna chiave grezza, testo troncato o fallback inglese involontario nelle traduzioni completate; provare formati di date/numeri e testi ingranditi. |
+| F-13 | Gestione remota dei documenti personali Kindle: aggiunta, eliminazione, metadati/copertina e sovrascrittura con risincronizzazione | Chiudere K-01–K-06 nel [piano del servizio](KINDLE_LIBRARY_MANAGEMENT.md). Ambito PDOC, esclusi gli acquisti Amazon. Prima risolvere l’errore di collegamento segnalato; per sostituire un documento salvare e rimappare stato/segnalibri, verificarli nel cloud e ritirare l’originale solo dopo la migrazione. Una modifica locale non vale come aggiornamento Amazon. |
+
+## Interventi della build 31 sulla matrice
+
+| Voce | Implementato e verificabile nel codice | Cosa resta aperto |
+|---|---|---|
+| F-08 | Mappatura delle famiglie eventi upstream, eliminazioni nell'indice offline senza toccare file/progresso, protezione da risposte tardive, scope utente, riconciliazione dopo riconnessione, rispetto del refresh disabilitato, stop su SessionExpired. [Regressioni](../test/parity_closure_test.dart), [SSE](../test/server_event_test.dart). | Accettazione con backend e UI su entrambe le piattaforme; audit completo A-01/A-02. |
+| F-09 | Statistiche offline da tutti i metadati indicizzati, comprese serie/generi/tag, scope libreria/account; indici interrotti marcati incompleti; catalogo/cronologia segnalano cache parziali. Endpoint estesi e errori di autenticazione conservano il comportamento già testato. [Regressioni](../test/parity_closure_test.dart), [statistiche](../test/reading_stats_test.dart). | Confronto finale sul server con estensioni e accettazione AT-04. |
+| F-12 | Etichetta Autore nelle dieci lingue e traduzioni italiane dei nuovi flussi Kindle. | Le altre nuove frasi restano con fallback inglese nelle lingue non ancora completate; F-12 non è chiusa. |
+| F-13 | OAuth invio separato, copia EPUB modificata, eliminazione PDOC con backup/journal/verifica. | La sovrascrittura con migrazione cloud di stato/segnalibri **non è completa**; K-01–K-06 e account reale restano aperti. |
+
+Questi interventi completano sottorequisiti concreti. Nessuna riga è dichiarata
+«Chiusa» soltanto perché il relativo test host passa; l'accettazione residua resta
+esplicita. I pacchetti della build 30 non contengono gli interventi della build 31.
 
 ## AT — Accettazione su piattaforme e backend reali
 
@@ -133,7 +148,7 @@ essere isolati; non eseguire prove distruttive su un server personale.
 | AT-03 | Download e lettura offline in condizioni avverse | Su entrambi i sistemi: coda ampia, rete persa/cambiata, chiusura/ripresa, storage pieno, worker in background e regole rete/alimentazione. Provare anche restrizioni OEM Android e Task Scheduler Windows; nessuna perdita o duplicazione di dati. |
 | AT-04 | Funzioni di liste/admin/statistiche su backend supportati | Oltre a stock Komga, verificare kmrs smart list/condivisione, Komf e statistiche estese dove dichiarati supportati. Confrontare utenti admin/non admin e server privi della capacità: stato corretto, nessun falso successo. |
 | AT-05 | Progresso, conflitti e continuazione tra sessioni/dispositivi | EPUB/PDF/fumetti e liste: due client, aggiornamenti offline concorrenti, orologi diversi, perdita della risposta e riconnessione. Posizione coerente, conflitto risolvibile e nessuna mutazione ripetuta alla cieca. Per Kindle verificare edizione e limiti delle annotazioni. |
-| AT-06 | File picker/provider esterni e Kindle reale | Importare da PC/telefono/provider un file supportato; verificare in un account di prova l'accettazione Amazon, conversione, comparsa in libreria e lettura dopo aggiornamento. Provare annullamento/esito incerto senza duplicati e cataloghi vecchi con dizionari. Le prove sintetiche già passate non chiudono questa voce. |
+| AT-06 | File picker/provider esterni e Kindle reale | Importare da PC/telefono/provider un file supportato; verificare in un account di prova l'accettazione Amazon, conversione, comparsa in libreria e lettura dopo aggiornamento. Provare annullamento/esito incerto senza duplicati e cataloghi vecchi con dizionari. Le prove sintetiche già passate non chiudono questa voce. Per F-13 verificare anche eliminazione, metadati/copertina e risincronizzazione dello stato sul documento sostitutivo. |
 | AT-07 | Prestazioni, memoria e blocco Kindle sul Windows segnalato | Misurare apertura iniziale e successiva, catalogo grande/copertine, libri lunghi, animazioni e navigazione durante il caricamento. Registrare tempi, memoria e comportamento con condizioni riproducibili; definire il criterio di accettazione prima della misura. Navigazione e annullamento devono restare utilizzabili durante il caricamento, senza stato «Non risponde» o crash. Confermare sul PC interessato che il blocco non si riproduca. |
 | AT-08 | Accessibilità e integrazioni native | Schermi piccoli/grandi, chiaro/scuro, testo ingrandito, contrasto, focus/ordine tastiera, TalkBack/Narrator, fullscreen/cutout e privacy cattura. Validare anche share/export, icone, keep-awake e ritorno dal background. |
 
@@ -169,7 +184,7 @@ cambiata; le modifiche runtime richiedono nuove build e CI.
 1. Chiudere A-01–A-03 per avere il perimetro verificabile delle funzioni applicabili.
 2. Eseguire presto AT-01, AT-06 e AT-07 sulla candidata: aggiornamento/dati,
    invio reale a Kindle e blocco sul PC interessato sono le verifiche più urgenti.
-3. Chiudere F-01–F-12, affrontando prima coerenza dei dati, offline e lettori,
+3. Chiudere F-01–F-13, affrontando prima coerenza dei dati, offline e lettori,
    poi completamento dei flussi, presentazione e localizzazione. Associare a ogni
    correzione la regressione o il confronto di accettazione pertinente.
 4. Completare AT-01–AT-08 sulla sorgente risultante, poi eseguire R-01–R-05

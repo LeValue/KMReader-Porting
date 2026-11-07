@@ -69,3 +69,31 @@ Stream<ServerEvent> decodeServerEvents(Stream<List<int>> bytes) {
         ),
       );
 }
+
+/// Known upstream events only; heartbeat/unknown messages cannot trigger loops.
+({String kind, String id, bool deleted})? catalogEventChange(
+  String type,
+  Map<String, dynamic>? data,
+) {
+  final prefix = RegExp(
+    r'^(Library|Series|Book|Collection|ReadList|SmartList)(Added|Changed|Deleted|Imported|ThumbnailChanged)$',
+  ).firstMatch(type);
+  final progress = RegExp(r'^ReadProgress(Series)?(Changed|Deleted)$')
+      .firstMatch(type);
+  if (prefix == null && progress == null) return null;
+  final (kind, field) = switch (prefix?.group(1) ??
+      (progress!.group(1) == null ? 'Book' : 'Series')) {
+    'Library' => ('libraries', 'libraryId'),
+    'Series' => ('series', 'seriesId'),
+    'Book' => ('books', 'bookId'),
+    'Collection' => ('collections', 'collectionId'),
+    'ReadList' => ('readlists', 'readListId'),
+    _ => ('smart-lists', 'smartListId'),
+  };
+  // Progress deletion resets reading state; it never removes the book itself.
+  return (
+    kind: kind,
+    id: data?[field] is String ? data![field] as String : '',
+    deleted: progress == null && type.endsWith('Deleted'),
+  );
+}

@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kmreader/core/kindle/client.dart';
 import 'package:kmreader/core/kindle/import.dart';
+import 'package:kmreader/core/kindle/send_login.dart';
 import 'package:kmreader/core/models.dart';
 
 void main() {
@@ -45,6 +46,135 @@ void main() {
     addTearDown(client.close);
     return KindleImporter(client);
   }
+
+  test('STK callback is audience-bound, rejects wrong hosts, state and duplicate codes', () {
+    final attempt = KindleSendLoginAttempt(
+      verifier: 'synthetic-verifier',
+      state: 'synthetic-state',
+    );
+    expect(
+      attempt.url.queryParameters['openid.oa2.client_id'],
+      'device:${KindleSendLoginAttempt.clientId}',
+    );
+    final callback = Uri.https('www.amazon.com', '/gp/sendtokindle', {
+      'openid.oa2.authorization_code': 'SYNTHETIC',
+      'state': attempt.state,
+    });
+    expect(attempt.code(callback), 'SYNTHETIC');
+    for (final uri in [
+      callback.replace(host: 'amazon.com.evil.invalid'),
+      callback.replace(scheme: 'http'),
+      callback.replace(
+        query:
+            'openid.oa2.authorization_code=a&openid.oa2.authorization_code=b',
+      ),
+      callback.replace(query: 'openid.oa2.authorization_code=a&state=wrong'),
+    ]) {
+      expect(() => attempt.code(uri), throwsA(isA<KindleFailure>()));
+    }
+  });
+  for (final sameAccount in [true, false]) {
+    test(
+      'dedicated STK OAuth ${sameAccount ? 'persists bound credentials' : 'rejects another account without saving'}',
+      () async {
+        var saves = 0;
+        final service = importer(
+          (request, stream) async {
+            final body = utf8.decode(await stream.expand((b) => b).toList());
+            if (request.url.path == '/auth/token') {
+              expect(request.url.host, 'api.amazon.com');
+              final data = object(jsonDecode(body));
+              expect(data['client_id'], KindleSendLoginAttempt.clientId);
+              expect(data['source_token'], 'SYNTHETIC-CODE');
+              return jsonResponse({'access_token': 'SYNTHETIC-STK-TOKEN'});
+            }
+            if (request.url.path.endsWith('registerDeviceWithToken')) {
+              expect(
+                body,
+                contains('<authToken>SYNTHETIC-STK-TOKEN</authToken>'),
+              );
+              return http.StreamedResponse(
+                Stream.value(
+                  utf8.encode(
+                    '<response><adp_token>${device['adp_token']}</adp_token><device_private_key>${device['device_private_key']}</device_private_key><user_directed_id>${sameAccount ? session['customer_id'] : 'another-account'}</user_directed_id></response>',
+                  ),
+                ),
+                200,
+              );
+            }
+            return jsonResponse({'statusCode': 0, 'ownedDevices': []});
+          },
+          registered: false,
+          save: (_) async {
+            saves++;
+          },
+        );
+        final attempt = KindleSendLoginAttempt(state: 'state');
+        final work = service.authorize(
+          attempt,
+          Uri.https('www.amazon.com', '/gp/sendtokindle', {
+            'openid.oa2.authorization_code': 'SYNTHETIC-CODE',
+            'state': 'state',
+          }),
+          KindleImportCancellation(),
+        );
+        if (sameAccount) {
+          await work;
+          expect(saves, 1);
+        } else {
+          await expectLater(
+            work,
+            throwsA(
+              isA<KindleFailure>().having(
+                (e) => e.code,
+                'code',
+                'import_account_unconfirmed',
+              ),
+            ),
+          );
+          expect(saves, 0);
+        }
+      },
+    );
+  }
+  test(
+    'valid STK credentials do not depend on an expired reading bearer',
+    () async {
+      final client = KindleClient(
+        session: KindleSession({
+          ...session,
+          'expires': 0,
+          'send_device': device,
+        }),
+        client: MockClient((request) async {
+          expect(request.url.path, '/import/kindle-doc/get-device-list');
+          return http.Response('{"statusCode":0,"ownedDevices":[]}', 200);
+        }),
+      );
+      addTearDown(client.close);
+      expect(
+        await KindleImporter(client).devices(KindleImportCancellation()),
+        isEmpty,
+      );
+    },
+  );
+  test('registration errors retain sanitized stage and HTTP status', () async {
+    final service = importer(
+      (request, stream) async => http.StreamedResponse(
+        Stream.value(utf8.encode('PRIVATE SERVER BODY')),
+        403,
+      ),
+      registered: false,
+    );
+    try {
+      await service.devices(KindleImportCancellation());
+      fail('expected registration rejection');
+    } on KindleFailure catch (error) {
+      expect(error.stage, 'registration');
+      expect(error.status, 403);
+      expect(error.toString(), isNot(contains('PRIVATE SERVER BODY')));
+    }
+  });
 
   final file = XFile.fromData(
     Uint8List.fromList(List.generate(200000, (i) => i % 256)),

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../../core/repository.dart';
+import '../../core/kindle/repository.dart';
+import '../kindle/kindle_document_page.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../reader/reader_page.dart';
@@ -45,6 +47,21 @@ class _DetailContent extends StatelessWidget {
     appBar: AppBar(
       title: Text(item.title),
       actions: [
+        if (repository is KindleRepository &&
+            item.kind == 'books' &&
+            item.book.libraryId == 'kindle-documents')
+          IconButton(
+            tooltip: tr(context, 'Manage Kindle document'),
+            icon: const Icon(Icons.edit_document),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => KindleDocumentPage(
+                  repository: repository as KindleRepository,
+                  book: item.book,
+                ),
+              ),
+            ),
+          ),
         if (repository.profile.admin && ['books', 'series'].contains(item.kind))
           KomfButton(repository: repository, item: item),
         if (item.kind == 'readlists' || item.kind == 'collections')

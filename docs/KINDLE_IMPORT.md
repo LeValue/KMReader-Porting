@@ -1,5 +1,13 @@
 # Local files to the Kindle library
 
+**Build 31 changes:** valid saved send credentials no longer depend on renewing
+an unrelated reading bearer. Device-loading errors retain a sanitized stage and
+HTTP status, including after choosing a file. If automatic registration is denied,
+**Authorize Send to Kindle** uses a separate desktop OAuth/PKCE flow and verifies
+that the result belongs to the connected Kindle account before saving its keys.
+This addresses concrete client gaps; the original Windows account failure still
+needs live acceptance. Reading credentials are preserved.
+
 In a Kindle account, choose **Send to Kindle / Invia a Kindle** in the Windows
 sidebar or the mobile app bar. Choose a local file, edit its title/author, select
 at least one destination device and send. Amazon archives the personal document
@@ -46,7 +54,7 @@ use a raw SHA-256 digest in PKCS#1 v1.5 padding. Existing CDE read signatures re
 their DigestInfo format.
 
 Protocol research used the MIT-licensed
-[MaxJohnson/stkclient](https://github.com/MaxJohnson/stkclient/tree/b68b5e15363900762fd296c62d11a049b9de7d79)
+[maxdjohnson/stkclient](https://github.com/maxdjohnson/stkclient/tree/b68b5e15363900762fd296c62d11a049b9de7d79)
 implementation (API, signer and response models). No package or Python runtime
 dependency was added. The synthetic signature vector was independently computed
 using RSA modular exponentiation and the existing synthetic test key.
@@ -92,3 +100,13 @@ addition dates use Amazon's purchase/creation date where supplied, otherwise the
 first time the app sees the document, retained across refreshes. Publication dates
 remain separate metadata. Legacy dashboard section IDs are kept so order, hidden
 sections and card preferences survive the label change.
+
+## Requested remote management
+
+Build 31 adds PDOC management from the document detail screen: remote deletion
+with backup/journal/catalog verification, and updated copies with edited EPUB
+metadata/cover. Complete overwrite with bookmark/reading-state migration is still
+missing and is never reported as successful. See
+[KINDLE_LIBRARY_MANAGEMENT.md](KINDLE_LIBRARY_MANAGEMENT.md) for implemented behavior,
+recovery states, historical API limitations and remaining real-account acceptance.
+Purchased Kindle Store books remain outside this management scope.

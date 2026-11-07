@@ -117,6 +117,103 @@ void verifyComicSpread() {
   }
 
   for (final direction in [-1, 1]) {
+    testWidgets(
+      'tilted spread keeps the old stationary leaf under the fold; direction=$direction',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: ColoredBox(color: Colors.black)),
+        );
+        await _finishNativeRaster(tester);
+        Future<ui.Image> spread(Color stationary, Color turning) async {
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder)
+            ..scale(3)
+            ..drawColor(stationary, BlendMode.src);
+          canvas.drawRect(
+            Rect.fromLTWH(direction > 0 ? 100 : 0, 0, 100, 240),
+            Paint()..color = turning,
+          );
+          final picture = recorder.endRecording();
+          try {
+            return await picture.toImage(600, 720);
+          } finally {
+            picture.dispose();
+          }
+        }
+
+        final before = (await tester.runAsync(
+          () => spread(Colors.red, Colors.blue),
+        ))!;
+        final after = (await tester.runAsync(
+          () => spread(Colors.green, Colors.yellow),
+        ))!;
+        addTearDown(before.dispose);
+        addTearDown(after.dispose);
+        final key = GlobalKey();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: RepaintBoundary(
+                key: key,
+                child: SizedBox(
+                  width: 200,
+                  height: 240,
+                  child: CustomPaint(
+                    painter: PageTurnPainter(
+                      before,
+                      after,
+                      .65,
+                      'curl',
+                      direction,
+                      foldSlope: .65,
+                      grabY: 0,
+                      sheetBounds: Rect.fromLTWH(
+                        direction > 0 ? 100 : 0,
+                        0,
+                        100,
+                        240,
+                      ),
+                      backBounds: Rect.fromLTWH(
+                        direction > 0 ? 0 : 100,
+                        0,
+                        100,
+                        240,
+                      ),
+                      stationaryBounds: Rect.fromLTWH(
+                        direction > 0 ? 0 : 100,
+                        0,
+                        100,
+                        240,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final pixels = await _comicPixels(
+          tester,
+          key,
+          captureName: 'stationary-gap-$direction',
+        );
+        final i = (705 * 600 + (direction > 0 ? 285 : 315)) * 4;
+        expect(
+          pixels[i],
+          greaterThan(235),
+          reason: 'The old stationary page must stay visible below the lifted reverse face',
+        );
+        expect(
+          pixels[i + 1],
+          lessThan(75),
+          reason: 'The incoming reverse face must not also appear flat under the fold',
+        );
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  for (final direction in [-1, 1]) {
     testWidgets('mixed comic formats retain curl in direction $direction', (
       tester,
     ) async {
