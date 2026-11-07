@@ -2,16 +2,25 @@
 
 The next publication target is **1.0.0**. Existing 0.9.x candidates stay in draft
 while work continues; previous builds and releases remain available for recovery.
-Current source version remains **0.9.1+29** until a release candidate is ready.
+Current source is **1.0.0+30 candidate**; stable publication remains gated by the checks below.
 Changing the version number alone does not complete this milestone.
 
 ## Working scope
 
-The initial scope is to consolidate the existing Android/Windows app: Komga,
-Amazon.it Kindle, local EPUB/PDF/comics, downloads, offline reading and durable
-progress. The [parity matrix](PARITY.md) and [settings audit](SETTINGS_AUDIT.md)
-remain the inventory of broader feature and presentation differences. Whether
-full upstream parity belongs in 1.0 is a separate scope decision.
+The agreed scope consolidates Android/Windows Komga, Kindle, local reading,
+downloads/offline use and progress, plus these requested changes:
+
+- single comic pages: fading departing curl, paper-relative mouse edges/drags;
+- import local PC/phone files into the Kindle cloud library;
+- hide dictionaries from initial sync and legacy caches, including purchased ones;
+- reduce Windows Kindle stalls through asynchronous catalog work and bounded covers.
+
+[1.0 release notes](releases/v1.0.0.md) and [Kindle import](KINDLE_IMPORT.md)
+describe behavior and limits. AI/model/translation extensions and upload to a
+Komga server are **future features**, excluded from 1.0 acceptance. Existing
+experimental settings remain labeled and their persisted configuration is kept.
+The broader [parity matrix](PARITY.md) is an inventory, not a promise of full
+upstream parity for 1.0.
 
 ## Readiness work
 
@@ -70,9 +79,9 @@ does not belong in logs, fixtures, source archives or CI artifacts.
 
 ## Version and publication
 
-When the agreed scope and readiness checks pass, update both `pubspec.yaml` and
-`lib/core/app_version.dart` together to 1.0.0, with an Android build number
-strictly greater than the latest distributed build (currently 29). Preserve the
+Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+30 for this candidate,
+strictly above distributed build 29. Passing the readiness checks is still
+required before stable publication. Preserve the
 existing Preview application ID and signing certificate for upgrade continuity.
 Add accurate 1.0 release notes and embed the exact source in each final build.
 

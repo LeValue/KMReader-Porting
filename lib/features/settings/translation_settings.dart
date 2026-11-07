@@ -108,6 +108,16 @@ class _TranslationSettingsPageState extends State<TranslationSettingsPage> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            ListTile(
+              leading: const Icon(Icons.science_outlined),
+              title: Text(tr(context, 'Future features')),
+              subtitle: Text(
+                tr(
+                  context,
+                  'AI models and translation are outside the 1.0 scope. Existing experimental controls remain available.',
+                ),
+              ),
+            ),
             Text(
               tr(
                 context,

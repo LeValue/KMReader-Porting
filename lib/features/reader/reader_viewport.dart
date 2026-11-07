@@ -263,6 +263,41 @@ class _ReaderViewportState extends State<ReaderViewport>
   );
 }
 
+/// PageView spans the window; mouse motion follows the fitted page instead.
+class PageRelativeDrag implements Drag {
+  PageRelativeDrag(this.delegate, this.scale);
+  final Drag delegate;
+  final double scale;
+  @override
+  void update(DragUpdateDetails details) => delegate.update(
+    DragUpdateDetails(
+      sourceTimeStamp: details.sourceTimeStamp,
+      delta: Offset(details.delta.dx * scale, details.delta.dy),
+      primaryDelta: details.primaryDelta == null
+          ? null
+          : details.primaryDelta! * scale,
+      globalPosition: details.globalPosition,
+      localPosition: details.localPosition,
+    ),
+  );
+  @override
+  void end(DragEndDetails details) => delegate.end(
+    DragEndDetails(
+      velocity: Velocity(
+        pixelsPerSecond: Offset(
+          details.velocity.pixelsPerSecond.dx * scale,
+          details.velocity.pixelsPerSecond.dy,
+        ),
+      ),
+      primaryVelocity: details.primaryVelocity == null
+          ? null
+          : details.primaryVelocity! * scale,
+    ),
+  );
+  @override
+  void cancel() => delegate.cancel();
+}
+
 /// A discrete swipe is committed on release, retaining pinch cancellation.
 class DiscreteReaderDrag implements Drag {
   DiscreteReaderDrag({required this.reverse, required this.onTurn});

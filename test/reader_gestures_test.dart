@@ -16,6 +16,105 @@ import 'widget_test.dart' show FixtureRepository;
 import 'package:kmreader/features/reader/reader_viewport.dart';
 
 void main() {
+  for (final effect in ['cover', 'curl']) {
+    testWidgets(
+      'wide single-page mouse taps and drags use paper edges: $effect',
+      (tester) async {
+        tester.view.physicalSize = const Size(1600, 600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final directory = Directory.systemTemp.createTempSync('reader-mouse-');
+        final store = LocalStore(sqlite3.openInMemory());
+        const profile = ServerProfile(
+          id: 'mouse',
+          name: 'Fixture',
+          url: 'https://example.invalid',
+          email: '',
+          authentication: Authentication.apiKey,
+        );
+        final repo = FixtureRepository(
+          profile: profile,
+          store: store,
+          directory: directory,
+          api: KomgaApi(
+            Uri.parse(profile.url),
+            authentication: profile.authentication,
+            credential: '',
+          ),
+        )..setOffline(true);
+        addTearDown(() {
+          repo.dispose();
+          store.close();
+          directory.deleteSync(recursive: true);
+        });
+        store.cache(
+          profile.id,
+          'reader:mouse',
+          ReaderPreferences(transition: effect).toJson(),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ReaderPage(
+              repository: repo,
+              book: Book({
+                'id': 'mouse',
+                'name': 'Mouse fixture',
+                'media': {'pagesCount': 4},
+                'readProgress': {'page': 1},
+              }),
+            ),
+          ),
+        );
+        await tester.runAsync(
+          () => precacheImage(
+            ResizeImage.resizeIfNeeded(
+              1600,
+              null,
+              MemoryImage(FixtureRepository.bytes),
+            ),
+            tester.element(find.byType(Scaffold)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        // 64x96 artwork fits to x=600..1000. x=990 is a paper edge but a
+        // middle-of-window tap in the old full-width interaction map.
+        await tester.tapAt(
+          const Offset(990, 300),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<PageView>(find.byType(PageView)).controller!.page,
+          closeTo(1, .01),
+          reason: tester
+              .widgetList<Text>(find.byType(Text))
+              .map((t) => t.data)
+              .toList()
+              .toString(),
+        );
+        final drag = await tester.startGesture(
+          const Offset(990, 300),
+          kind: PointerDeviceKind.mouse,
+        );
+        for (var i = 0; i < 7; i++) {
+          await drag.moveBy(const Offset(-40, 0));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pump(const Duration(milliseconds: 250));
+        await drag.up();
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<PageView>(find.byType(PageView)).controller!.page,
+          closeTo(2, .01),
+          reason: 'A slow drag across most of the paper must turn without traversing black margins',
+        );
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 100));
+      },
+    );
+  }
   for (final rtl in [false, true]) {
     testWidgets('single-finger paging, late pinch and zoomed pan; RTL=$rtl', (
       tester,

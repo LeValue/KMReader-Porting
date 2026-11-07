@@ -3,7 +3,7 @@
 The next publication target is **1.0.0**; keep existing 0.9.x candidates in draft
 until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
-Current source: **0.9.1+29**. Its existing candidate release remains a draft;
+Current source: **1.0.0+30 candidate**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.
 
@@ -103,7 +103,24 @@ after that verified runtime commit; runtime changes require fresh complete CI.
 
 Never overwrite a nonempty draft, mutate a published asset, move an existing tag
 or delete a branch/release as cleanup. The [inventory](REPOSITORY_AUDIT.md) records
-all refs and release assets before this PR. Any future deletion requires a fresh
+all refs and release assets before repository organization. Any future deletion requires a fresh
 inventory of exact refs, unique commits, source provenance, digests and retained
 replacement builds presented to the maintainer first. No such deletion is part
 of this change. CI builds do not require uploading the Android signing key.
+
+## Stable 1.0 publication
+
+The source version is now 1.0.0+30; the preview tool remains useful for identity,
+ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
+[the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to
+represent a stable 1.0 release: it deliberately generates a preview tag/prerelease.
+
+After the final source has passed all required jobs, verify the three signed
+APKs and the complete matching Windows archive as above. Record the actual
+upgrade/Kindle delivery/Windows responsiveness acceptance in `VALIDATION.md`.
+Prepare a **new** `v1.0.0` draft targeting that verified source, attach those exact
+verified binaries, runtime source/notices and SHA256SUMS, then download and check
+all asset hashes. Preserve every existing draft/tag/asset. Stable promotion is a
+separate explicit publication step (`draft=false`, `prerelease=false`) after
+reviewing the concrete draft and its evidence. No public release is created by
+an ordinary main-branch push.

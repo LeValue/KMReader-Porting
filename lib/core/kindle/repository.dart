@@ -46,9 +46,15 @@ class KindleRepository extends Repository {
         localCatalogChanged();
       }
     };
-    if (library.hasCatalog) library.index();
   }
   final KindleLibrary library;
+  @override
+  Future<void> stopDownloadWork() async {
+    final indexing = library.settled;
+    await super.stopDownloadWork();
+    await indexing;
+  }
+
   bool _synchronizing = false;
   Timer? _kindleTimer;
   String? _mappedBook;
@@ -288,10 +294,24 @@ class KindleRepository extends Repository {
         store.setting<bool>('kindleAutoRefresh:${profile.id}') == false) {
       return;
     }
-    final fetched = integer(library.snapshot['fetched_at']);
-    if (DateTime.now().millisecondsSinceEpoch ~/ 1000 - fetched > 15 * 60) {
-      refreshContent();
-    }
+    unawaited(
+      library.initialize().then(
+        (_) {
+          if (closed || offline) return;
+          final value = library.snapshot['fetched_at'];
+          final fetched =
+              DateTime.tryParse('$value')?.millisecondsSinceEpoch ??
+              integer(value) * 1000;
+          if (DateTime.now().millisecondsSinceEpoch - fetched >
+              15 * 60 * 1000) {
+            refreshContent();
+          }
+        },
+        onError: (Object error) {
+          if (!closed) eventNotices.value = error.toString();
+        },
+      ),
+    );
   }
 
   @override
@@ -299,9 +319,11 @@ class KindleRepository extends Repository {
       await this.book(book.id);
   @override
   Future<Book> book(String id) async {
+    await library.ready;
+    if (!library.hasCatalog && !offline) await library.refresh();
+    library.item(id);
     final cached = store.cached(profile.id, 'book:$id');
     if (cached != null) return overlay(Book(object(cached)));
-    if (!library.hasCatalog && !offline) await library.refresh();
     return overlay(Book(library.bookJson(library.item(id))));
   }
 
@@ -318,6 +340,7 @@ class KindleRepository extends Repository {
     String? libraryId,
     List<String>? libraryIds,
   }) async {
+    await library.ready;
     if (!library.hasCatalog && !offline || force && !offline) {
       await library.refresh();
     }
@@ -367,6 +390,7 @@ class KindleRepository extends Repository {
     bool force = false,
     String? cacheKey,
   }) async {
+    await library.ready;
     if (!library.hasCatalog && !offline) await library.refresh();
     return api.request(path, method: method, body: body, query: query);
   }
@@ -398,6 +422,8 @@ class KindleRepository extends Repository {
     if (_synchronizing || closed) return;
     _synchronizing = true;
     try {
+      await library.initialize();
+      if (closed) return;
       // Reading state stays durable in the same SQLite progress tables. The
       // Kindle locator queue is handled separately from Komga's REST writes.
       for (final row in store.pending(profile.id)) {
@@ -529,6 +555,7 @@ class _KindleApi extends KomgaApi {
   final KindleLibrary library;
   @override
   void close() {
+    library.close();
     library.client.close();
     super.close();
   }
@@ -541,6 +568,7 @@ class _KindleApi extends KomgaApi {
     Map<String, dynamic>? query,
     Map<String, String>? extra,
   }) async {
+    await library.ready;
     if (method != 'GET' && !(method == 'POST' && path.endsWith('/list'))) {
       throw const ApiFailure('This action is unavailable for this account.');
     }
@@ -559,6 +587,7 @@ class _KindleApi extends KomgaApi {
     final detail = RegExp(r'^/api/v1/books/([^/]+)$').firstMatch(path);
     if (detail != null) {
       final id = Uri.decodeComponent(detail[1]!);
+      library.item(id);
       final cached = library.store.cached(library.profile.id, 'book:$id');
       return cached ?? library.bookJson(library.item(id));
     }

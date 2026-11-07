@@ -1622,5 +1622,85 @@
   "Remove this account and its downloaded files from this device? Your Kindle library is kept.": {
     "en": "Remove this account and its downloaded files from this device? Your Kindle library is kept.",
     "it": "Rimuovere da questo dispositivo l’account e i file scaricati? La libreria Kindle viene conservata."
+  },
+  "Send to Kindle": {
+    "en": "Send to Kindle",
+    "it": "Invia a Kindle"
+  },
+  "Choose file": {
+    "en": "Choose file",
+    "it": "Scegli file"
+  },
+  "Up to 200 MB": {
+    "en": "Up to 200 MB",
+    "it": "Fino a 200 MB"
+  },
+  "Deliver to": {
+    "en": "Deliver to",
+    "it": "Invia a"
+  },
+  "Return to library": {
+    "en": "Return to library",
+    "it": "Torna alla libreria"
+  },
+  "Choose a file from this device. Amazon will add it to this account’s Kindle library and deliver it to the selected devices.": {
+    "en": "Choose a file from this device. Amazon will add it to this account’s Kindle library and deliver it to the selected devices.",
+    "it": "Scegli un file da questo dispositivo. Amazon lo aggiungerà alla libreria Kindle di questo account e lo invierà ai dispositivi selezionati."
+  },
+  "No compatible Kindle devices found. Use the Amazon website to add documents to your library.": {
+    "en": "No compatible Kindle devices found. Use the Amazon website to add documents to your library.",
+    "it": "Nessun dispositivo Kindle compatibile trovato. Usa il sito Amazon per aggiungere documenti alla libreria."
+  },
+  "Waiting for Amazon confirmation…": {
+    "en": "Waiting for Amazon confirmation…",
+    "it": "In attesa della conferma di Amazon…"
+  },
+  "Accepted by Amazon. Processing can take a few minutes; refresh your library later.": {
+    "en": "Accepted by Amazon. Processing can take a few minutes; refresh your library later.",
+    "it": "Accettato da Amazon. L’elaborazione può richiedere qualche minuto: aggiorna la libreria più tardi."
+  },
+  "Open Send to Kindle on Amazon": {
+    "en": "Open Send to Kindle on Amazon",
+    "it": "Apri Invia a Kindle su Amazon"
+  },
+  "This file format is not supported by Send to Kindle.": {
+    "en": "This file format is not supported by Send to Kindle.",
+    "it": "Questo formato non è supportato da Invia a Kindle."
+  },
+  "Choose a non-empty file up to 200 MB.": {
+    "en": "Choose a non-empty file up to 200 MB.",
+    "it": "Scegli un file non vuoto di massimo 200 MB."
+  },
+  "Enter a title and select at least one Kindle device.": {
+    "en": "Enter a title and select at least one Kindle device.",
+    "it": "Inserisci un titolo e seleziona almeno un dispositivo Kindle."
+  },
+  "Upload cancelled before delivery.": {
+    "en": "Upload cancelled before delivery.",
+    "it": "Caricamento annullato prima dell’invio."
+  },
+  "Amazon did not confirm delivery. Check your Kindle library before sending this file again.": {
+    "en": "Amazon did not confirm delivery. Check your Kindle library before sending this file again.",
+    "it": "Amazon non ha confermato l’invio. Controlla la libreria Kindle prima di inviare nuovamente questo file."
+  },
+  "Amazon rejected the request. Check your connection and Kindle account, or use the Amazon website.": {
+    "en": "Amazon rejected the request. Check your connection and Kindle account, or use the Amazon website.",
+    "it": "Amazon ha rifiutato la richiesta. Controlla la connessione e l’account Kindle oppure usa il sito Amazon."
+  },
+  "Kindle upload unavailable. Check your connection and account, or use the Amazon website.": {
+    "en": "Kindle upload unavailable. Check your connection and account, or use the Amazon website.",
+    "it": "Invio a Kindle non disponibile. Controlla la connessione e l’account oppure usa il sito Amazon."
+  },
+  "Future features": {
+    "en": "Future features",
+    "it": "Funzionalità future"
+  },
+  "Future features · experimental controls": {
+    "en": "Future features · experimental controls",
+    "it": "Funzionalità future · controlli sperimentali"
+  },
+  "AI models and translation are outside the 1.0 scope. Existing experimental controls remain available.": {
+    "en": "AI models and translation are outside the 1.0 scope. Existing experimental controls remain available.",
+    "it": "Modelli AI e traduzione sono fuori dall’ambito della 1.0. I controlli sperimentali esistenti restano disponibili."
   }
 }

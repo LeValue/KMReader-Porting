@@ -215,7 +215,7 @@ void main() {
       );
       expect((await repo.catalog('books')).items, hasLength(2));
       store.setSetting('kindleDictionaries:${repo.profile.id}', true);
-      repo.library.index();
+      await repo.library.index();
       expect((await repo.catalog('books')).items, hasLength(2));
     },
   );
@@ -449,7 +449,7 @@ void main() {
     final previous = repo.externalDocumentPosition(book, publication);
     await sidecarStarted!.future;
     store.setSetting('kindleDictionaries:${repo.profile.id}', true);
-    repo.library.index();
+    await repo.library.index();
     final current = await repo.book(
       repo.library.idFor(repo.library.items.last),
     );

@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../core/app_controller.dart';
 import '../core/models.dart';
 import '../core/repository.dart';
+import '../core/kindle/repository.dart';
+import '../features/kindle/kindle_import_page.dart';
 import '../features/catalog/catalog_page.dart';
 import '../features/catalog/dashboard.dart';
 import '../features/catalog/smart_lists_page.dart';
@@ -28,6 +30,12 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
   final _visited = <int, Widget>{};
   var _settings = GlobalKey<SettingsPageState>();
+  void _importKindle() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          KindleImportPage(repository: widget.repository as KindleRepository),
+    ),
+  );
   void _openServers() {
     setState(() => _index = 4);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -116,6 +124,12 @@ class _AppShellState extends State<AppShell> {
           : AppBar(
               title: Text(tr(context, _labels[_index])),
               actions: [
+                if (repository is KindleRepository)
+                  IconButton(
+                    tooltip: tr(context, 'Send to Kindle'),
+                    onPressed: _importKindle,
+                    icon: const Icon(Icons.upload_file),
+                  ),
                 IconButton(
                   tooltip: tr(context, 'Downloads'),
                   onPressed: () => Navigator.push(
@@ -182,6 +196,12 @@ class _AppShellState extends State<AppShell> {
                           ),
                         ),
                       const Divider(indent: 20, endIndent: 20),
+                      if (repository is KindleRepository)
+                        ListTile(
+                          leading: const Icon(Icons.upload_file, size: 21),
+                          title: Text(tr(context, 'Send to Kindle')),
+                          onTap: _importKindle,
+                        ),
                       ListTile(
                         leading: const Icon(
                           CupertinoIcons.arrow_down_to_line,

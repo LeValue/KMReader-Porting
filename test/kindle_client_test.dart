@@ -118,9 +118,47 @@ void main() {
       expect(items[0]['is_amazon_dictionary'], isFalse);
       expect(items[1]['is_amazon_dictionary'], isTrue);
       expect(items[2]['is_amazon_dictionary'], isFalse);
+      expect(items[2]['is_dictionary'], isTrue);
       expect(result['complete'], isTrue);
     },
   );
+  for (final incremental in [false, true]) {
+    test(
+      'first synchronized catalog hides all dictionaries; incremental=$incremental',
+      () async {
+        final client = KindleClient(
+          session: session(),
+          client: MockClient(
+            (_) async => http.Response('''
+<response syncType="${incremental ? 'incremental' : 'full'}"><sync_time>2</sync_time><add_update_list>
+<meta_data><ASIN>new</ASIN><cde_contenttype>PDOC</cde_contenttype><title>Novel</title></meta_data>
+<meta_data><ASIN>paid</ASIN><cde_contenttype>EBOK</cde_contenttype><title>Reference</title><content_tags><tag>DICT</tag></content_tags><origins><origin><type>Purchase</type></origin></origins></meta_data>
+</add_update_list></response>''', 200),
+          ),
+        );
+        addTearDown(client.close);
+        final result = await client.catalog(
+          previous: incremental
+              ? {
+                  'complete': true,
+                  'sync_time': '1',
+                  'items': [
+                    {
+                      'key': 'EBOK:legacy',
+                      'title': 'Groot woordenboek Frans-Nederlands',
+                    },
+                    {'key': 'PDOC:existing', 'title': 'Existing book'},
+                  ],
+                }
+              : null,
+        );
+        final titles = (result['items'] as List)
+            .map((v) => object(v)['title'])
+            .toList();
+        expect(titles, incremental ? ['Existing book', 'Novel'] : ['Novel']);
+      },
+    );
+  }
   test('service failures contain no payload, tokens or signed URL', () async {
     final client = KindleClient(
       session: session(),

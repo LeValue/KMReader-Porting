@@ -1,9 +1,35 @@
 # Development validation
 
+## 1.0.0+30 candidate — 2026-11-07
+
+The candidate implements the agreed single-page comic curl/gesture changes,
+local-file Kindle cloud import, full/legacy dictionary filtering and asynchronous
+Kindle catalog initialization with bounded cover work. AI/model/translation
+extensions and Komga server upload are future features. See
+[release notes](releases/v1.0.0.md) and [import behavior/limits](KINDLE_IMPORT.md).
+
+Local checks: analyzer without issues; 11 release-tool Python tests; 39 Kindle
+protocol/catalog/repository/import/widget tests; 24 comic transition/gesture
+checks. The ordinary host suite also passed before the final startup-path
+adjustments. Complete CI and signed candidate artifact evidence are recorded
+below after building the exact committed source.
+
+New coverage includes a 2,400-book UI-event regression, closing during index or
+queued cover work, full/incremental purchased-dictionary filtering, first offline
+catalog migration, paper-relative mouse turns in a 1600x600 window, single-sheet
+fade pixels, independent raw-RSA import signature, streamed uploads, selected
+account/device, cancellation and lost delivery replies without duplicate writes.
+
+The existing Android signing files match their pre-change hashes. No older
+release/tag/build or signing key is replaced. Real Amazon upload/conversion,
+upgrade from a signed 0.9.1 installation and the reported Windows freeze on the
+affected physical device remain acceptance checks. Synthetic tests are not
+reported as successful personal-account delivery or physical-device evidence.
+
 ## Pre-1.0 document metadata recovery — 2026-11-07
 
 The next publication target is [1.0](ROADMAP_1.0.md); existing 0.9.x drafts remain
-unpublished and the source version stays 0.9.1+29 during readiness work.
+unpublished and this historical verification used source version 0.9.1+29.
 
 A main-branch Komga run failed when a conditional document HEAD connection was
 interrupted. A deterministic socket-close regression reproduced the missing

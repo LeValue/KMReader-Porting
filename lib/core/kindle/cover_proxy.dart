@@ -60,7 +60,8 @@ class KindleCoverProxy {
     resources.length,
     (index) => 'http://127.0.0.1:${server.port}/kindle-cover/$token/$index',
   );
-  Future<void> close() => server.close(force: true).then((_) {});
+  Future<void>? _closing;
+  Future<void> close() => _closing ??= server.close(force: true).then((_) {});
   Future<void> _serve(HttpRequest incoming) async {
     try {
       final parts = incoming.uri.pathSegments;

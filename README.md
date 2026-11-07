@@ -9,16 +9,13 @@ achieved**; see the [parity matrix](docs/PARITY.md) and
 
 ## Current version and downloads
 
-The next publication target is **1.0.0**. Existing candidates remain in draft
-while we complete the [1.0 readiness work](docs/ROADMAP_1.0.md).
-
-The current source is **0.9.1+29**, based on working commit `a5e51aa` and the
-subsequent diagnostic fixes through `63ad4e7`. The matching
-[0.9.1 candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-8bfb43c3022b397460bc)
-is a **draft** with Android and Windows binaries; it is not published.
-Viewing a draft requires repository write access. See the
-[0.9.1 changes](docs/KINDLE_0.9.1.md) and
-[repository audit](docs/REPOSITORY_AUDIT.md) for source, CI and retained assets.
+The current source is the **1.0.0+30 candidate**, built on working 0.9.1.
+[1.0 changes](docs/releases/v1.0.0.md) include single-page comic gestures/curl,
+local-file Send to Kindle, dictionary filtering and responsive Kindle indexing.
+AI/model/translation extensions and Komga server upload are future work.
+See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION.md)
+for completed checks and target-device acceptance still needed before stable
+publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
 The latest **published** development preview is
 [0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1).
