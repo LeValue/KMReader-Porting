@@ -119,7 +119,7 @@ def main():
     parser.add_argument('--screenshots', type=Path)
     args = parser.parse_args()
     packed, original = fixture()
-    assets = Path(__file__).resolve().parent.parent / 'assets/epub'
+    assets = Path(__file__).resolve().parents[2] / 'assets/epub'
     publications = {}
 
     class Handler(BaseHTTPRequestHandler):

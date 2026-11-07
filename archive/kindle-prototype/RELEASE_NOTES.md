@@ -1,3 +1,5 @@
+> Historical prototype record. Current procedures: [documentation](../../docs/README.md).
+
 La 0.3.1 aggiunge il processo nativo riutilizzabile per la preparazione e
 l’estrazione parziale di copertine e metadati. Il worker non riceve le credenziali
 Amazon: le richieste firmate rimangono nell’app. I test includono il protocollo

@@ -1,3 +1,5 @@
+> Historical prototype record. Current procedures: [documentation](../../docs/README.md).
+
 # Kindle in KMReader: fattibilità e integrazione
 
 Approfondimento successivo: [connettore personale non ufficiale, reverse engineering

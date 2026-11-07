@@ -1,5 +1,39 @@
 # Development validation
 
+## Repository organization from working 0.9.1 — 2026-11-07
+
+Working baseline: `a5e51aa44e59a4ff5d01dedfb83a70c53c126aa7` (0.9.1+29),
+retaining diagnostic-only follow-ups through `63ad4e7`. See the
+[comparison and retention audit](REPOSITORY_AUDIT.md) and
+[exact branch/tag/release/asset snapshot](inventory/repository-before-2026-11-07.json).
+The earlier entries below describe their named versions, not current source.
+
+Local cleanup checks on Linux with Flutter 3.47.8 / Dart 3.13.7 / Python 3.11:
+
+- `flutter pub get --enforce-lockfile`, `flutter analyze`: passed; no analysis issues.
+- Format check: 217 files, zero changes.
+- Complete ordinary Flutter suite: **360 passed, 34 optional tests skipped**.
+- Python release/tool suite: **11 passed**.
+- Shared Kindle Python suite with real Chromium enabled: **82 passed**; Windows-only
+  operations are platform-gated. Synthetic self-check passed registration, signed
+  catalog, offline EPUB/PDF/KFX preparation, persistent RPC reuse, progressive
+  decoding and Kindle positions; no Amazon account was contacted.
+- Actionlint 1.7.12 on active workflows: passed; embedded shell/Python lint helpers
+  disabled (`-shellcheck= -pyflakes=`). Local Markdown links and `git diff --check`
+  passed.
+- Original 0.9.1 ARM64 APK downloaded from draft release 437138822: SHA256,
+  GitHub asset digest/size, retained certificate, version/build, Preview package,
+  ABI, embedded source and 16 KiB alignment verified. The existing asset was not
+  replaced. SHA256: `c2d2cfe0112236ab5b30990c61a7ed90420d8a4f2918063fe0a81ae3b6bdbdb0`.
+
+The PR checks provide new hosted Android/Windows/native verification for the
+cleanup commit. Baseline [CI 42307062098](https://github.com/LeValue/KMReader-Porting/actions/runs/42307062098)
+already passed all three required jobs at `a5e51aa`; that result is retained as
+baseline evidence only. Personal-account and physical-device workflows are not
+run by this cleanup. Additional local browser/import, ONNX, backend and APK
+build results are reported in the PR's verification record.
+
+
 ## 0.8.12 preview — EPUB input work and chapter lifetime
 
 Published [0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1),

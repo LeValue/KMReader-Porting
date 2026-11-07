@@ -1,3 +1,5 @@
+> Historical prototype record. Current procedures: [documentation](../../docs/README.md).
+
 # Kindle personale: protocolli non ufficiali, download e streaming
 
 Analisi del 4 novembre 2026, per un'installazione personale di KMReader. Questo
@@ -187,12 +189,12 @@ e lo streaming progressivo con le relative disponibilità.
 
 ## 5. Streaming EPUB: prova concreta e cambiamenti al codice
 
-Ho realizzato [epub_range_feasibility.py](../tool/epub_range_feasibility.py), un
+Ho realizzato [epub_range_feasibility.py](../epub/epub_range_feasibility.py), un
 prototipo isolato: genera un EPUB illustrato di 12 capitoli, lo espone con e senza
 HTTP Range e usa il JavaScript EPUB realmente distribuito con KMReader. Non
 contiene account, chiamate Amazon o modifiche al lettore di produzione.
 
-[Risultati riproducibili](benchmarks/kindle-epub-range-feasibility.json):
+[Risultati riproducibili](../../docs/benchmarks/kindle-epub-range-feasibility.json):
 
 | Passaggio | Byte trasferiti cumulativi dal server origine |
 |---|---:|
@@ -302,7 +304,7 @@ non vengono presentati come già implementati nella build 0.8.17.
 
 Su richiesta dell'utente il primo esperimento eseguibile è ora limitato al
 **download**, con streaming rimandato. I sorgenti sono in
-[`tool/kindle_personal`](../tool/kindle_personal/README.md), separati dai runtime
+[`tool/kindle_personal`](../../tool/kindle_personal/README.md), separati dai runtime
 Android/Windows dell'app. Il workflow `kindle-prototype.yml` verifica Linux e
 Windows e prepara un eseguibile Windows x64 con browser Edge esterno e archivio
 credenziali DPAPI; l'utente non deve installare Python o avviare un runner.
