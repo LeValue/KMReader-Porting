@@ -14,6 +14,8 @@ downloads/offline use and progress, plus these requested changes:
 - import local PC/phone files into the Kindle cloud library;
 - hide dictionaries from initial sync and legacy caches, including purchased ones;
 - reduce Windows Kindle stalls through asynchronous catalog work and bounded covers.
+- separate recent books/comics on the dashboard and order by addition, including
+  older books or documents without a publication date.
 
 [1.0 release notes](releases/v1.0.0.md) and [Kindle import](KINDLE_IMPORT.md)
 describe behavior and limits. AI/model/translation extensions and upload to a

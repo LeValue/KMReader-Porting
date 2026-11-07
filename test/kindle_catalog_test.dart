@@ -12,6 +12,7 @@ import 'package:kmreader/core/kindle/library.dart';
 import 'package:kmreader/core/kindle/repository.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/store.dart';
+import 'package:kmreader/features/catalog/dashboard.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
@@ -103,6 +104,57 @@ void main() {
     expect(store.progress(profile.id, id)?['page'], 8);
     expect(saved.readAsStringSync(), 'saved');
     await expectLater(repo.book(id), throwsA(isA<KindleFailure>()));
+  });
+
+  test('Kindle recent books use acquisition or stable first-seen dates, with no comics leakage', () async {
+    store.cache(profile.id, 'kindle:catalog', {
+      'fetched_at': '2026-09-01T00:00:00Z',
+      'items': [
+        {
+          'key': 'PDOC:new',
+          'title': 'Old publication, newest addition',
+          'added_at': '2026-11-01T00:00:00Z',
+          'publication_date': '1900-01-01',
+        },
+        {
+          'key': 'EBOK:old',
+          'title': 'Older addition',
+          'added_at': '2026-10-01T00:00:00Z',
+          'publication_date': '2026-11-01',
+        },
+        {
+          'key': 'PDOC:unknown',
+          'title': 'No acquisition metadata',
+          'publication_date': '2070-01-01',
+        },
+      ],
+    });
+    final books = DashboardQuery('dashboard.recentlyReleasedBooks');
+    final comics = DashboardQuery('dashboard.recentlyAddedBooks');
+    final result = await repo.catalog(
+      books.kind,
+      condition: books.condition,
+      sort: books.sort,
+    );
+    expect(result.items.map((item) => item.book.title), [
+      'Old publication, newest addition',
+      'Older addition',
+      'No acquisition metadata',
+    ]);
+    expect(
+      (await repo.catalog(
+        comics.kind,
+        condition: comics.condition,
+        sort: comics.sort,
+      )).items,
+      isEmpty,
+    );
+    final unknown = repo.library.items.last;
+    final id = repo.library.idFor(unknown);
+    final firstSeen = object(store.cached(profile.id, 'book:$id'))['created'];
+    repo.library.updatePages(id, 42);
+    expect(object(store.cached(profile.id, 'book:$id'))['created'], firstSeen);
+    expect(firstSeen, '2026-09-01T00:00:00.000Z');
   });
 
   test(

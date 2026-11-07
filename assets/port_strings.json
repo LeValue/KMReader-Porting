@@ -628,16 +628,16 @@
     "es": "Estilo de tarjetas"
   },
   "dashboard.recentlyReleasedBooks": {
-    "en": "Recently Released Books",
-    "it": "Libri pubblicati di recente",
-    "de": "Kürzlich veröffentlichte Bücher",
-    "fr": "Livres sortis récemment",
-    "ja": "最近リリースされた本",
-    "ko": "최근 출시된 책",
-    "zh-Hans": "最近发布的书籍",
-    "zh-Hant": "最近發布的書籍",
-    "ru": "Недавно выпущенные книги",
-    "es": "Libros publicados recientemente"
+    "en": "Recently Added Books",
+    "it": "Libri aggiunti di recente",
+    "de": "Kürzlich hinzugefügte Bücher",
+    "fr": "Livres ajoutés récemment",
+    "ja": "最近追加された書籍",
+    "ko": "최근 추가된 책",
+    "zh-Hans": "最近新增的书籍",
+    "zh-Hant": "最近新增的書籍",
+    "ru": "Недавно добавленные книги",
+    "es": "Libros añadidos recientemente"
   },
   "Use Display Cutout": {
     "en": "Use Display Cutout",
@@ -1702,5 +1702,17 @@
   "AI models and translation are outside the 1.0 scope. Existing experimental controls remain available.": {
     "en": "AI models and translation are outside the 1.0 scope. Existing experimental controls remain available.",
     "it": "Modelli AI e traduzione sono fuori dall’ambito della 1.0. I controlli sperimentali esistenti restano disponibili."
+  },
+  "dashboard.recentlyAddedBooks": {
+    "en": "Recently Added Comics",
+    "it": "Fumetti aggiunti di recente",
+    "de": "Kürzlich hinzugefügte Comics",
+    "fr": "Bandes dessinées ajoutées récemment",
+    "ja": "最近追加されたコミック",
+    "ko": "최근 추가된 만화",
+    "zh-Hans": "最近新增的漫画",
+    "zh-Hant": "最近新增的漫畫",
+    "ru": "Недавно добавленные комиксы",
+    "es": "Cómics añadidos recientemente"
   }
 }

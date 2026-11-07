@@ -30,11 +30,9 @@ const dashboardCardKinds = {
 
 /// Shared by the dashboard and See All, so their filters cannot diverge.
 class DashboardQuery {
-  DashboardQuery(this.title, {this.libraryId, DateTime? now})
-    : now = now ?? DateTime.now();
+  DashboardQuery(this.title, {this.libraryId});
   final String title;
   final String? libraryId;
-  final DateTime now;
   String get kind => title.endsWith('Series') ? 'series' : 'books';
   String? get path => switch (title) {
     'dashboard.onDeck' => '/api/v1/books/ondeck',
@@ -46,7 +44,6 @@ class DashboardQuery {
     'dashboard.keepReading' ||
     'dashboard.recentlyReadBooks' => 'readProgress.readDate,desc',
     'dashboard.onDeck' => 'metadata.titleSort,asc',
-    'dashboard.recentlyReleasedBooks' => 'metadata.releaseDate,desc',
     'dashboard.recentlyUpdatedSeries' => 'lastModified,desc',
     _ => 'created,desc',
   };
@@ -62,10 +59,18 @@ class DashboardQuery {
         },
       if (title == 'dashboard.recentlyReleasedBooks')
         {
-          'releaseDate': {
-            'operator': 'after',
-            'dateTime': _cutoff.toUtc().toIso8601String(),
-          },
+          'anyOf': [
+            {
+              'mediaProfile': {'operator': 'is', 'value': 'EPUB'},
+            },
+            {
+              'mediaProfile': {'operator': 'is', 'value': 'PDF'},
+            },
+          ],
+        },
+      if (title == 'dashboard.recentlyAddedBooks')
+        {
+          'mediaProfile': {'operator': 'is', 'value': 'DIVINA'},
         },
       if (libraryId != null)
         {
@@ -77,13 +82,6 @@ class DashboardQuery {
         : values.length == 1
         ? values.single
         : {'allOf': values};
-  }
-
-  DateTime get _cutoff {
-    // Calendar-day cutoff, including March 31 -> February 28/29.
-    // Stable during the day so background refresh can reuse the query cache.
-    final last = DateTime(now.year, now.month, 0).day;
-    return DateTime(now.year, now.month - 1, now.day > last ? last : now.day);
   }
 }
 
@@ -315,8 +313,7 @@ class _DashboardSection extends StatelessWidget {
   final List<String>? libraryIds;
   final Repository repository;
   final String title;
-  DashboardQuery get query =>
-      DashboardQuery(title, now: repository.cacheClock());
+  DashboardQuery get query => DashboardQuery(title);
   String get kind => query.kind;
   String? get path => query.path;
   String get sort => query.sort;

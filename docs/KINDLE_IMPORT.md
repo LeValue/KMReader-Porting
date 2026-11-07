@@ -83,3 +83,12 @@ A 2,400-book regression checks that UI events run during initial indexing.
 These address concrete UI-blocking paths; they do not establish the cause of
 every freeze on an individual Windows installation. Check the final build on the
 affected machine with its existing catalog and record any remaining stall.
+
+The dashboard's **Recently Added Books** row includes EPUB/PDF documents; **Recently
+Added Comics** includes Komga's DIVINA profile (comic archives). These filters
+apply before pagination and are shared with See All. No release-date cutoff
+excludes older novels or documents without publication metadata. Kindle book
+addition dates use Amazon's purchase/creation date where supplied, otherwise the
+first time the app sees the document, retained across refreshes. Publication dates
+remain separate metadata. Legacy dashboard section IDs are kept so order, hidden
+sections and card preferences survive the label change.

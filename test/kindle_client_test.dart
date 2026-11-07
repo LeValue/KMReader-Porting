@@ -160,6 +160,28 @@ void main() {
       },
     );
   }
+  test('Kindle acquisition dates survive full refreshes without becoming publication dates', () async {
+    var requests = 0;
+    final client = KindleClient(
+      session: session(),
+      client: MockClient((_) async {
+        return http.Response(
+          '''<response syncType="full"><sync_time>2</sync_time><add_update_list>
+<meta_data><ASIN>book</ASIN><cde_contenttype>EBOK</cde_contenttype><title>Book</title><publication_date>1900-01-01</publication_date>${requests++ == 0 ? '<purchase_date>2026-11-07T12:00:00+0200</purchase_date>' : ''}</meta_data>
+</add_update_list></response>''',
+          200,
+        );
+      }),
+    );
+    addTearDown(client.close);
+    final initial = await client.catalog(full: true);
+    final refreshed = await client.catalog(full: true, previous: initial);
+    final first = object((initial['items'] as List).single),
+        second = object((refreshed['items'] as List).single);
+    expect(first['added_at'], '2026-11-07T10:00:00.000Z');
+    expect(second['added_at'], first['added_at']);
+    expect(second['publication_date'], '1900-01-01');
+  });
   test('legacy snapshots force a full metadata sync to recover lost dictionary classifications', () async {
     final client = KindleClient(
       session: session(),
@@ -190,6 +212,32 @@ void main() {
     );
     expect(result['dictionary_filter_version'], 1);
     expect((result['items'] as List).map((v) => object(v)['title']), ['Novel']);
+  });
+  test('newly discovered Kindle documents use this sync time when acquisition dates are absent', () async {
+    final client = KindleClient(
+      session: session(),
+      client: MockClient(
+        (_) async => http.Response(
+          '''
+<response><sync_time>2</sync_time><add_update_list><meta_data><ASIN>new</ASIN><cde_contenttype>PDOC</cde_contenttype><title>New document</title></meta_data></add_update_list></response>''',
+          200,
+        ),
+      ),
+    );
+    addTearDown(client.close);
+    final result = await client.catalog(
+      previous: {
+        'dictionary_filter_version': 1,
+        'complete': true,
+        'sync_time': '1',
+        'fetched_at': '2020-01-01T00:00:00Z',
+        'items': [],
+      },
+    );
+    expect(
+      object((result['items'] as List).single)['added_at'],
+      result['fetched_at'],
+    );
   });
   test('service failures contain no payload, tokens or signed URL', () async {
     final client = KindleClient(
