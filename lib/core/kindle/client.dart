@@ -512,6 +512,7 @@ class KindleClient {
   Future<Json> catalog({Json? previous, bool full = false}) async {
     final incremental =
         !full &&
+        previous?['dictionary_filter_version'] == 1 &&
         previous?['complete'] == true &&
         text(previous?['sync_time']).isNotEmpty;
     final bytes = await get(
@@ -806,6 +807,7 @@ Json _mergeKindleCatalog((Uint8List, Json?, bool) input) {
       );
   return {
     'schema': 1,
+    'dictionary_filter_version': 1,
     'marketplace': 'amazon.it',
     'fetched_at': DateTime.now().toUtc().toIso8601String(),
     'sync_time': parsed['sync_time'],

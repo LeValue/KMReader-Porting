@@ -69,6 +69,12 @@ The first catalog request waits for cache migration, so stale indexed dictionary
 rows cannot appear before a later sync. This removes catalog metadata only;
 cloud documents, saved files and reading progress are retained.
 
+Old snapshots did not retain every purchased-dictionary classification. Their
+next online sync therefore requests complete metadata once, even when the cache
+is recent; only classified snapshots resume incremental synchronization. Known
+legacy titles are hidden immediately offline too. Unknown legacy titles can only
+be classified when that full online metadata response arrives.
+
 Catalog decoding, merge/sort, encoding and index fingerprinting run in worker
 isolates. SQLite indexing yields between batches of 24 books, including obsolete
 row removal, and cover preparations are limited to three concurrent requests.
