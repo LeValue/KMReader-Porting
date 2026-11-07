@@ -18,7 +18,7 @@ See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
-[Download the signed Android / Windows 1.0 candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-84902e8784cf41cdcf31).
+[Download the signed Android / Windows 1.0 candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55).
 It is a draft requiring repository write access to view; [complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059)
 and [delivery checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42383704677)
 passed. Device/account acceptance remains open as recorded above.
