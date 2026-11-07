@@ -690,6 +690,9 @@ Json parseKindleCatalog(List<int> bytes) {
               ? value(element, 'version')
               : value(element, 'content_version'),
           'publication_date': value(element, 'publication_date'),
+          'added_at': value(element, 'purchase_date').isNotEmpty
+              ? value(element, 'purchase_date')
+              : value(element, 'creation_date'),
           'is_amazon_dictionary':
               type == 'EBOK' &&
               dictionary &&
@@ -783,6 +786,13 @@ Json _readSidecar((Uint8List, bool) input) {
 Json _mergeKindleCatalog((Uint8List, Json?, bool) input) {
   final (bytes, previous, incremental) = input;
   final parsed = parseKindleCatalog(bytes);
+  final fetchedAt = DateTime.now().toUtc().toIso8601String();
+  String? date(dynamic value) =>
+      DateTime.tryParse(text(value))?.toUtc().toIso8601String();
+  final previousItems = <String, Json>{
+    for (final item in (previous?['items'] as List? ?? []).map(object))
+      text(item['key']): item,
+  };
   final items = <String, Json>{
     if (incremental && parsed['full_response'] != true)
       for (final item in (previous?['items'] as List? ?? []).map(object))
@@ -796,7 +806,17 @@ Json _mergeKindleCatalog((Uint8List, Json?, bool) input) {
     );
   }
   for (final item in (parsed['items'] as List).map(object)) {
-    items[text(item['key'])] = item;
+    final key = text(item['key']);
+    items[key] = {
+      ...item,
+      'added_at':
+          date(item['added_at']) ??
+          date(previousItems[key]?['added_at']) ??
+          (previousItems.containsKey(key)
+              ? date(previous?['fetched_at'])
+              : null) ??
+          fetchedAt,
+    };
   }
   final ordered =
       items.values.where((item) => !isKindleDictionary(item)).toList()..sort(
@@ -809,7 +829,7 @@ Json _mergeKindleCatalog((Uint8List, Json?, bool) input) {
     'schema': 1,
     'dictionary_filter_version': 1,
     'marketplace': 'amazon.it',
-    'fetched_at': DateTime.now().toUtc().toIso8601String(),
+    'fetched_at': fetchedAt,
     'sync_time': parsed['sync_time'],
     'complete': parsed['complete'],
     'items': ordered,

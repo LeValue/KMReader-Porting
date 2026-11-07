@@ -191,13 +191,29 @@ void main() {
           'dashboard.recentlyReleasedBooks',
           libraryId: comic.libraryId,
         );
-        await repository.catalog(
+        final recentBooks = await repository.catalog(
           released.kind,
           condition: released.condition,
           sort: released.sort,
           size: 12,
           force: true,
         );
+        expect(
+          recentBooks.items.map((item) => item.book.format),
+          unorderedEquals(['epub', 'pdf']),
+        );
+        final comicQuery = DashboardQuery(
+          'dashboard.recentlyAddedBooks',
+          libraryId: comic.libraryId,
+        );
+        final recentComics = await repository.catalog(
+          comicQuery.kind,
+          condition: comicQuery.condition,
+          sort: comicQuery.sort,
+          size: 12,
+          force: true,
+        );
+        expect(recentComics.items.map((item) => item.id), [comic.id]);
         final read = DashboardQuery(
           'dashboard.recentlyReadBooks',
           libraryId: comic.libraryId,

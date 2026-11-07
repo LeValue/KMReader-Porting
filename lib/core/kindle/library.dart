@@ -86,6 +86,7 @@ class KindleLibrary {
   }
 
   Json? _snapshot;
+  final _openedAt = DateTime.now().toUtc().toIso8601String();
   List<Json>? _visibleItems;
   Map<String, Json>? _byId;
   final _manifests =
@@ -119,12 +120,18 @@ class KindleLibrary {
     final existing = object(store.cached(profile.id, 'book:$id'));
     final format =
         store.setting<String>('kindleFormat:${profile.id}:$id') ?? 'epub';
+    final firstSeen =
+        DateTime.tryParse(text(existing['kindleFirstSeen'])) ??
+        DateTime.tryParse(text(snapshot['fetched_at'])) ??
+        DateTime.parse(_openedAt);
+    final addedAt = DateTime.tryParse(text(item['added_at'])) ?? firstSeen;
     return {
       'id': id,
       'libraryId': item['type'] == 'PDOC' ? 'kindle-documents' : 'kindle-books',
       'name': '${item['title']}.$format',
       'fileHash': text(item['revision']),
-      'created': item['publication_date'],
+      'created': addedAt.toUtc().toIso8601String(),
+      'kindleFirstSeen': firstSeen.toUtc().toIso8601String(),
       'lastModified': item['revision'],
       'metadata': {
         'title': item['title'],
@@ -800,5 +807,5 @@ Json _decodeCatalogSnapshot(String encoded) {
 
 String _encodeCatalogSnapshot(Json snapshot) => jsonEncode(snapshot);
 String _catalogFingerprint(Json snapshot) => sha256
-    .convert(utf8.encode(jsonEncode({'schema': 3, 'snapshot': snapshot})))
+    .convert(utf8.encode(jsonEncode({'schema': 4, 'snapshot': snapshot})))
     .toString();
