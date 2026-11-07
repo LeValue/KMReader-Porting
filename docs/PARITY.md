@@ -200,6 +200,8 @@ Per aggiornare uno stato usare questo formato e collegare il dettaglio in
 
 | ID | Requisito/riferimento | Sorgente port | Piattaforma/backend | Verifica e risultato | Evidenza | Stato |
 |---|---|---|---|---|---|---|
+| F-08.a | Contratto degli eventi `SSEEvent.swift`: eliminazioni, aggiunte perse, riconnessione e scope utente | `2f3c6385bdd6e2c2a25e65b192af6a0e92a0dc69` | Host Linux/Windows, fixture SSE | Mappatura eventi e invalidazione; una risposta precedente alla cancellazione non ripristina il libro, una lista nuova sì; nessun refresh per altro utente o quando disabilitato. Test passati in CI. | [Regressioni](../test/parity_closure_test.dart), [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048) | Sottorequisito chiuso; F-08 conserva l'accettazione finale con UI/backend. |
+| F-09.a | Metadati completi dell'indice per statistiche offline e indicazione di parzialità | `2f3c6385bdd6e2c2a25e65b192af6a0e92a0dc69` | Host Linux/Windows, fixture SQLite | 207 libri nel filtro, oltre la prima pagina; account/librerie esclusi, generi/serie conservati, indice interrotto riconoscibile, nessuna rete. Test passati in CI. | [Regressioni](../test/parity_closure_test.dart), [validazione](VALIDATION.md) | Sottorequisito chiuso; F-09 conserva il confronto con backend estesi/AT-04. |
 | Da compilare per ciascuna chiusura A/F/AT/R | Percorso o operazione upstream, oppure richiesta specifica | Commit esatto | Dispositivo/OS/runtime e server | Passi, atteso, osservato; pass/fail/skip | Test/log/screenshot o record di validazione | Aperto fino alla verifica |
 
 Lavori implementati e prove della candidata rimangono descritti nelle

@@ -125,9 +125,13 @@ After the final source has passed all required jobs, verify the three signed
 APKs and the complete matching Windows archive as above. Record the actual
 upgrade/Kindle delivery/Windows responsiveness acceptance in `VALIDATION.md`.
 The existing `v1.0.0` draft retains build 30. Prepare a **new**, empty
-`v1.0.0-candidate.2` draft targeting the next verified source, attach those exact
+`v1.0.0-candidate.N` draft targeting the next verified source, attach those exact
 verified binaries, runtime source/notices and SHA256SUMS, then download and check
 all asset hashes. Preserve every existing draft/tag/asset. Stable promotion is a
 separate explicit publication step (`draft=false`, `prerelease=false`) after
 reviewing the concrete draft and its evidence. No public release is created by
 an ordinary main-branch push.
+
+Build 31 is already delivered to [candidate.2](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8)
+from `2f3c6385bdd6e2c2a25e65b192af6a0e92a0dc69`. Preserve it and the build 30 draft;
+choose the next unused candidate number for a subsequent update.

@@ -19,10 +19,12 @@ See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
-[Download the retained Android / Windows candidate (build 30)](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55).
-It is a draft requiring repository write access to view; [complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059)
-and [delivery checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42383704677)
-passed. Device/account acceptance remains open as recorded above.
+[Download Android / Windows candidate build 31](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8).
+It remains a draft requiring repository write access. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048),
+[delivery checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42415254325)
+and downloaded hashes passed; all 710 Windows files match the CI bundle.
+The [previous build 30](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55)
+is retained. Device/account acceptance and full Kindle state migration remain open.
 
 The latest **published** development preview is
 [0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1).
