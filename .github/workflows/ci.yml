@@ -139,6 +139,14 @@ jobs:
       - name: Build and verify the separate Kindle converter
         shell: pwsh
         run: ./tool/build_kindle_worker.ps1
+      - name: Retain the companion bundle for source-verified read-only probes
+        uses: actions/upload-artifact@v4
+        with:
+          name: KMReader-Kindle-windows-x64
+          path: |
+            artifacts/kindle-delivery/*.zip
+            artifacts/kindle-delivery/SHA256SUMS.txt
+            artifacts/kindle-executable-check.json
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'

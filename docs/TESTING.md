@@ -66,6 +66,8 @@ modify an existing server.
 All three names are retained because release gates validate them explicitly.
 The old standalone prototype workflow is archived; its protocol/import checks
 now belong to CI and its duplicate executable recipe uses the shared build script.
+The Windows job also retains `KMReader-Kindle-windows-x64` for source-verified
+read-only probes, using the same artifact name as the former workflow.
 
 `local-windows.yml` dispatches optional Windows/Android diagnostics and the two
 reusable Kindle probes. `local-android.yml`, `kindle-personal-probe.yml` and
