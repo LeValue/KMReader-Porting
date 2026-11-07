@@ -1,4 +1,4 @@
-"""Package only explicit prototype inputs; never glob a user's data directory."""
+"""Package the shared Kindle worker and its corresponding source from explicit inputs."""
 
 import argparse
 import hashlib
@@ -25,7 +25,19 @@ def source_bundle(repository, dependency, output, version, metadata):
         repository / "tool/kindle_personal/requirements.txt",
         repository / "tool/kindle_personal_cli.py",
         repository / "tool/package_kindle_prototype.py",
-        repository / ".github/workflows/kindle-prototype.yml",
+        repository / ".github/workflows/ci.yml",
+        repository / "archive/kindle-prototype/kindle-prototype.yml",
+        repository / "archive/kindle-prototype/README.md",
+        repository / "archive/kindle-prototype/RELEASE_NOTES.md",
+        repository / "archive/README.md",
+        repository / "tool/README.md",
+        repository / "docs/README.md",
+        repository / "docs/KINDLE_RUNTIME.md",
+        repository / "docs/DEVELOPMENT.md",
+        repository / "docs/TESTING.md",
+        repository / "docs/RELEASING.md",
+        repository / "assets/kindle/COPYING",
+        repository / "assets/kindle/NOTICE.md",
         *sorted((repository / "tool/kindle_android").glob("*.py")),
         repository / "tool/build_kindle_worker.ps1",
         repository / "android/app/build.gradle.kts",
@@ -75,7 +87,7 @@ dist/KMReader-Kindle/KMReader-Kindle.exe self-test --browser
 ```
 
 No Amazon account or personal documents are needed to build or test.
-The checked-in workflow reproduces protocol tests and Windows packaging;
+The active ci.yml workflow reproduces protocol tests and Windows packaging;
 native Flutter import tests use the full KMReader repository at build.json's source.
 Dependency versions and bundled license notices accompany the binary package.
 """,
@@ -113,6 +125,9 @@ def main():
     stage.mkdir(parents=True)
     shutil.copytree(args.binary_directory, stage / "KMReader-Kindle")
     shutil.copyfile(prototype / "README.md", stage / "LEGGIMI.md")
+    shutil.copyfile(
+        repository / "archive/kindle-prototype/README.md", stage / "PROTOTYPE-GUIDE.md"
+    )
     shutil.copyfile(prototype / "Avvia-Kindle.cmd", stage / "Avvia-Kindle.cmd")
     shutil.copyfile(dependency / "COPYING", stage / "LICENSE")
     shutil.copyfile(repository / "LICENSE", stage / "MIT-LICENSE")

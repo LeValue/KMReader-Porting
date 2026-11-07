@@ -18,7 +18,14 @@ class SourcePackageTest(unittest.TestCase):
                 "tool/kindle_personal/requirements.txt": "kfxlib\n",
                 "tool/kindle_personal_cli.py": "# entry point\n",
                 "tool/package_kindle_prototype.py": "# build tool\n",
-                ".github/workflows/kindle-prototype.yml": "# workflow\n",
+                ".github/workflows/ci.yml": "# active app workflow\n",
+                "tool/build_kindle_worker.ps1": "# shared build entry\n",
+                "tool/kindle_android/kmreader_kfx.py": "# android entry\n",
+                "android/app/build.gradle.kts": "// native packaging\n",
+                "archive/kindle-prototype/kindle-prototype.yml": "# archived workflow\n",
+                "archive/kindle-prototype/README.md": "# historical guide\n",
+                "assets/kindle/NOTICE.md": "# worker notice\n",
+                "assets/kindle/COPYING": "GPL test notice\n",
                 "LICENSE": "MIT test notice\n",
                 "tool/kindle_personal/session.dpapi": "PRIVATE_SESSION",
                 "tool/kindle_personal/receipt.json": "PRIVATE_RECEIPT",
@@ -56,6 +63,18 @@ class SourcePackageTest(unittest.TestCase):
                     b"./vendor/kfxlib\npyinstaller==6.22.3\n",
                 )
                 self.assertIn("REBUILD.md", bundle.namelist())
+                for name in (
+                    ".github/workflows/ci.yml",
+                    "tool/build_kindle_worker.ps1",
+                    "tool/kindle_android/kmreader_kfx.py",
+                    "android/app/build.gradle.kts",
+                    "archive/kindle-prototype/kindle-prototype.yml",
+                    "archive/kindle-prototype/README.md",
+                    "assets/kindle/NOTICE.md",
+                    "assets/kindle/COPYING",
+                ):
+                    self.assertEqual(bundle.read(name), files[name].encode("utf-8"))
+                self.assertNotIn(".github/workflows/kindle-prototype.yml", bundle.namelist())
                 self.assertFalse(
                     any(b"PRIVATE_" in bundle.read(name) for name in bundle.namelist())
                 )

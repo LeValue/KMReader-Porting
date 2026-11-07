@@ -87,6 +87,19 @@ jobs:
       - run: python3 -m unittest discover -s tool/tests
       - run: flutter analyze
       - run: flutter test
+      - name: Verify shared Kindle runtime and real browser boundaries
+        env:
+          KMREADER_KINDLE_BROWSER_TEST: '1'
+        run: |
+          python3 -m pip install -r tool/kindle_personal/requirements.txt
+          python3 -m playwright install chromium
+          python3 -m unittest discover -s tool/kindle_personal/tests -v
+          python3 -m tool.kindle_personal self-test --output artifacts/kindle-self-test.json --fixtures artifacts/kindle-native-fixtures
+      - name: Verify prepared books through the app and exercise the shipped EPUB reader
+        env:
+          KMREADER_KINDLE_FIXTURES: artifacts/kindle-native-fixtures
+          KMREADER_BROWSER_TEST: '1'
+        run: flutter test tool/kindle_personal/tests/native_import_test.dart test/epub_browser_test.dart --no-pub
       - name: Verify portable image models with the real ONNX runtime
         run: KMREADER_ONNX_TEST=1 LD_LIBRARY_PATH="$PUB_CACHE/hosted/pub.dev/onnxruntime_v2-1.23.2+2/linux" flutter test test/upscaler_test.dart test/bubble_detector_test.dart --no-pub
       - name: Test the client against Komga

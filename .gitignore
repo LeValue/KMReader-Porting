@@ -64,3 +64,6 @@ app.*.map.json
 # Personal Kindle prototype: never commit sessions, catalogs or downloaded books.
 /.kindle-personal/
 /tool/kindle_personal/.venv/
+
+# Local Python development environment.
+/.venv/

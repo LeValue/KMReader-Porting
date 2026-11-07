@@ -1,3 +1,3 @@
-"""Isolated personal Kindle download experiment; no dependency of the app."""
+"""Shared Kindle conversion runtime and retained standalone compatibility tools."""
 
 VERSION = "0.3.1"
