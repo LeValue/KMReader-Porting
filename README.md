@@ -4,7 +4,7 @@ A Flutter implementation of the [KMReader](https://github.com/kmworks/kmreader)
 Komga client, based on upstream commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9`.
 Browsing, reading, local books, downloads, progress and the Amazon.it Kindle
 adapter are implemented. **Full functional and visual parity is not yet
-achieved**; see the [parity matrix](docs/PARITY.md) and
+achieved**; see the [porting closure matrix](docs/PARITY.md) and
 [settings audit](docs/SETTINGS_AUDIT.md).
 
 ## Current version and downloads

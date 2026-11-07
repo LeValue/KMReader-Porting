@@ -111,6 +111,11 @@ of this change. CI builds do not require uploading the Android signing key.
 
 ## Stable 1.0 publication
 
+First close the scope audits, functional gaps and target acceptance in the
+[porting closure matrix](PARITY.md), then complete its R-01–R-05 release checks.
+The seven candidate changes and successful package delivery do not establish
+complete functional parity. Keep unresolved requirements visible.
+
 The source version is now 1.0.0+30; the preview tool remains useful for identity,
 ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
 [the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to

@@ -13,11 +13,16 @@ python3 -m unittest discover -s tool/tests
 
 The original inventory shipped in 0.7.0. The 0.8.0 implementation adds grouped settings matching the reference order, captions, inline/adaptive pickers, conditional controls, preset/font subpages and reading-statistics charts. Delivered in [0.8.0](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.0-preview.1), source `eb40fbddb6452ea124f7f17e0a4d72581d0ba55b`. Exact native and downloaded-package verification is recorded in [validation](VALIDATION.md).
 
+The [porting closure matrix](PARITY.md) defines the remaining functional work,
+scope audits and acceptance required before stable release. The counts below
+are an audit of persisted fields, not a percentage of completed porting.
+
 ## Current coverage
 
 **9 adapted**, **105 implemented**, **3 internal**, **5 partial**, **6 platform-unavailable**. Implemented means the control has a corresponding runtime effect; it does not assert pixel parity, matching defaults or verified native behavior. See [validation](VALIDATION.md).
 
-The remaining original model-library functionality is **partial**: catalog URL editing, catalog downloads, independent model-role selection, archive download/deletion and Core ML recognizers are not ported. The application shows the actual bundled ONNX bubble detector and native OCR languages, with an explicit compatibility explanation. It does not offer dummy selectors for those archives.
+The remaining original model-library functionality is **partial**: catalog URL editing, catalog downloads, independent model-role selection, archive download/deletion and Core ML recognizers are not ported. The application shows the actual bundled ONNX bubble detector and native OCR languages, with an explicit compatibility explanation. It does not offer dummy selectors for those archives. This work is explicitly
+deferred under FUT-01 in the closure matrix; its audit status stays partial.
 
 Handoff, Spotlight and Live Activities have no implementation on these operating systems. Apple StoreKit subscriptions/tips, App Store review and Apple EULA navigation are also excluded; Android/Windows distribution is outside the Apple store. No paid entitlement gate has been introduced.
 
@@ -27,7 +32,7 @@ Handoff, Spotlight and Live Activities have no implementation on these operating
 - Browse: all nine original card/search switches, previews and immediate updates.
 - Dashboard: section visibility/order/reset, card-kind menu and gradient. Library scope selects any subset or all libraries, including See All queries and batch selection.
 - Reader general: offline-first preparation, confirmed automatic completed-download removal, threshold, next unread, list continuation, keyboard help/Space action, fullscreen and keep-awake. Removal waits for the last non-incognito reader to release files.
-- DIVINA: direction, metadata override, layouts/cover/splitting, appearance, tap gestures, zoom, Webtoon width/scroll, preload, crop, Waifu2x and text/context-menu actions. Curl is a portable snapshot effect for discrete turns; swipe remains slide. Live Text opens selectable native OCR text. Context actions offer either spread page solo and PNG export through the system document picker; this adapts Apple sharing-sheet behavior.
+- DIVINA: direction, metadata override, layouts/cover/splitting, appearance, tap gestures, zoom, Webtoon width/scroll, preload, crop, Waifu2x and text/context-menu actions. Curl uses prepared/snapshotted artwork with gesture following; the 1.0 candidate adds single-page fading and paper-relative mouse interaction. Live Text opens selectable native OCR text. Context actions offer either spread page solo and PNG export through the system document picker; this adapts Apple sharing-sheet behavior.
 - PDF: native/raster engine, all four raster qualities, direction/metadata, presentation/cover, background, gradient and progress.
 - EPUB: flow/animation/transition/tap zones/status bar/percentage scrolling, eight overlay slots and progress; original theme families, color scheme, font weight, typography/columns/alignment/margins, custom font import/removal and named preset save/apply/rename/delete. Native HTML fallback does not have browser-engine feature parity. Fixed-layout publications retain authored CSS.
 - Translation: provider add/edit/select/delete, secure key replacement/removal, model discovery/selection, source and target language, system target, metadata opt-in, translation visibility/direction and translation-cache removal. Bubble grouping uses the bundled detector.

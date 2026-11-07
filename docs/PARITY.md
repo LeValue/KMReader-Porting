@@ -1,189 +1,193 @@
-# Functional and visual parity
+# Matrice di parità e chiusura del porting KMReader
 
-Settings now have a [source-by-source audit](SETTINGS_AUDIT.md), including implemented controls, native adaptations and explicit remaining gaps. Extracted controls are not a claim of complete parity.
+**Stato: porting ancora aperto; release stabile non pronta.**
+Aggiornamento del documento: 7 novembre 2026. Piattaforme: Android e Windows.
 
-Reference: kmworks/kmreader `e2b35f8796cc830fc6e7464e161b2172d8f916e9`.
-This matrix distinguishes implemented behavior from full upstream parity.
-The 0.8.0 preview adds settings-layout refinement, multiple-library Dashboard scope and reader context actions; see release validation for verified packages.
+Questa è la lista di lavoro per concludere il porting. La candidata **1.0.0+30**
+contiene i sette interventi richiesti, ma non chiude tutte le aree sottostanti.
+Il codice dell'app verificato è `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`;
+le successive modifiche di consegna/documentazione non cambiano quel runtime.
 
-| Area | Implemented | Remaining work |
-| --- | --- | --- |
-| Authentication | Password, API key, first-server claim, account-scoped profiles, OS credential vault, self-service password changes with Basic credential replacement/reconnect and API-key preservation; optional device biometrics/PIN/Windows Hello app lock with cold-start and background protection | Device-level vault and OS authentication acceptance |
-| Server management | Add, reconnect, switch, remove; isolated caches/files/outbox | More server editing and protection options |
-| Dashboard | Keep Reading, On Deck, new books/series, updated series, recently read and recently released books; hide/reorder sections, persistent multiple-library scope, matching See All filters/sort, opt-in ordered read-list continuation with upstream-compatible client-settings sync and durable stop tombstones, compact empty sections, persistent large/medium/small/horizontal card styles | Native acceptance for read-list continuation |
-| Catalog | Paginated series/books, submitted search, library browser, sort/read-status and nested typed metadata filters, per-account saved filters, selection of loaded items or all matching paginated results, batch read/unread/download/list actions; account-scoped SQLite FTS metadata index with full snapshot preparation, Unicode search, nested filters, sorts and local progress; development adds card overlays/cover-only, series titles, aspect ratio, shadows, badges, unread blur, progress and search filter bypass with retained library/view scope | every upstream sort/filter presentation; offline special-list and On Deck parity |
-| Details and lists | Covers, metadata/summary, read/unread, collections/read lists; metadata editing with field locks and explicit batch changes; nonempty list creation, membership editing/reordering/deletion, personal pins; kmrs server smart-list CRUD, visibility and admin sharing, preserving uneditable conditions | Custom thumbnails, all detail layouts, real kmrs smart-list/sharing acceptance tests |
-| Comic reader | Portable raster pages and cached Komga PNG conversion for TIFF/JPEG2000 and other formats, inherited series reading direction, unified pinch/paging arbitration, idle progress/preload work, adaptive decode resolution, Android immersive display with native notch-safe controls/sheets and page bounds in either orientation, explicit cutout extension, conservative/aggressive border cropping, configurable double-tap zoom, optional cropped screen fill, paged/LTR/RTL, vertical/Webtoon, spreads, zoom, rotation, backgrounds, six upstream tap-zone presets with inversion, three preload windows, animation toggle, optional automatic original-model Waifu2x upscaling, split wide pages in LTR/RTL/automatic order with semantic progress and half-page resume, height-fitted wide-page panning with saved pan positions, rotation restoration and gesture ownership/edge turns, eased, paced cover/slide sheets with gradual shade, fold-aligned front/back comic curl with continuous centered-page completion, joined spread geometry and bounded idle frame preparation, minimal auto-hiding controls, boundary guards and discrete-swipe mode, either-page solo view/PNG export, incognito and unread-aware continuation | Native sharing-sheet semantics, exact Apple page-turn rendering, device frame-time/memory acceptance |
-| PDF | PDFium viewer, text search/highlights after document readiness, outline, jump/resume, auto/paged/continuous/single/dual layouts, cover-alone, RTL and vertical direction options, themes, password retry without persistence, original-file offline reading, selectable PDFium or shared comic/DIVINA reader with local raster rendering, four quality presets, bounded memory and password retry, explicit next-book/list continuation from the last page in normal and incognito reading | Bulk offline raster preparation and persistent derivative quota, exact upstream gesture/animation behavior, device acceptance |
-| EPUB | Native Android WebView / Windows WebView2 with bundled Epub.js, ZIP resource serving and decompression in a worker isolate; paged/continuous cross-chapter scrolled reading with bounded viewport preloading, CFI resume and remote progression, authored fixed-layout typography/colors and publisher spreads, vertical CJK pagination/continuous scrolling with visible CFI/fragment targets, hierarchical EPUB 2/3 contents, search/bookmarks, supplementary footnotes, live coalesced typography previews, columns, spacing/alignment/themes, author CSS and embedded fonts, imported TTF/OTF/WOFF fonts, IDPF/Adobe font deobfuscation, UTF-16 resources, six tap-zone presets, interruptible compositor slide/cover sheets, full-resolution GPU elastic curl with dense continuous shadow filtering, retained curl textures, compositor automatic slide/cover, paced curl, persistent held gestures and single/spread back faces and configurable gesture following, canonical character anchors across delayed reports, bounded native renderer recovery, incognito, next-book continuation | More mixed-layout/CJK edge cases, dictionary tools, exact upstream typography and native gesture/performance acceptance |
-| Local books | Dedicated account-independent library, welcome-screen access, owned content-addressed EPUB/PDF/CBZ/ZIP copies, deduplicated streaming import, worker-isolate comic pages, persistent local progress outside the Komga outbox, source-preserving removal | RAR/CBR, directory watching and external document-provider acceptance |
-| Downloads | Streaming originals and portable comic pages (including conversion/upgrade of unsupported raster formats), disk persistence, deduplicated queue with 1–3 active transfers, cancel/retry/remove, automatic resume after restart, validated HTTP range/If-Range transfer resume, cross-process SQLite transfer leases, account-deletion tombstones, Android WorkManager / hidden Windows Task Scheduler workers, unmetered/charging rules, offline-first preparation and opt-in completed-download removal after the last reader releases files, offline reading | OEM scheduling acceptance, archive pages on demand, disk quotas/cleanup UX, large-queue stress tests |
-| Progress | Durable coalesced outbox, revision acknowledgements, retained failures, newer-remote conflict resolution | More multi-device/reconnect/device-clock stress tests; parity for every reader transition |
-| Live updates | Configurable SSE connection/auto-refresh/in-app notices, responsive cancellation during headers or idle body, complete multiline UTF-8 SSE events, Last-Event-ID reconnect, targeted thumbnail generations and path subscriptions, independent persisted task-queue updates, debounced content refresh | More event-specific metadata invalidation |
-| Cache/performance | Persistent catalog reuse with 30-second freshness and background revalidation, request coalescing, 8 MiB hot query/32 MiB encoded-image budgets, independent image-disk LRU quotas across accounts (8 GiB pages / 512 MiB covers by default), configurable cover expiry, byte/count statistics and current/all-account clearing, instant stale-media display with conditional GET revalidation, persisted image generations and cross-process write leases, versioned EPUB/PDF source cache with conditional HEAD revalidation and configurable 128 MiB–8 GiB quota (1 GiB default), protection of active and downloaded originals, lazy tab initialization, batched SQL writes, background EPUB indexing | Device frame-time/performance acceptance, advanced preload policies |
-| Settings | Grouped index with persistent sidebar navigation; original browse controls; reader-general/DIVINA/PDF/EPUB/theme/overlay defaults, font/preset management, page/cover caches, network/SSE, translation providers/preferences, privacy, icons, local diagnostics and about; [128-key source audit](SETTINGS_AUDIT.md) | Core ML catalog/model-role management remains partial; Apple-only services excluded; native HTML fallback, defaults/units, per-book precedence and dashboard library scope are adapted; some labels/errors and exact visuals still need acceptance |
-| API keys | List/create/copy/revoke, optional automatically created and independently verified key on password login, password fallback for unsupported servers, identification/protection of the managed active key; paginated own-account authentication activity with details, refresh/retry and offline snapshots | Manual-key identity discovery, target-vault acceptance |
-| Administration | Library creation/editing with all creation DTO options, server-folder browser, optimistic edit checks, scan/deep scan/analyze/metadata refresh/empty trash/removal; metadata editors; duplicate-file catalog; live task queue and execution metrics (extended-server/Actuator fallback), scheduled tasks, session listing/revocation with per-user Komga fallback, shutdown, bounded log viewer and native file export; optional kmrs Komf search/identify/match/reset, provider links and own-job tracking with metadata refresh | Connected Komf backend acceptance, all server settings and import tools |
-| History/statistics | Reading-history catalog, paginated admin server events, library-scoped summaries/distributions/heatmap/top authors/genres/tags; extended reading-stat endpoints with 404-only local fallback and 24-hour capability retry; offline snapshots and local progress overlay | Real extended-server acceptance, complete offline metadata indexing, all history filters/detail layouts and richer charts |
-| AI/OCR | Offline ML Kit OCR for Latin/Japanese/Chinese/Korean/Devanagari on Android, WinRT OCR with installed Windows language packs, selectable text/region preview; OpenAI-compatible/OpenRouter/local provider configuration and model lists, secure API keys, strict-ID batched translations, selected EPUB text translation, translated region overlays, per-image/language cache and incognito exclusion; original Waifu2x model converted to portable ONNX with numerical source-network validation, worker-isolate inference, bounded input/output memory and disk cache; optional original YOLO11n bubble detection with worker inference, native OCR grouping and incognito exclusion | Exact translated typesetting, downloadable OCR/vision model catalog and additional recognition scripts |
-| OS integrations | Android/Windows launch targets, three original icon variants, capture privacy, native reader status-bar/fullscreen/keep-awake ownership; Windows portable packaging/runtime and isolated native-startup CI probe | Widgets, search indexing, quick actions, notifications/live activities, multiple reader windows; production installers/signing |
-| Artwork/localization | Original MIT logo, light/dark tokens, card dimensions, original 1,520 localization keys plus translated aliases and new Italian labels | Complete glyph/typography/animation matching; translations for new labels/errors in every language |
+Il riferimento rimane [kmworks/kmreader](https://github.com/kmworks/kmreader/tree/e2b35f8796cc830fc6e7464e161b2172d8f916e9)
+al commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9`. Aggiornare il riferimento
+richiede un confronto esplicito delle differenze. La vecchia matrice e tutti i
+checkpoint sono [conservati nell'archivio](../archive/docs/parity-before-closure-plan-2026-11-07.md).
 
-## Validation boundaries
+## Come si dichiara concluso il lavoro
 
-The automated tests exercise the actual client against an isolated Komga 1.29.1
-with synthetic CBZ, EPUB and PDF files, as well as transport, persistence, reader
-state and widget layouts. The native PDF test runs on the Linux host.
-EPUB tests cover nested navigation, escaped resource paths/fragments, NCX and
-spine fallbacks, async chapter rendering, actual hyperlink/outline taps,
-font changes without progress writes, and incognito navigation.
-The default test run skips the live integration test; run it explicitly via
-`tool/komga_smoke.py`. See the current run results rather than assuming a skipped
-test passed.
+- [ ] **Perimetro chiuso:** A-01–A-03 identificano tutte le operazioni applicabili
+  del riferimento, i relativi adattamenti e le esclusioni motivate.
+- [ ] **Parità funzionale chiusa:** F-01–F-12 hanno un esito verificato; nessuna
+  funzione applicabile rimane mancante o parziale senza una decisione esplicita.
+- [ ] **Accettazione conclusa:** AT-01–AT-08 hanno evidenze per Android e Windows,
+  oltre ai backend richiesti dalle funzioni effettivamente supportate.
+- [ ] **Release pronta:** R-01–R-05 sono verificati sulla sorgente finale e sui
+  pacchetti effettivamente destinati alla distribuzione.
 
-Screenshots at mobile and desktop sizes are review artifacts. There is no
-Apple-host screenshot baseline, so exact visual parity has not been verified.
-The current Linux machine cannot run Windows or an accelerated Android emulator.
-The API 35 GitHub runner executes a native simulated-cutout display test; it is
-not physical-device gesture/performance acceptance. Windows compilation, all 96 automated tests and native window startup passed
-for preview 0.5.0 on a GitHub Windows runner. See `VALIDATION.md` for the exact
-source/job, startup screenshot and published artifact verification.
-Device-native secure storage, accessibility,
-background behavior, performance, and Windows interactions need target testing.
+Una voce si chiude con sorgente, risultato atteso, verifica eseguita e risultato
+osservato. Un controllo presente nell'interfaccia, un test saltato o una CI verde
+non chiudono automaticamente la parità. Se manca un dispositivo/backend, la
+validazione resta aperta. Una voce dubbia non diventa automaticamente «futura».
 
-This is a development implementation, not a claim of a finished perfect port.
+Per il porting interessa la stessa operazione e lo stesso risultato utente sulle
+due piattaforme. Controlli nativi e API Apple possono richiedere un adattamento,
+che va descritto e provato. La parità visiva richiede confronti delle schermate;
+non è stata dimostrata un'identità pixel per pixel con Apple.
 
-## Implementation and validation checkpoints
+## Stati ed evidenze
 
-Source `81c3a1dcef7f322358b42af03314738da4f5d82a` passed all three build/test jobs
-in [workflow 40789619987](https://github.com/LeValue/KMReader-Porting/actions/runs/40789619987):
-Android release, API 35 native integration, and Windows native integration/release/startup.
-The native checks execute real WorkManager/Task Scheduler workers with vault
-credential lookup and HTTP transfers, WebView/WebView2 EPUB navigation/CFI/reflow,
-OCR, ONNX inference, and OS display-awake request/release. Android also checks
-simulated notch geometry/rotation and captures the composed EPUB via PixelCopy.
-These are controlled native fixtures, not physical-device performance measurements.
+| Stato | Significato |
+|---|---|
+| Implementato / da validare | Il comportamento esiste e ha copertura parziale; manca l'accettazione indicata. |
+| Parziale | È già registrata una lacuna funzionale o di presentazione da risolvere/confrontare. |
+| Da delimitare | Il vecchio elenco non documenta abbastanza il requisito upstream o l'equivalente di piattaforma. L'audit resta obbligatorio. |
+| Futuro / escluso | Fuori dal perimetro per una motivazione dichiarata; non viene conteggiato come parità implementata. |
+| Chiuso | Requisito, implementazione/adattamento ed evidenza soddisfano il criterio di accettazione. |
 
-The development suite passes 226 automated tests and covers actual Chromium EPUB rendering and ONNX inference,
-progress conflicts between SQLite connections, multi-worker media generations,
-conditional HTTP 304 validation, immutable document refresh, download pause/resume,
-account deletion with active writes, wide-page gesture ownership and pan restoration.
-Server-management tests additionally cover permissions, optional capabilities,
-per-user session fallback, offline snapshots, bounded uncached logs and streaming
-export, plus 320/1280-pixel layouts with enlarged text. Read-only management and
-duplicate-file listing also pass against isolated Komga 1.29.1; destructive actions
-use isolated transport fixtures.
+Le evidenze correnti sono in [VALIDATION.md](VALIDATION.md): CI
+[42371503059](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059)
+con tutti e tre i job superati, consegna
+[42383704677](https://github.com/LeValue/KMReader-Porting/actions/runs/42383704677),
+APK firmati e pacchetto Windows riscaricati e verificati. Il primo tentativo del
+job Android nativo è fallito dopo la perdita della connessione finale al driver;
+la ripetizione sullo stesso codice è passata. Entrambi gli esiti sono conservati.
+Questi risultati descrivono la candidata, non l'accettazione completa della matrice.
 
-Active/downloaded documents are protected from the temporary document quota.
-Background jobs receive only account/book identifiers and private directory paths;
-credentials are loaded from the OS vault in the worker. Logs are not cached in
-SQLite. Explicit log exports stream to a private temporary file, use Android SAF
-or the Windows Save dialog, and remove temporary files afterwards.
+L'[audit delle impostazioni](SETTINGS_AUDIT.md) registra 128 chiavi/campi:
+105 implementati, 9 adattati, 5 parziali, 3 interni e 6 non disponibili sulla
+piattaforma. Non sono 128 funzionalità indipendenti né una percentuale di porting.
+I cinque campi parziali riguardano la libreria dei modelli, rinviata come indicato
+più sotto. Le altre lacune di questa matrice rimangono indipendenti da quei conteggi.
 
-Stable WebView and Windows authentication plugins are vendored with their original
-licenses and narrow AGP/C++20 compatibility patches documented in `third_party/`.
-The original Waifu2x weights are converted to portable ONNX; independent source
-network probes agree within 1.3e-6 and output packing within one byte. Enhancement
-runs in a worker isolate with bounded tiles/memory while original artwork stays visible.
+## Matrice attuale per area
 
-The current published release is [0.8.11](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.11-preview.1), runtime source `f4f0d806d83471c3cecf61cfdf9bb3f17132bb04`. Its Android/Windows
-artifacts were downloaded and verified after publication, including their embedded
-source/version records. All three exact-source verification jobs passed. The remaining
-functional gaps are listed above; five user-supplied iPad screens now provide a partial reference; exact visual parity remains unverified. See [the comparison](IPAD_REFERENCE.md).
+Le prove collegate sono punti di partenza per la verifica, non certificazioni
+dell'intera riga. Gli ID indicano il lavoro necessario per chiuderla.
 
-Komf capability probing is account-scoped, coalesced and caches only HTTP 404
-for 24 hours. Pending connections are checked again on the next visit. Provider
-search ignores superseded responses; oneshots can use book-level provider links.
-Job polling never overlaps, pauses offline and stops with the repository on a
-server switch. Timeout or repeated errors report tracking stopped without
-claiming that the server job failed. Controlled tests cover these flows and
-320/1280-pixel layouts. Stock Komga 1.29.1 acceptance verifies unsupported fallback;
-a connected kmrs/Komf instance has not been available for live acceptance.
+| Area | Presente nella candidata | Stato | Chiusura richiesta / evidenza di partenza |
+|---|---|---|---|
+| Accesso, account, credenziali | Password/API key, primo accesso, cambio password, profili isolati, vault OS e blocco biometrico/PIN/Hello | Implementato / da validare | AT-01, AT-05; [test accesso](../test/auth_key_test.dart), [gestione account](../test/server_management_test.dart) |
+| Server, librerie, amministrazione | Creazione/modifica librerie, operazioni di scansione, task/sessioni/log, metadati e integrazione Komf opzionale | Da delimitare / da validare | A-02, AT-04; [test amministrazione](../test/server_management_test.dart) |
+| Dashboard | Libri EPUB/PDF separati dai fumetti DIVINA, ordinamento per aggiunta, nessun limite sulla data di pubblicazione; filtri condivisi con Mostra tutto, scope librerie, ordine/stile sezioni e continuazione liste | Implementato / da validare | AT-02, AT-05; [regressioni dashboard](../test/dashboard_sections_test.dart), [Komga reale](../test/live_komga_test.dart) |
+| Catalogo e ricerca | Paginazione, ricerca, filtri annidati, selezioni/batch e indice SQLite FTS per account | Parziale | F-01, F-02; [strumenti catalogo](../test/catalog_tools_test.dart), [catalogo offline](../test/offline_catalog_test.dart) |
+| Dettagli, raccolte e liste | Metadati e lock, modifiche singole/batch, raccolte/liste ordinate, pin e smart list kmrs | Parziale | F-03, F-10, AT-04, AT-05 |
+| Lettore fumetti | LTR/RTL, Webtoon, pagine doppie/singole, zoom/rotazione/crop, pagine larghe, progresso e continuazione; curl singolo con trasparenza e gesti sui bordi reali della pagina | Implementato / adattamento da validare | F-04, F-10, AT-02, AT-07; [curl](../test/page_transition_test.dart), [gesti](../test/reader_gestures_test.dart) |
+| PDF | PDFium o lettore fumetti, qualità raster, ricerca/outline, password non persistite, layout e continuazione | Parziale / da validare | F-05, AT-02, AT-03; [test PDF](../test/pdf_reader_test.dart) |
+| EPUB | WebView/WebView2, Epub.js, CFI, continuo/paginato, fixed layout/CJK, font/temi, ricerca/segnalibri/note e animazioni | Parziale / da validare | F-06, F-10, AT-02, AT-07; [browser](../test/epub_browser_test.dart), [audit EPUB](EPUB_RENDERING_AUDIT.md) |
+| Libri locali | Importazione streaming EPUB/PDF/CBZ/ZIP, copie proprie, deduplicazione, lettura/progresso indipendenti dagli account | Implementato / da delimitare | A-03, AT-06; [test importazione](../test/local_library_test.dart) |
+| Download e offline | Coda limitata, annulla/riprova/ripresa, Range/If-Range, lease, protezione account e worker Android/Windows | Parziale / da validare | F-02, F-07, AT-03; [ripresa](../test/download_resume_test.dart), [worker](../test/download_worker_test.dart) |
+| Progresso e sincronizzazione | Outbox durevole, revisioni, conflitti e avanzamento nei lettori; locatori Kindle verificati rispetto all'edizione | Implementato / da validare | AT-05; [repository Kindle](../test/kindle_repository_test.dart), [procedure](TESTING.md) |
+| Aggiornamenti live | SSE, riconnessione, Last-Event-ID, invalidazioni mirate, refresh e stato task | Parziale | F-08; [test eventi](../test/server_event_test.dart) |
+| Cache e prestazioni | Cache persistenti, quote immagini/documenti, rivalidazione condizionale, protezione originali e lavoro in isolate | Implementato / da validare | F-05, F-07, A-03, AT-07 |
+| Impostazioni e API key | Navigazione adattiva, preferenze globali/per libro, preset/font, cache/rete/privacy, API key e attività autenticazione | Parziale / da validare | A-02, F-11, F-12, AT-01; [audit](SETTINGS_AUDIT.md), [test impostazioni](../test/settings_parity_test.dart) |
+| Cronologia e statistiche | Cronologia locale/server, filtri di libreria, riepiloghi/heatmap/grafici ed endpoint estesi con fallback | Parziale / da delimitare | A-01, F-09, F-10, AT-04; [test statistiche](../test/reading_stats_test.dart) |
+| Kindle integrato | Catalogo, conversione/lettura/offline, copertine e locatori; importazione file locali nel cloud; dizionari esclusi, recupero classificazioni vecchie, indicizzazione asincrona e copertine limitate | Implementato / da validare | AT-01, AT-05, AT-06, AT-07; [limiti e protocollo](KINDLE_IMPORT.md), [test invio](../test/kindle_import_test.dart) |
+| Sistema operativo e distribuzione | Avvio Android/Windows, icone, protezione cattura, fullscreen/keep-awake, worker e pacchetto Windows portabile | Adattamento da validare / da delimitare | A-03, F-04, AT-01, AT-03, AT-08, R-01–R-05 |
+| Interfaccia, accessibilità e lingue | Asset originali, temi chiaro/scuro, layout adattivi e cataloghi di traduzione | Parziale | F-10, F-12, AT-08; [riferimenti iPad](IPAD_REFERENCE.md) |
+| AI/OCR/modelli/traduzione | Esistono controlli sperimentali e componenti già integrati | Futuro per la chiusura richiesta | FUT-01; conservare codice, preferenze e descrizione dei limiti |
 
-EPUB scrolled mode now uses the continuous manager, preloads around the viewport
-and preserves CFI through flow changes and cold starts. Disabling browser scroll
-anchoring prevents double compensation when Epub.js prepends the previous chapter.
-Scroll intent survives delayed chapter insertion; repeated identical relocations
-do not create progress writes. Manager replacement removes its publication hooks,
-queues, timers and listeners. Real Chromium acceptance covers crossing both ways,
-repeated flow switches, font reflow without progress, second-chapter cold resume,
-backward scrolling after resume, and teardown. Native CI additionally switches
-flow in the actual WebView settings and navigates after restoring paged mode.
+## A — Chiudere il perimetro del confronto
 
-Account password changes now use the self-service v2 endpoint, replace only
-Basic credentials in the OS vault, and reconnect the same account. API-key
-authentication remains independent. Lost-response verification avoids replaying
-the password mutation, and removal/server-switch races cannot retarget another
-account or restore deleted credentials. Secure-store failure explicitly requires
-sign-in; passwords never enter SQLite. Tests cover those cases plus pending form
-navigation and confirmation at 320/1280 pixels. Disposable real Komga acceptance
-changes the fixture password, verifies authentication, restores it, and verifies
-authentication again. Successful re-login also clears a previous offline flag.
+Questi audit producono un elenco preciso delle differenze; non costituiscono
+un'autorizzazione a rinviare le funzioni applicabili.
 
-Authentication activity uses the v2 current-user endpoint without requiring admin
-access. It displays success/failure, local date/time, source, key comment, user
-agent, IP and server error. Pagination, explicit load-more, offline snapshots and
-refresh/retry pass mobile/desktop widget tests and stock Komga acceptance. The
-shared server-history feed also preserves reset intent after a failed refresh and
-stops automatic request loops while an error is displayed.
+| ID | Lavoro ancora aperto | Criterio di chiusura |
+|---|---|---|
+| A-01 | Completare la corrispondenza tra schermate/azioni del riferimento e port: accesso/navigazione, catalogo, dettagli/liste, lettori, offline, statistiche/cronologia e impostazioni | Ogni operazione ha percorso sorgente upstream, equivalente nel port, differenza osservata e test/accettazione. Ogni mancanza applicabile ha una voce F concreta; eliminare formule vaghe come «altri layout» o «tutti i filtri» senza inventario. |
+| A-02 | Confrontare modifica/protezione server, opzioni amministrative e identificazione delle API key inserite manualmente | Elenco dei campi/azioni applicabili, permessi richiesti, supporto stock Komga/kmrs e comportamento se il server non espone la capacità. Correggere le lacune applicabili; nessuna falsa identificazione della chiave attiva o comando amministrativo apparentemente funzionante. |
+| A-03 | Delimitare le voci generiche del vecchio backlog: RAR/CBR locale, monitoraggio cartelle, pagine d'archivio a richiesta, preload avanzato, widget, indicizzazione di sistema, azioni rapide, notifiche, finestre multiple e installer/aggiornamento di sistema | Per ciascuna voce registrare requisito e sorgente upstream oppure natura di estensione. Le capacità equivalenti disponibili su Android/Windows restano da implementare/validare se necessarie alla parità; un rinvio aggiuntivo richiede una decisione esplicita registrata. Nessuna di queste voci è già considerata esclusa. |
 
-The PDF reader now forwards end-of-book continuation through the shared reader
-route, retaining series/read-list scope and incognito mode. Its last-page button
-and forward keyboard action use the same callback, with duplicate submissions
-disabled while opening. Actual PDFium tests exercise layout/theme preservation,
-normal/incognito completion and continuation through DocumentReader, plus
-password retry without persisted credentials. All 202 automated checks pass,
-as do static analysis and an Android debug build.
+## F — Lacune e confronti funzionali da chiudere
 
-OCR is now owned and drained by the account repository. Closing/removing an
-account waits for native recognition and private source-file cleanup, rejects
-new requests and suppresses late cache writes. Concurrent recognitions use
-independent temporary files and best-effort atomic cache replacement. Two
-regressions cover removal during recognition and simultaneous results; all 204
-automated checks, static analysis and Android debug compilation pass locally.
+L'elenco riprende i punti aperti della vecchia matrice. Dove la descrizione era
+generica, il primo passo è riprodurre la differenza rispetto al riferimento.
+Una voce già coperta può essere chiusa con evidenza; una lacuna confermata
+richiede implementazione e verifica del comportamento.
 
-The optional original YOLO11n bubble detector is converted to portable ONNX
-with pinned source hashes and independent source-network numerical probes.
-Native OCR blocks are grouped by detected bubbles without dropping narration;
-worker inference is separate from paging, with bounded memory caching and
-incognito exclusion. Failure leaves native OCR usable. All 211 automated checks
-(Chromium/ONNX enabled), static analysis and Android debug compilation pass.
-The original MangaOCR recognition models and exact translated typesetting remain
-outstanding. See [BUBBLE_MODEL.md](BUBBLE_MODEL.md) for reproduction and limits.
+| ID | Lavoro da completare | Accettazione richiesta |
+|---|---|---|
+| F-01 | Inventario e completamento di ordinamenti, filtri e azioni del catalogo applicabili | Stessi risultati su dati equivalenti, inclusi filtri annidati, scope librerie, ricerca e seleziona tutto oltre la prima pagina; controlli e persistenza coerenti con il riferimento. |
+| F-02 | Parità delle liste speciali e di On Deck offline | Confrontare elenco/ordine/stato con il riferimento; dopo preparazione e riavvio offline, nessuna lista incompleta presentata come completa, nessun contenuto di un altro account e nessuna richiesta di rete. |
+| F-03 | Copertine/miniature personalizzate nei dettagli e nelle liste | Verificare i percorsi previsti dal riferimento; completare caricamento/sostituzione/ripristino e invalidazione della cache ove applicabili, con permessi ed errori corretti. La sola visualizzazione delle copertine non chiude questa voce. |
+| F-04 | Condivisione/esportazione tramite il sistema | Provare l'operazione su Android e Windows, anche per ciascuna pagina di uno spread; annullamento e file temporanei corretti, originali/progresso preservati. Documentare l'equivalente nativo quando differisce dalla share sheet Apple. |
+| F-05 | Strategia PDF offline e quota dei derivati | Confrontare la preparazione raster con il riferimento e chiudere la lacuna di preparazione massiva/quota persistente, oppure dimostrare l'equivalenza della strategia con originale locale. Entrambi i lettori devono aprire tutte le pagine dopo riavvio offline, con cache limitata e originali protetti. |
+| F-06 | EPUB misti/CJK, resa tipografica e strumenti testuali applicabili | Fixture per scritture/layout misti, colonne, font e reflow: destinazioni/CFI corretti e nessun salto o falso completamento. Delimitare lookup/dizionario nel lettore separatamente dai dizionari Kindle nascosti in libreria; le estensioni AI/traduzione restano FUT-01. |
+| F-07 | Gestione dello spazio e interfaccia di pulizia/download | Rendere chiari uso disco, contenuti scaricati e cache eliminabile; provare quota raggiunta, pulizia, file attivi, coda interrotta e ripresa. Non eliminare originali protetti o progresso per rientrare in una quota. Confrontare le azioni con il riferimento. |
+| F-08 | Invalidazione completa degli eventi live applicabili | Mappare eventi di libri/serie, metadati/copertine, liste, progresso e task agli aggiornamenti attesi. Dopo riconnessione la vista torna coerente senza riavvio, duplicati o cicli di richieste; rispettare refresh disabilitato e scope account. |
+| F-09 | Completezza dei metadati offline per cronologia/statistiche | Confrontare risultati e filtri con dati controllati e indice completo; snapshot parziali o fallback locali devono essere riconoscibili. Accettazione anche su server con endpoint estesi, senza mascherare errori di autenticazione come capacità assenti. |
+| F-10 | Layout dei dettagli, sidebar, offline e coerenza dei lettori | Confronto schermata per schermata con A-01 e riferimenti iPad: destinazioni Offline/Server, librerie/collasso sidebar, riepiloghi offline, layout dei dettagli, tipografia e controlli. Implementare differenze funzionali e documentare gli adattamenti nativi; raccogliere screenshot comparabili. |
+| F-11 | Predefiniti, unità, visibilità e precedenza delle impostazioni | Confrontare nuove installazioni e aggiornamenti, preferenze globali/per libro, preset/font e controlli condizionali. Una modifica deve avere l'effetto previsto senza cancellare locatori o scelte non coinvolte; mantenere distinto il fallback HTML EPUB ridotto. |
+| F-12 | Completare localizzazione di controlli, nuovi flussi ed errori | Verificare tutte le lingue dichiarate in `Strings.locales`, compresi importazione Kindle e dashboard. Nessuna chiave grezza, testo troncato o fallback inglese involontario nelle traduzioni completate; provare formati di date/numeri e testi ingranditi. |
 
-PDF settings now select the PDFium viewer or the shared comic/DIVINA reader.
-The latter renders the local original through native PDFium at the four upstream
-quality limits, serializes work, coalesces pages and bounds encoded memory.
-It reuses comic gestures, rotation, cropping, spreads, split/wide-page handling,
-OCR, preloading, notch-safe controls and normal/incognito progress. Offline
-reading needs the downloaded original; raster derivatives stay in memory.
-Encrypted originals retry passwords without persistence, and next-book scope
-is forwarded with duplicate taps suppressed. All 218 automated checks, static
-analysis and Android debug compilation pass locally. Bulk raster preparation
-and a persistent derivative quota remain separate work.
+## AT — Accettazione su piattaforme e backend reali
 
-## EPUB layout corrections delivered in 0.6.1
+Registrare per ogni prova commit, piattaforma/dispositivo, OS/runtime, dati di
+prova, passi, risultato e log/screenshot essenziali in [VALIDATION.md](VALIDATION.md).
+Non registrare credenziali o testi dei libri. Gli account/profili di prova devono
+essere isolati; non eseguire prove distruttive su un server personale.
 
-Fixed-layout publications retain their authored font metrics, colors and positioned
-content. Automatic page spreads respect publisher metadata; settings show page
-choices and omit reflow typography controls. Body-declared vertical CJK writing
-modes are detected before Epub.js chooses its axis, without changing inline text
-direction from the spine reading order. Continuous stages reapply overflow policy
-after an axis change and reveal CFI/fragment targets on the horizontal axis.
-Real input releases stale scroll suppression, while physical document bounds
-prevent premature completion in continuous reading.
+| ID | Prova ancora da completare | Esito necessario |
+|---|---|---|
+| AT-01 | Installazione pulita e aggiornamento in-place dalla 0.9.1 firmata su Android e dal pacchetto Windows precedente | Account/vault, download, progresso, segnalibri, preferenze e identità conservati. Provare blocco biometrico/PIN/Hello, riavvio, sospensione e cambio/rimozione di un account mantenendo utilizzabile l'altro. |
+| AT-02 | Percorso accesso → catalogo → lettura → chiusura/riapertura nei tre lettori | Su Android touch e Windows mouse/tastiera: singole/doppie pagine, LTR/RTL, crop/zoom/rotazione, Webtoon, PDF e EPUB reflow/fixed/CJK; margini e inset corretti, curl/tocchi coerenti e posizione conservata. Confrontare anche ritmo e resa con il riferimento. |
+| AT-03 | Download e lettura offline in condizioni avverse | Su entrambi i sistemi: coda ampia, rete persa/cambiata, chiusura/ripresa, storage pieno, worker in background e regole rete/alimentazione. Provare anche restrizioni OEM Android e Task Scheduler Windows; nessuna perdita o duplicazione di dati. |
+| AT-04 | Funzioni di liste/admin/statistiche su backend supportati | Oltre a stock Komga, verificare kmrs smart list/condivisione, Komf e statistiche estese dove dichiarati supportati. Confrontare utenti admin/non admin e server privi della capacità: stato corretto, nessun falso successo. |
+| AT-05 | Progresso, conflitti e continuazione tra sessioni/dispositivi | EPUB/PDF/fumetti e liste: due client, aggiornamenti offline concorrenti, orologi diversi, perdita della risposta e riconnessione. Posizione coerente, conflitto risolvibile e nessuna mutazione ripetuta alla cieca. Per Kindle verificare edizione e limiti delle annotazioni. |
+| AT-06 | File picker/provider esterni e Kindle reale | Importare da PC/telefono/provider un file supportato; verificare in un account di prova l'accettazione Amazon, conversione, comparsa in libreria e lettura dopo aggiornamento. Provare annullamento/esito incerto senza duplicati e cataloghi vecchi con dizionari. Le prove sintetiche già passate non chiudono questa voce. |
+| AT-07 | Prestazioni, memoria e blocco Kindle sul Windows segnalato | Misurare apertura iniziale e successiva, catalogo grande/copertine, libri lunghi, animazioni e navigazione durante il caricamento. Registrare tempi, memoria e comportamento con condizioni riproducibili; definire il criterio di accettazione prima della misura. Navigazione e annullamento devono restare utilizzabili durante il caricamento, senza stato «Non risponde» o crash. Confermare sul PC interessato che il blocco non si riproduca. |
+| AT-08 | Accessibilità e integrazioni native | Schermi piccoli/grandi, chiaro/scuro, testo ingrandito, contrasto, focus/ordine tastiera, TalkBack/Narrator, fullscreen/cutout e privacy cattura. Validare anche share/export, icone, keep-awake e ritorno dal background. |
 
-All 226 automated checks with Chromium/ONNX, static analysis and Android debug
-compilation pass locally. Browser acceptance exercises both flows for fixed and
-vertical books, search/fragment visibility, font reflow with visible CFI anchors,
-publisher typography and viewport changes. Native CI now exercises reflowable,
-fixed and vertical publications separately on Android/Windows; all eleven native
-reader checks passed on both platforms for the published 0.6.1 source. Mixed-writing
-publications and exact typography/performance still need further acceptance.
+## Funzionalità future ed esclusioni dichiarate
 
-The CJK regression matrix now includes phone/tablet/desktop widths and the
-maximum font size. Vertical locators align to the physical page height after
-reflow; browser caret ranges distinguish successive visible characters within
-one large paragraph. Horizontal continuous reading also advances through page
-controls. A generated source/version record is embedded in both build bundles;
-staging and publication reject stale artifacts even when their version matches.
+| ID | Voce | Effetto sulla chiusura |
+|---|---|---|
+| FUT-01 | Nuovi modelli AI, cataloghi/download/ruoli dei modelli, estensioni OCR/vision, traduzione e typesetting tradotto | Rinviati su richiesta. I controlli sperimentali e le impostazioni già presenti restano conservati e descritti correttamente. Le componenti già usate dall'app devono continuare a superare le regressioni. |
+| FUT-02 | Importazione/caricamento di file verso un server Komga | Funzionalità futura richiesta separatamente. L'invio di file locali alla libreria Kindle è invece già nel perimetro della candidata e richiede AT-06. |
+| PLAT-01 | Handoff, Spotlight, Live Activities e servizi Apple StoreKit/App Store/EULA Apple | Le API Apple non sono implementazioni Android/Windows. Documentare le differenze senza interruttori finti o vincoli commerciali Apple. Gli eventuali equivalenti nativi di ricerca/notifiche/widget restano nell'audit A-03: non sono esclusi automaticamente. |
+
+Nessun'altra voce aperta viene rinviata implicitamente da questa tabella. In
+particolare RAR/CBR, cartelle sorvegliate, finestre multiple e altri elementi di
+A-03 richiedono ancora la delimitazione del requisito prima di essere inclusi
+nella parità obbligatoria oppure classificati come estensioni.
+
+## R — Passaggio dal porting concluso alla release stabile
+
+Questi controlli riguardano i pacchetti finali. Le prove già superate dalla
+candidata sono evidenza riutilizzabile solo quando la sorgente interessata non è
+cambiata; le modifiche runtime richiedono nuove build e CI.
+
+| ID | Controllo finale | Stato attuale / criterio di chiusura |
+|---|---|---|
+| R-01 | Chiudere A, F e AT, poi fissare la sorgente finale | Aperto. Elenco delle differenze risolto, nessuna esclusione implicita, difetti residui dichiarati. Aggiornare matrice e note con le prove effettive; la sola chiusura dei sette interventi non basta. |
+| R-02 | Regressioni e backend sulla sorgente finale | Superato per `4b93c91`, da ripetere dopo le correzioni runtime necessarie. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
+| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata 1.0.0+30 ha tre APK firmati e Windows completo verificati; AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
+| R-04 | Allegati e pubblicazione stabile | Consegna della candidata già verificata; la pubblicazione stabile resta aperta. Preparare/verificare i pacchetti della sorgente finale, riscaricarli e controllare checksum e contenuto. Seguire [RELEASING.md](RELEASING.md): il publisher preview non equivale alla promozione stabile di `v1.0.0`. |
+| R-05 | Conservazione e documentazione | Conservare cronologia, build precedenti, firma Android e sorgenti del runtime Kindle; non rimuovere script attivi. Prima di eventuali eliminazioni di rami/release presentare un nuovo inventario preciso. Aggiornare README, note, [audit repository](REPOSITORY_AUDIT.md) e [validazione](VALIDATION.md) senza modificare allegati storici. |
+
+### Ordine operativo consigliato
+
+1. Chiudere A-01–A-03 per avere il perimetro verificabile delle funzioni applicabili.
+2. Eseguire presto AT-01, AT-06 e AT-07 sulla candidata: aggiornamento/dati,
+   invio reale a Kindle e blocco sul PC interessato sono le verifiche più urgenti.
+3. Chiudere F-01–F-12, affrontando prima coerenza dei dati, offline e lettori,
+   poi completamento dei flussi, presentazione e localizzazione. Associare a ogni
+   correzione la regressione o il confronto di accettazione pertinente.
+4. Completare AT-01–AT-08 sulla sorgente risultante, poi eseguire R-01–R-05
+   sui pacchetti finali e procedere alla pubblicazione stabile.
+
+Per un ambito non disponibile registrare il blocco e ciò che manca; non
+trasformarlo in un pass.
+
+## Registro delle chiusure
+
+Per aggiornare uno stato usare questo formato e collegare il dettaglio in
+[VALIDATION.md](VALIDATION.md). Non spuntare un'intera area per un singolo test.
+
+| ID | Requisito/riferimento | Sorgente port | Piattaforma/backend | Verifica e risultato | Evidenza | Stato |
+|---|---|---|---|---|---|---|
+| Da compilare per ciascuna chiusura A/F/AT/R | Percorso o operazione upstream, oppure richiesta specifica | Commit esatto | Dispositivo/OS/runtime e server | Passi, atteso, osservato; pass/fail/skip | Test/log/screenshot o record di validazione | Aperto fino alla verifica |
+
+Lavori implementati e prove della candidata rimangono descritti nelle
+[note 1.0](releases/v1.0.0.md), nelle [guide di test](TESTING.md) e nella
+[validazione](VALIDATION.md). Questo documento sostituisce il vecchio elenco
+come piano di chiusura; i checkpoint storici restano consultabili nell'archivio.

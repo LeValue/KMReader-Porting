@@ -21,8 +21,11 @@ downloads/offline use and progress, plus these requested changes:
 describe behavior and limits. AI/model/translation extensions and upload to a
 Komga server are **future features**, excluded from 1.0 acceptance. Existing
 experimental settings remain labeled and their persisted configuration is kept.
-The broader [parity matrix](PARITY.md) is an inventory, not a promise of full
-upstream parity for 1.0.
+The [porting closure matrix](PARITY.md) is the actionable checklist for finishing
+Android/Windows porting. The seven changes above describe this candidate; the
+remaining applicable functionality, scope audits and target-device acceptance
+must be resolved before calling the port finished or proceeding to stable
+release. The matrix records future work and platform exclusions explicitly.
 
 ## Readiness work
 

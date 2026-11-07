@@ -6,6 +6,7 @@ the current development or distribution procedure. Start with
 
 | Path | Purpose | Status |
 |---|---|---|
+| `docs/parity-before-closure-plan-2026-11-07.md` | Previous parity matrix and versioned implementation checkpoints | Historical snapshot; active closure plan is in `docs/PARITY.md` |
 | `kindle-prototype/` | Standalone Amazon.it prototype guide, release notes, feasibility research and former workflow | Superseded by the integrated app in 0.9.x |
 | `epub/epub_range_feasibility.py` | Generated EPUB over lazy ZIP/HTTP Range | Research proof, not the app's Kindle transport |
 | `epub/epub_pipeline_benchmark.py` | 0.8.13 browser task/pipeline measurements | Historical benchmark, not native display FPS |
