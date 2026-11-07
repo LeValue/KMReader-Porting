@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:path/path.dart' as p;
 import 'package:kmreader/core/kindle/client.dart';
 import 'package:kmreader/core/kindle/repository.dart';
 import 'package:kmreader/core/models.dart';
@@ -25,7 +26,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         final root = Directory.systemTemp.createTempSync('kindle-import-ui-');
-        final file = File('${root.path}/Local document.txt')
+        final file = File(p.join(root.path, 'Local document.txt'))
           ..writeAsStringSync('Synthetic document');
         final store = LocalStore(sqlite3.openInMemory());
         final protocol = object(
@@ -122,10 +123,16 @@ void main() {
           expect(find.textContaining('HTTP 503'), findsOneWidget);
           expect(find.textContaining('PRIVATE SERVER BODY'), findsNothing);
           await tester.tap(find.text('Choose file'));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 50)),
-          );
-          await tester.pump();
+          for (
+            var i = 0;
+            i < 100 && find.text('Local document.txt').evaluate().isEmpty;
+            i++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 30)),
+            );
+            await tester.pump();
+          }
           expect(find.text('Local document.txt'), findsOneWidget);
           expect(find.textContaining('HTTP 503'), findsOneWidget);
           expect(find.text('Authorize Send to Kindle'), findsOneWidget);
