@@ -1,4 +1,29 @@
-# Verified development previews
+# Build, sign and distribute verified previews
+
+Current source: **0.9.1+29**. Its existing candidate release remains a draft;
+this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
+for prerequisites and [testing](TESTING.md) for the required checks.
+
+For a local diagnostic build, use `flutter build apk --debug`. It uses the debug
+key and cannot update the signed Preview package. For Windows release builds,
+run `./tool/build_kindle_worker.ps1`, then `flutter build windows --release`; copy
+`artifacts/kindle-dist/KMReader-Kindle` to `build/windows/x64/runner/Release/kindle`,
+the matching `artifacts/kindle-delivery/*-source.zip` beside the executable, and
+`assets/kindle/NOTICE.md` as `Kindle-NOTICE.md`. Distribute the entire Release
+directory, including native DLLs, data and the MSVC runtime. CI does all of this.
+
+## Retain the Android signing identity
+
+Use the existing ignored `android/key.properties` and its existing private
+keystore. Do not generate a replacement key for an update. The properties are
+`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; keep their values out of
+Git, PRs, logs and CI. Without this file release output is unsigned; the debug
+key is never substituted. The expected public certificate SHA256 is in
+`tool/preview-certificate.sha256`. Preserve the Preview package ID
+`dev.levalue.kmreader.preview`, the certificate and the increasing version code
+to retain upgrade/data compatibility. The diagnostic app has a separate ID.
+
+## New distributed update
 
 The version in `pubspec.yaml` and `lib/core/app_version.dart` must agree.
 Increment the Android build number for every published update and add notes at
@@ -11,15 +36,21 @@ Build Android with the retained, private signing configuration. The key is not
 uploaded to CI. Produce complete APKs for all three architectures:
 
 ```sh
-env 'ORG_GRADLE_PROJECT_force-version-code-ignoring-abi=true' \
-  ORG_GRADLE_PROJECT_kmreaderPreview=true \
-  flutter build apk --release --split-per-abi
+# Chaquopy has explicit ABI filters: build one complete APK at a time.
+# Save each output before building the next architecture.
+mkdir -p artifacts/signed-preview
+for target in android-arm64 android-arm android-x64; do
+  env 'ORG_GRADLE_PROJECT_force-version-code-ignoring-abi=true' \
+    ORG_GRADLE_PROJECT_kmreaderPreview=true \
+    flutter build apk --release --target-platform "$target"
+  cp build/app/outputs/flutter-apk/app-release.apk "artifacts/signed-preview/$target.apk"
+done
 ```
 
 The explicit version-code flag keeps each architecture on the same increasing
 build number, preserving upgrade compatibility with the older universal APK.
-`--target-platform` alone is insufficient: third-party native libraries may
-still be packaged for architectures without a matching Flutter engine. Check
+Do not use `--split-per-abi`: AGP splits conflict with Chaquopy ABI filters.
+Check
 the actual `aapt2 dump badging` output with `tool/preview_metadata.py --apk-badging
 <file> --abi <abi>`.
 
@@ -53,3 +84,23 @@ asset digests, compare the Android files with the locally verified APKs and all
 Windows bundle files with the successful CI artifact. Update README download
 links and `docs/VALIDATION.md` with the exact source, runs and observed limits.
 A development preview must not be presented as verified full upstream parity.
+
+For review builds before merging, `ci.yml` also supports `deliver_draft=true`,
+an existing empty `v<version>-epub-candidate.<number>` draft, `verified_run`, and
+the three staged APK blob/hash pairs. This skips compilation and public
+publication. `tool/deliver_draft.py` requires successful Android/Windows/native
+CI, unchanged application/runtime sources, matching APK provenance, signatures,
+architecture, alignment and exact bytes. It packages the matching Windows CI
+artifact and verifies GitHub asset digests. The existing draft must target the
+verified commit and remains unpublished. Delivery-only tooling may be added
+after that verified runtime commit; runtime changes require fresh complete CI.
+
+
+## Preserve existing deliverables
+
+Never overwrite a nonempty draft, mutate a published asset, move an existing tag
+or delete a branch/release as cleanup. The [inventory](REPOSITORY_AUDIT.md) records
+all refs and release assets before this PR. Any future deletion requires a fresh
+inventory of exact refs, unique commits, source provenance, digests and retained
+replacement builds presented to the maintainer first. No such deletion is part
+of this change. CI builds do not require uploading the Android signing key.

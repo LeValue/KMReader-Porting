@@ -19,6 +19,35 @@ with sync_playwright() as pw:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script("window.messages=[];addEventListener('readerEvent',e=>messages.push(e.detail));")
     page.goto(url)
+    # Deterministic delivered frames: a large first input eases into position,
+    # ordinary movement stays direct, and release never flushes an unseen jump.
+    entry = page.evaluate('''() => {
+      const raf=requestAnimationFrame,caf=cancelAnimationFrame;
+      const callbacks=new Map();let serial=0;
+      window.requestAnimationFrame=callback=>{callbacks.set(++serial,callback);return serial;};
+      window.cancelAnimationFrame=id=>callbacks.delete(id);
+      const step=time=>{const frames=[...callbacks.values()];callbacks.clear();for(const frame of frames)frame(time);};
+      const make=()=>{
+        const effect=new KMReaderSheetEffect('slide',1,{});effect.samples=[];
+        effect.update=function(p){this.progress=p;this.samples.push(p);};return effect;
+      };
+      const effects=[];
+      try{
+        const effect=make();effects.push(effect);
+        effect.track(.5);const unready=effect.samples.length;
+        effect.ready=true;effect.track(.5);step(0);const first=effect.progress;
+        step(32);const middle=effect.progress;effect.track(.6);step(100);const caught=effect.progress;
+        effect.track(.65);step(116);const direct=effect.progress;
+        const small=make();effects.push(small);small.ready=true;small.track(8/innerWidth);step(200);
+        const release=make();effects.push(release);release.ready=true;release.track(.7);
+        release.animateTo(1,200);const released=release.progress;step(300);const settledStart=release.progress;
+        return {unready,first,middle,caught,direct,small:small.progress,released,settledStart};
+      }finally{for(const effect of effects)effect.stop();window.requestAnimationFrame=raf;window.cancelAnimationFrame=caf;}
+    }''')
+    assert entry['unready'] == 0 and entry['first'] == 0, entry
+    assert 0 < entry['middle'] < .5 and entry['caught'] == .6 and entry['direct'] == .65, entry
+    assert abs(entry['small'] - 8 / width) < .0001, entry
+    assert entry['released'] == 0 and entry['settledStart'] == 0, entry
     page.evaluate('(c)=>reader.open(c)', config)
     selected = page.evaluate("""() => {const doc=document.querySelector('#viewer iframe').contentDocument,p=doc.querySelector('p');doc.getSelection().selectAllChildren(p);doc.defaultView.dispatchEvent(new Event('blur'));return p.textContent;}""")
     assert page.evaluate('reader.selectedText()') == selected, 'Toolbar focus destroyed the selected passage'
@@ -68,7 +97,7 @@ with sync_playwright() as pw:
       window.motionUpdate = KMReaderSheetEffect.prototype.update;
       window.motionAnimate = KMReaderSheetEffect.prototype.animateTo;
       const start=KMReaderSheetEffect.prototype.start;
-      KMReaderSheetEffect.prototype.start=async function(move){window.effect=this;return start.call(this,move);};
+      KMReaderSheetEffect.prototype.start=async function(...args){window.effect=this;return start.apply(this,args);};
       KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
     }''')
     output = Path('artifacts/epub-motion-0.8.10')
@@ -79,6 +108,10 @@ with sync_playwright() as pw:
         page.evaluate('(style)=>reader.turn({delta:1,style})', style)
         assert page.evaluate('!effect.stopped'), style
         assert page.evaluate('reader.position().start.cfi') != old
+        page.evaluate('effect.update(0)')
+        from PIL import ImageStat
+        initial = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+        assert max(ImageStat.Stat(ImageChops.difference(before,initial)).mean)<6, (style, 'Initial sheet moved before the gesture')
         page.evaluate('effect.update(.43)')
         image = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
         image.save(output / f'{width}-{config.get("direction", "ltr")}-{style}.png')
@@ -120,6 +153,11 @@ with sync_playwright() as pw:
             assert max(ImageStat.Stat(ImageChops.difference(end,live)).mean)<6, 'Curl endpoint changed the publication layout'
         if style != 'curl':
             assert page.evaluate('document.querySelectorAll("style[data-page-motion]").length') == 1
+            page.evaluate('effect.update(1)')
+            endpoint = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            page.evaluate('effect.stop()')
+            live = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            assert max(ImageStat.Stat(ImageChops.difference(endpoint,live)).mean)<6, (style, 'Final sheet jumped on release')
         page.evaluate('effect.stop()')
     # Backward turns peel the other leaf; they must not play a forward curl
     # in reverse time on the same side of the spine.
@@ -145,10 +183,17 @@ with sync_playwright() as pw:
     page.screenshot(path=str(output / f'{width}-{config.get("direction", "ltr")}-curl-sepia.png'))
     page.evaluate('effect.stop()')
     page.evaluate('(p)=>reader.preferences(p)',config['preferences'])
+    # Returning to a non-curl preference now releases the previous GPU surface.
+    # Lighting/upload probes own a separate initialized surface for their white
+    # test stock; they must not draw through that deliberately retired effect.
+    page.evaluate('''async () => {
+      window.lightingSurface=KMReaderCurlSurface.shared=new KMReaderCurlSurface();
+      await lightingSurface.whenReady();
+    }''')
     # A raised free paper edge must cast its own shadow, away from the roll
     # ridge. White textures isolate actual lighting from text/ink differences.
     shadow=page.evaluate('''() => {
-      const surface=effect.surface,g=surface.gl,stock=document.createElement('canvas');
+      const surface=lightingSurface,g=surface.gl,stock=document.createElement('canvas');
       stock.width=innerWidth;stock.height=innerHeight;
       const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
       surface.upload(stock,stock,innerWidth,innerHeight);document.body.append(surface.canvas);
@@ -168,7 +213,7 @@ with sync_playwright() as pw:
     }''')
     assert shadow['error']==0 and shadow['exposed']>50, ('Missing smooth projected paper shadow',shadow)
     seam=page.evaluate('''() => {
-  const surface=effect.surface,g=surface.gl,stock=document.createElement('canvas');
+  const surface=lightingSurface,g=surface.gl,stock=document.createElement('canvas');
   stock.width=innerWidth;stock.height=innerHeight;
   const c=stock.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,stock.width,stock.height);
   surface.upload(stock,stock,innerWidth,innerHeight);
@@ -211,7 +256,7 @@ with sync_playwright() as pw:
         assert sample['old']['front']-sample['old']['background']>60, ('Regression control cannot detect missing receiver',sample)
         assert sample['peak']>=75 and sample['edgeWidth']>=10+width*.01, ('Shadow too faint or narrow',sample)
         assert sample['plateau']<=max(2, sample['edgePixels']*.08), ('Shadow has repeated bands',sample)
-    page.evaluate('''async () => {const surface=effect.surface,g=surface.gl;
+    page.evaluate('''async () => {const surface=lightingSurface,g=surface.gl;
   const originalUpload=g.texImage2D;let uploads=0;
   g.texImage2D=function(...args){uploads++;return originalUpload.apply(this,args);};
   try {
@@ -241,32 +286,34 @@ with sync_playwright() as pw:
 
   } finally {g.texImage2D=originalUpload;}
 }''')
+    page.evaluate('lightingSurface.dispose()')
     timing=page.evaluate('''async () => {
-  const original=requestAnimationFrame,cancel=cancelAnimationFrame;
+  const original=requestAnimationFrame,cancel=cancelAnimationFrame,clock=performance.now;
   const values=[],queue=[];
-  let count=0;
+  let count=0,now=1000,sheet;
+  performance.now=()=>now;
   window.requestAnimationFrame=callback=>{queue.push(callback);return ++count;};
   window.cancelAnimationFrame=()=>{};
   try {
-    const sheet=Object.create(KMReaderSheetEffect.prototype);
+    sheet=new KMReaderSheetEffect('curl',1,{});
     sheet.style='curl';sheet.progress=0;sheet.update=p=>{sheet.progress=p;values.push(p);};
     const finished=motionAnimate.call(sheet,1,380,{automatic:true});
-    let now=1000;
     queue.shift()(now);queue.shift()(now+=16);queue.shift()(now+=200);
     const delayed=values.at(-1);
     while(queue.length&&values.length<100)queue.shift()(now+=16);
     await finished;
     sheet.progress=.4;const released=[];sheet.update=p=>{sheet.progress=p;released.push(p);};
     const release=motionAnimate.call(sheet,1,240,{velocity:.0015});
+    queue.shift()(now);
     while(queue.length&&released.length<100)queue.shift()(now+=16);
     await release;
     return {first:values[0],delayed,last:values.at(-1),monotone:values.every((v,i)=>!i||v>=values[i-1]),
       releaseFirst:released[0],releaseDelta:released[1]-released[0],releaseLast:released.at(-1),
       releaseMonotone:released.every((v,i)=>v<=1&&(!i||v>=released[i-1]))};
-  } finally {window.requestAnimationFrame=original;window.cancelAnimationFrame=cancel;}
+  } finally {sheet?.stop();performance.now=clock;window.requestAnimationFrame=original;window.cancelAnimationFrame=cancel;}
 }
 ''')
-    assert timing['first']==0 and timing['delayed']<.02 and timing['last']==1 and timing['monotone'], timing
+    assert timing['first']==0 and .5<timing['delayed']<.8 and timing['last']==1 and timing['monotone'], timing
     assert timing['releaseFirst']==.4 and .02<timing['releaseDelta']<.04 and timing['releaseLast']==1 and timing['releaseMonotone'],timing
     page.evaluate('() => { KMReaderSheetEffect.prototype.animateTo=motionAnimate; }')
     # Native-style no-op snapshot also exposes intermediate automatic frames.
@@ -311,6 +358,7 @@ with sync_playwright() as pw:
     progress = page.evaluate('effect.progress')
     assert (.60 < progress < 1 if width>800 else .30 < progress < .55), progress
     assert not page.evaluate('messages.some(e=>e.type==="position"&&e.changed)'), 'Gesture preview wrote progress'
+    assert page.evaluate('reader.position().start.cfi') == saved, 'Curl navigated before the finger committed'
     if width == 390 and not rtl:
         for step in range(22):
             page.wait_for_timeout(500)

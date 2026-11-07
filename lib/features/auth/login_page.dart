@@ -7,6 +7,7 @@ import '../../core/app_controller.dart';
 import '../../core/models.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import 'kindle_login_page.dart';
 import '../../ui/wheel_scroll.dart';
 
 class LoginPage extends StatefulWidget {
@@ -334,6 +335,16 @@ class WelcomePage extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => KindleLoginPage(app: app),
+                    ),
+                  ),
+                  icon: const Icon(CupertinoIcons.book),
+                  label: Text(tr(context, 'Connect Kindle')),
                 ),
                 TextButton.icon(
                   onPressed: () => Navigator.push(

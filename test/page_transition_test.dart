@@ -8,8 +8,20 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/page_transition.dart';
+import 'package:kmreader/features/reader/comic_spread.dart';
 
 void main() {
+  test('unequal spread formats retain the same screen spine', () {
+    for (final aspects in [
+      [.5, .75],
+      [1.4, .6],
+      [.6, 1.4],
+    ]) {
+      final leaves = comicLeafBounds(const Size(800, 500), aspects);
+      expect(leaves.first.right, 400);
+      expect(leaves.last.left, 400);
+    }
+  });
   Future<ui.Image> raster(Color color) async {
     final recorder = ui.PictureRecorder();
     Canvas(recorder).drawColor(color, BlendMode.src);
@@ -156,11 +168,18 @@ void main() {
         () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
       ))!;
       image.dispose();
-      final offset = (100 * 200 + 20) * 4;
+      final unrevealed = (100 * 200 + 20) * 4;
+      final revealed = (100 * 200 + 180) * 4;
       expect(
-        data.getUint8(offset + 1),
+        data.getUint8(unrevealed + 1),
+        0,
+        reason:
+            'Margins ahead of the fold must retain their original background',
+      );
+      expect(
+        data.getUint8(revealed + 1),
         greaterThan(100),
-        reason: 'Black margins must stay off the curled sheet',
+        reason: 'Margins behind the fold must reveal the next page',
       );
     },
   );

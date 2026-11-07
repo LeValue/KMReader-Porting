@@ -1,4 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:image/image.dart' as img;
+import 'package:kmreader/features/reader/reader_display.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -47,7 +52,343 @@ Future<void> _finishNativeRaster(WidgetTester tester) async {
   }
 }
 
+// Match the delivered Android surface and normalize all platforms to 3x.
+Future<List<int>> _comicPixels(
+  WidgetTester tester,
+  GlobalKey key, {
+  String? captureName,
+}) async {
+  if (Platform.isAndroid) {
+    await _finishNativeRaster(tester);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final png = await ReaderDisplay.channel.invokeMethod<Uint8List>(
+      'captureScreenshot',
+    );
+    final screen = img.decodePng(png!)!;
+    final rect = tester.getRect(find.byKey(key));
+    final scale = tester.view.devicePixelRatio;
+    final cropped = img.copyCrop(
+      screen,
+      x: (rect.left * scale).round(),
+      y: (rect.top * scale).round(),
+      width: (rect.width * scale).round(),
+      height: (rect.height * scale).round(),
+    );
+    final normalized = img.copyResize(
+      cropped,
+      width: 600,
+      height: 720,
+      interpolation: img.Interpolation.nearest,
+    );
+    return normalized.getBytes(order: img.ChannelOrder.rgba).toList();
+  }
+  final boundary =
+      key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  final image = (await tester.runAsync(() => boundary.toImage(pixelRatio: 3)))!;
+  try {
+    final data = (await tester.runAsync(
+      () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+    ))!;
+    final capture = Platform.environment['KMREADER_COMIC_CAPTURE_DIR'];
+    if (capture != null && captureName != null) {
+      final png = (await tester.runAsync(
+        () => image.toByteData(format: ui.ImageByteFormat.png),
+      ))!;
+      final file = File('$capture/$captureName.png');
+      file.parent.createSync(recursive: true);
+      file.writeAsBytesSync(png.buffer.asUint8List());
+    }
+    return data.buffer.asUint8List().toList();
+  } finally {
+    image.dispose();
+  }
+}
+
 void verifyComicSpread() {
+  Future<ui.Image> mixedFormatRaster(Color color) async {
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawColor(color, BlendMode.src);
+    final picture = recorder.endRecording();
+    try {
+      return await picture.toImage(100, 100);
+    } finally {
+      picture.dispose();
+    }
+  }
+
+  for (final direction in [-1, 1]) {
+    testWidgets('mixed comic formats retain curl in direction $direction', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: ColoredBox(color: Colors.black)),
+      );
+      await _finishNativeRaster(tester);
+      final before = (await tester.runAsync(
+        () => mixedFormatRaster(Colors.red),
+      ))!;
+      final after = (await tester.runAsync(
+        () => mixedFormatRaster(Colors.green),
+      ))!;
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+      final key = GlobalKey<ReaderPageTransitionState>();
+      var moves = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderPageTransition(
+            key: key,
+            prepare: (_) => PreparedPageTurn(
+              before.clone(),
+              after.clone(),
+              const Rect.fromLTWH(40, 0, 120, 240),
+              null,
+            ),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+      final drag = key.currentState!.drag(
+        reverse: false,
+        width: 200,
+        preview: (_) async =>
+            throw StateError('Prepared transition must not navigate'),
+        finish: (_, commit) async {
+          if (commit) moves++;
+        },
+      );
+      drag.update(
+        DragUpdateDetails(
+          delta: Offset(-80.0 * direction, 0),
+          globalPosition: const Offset(100, 100),
+        ),
+      );
+      await tester.pump();
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((w) => w.painter)
+          .whereType<PageTurnPainter>()
+          .single;
+      expect(painter.style, 'curl');
+      expect(painter.progress, closeTo(.4, .001));
+      expect(moves, 0);
+      drag.end(DragEndDetails());
+      await tester.pumpAndSettle();
+      expect(moves, 1);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  for (final direction in [-1, 1]) {
+    testWidgets(
+      'double comic leaves stay opaque through the final curl; direction=$direction',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: ColoredBox(color: Colors.black)),
+        );
+        await _finishNativeRaster(tester);
+        final turning = Rect.fromLTWH(direction > 0 ? 100 : 0, 0, 100, 240);
+        final stationary = Rect.fromLTWH(direction > 0 ? 0 : 100, 0, 100, 240);
+        Future<ui.Image> spread(Color base, Rect leaf, Color ink) async {
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder)..scale(3);
+          canvas.drawColor(base, BlendMode.src);
+          canvas.drawRect(leaf, Paint()..color = ink);
+          final picture = recorder.endRecording();
+          try {
+            return await picture.toImage(600, 720);
+          } finally {
+            picture.dispose();
+          }
+        }
+
+        final before = (await tester.runAsync(
+          () =>
+              spread(const Color(0xffff0000), turning, const Color(0xff0000ff)),
+        ))!;
+        final after = (await tester.runAsync(
+          () =>
+              spread(const Color(0xff00ff00), turning, const Color(0xffffff00)),
+        ))!;
+        try {
+          for (final progress in [.74, .86, .97, .98, 1.0]) {
+            final key = GlobalKey();
+            await tester.pumpWidget(
+              MaterialApp(
+                home: Center(
+                  child: RepaintBoundary(
+                    key: key,
+                    child: SizedBox(
+                      width: 200,
+                      height: 240,
+                      child: CustomPaint(
+                        painter: PageTurnPainter(
+                          before,
+                          after,
+                          progress,
+                          'curl',
+                          direction,
+                          sheetBounds: turning,
+                          backBounds: stationary,
+                          stationaryBounds: stationary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            final pixels = await _comicPixels(
+              tester,
+              key,
+              captureName: 'opaque-$direction-$progress',
+            );
+            final staticPixel = (360 * 600 + (direction > 0 ? 3 : 596)) * 4;
+            if (progress < 1) {
+              expect(
+                pixels[staticPixel],
+                greaterThan(160),
+                reason: 'Uncovered stationary paper must retain its old ink',
+              );
+              expect(
+                pixels[staticPixel + 1],
+                lessThan(8),
+                reason: 'The new page must not bleed through before the fold covers it',
+              );
+            } else {
+              expect(pixels[staticPixel], lessThan(8));
+              expect(pixels[staticPixel + 1], greaterThan(100));
+            }
+            if (progress == .97) {
+              final frontPixel = (360 * 600 + (direction > 0 ? 301 : 298)) * 4;
+              expect(
+                pixels[frontPixel],
+                lessThan(12),
+                reason: 'The front face must not fade into the yellow underlay',
+              );
+              expect(
+                pixels[frontPixel + 1] + pixels[frontPixel + 2],
+                greaterThan(160),
+                reason: 'The visible paper face remains opaque',
+              );
+            }
+          }
+        } finally {
+          await tester.pumpWidget(const SizedBox());
+          before.dispose();
+          after.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'mixed comic paper keeps margins, native front pixels and endpoint; direction=$direction',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: ColoredBox(color: Colors.black)),
+        );
+        await _finishNativeRaster(tester);
+        Future<ui.Image> artwork(Rect bounds, Color color) async {
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder)..scale(3);
+          canvas.drawColor(Colors.black, BlendMode.src);
+          canvas.drawRect(bounds, Paint()..color = color);
+          for (var x = bounds.left + 3; x < bounds.right - 3; x += 2) {
+            canvas.drawRect(
+              Rect.fromLTWH(x, bounds.top + 3, 1.0 / 3, bounds.height - 6),
+              Paint()..color = Colors.white,
+            );
+          }
+          final picture = recorder.endRecording();
+          try {
+            return await picture.toImage(600, 720);
+          } finally {
+            picture.dispose();
+          }
+        }
+
+        const sourceBounds = Rect.fromLTWH(40, 60, 120, 120);
+        final before = (await tester.runAsync(
+          () => artwork(sourceBounds, Colors.red),
+        ))!;
+        final after = (await tester.runAsync(
+          () => artwork(const Rect.fromLTWH(0, 10, 200, 220), Colors.green),
+        ))!;
+        final shots = <List<int>>[];
+        try {
+          for (final progress in [0.0, .0001, .15, .5, .9999, 1.0]) {
+            final key = GlobalKey();
+            await tester.pumpWidget(
+              MaterialApp(
+                home: Center(
+                  child: RepaintBoundary(
+                    key: key,
+                    child: SizedBox(
+                      width: 200,
+                      height: 240,
+                      child: CustomPaint(
+                        painter: PageTurnPainter(
+                          before,
+                          after,
+                          progress,
+                          'curl',
+                          direction,
+                          sheetBounds: sourceBounds,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            shots.add(
+              await _comicPixels(
+                tester,
+                key,
+                captureName: 'mixed-$direction-$progress',
+              ),
+            );
+          }
+          final margin = (25 * 3 * 600 + 100 * 3) * 4;
+          expect(
+            shots[1].sublist(margin, margin + 3),
+            [0, 0, 0],
+            reason: 'A larger destination must not replace the old letterbox at the first curl frame',
+          );
+          var error = 0, samples = 0;
+          final left = direction > 0 ? 50 : 125;
+          for (var y = 80 * 3; y < 160 * 3; y++) {
+            for (var x = left * 3; x < (left + 25) * 3; x++) {
+              final offset = (y * 600 + x) * 4;
+              for (var c = 0; c < 3; c++) {
+                error += (shots[0][offset + c] - shots[2][offset + c]).abs();
+                samples++;
+              }
+            }
+          }
+          expect(
+            error / samples,
+            lessThan(1),
+            reason: 'Unturned front ink must keep the same pixels and scale during curl',
+          );
+          var endpoint = 0;
+          for (var i = 0; i < shots.last.length; i++) {
+            if ((shots[4][i] - shots[5][i]).abs() > 2) endpoint++;
+          }
+          expect(
+            endpoint,
+            lessThan(100),
+            reason: 'Different fitted page sizes must meet the live endpoint without resizing',
+          );
+        } finally {
+          await tester.pumpWidget(const SizedBox());
+          before.dispose();
+          after.dispose();
+        }
+      },
+    );
+  }
+
   testWidgets(
     'centered comic leaf exits or lands continuously at the end of a curl',
     (tester) async {
@@ -119,6 +460,18 @@ void verifyComicSpread() {
                 () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
               ))!;
               images.add(pixels.buffer.asUint8List().toList());
+              final capture =
+                  Platform.environment['KMREADER_COMIC_CAPTURE_DIR'];
+              if (capture != null) {
+                final png = (await tester.runAsync(
+                  () => image.toByteData(format: ui.ImageByteFormat.png),
+                ))!;
+                final file = File(
+                  '$capture/endpoint-$spread-$direction-$p.png',
+                );
+                file.parent.createSync(recursive: true);
+                file.writeAsBytesSync(png.buffer.asUint8List());
+              }
               image.dispose();
             }
             var changed = 0;

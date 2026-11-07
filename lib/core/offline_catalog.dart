@@ -243,6 +243,11 @@ class _OfflineSql {
   }
 
   String sortField(String name) {
+    name = switch (name) {
+      'createdDate' => 'created',
+      'lastModifiedDate' => 'lastModified',
+      _ => name,
+    };
     if (name == 'metadata.titleSort' || name == 'metadata.title') {
       return '${field(name.split('.').last)} COLLATE NOCASE';
     }

@@ -21,6 +21,43 @@ void main() {
   late Directory directory;
   setUp(() => directory = Directory.systemTemp.createTempSync('epub-browser-'));
   tearDown(() => directory.deleteSync(recursive: true));
+  test('Kindle Unicode positions survive restore, reflow and page navigation', () async {
+    final text =
+        '😀 old words. ${List.filled(500, 'Accenti città e navigazione. ').join()}';
+    final document = EpubDocument.open(
+      fixture(
+        directory,
+        resources: {
+          'OPS/one.xhtml': utf8.encode(
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Positions</title></head><body><p id="mapped" data-kmreader-kindle-position="100" data-kmreader-kindle-length="${text.runes.length}">$text</p></body></html>',
+          ),
+        },
+      ).path,
+    );
+    final host = await EpubHost.open(
+      document,
+      filePath: '${directory.path}/browser.epub',
+    );
+    try {
+      final result = await Process.run('python3', [
+        'tool/kindle_reader_smoke.py',
+        host.reader.toString(),
+        jsonEncode({
+          'url': host.publication.toString(),
+          'preferences': const EpubPreferences().toJson(),
+          'nonce': 'synthetic-kindle',
+          'direction': 'ltr',
+          'href': 'one.xhtml',
+          'kindlePositions': true,
+          'kindleResume': {'id': 'mapped', 'position': 100, 'offset': 2},
+        }),
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    } finally {
+      await host.close();
+      document.close();
+    }
+  }, skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1');
   test('publication host serves only token-scoped archive resources', () async {
     final document = EpubDocument.open(fixture(directory).path);
     final host = await EpubHost.open(
@@ -83,6 +120,18 @@ void main() {
       repository,
       book,
       fixture(directory),
+    );
+    var notifications = 0;
+    session.addListener(() => notifications++);
+    session.receive({'type': 'ready'});
+    expect(notifications, 1);
+    session.receive({'type': 'ready'});
+    session.receive({'type': 'layout', 'active': false});
+    session.receive({'type': 'tap', 'x': .5, 'y': .5});
+    expect(
+      notifications,
+      1,
+      reason: 'Input and duplicate reports must not rebuild the reader',
     );
     session.receive({
       'type': 'position',
@@ -303,9 +352,48 @@ void main() {
   }
   for (final (width, direction) in [
     (390, 'ltr'),
+    (393, 'ltr'),
+    (591, 'ltr'),
     (1044, 'ltr'),
     (390, 'rtl'),
   ]) {
+    test(
+      'compact EPUB snapshots preserve every visible pixel at $width pixels ($direction)',
+      () async {
+        final file = fixture(
+          directory,
+          paragraphCount: 1400,
+          readingDirection: direction,
+          chapterMarkers: true,
+        );
+        final host = await EpubHost.openFile(file.path);
+        try {
+          final result = await Process.run('python3', [
+            'tool/epub_snapshot_smoke.py',
+            host.reader.toString(),
+            jsonEncode({
+              'url': host.publication.toString(),
+              'preferences': EpubPreferences.fromJson({
+                'theme': 'white',
+                'fontSize': 19,
+              }).toJson(),
+              'nonce': 'snapshots',
+              'direction': direction,
+              'href': 'one.xhtml',
+              'viewport': {'width': width, 'height': width < 800 ? 844 : 720},
+            }),
+          ]);
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        } finally {
+          await host.close();
+        }
+      },
+      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+    );
     test(
       'EPUB compositor sheets and interactive gestures preserve pixels and progress at $width pixels ($direction)',
       () async {
@@ -343,6 +431,80 @@ void main() {
       skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
     );
   }
+  for (final (width, direction) in [
+    (390, 'ltr'),
+    (1044, 'ltr'),
+    (390, 'rtl'),
+  ]) {
+    test(
+      'EPUB first curl reuses idle textures and commits only after release at $width ($direction)',
+      () async {
+        final file = fixture(
+          directory,
+          paragraphCount: 1400,
+          readingDirection: direction,
+        );
+        final document = EpubDocument.open(file.path);
+        final host = await EpubHost.open(document, filePath: file.path);
+        try {
+          final result = await Process.run('python3', [
+            'tool/epub_curl_readiness_smoke.py',
+            host.reader.toString(),
+            jsonEncode({
+              'url': host.publication.toString(),
+              'preferences': EpubPreferences.fromJson({'theme': 'white'})
+                  .toJson(),
+              'nonce': 'readiness',
+              'direction': direction,
+              'href': 'one.xhtml',
+              'viewport': {'width': width, 'height': width == 390 ? 780 : 720},
+            }),
+          ]);
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        } finally {
+          await host.close();
+          document.close();
+        }
+      },
+      skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+    );
+  }
+  test(
+    'EPUB animation failures recover visible text and saved-CFI reopen',
+    () async {
+      final file = fixture(directory, paragraphCount: 1400);
+      final document = EpubDocument.open(file.path);
+      final host = await EpubHost.open(document, filePath: file.path);
+      try {
+        final result = await Process.run('python3', [
+          'tool/epub_recovery_smoke.py',
+          host.reader.toString(),
+          jsonEncode({
+            'url': host.publication.toString(),
+            'preferences': EpubPreferences.fromJson({'theme': 'white'})
+                .toJson(),
+            'nonce': 'recovery',
+            'direction': 'ltr',
+            'href': 'one.xhtml',
+            'viewport': {'width': 390, 'height': 780},
+          }),
+        ]);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+      } finally {
+        await host.close();
+        document.close();
+      }
+    },
+    skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+  );
   test('shipped browser engine paginates, reflows, searches and restores footnotes', () async {
     final doc = EpubDocument.open(fixture(directory).path);
     final host = await EpubHost.open(

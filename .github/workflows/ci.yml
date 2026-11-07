@@ -5,6 +5,18 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      deliver_draft:
+        description: Deliver already verified signed builds to an existing review draft without publishing
+        type: boolean
+        default: false
+      apk_deltas:
+        description: Reconstruct byte-exact locally signed APKs from the verified CI APK and transport blobs
+        type: boolean
+        default: false
+      draft_tag:
+        description: Existing empty versioned EPUB candidate draft
+        type: string
+        default: ''
       publish_preview:
         description: Publish the verified Android APK to the development preview release
         type: boolean
@@ -41,10 +53,13 @@ permissions:
   contents: read
 jobs:
   android:
-    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
+    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - run: python3 tool/prepare_build_metadata.py
       - name: Reserve space for the optimized Android build
         run: |
@@ -72,6 +87,19 @@ jobs:
       - run: python3 -m unittest discover -s tool/tests
       - run: flutter analyze
       - run: flutter test
+      - name: Verify shared Kindle runtime and real browser boundaries
+        env:
+          KMREADER_KINDLE_BROWSER_TEST: '1'
+        run: |
+          python3 -m pip install -r tool/kindle_personal/requirements.txt
+          python3 -m playwright install chromium
+          python3 -m unittest discover -s tool/kindle_personal/tests -v
+          python3 -m tool.kindle_personal self-test --output artifacts/kindle-self-test.json --fixtures artifacts/kindle-native-fixtures
+      - name: Verify prepared books through the app and exercise the shipped EPUB reader
+        env:
+          KMREADER_KINDLE_FIXTURES: artifacts/kindle-native-fixtures
+          KMREADER_BROWSER_TEST: '1'
+        run: flutter test tool/kindle_personal/tests/native_import_test.dart test/epub_browser_test.dart --no-pub
       - name: Verify portable image models with the real ONNX runtime
         run: KMREADER_ONNX_TEST=1 LD_LIBRARY_PATH="$PUB_CACHE/hosted/pub.dev/onnxruntime_v2-1.23.2+2/linux" flutter test test/upscaler_test.dart test/bubble_detector_test.dart --no-pub
       - name: Test the client against Komga
@@ -93,11 +121,32 @@ jobs:
           name: android-release-unsigned
           path: build/app/outputs/flutter-apk/app-release.apk
   windows:
-    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
+    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate the deferred Android diagnostic launcher
+        shell: powershell
+        run: |
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tool/android_epub_recovery.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors) { throw ($parseErrors | Out-String) }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - run: python tool/prepare_build_metadata.py
+      - name: Build and verify the separate Kindle converter
+        shell: pwsh
+        run: ./tool/build_kindle_worker.ps1
+      - name: Retain the companion bundle for source-verified read-only probes
+        uses: actions/upload-artifact@v4
+        with:
+          name: KMReader-Kindle-windows-x64
+          path: |
+            artifacts/kindle-delivery/*.zip
+            artifacts/kindle-delivery/SHA256SUMS.txt
+            artifacts/kindle-executable-check.json
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'
@@ -109,6 +158,12 @@ jobs:
       - name: Verify EPUB in native Windows WebView2
         run: flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub
       - run: flutter build windows --release
+      - name: Include the on-demand Kindle converter
+        shell: pwsh
+        run: |
+          Copy-Item artifacts/kindle-dist/KMReader-Kindle build/windows/x64/runner/Release/kindle -Recurse
+          Copy-Item artifacts/kindle-delivery/*-source.zip build/windows/x64/runner/Release/
+          Copy-Item assets/kindle/NOTICE.md build/windows/x64/runner/Release/Kindle-NOTICE.md
       - name: Launch the native Windows app in an isolated profile
         shell: pwsh
         run: ./tool/windows_startup_smoke.ps1 -Executable build/windows/x64/runner/Release/kmreader.exe -OutputDirectory "${{ runner.temp }}/windows-startup"
@@ -122,11 +177,14 @@ jobs:
           name: windows
           path: build/windows/x64/runner/Release/
   android_reader_display:
-    if: github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == ''
+    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - run: python3 tool/prepare_build_metadata.py
       - name: Reserve disk space for the emulator and Android build
         run: |
@@ -212,7 +270,10 @@ jobs:
           ram-size: 3072M
           heap-size: 256M
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
+          # Exercise WebView's real animation clock. Disabling the Android
+          # animator can collapse native playback even when JS overrides the
+          # prefers-reduced-motion media query inside a functional probe.
+          disable-animations: false
           script: bash tool/android_native_smoke.sh
       - name: Capture native runner resource diagnostics
         if: always()
@@ -230,7 +291,7 @@ jobs:
             artifacts/native-epub/*.png
             ${{ runner.temp }}/reader-logcat.txt
   publish_android_preview:
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && !inputs.deliver_draft && github.ref == 'refs/heads/main'
     needs: [android, windows, android_reader_display]
     runs-on: ubuntu-latest
     permissions:
@@ -372,3 +433,38 @@ jobs:
           print('All release assets match GitHub SHA256 digests.')
           PYCODE
           gh release edit "$RELEASE_TAG" --target "$GITHUB_SHA" --notes-file release-notes.md --draft=false --prerelease --latest=false
+  deliver_verified_draft:
+    if: github.event_name == 'workflow_dispatch' && inputs.deliver_draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: verified-draft-delivery-${{ inputs.draft_tag }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERIFIED_RUN: ${{ inputs.verified_run }}
+      APK_DELTAS: ${{ inputs.apk_deltas }}
+      DRAFT_TAG: ${{ inputs.draft_tag }}
+      PREVIEW_BLOB: ${{ inputs.preview_blob }}
+      PREVIEW_SHA256: ${{ inputs.preview_sha256 }}
+      ARMV7_BLOB: ${{ inputs.preview_armv7_blob }}
+      ARMV7_SHA256: ${{ inputs.preview_armv7_sha256 }}
+      X64_BLOB: ${{ inputs.preview_x64_blob }}
+      X64_SHA256: ${{ inputs.preview_x64_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;36.0.0'
+      - name: Recheck source, complete CI, signatures and bytes; deliver to the existing draft only
+        run: python3 tool/deliver_draft.py

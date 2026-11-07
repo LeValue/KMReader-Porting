@@ -8,18 +8,21 @@ File fixture(
   Map<String, List<int>> resources = const {},
   int paragraphCount = 120,
   String readingDirection = 'ltr',
+  bool chapterMarkers = false,
 }) {
   final paragraphs = List.generate(
     paragraphCount,
     (i) =>
-        '<p>Paragraph $i contains enough text to span multiple browser pages and test retained positions after layout changes.</p>',
+        '${chapterMarkers && i % 20 == 0 ? '<p> <a id="chapter$i"></a> </p><div style="height:4em"><br/><br/><br/><br/></div><h2>Chapter $i. Going Aboard.</h2>' : ''}'
+        '<p>Paragraph $i contains enough text to span multiple browser pages and test retained positions after layout changes.</p>'
+        '${chapterMarkers && i == 300 ? '<pre>${List.filled(24, '     This long authored note must wrap within its column without losing a word or overlapping the following page.').join('\n')}</pre>' : ''}',
   ).join();
   final files = {
     'META-INF/container.xml': '<container><rootfiles><rootfile full-path="OPS/package.opf"/></rootfiles></container>',
     'OPS/package.opf':
         '<package unique-identifier="uid"><metadata><identifier id="uid">urn:uuid:550e8400-e29b-41d4-a716-446655440000</identifier><language>en</language><title>Browser fixture</title></metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/><item id="notes" href="notes.xhtml" media-type="application/xhtml+xml"/></manifest><spine page-progression-direction="$readingDirection"><itemref idref="one"/><itemref idref="two"/><itemref idref="notes" linear="no"/></spine></package>',
     'OPS/one.xhtml':
-        '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter one</title></head><body><h1>Chapter one</h1><a href="notes.xhtml#note">Footnote</a>$paragraphs</body></html>',
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter one</title>${chapterMarkers ? '<style>body{text-align:justify}p{margin:.25em 0;text-indent:1em}h2{padding:1em 0}</style>' : ''}</head><body><h1>Chapter one</h1><a href="notes.xhtml#note">Footnote</a>$paragraphs</body></html>',
     'OPS/two.xhtml':
         '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter two</title></head><body><h1>Chapter two</h1>$paragraphs</body></html>',
     'OPS/notes.xhtml': '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="note">Supplementary note</h1><a href="one.xhtml">Back</a></body></html>',

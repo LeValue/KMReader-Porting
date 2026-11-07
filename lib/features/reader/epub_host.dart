@@ -32,12 +32,7 @@ class EpubHost {
   static Future<Map<String, Uint8List>>? _bundledAssets;
   static Future<Map<String, Uint8List>> _loadAssets() async {
     final assets = <String, Uint8List>{};
-    for (final name in [
-      'epub.min.js',
-      'jszip.min.js',
-      'reader.js',
-      'reader.css',
-    ]) {
+    for (final name in ['epub.min.js', 'reader.js', 'reader.css']) {
       final data = await rootBundle.load('assets/epub/$name');
       assets[name] = data.buffer.asUint8List(
         data.offsetInBytes,
@@ -307,14 +302,13 @@ class _EpubResourceServer {
       if (path == 'reader/' || path == 'reader') {
         bytes = Uint8List.fromList(
           utf8.encode(
-            '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><link rel="stylesheet" href="../vendor/reader.css"></head><body><div id="viewer"></div><script src="../vendor/jszip.min.js"></script><script src="../vendor/epub.min.js"></script><script src="../vendor/reader.js"></script></body></html>',
+            '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><link rel="stylesheet" href="../vendor/reader.css"></head><body><div id="viewer"></div><script src="../vendor/epub.min.js"></script><script src="../vendor/reader.js"></script></body></html>',
           ),
         );
         mime = 'text/html';
       } else if (path.startsWith('vendor/') &&
           [
             'epub.min.js',
-            'jszip.min.js',
             'reader.js',
             'reader.css',
           ].contains(path.substring(7))) {
