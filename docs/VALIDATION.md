@@ -1,5 +1,30 @@
 # Development validation
 
+## Pre-1.0 document metadata recovery — 2026-11-07
+
+The next publication target is [1.0](ROADMAP_1.0.md); existing 0.9.x drafts remain
+unpublished and the source version stays 0.9.1+29 during readiness work.
+
+A main-branch Komga run failed when a conditional document HEAD connection was
+interrupted. A deterministic socket-close regression reproduced the missing
+configured retry in `DocumentCache.revalidate`. HEAD metadata now uses the same
+buffered safe-read retry policy as JSON reads, preserving conditional headers,
+HTTP 304 and the immutable cached document. The zero-retry default remains
+unchanged. The live Komga fixture explicitly enables one safe-read retry.
+
+Local checks after this change:
+
+- The new cache regression failed before the fix and passes after it.
+- API/cache suites: **16 passed**, including configured limits 0/1/2, response
+  interruption, HTTP 304, immediate authentication failure and non-replayed writes.
+- Full Flutter suite: **366 passed, 34 optional skips**; analysis has no issues.
+- Isolated official Komga 1.29.1 test: **passed** after the fix. It also passed
+  once on unchanged source; the original server interruption is not attributed
+  to a known server defect.
+
+Hosted native/build verification remains part of the readiness checks for this
+source. No target-device/account acceptance or 1.0 publication is claimed here.
+
 ## Repository organization from working 0.9.1 — 2026-11-07
 
 Working baseline: `a5e51aa44e59a4ff5d01dedfb83a70c53c126aa7` (0.9.1+29),

@@ -176,8 +176,49 @@ class KomgaApi {
     Map<String, dynamic>? query,
     Map<String, String>? extra,
   }) async {
+    final response = await _response(
+      path,
+      method: method,
+      body: body,
+      query: query,
+      extra: extra,
+    );
+    final bytes = response.bodyBytes;
+    if (bytes.isEmpty) return null;
+    try {
+      return bytes.length > 256 * 1024
+          ? await compute(_decodeJson, bytes)
+          : _decodeJson(bytes);
+    } on FormatException {
+      throw ApiFailure(
+        'The server returned an unexpected response.',
+        path: path,
+      );
+    }
+  }
+
+  Future<http.Response> head(
+    String path, {
+    Map<String, String>? extra,
+    Set<int> acceptedStatuses = const {},
+  }) => _response(
+    path,
+    method: 'HEAD',
+    extra: extra,
+    acceptedStatuses: acceptedStatuses,
+  );
+
+  Future<http.Response> _response(
+    String path, {
+    required String method,
+    dynamic body,
+    Map<String, dynamic>? query,
+    Map<String, String>? extra,
+    Set<int> acceptedStatuses = const {},
+  }) async {
     final retryable =
         method == 'GET' ||
+        method == 'HEAD' ||
         method == 'POST' &&
             RegExp(r'^/api/v1/(books|series)/list$').hasMatch(path);
     for (var attempt = 0; ; attempt++) {
@@ -188,23 +229,13 @@ class KomgaApi {
           body: body,
           query: query,
           extra: extra,
+          acceptedStatuses: acceptedStatuses,
         );
-        final bytes = await response.stream.toBytes().timeout(
+        return await http.Response.fromStream(response).timeout(
           Duration(
             seconds: authenticating ? network.authentication : network.request,
           ),
         );
-        if (bytes.isEmpty) return null;
-        try {
-          return bytes.length > 256 * 1024
-              ? await compute(_decodeJson, bytes)
-              : _decodeJson(bytes);
-        } on FormatException {
-          throw ApiFailure(
-            'The server returned an unexpected response.',
-            path: path,
-          );
-        }
       } on ApiFailure catch (error) {
         if (attempt < network.retries &&
             retryable &&

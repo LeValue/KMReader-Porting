@@ -7,6 +7,7 @@ release. The latest published preview remains 0.8.12. See the
 
 | Task | Document |
 |---|---|
+| Track the next publication target | [Road to 1.0](ROADMAP_1.0.md) |
 | Set up and understand the source tree | [Development](DEVELOPMENT.md) |
 | Run checks and understand skipped tests | [Testing](TESTING.md) |
 | Build, sign and distribute | [Releasing](RELEASING.md) |

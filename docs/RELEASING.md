@@ -1,5 +1,8 @@
 # Build, sign and distribute verified previews
 
+The next publication target is **1.0.0**; keep existing 0.9.x candidates in draft
+until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
+
 Current source: **0.9.1+29**. Its existing candidate release remains a draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/document_cache.dart';
 import 'package:kmreader/core/models.dart';
+import 'package:kmreader/core/network_preferences.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -108,6 +109,30 @@ void main() {
     expect(gets, 2, reason: 'HTTP 304 must avoid downloading the body');
     original.close();
     updated.close();
+  });
+  test('conditional validation recovers an interrupted HEAD without replacing the cached document', () async {
+    final original = await open();
+    api.readNetworkPreferences = () => const NetworkPreferences(retries: 1);
+    handler = (request) async {
+      expect(request.method, 'HEAD');
+      expect(request.headers.value('If-None-Match'), '"v1"');
+      heads++;
+      if (heads == 2) {
+        final socket = await request.response.detachSocket(writeHeaders: false);
+        socket.destroy();
+        return;
+      }
+      request.response.statusCode = 304;
+      await request.response.close();
+    };
+    await cache.revalidate(book);
+    final reopened = await open();
+    expect(heads, 3);
+    expect(gets, 1);
+    expect(reopened.file.path, original.file.path);
+    expect(await original.file.readAsBytes(), [1, 2, 3]);
+    original.close();
+    reopened.close();
   });
   test(
     'offline and pinned downloads never issue a validation request',

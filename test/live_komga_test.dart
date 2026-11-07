@@ -55,6 +55,7 @@ void main() {
     () async {
       final directory = Directory.systemTemp.createTempSync('kmreader-client-');
       final store = LocalStore(sqlite3.open('${directory.path}/test.sqlite'));
+      store.setSetting('apiRetryCount', 1);
       final client = _CountingClient();
       final api = KomgaApi(
         Uri.parse(url!),
