@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "captured_at": "2026-11-07T09:43:46.445452+00:00",
+  "repository": "LeValue/KMReader-Porting",
+  "retained_branch": {
+    "name": "main",
+    "sha": "79cf68d4f338145732a18751b69352c69ab27a65"
+  },
+  "branches": [
+    {
+      "branch": "chore/repository-091",
+      "remote_sha": "7d2cde0f15b33351ccb2053490b97c3a6e4bf3e8",
+      "local_sha": "7d2cde0f15b33351ccb2053490b97c3a6e4bf3e8",
+      "unique_commits": [],
+      "action": "delete branch; preserve commits in main"
+    },
+    {
+      "branch": "codex/native-epub-diagnostics-081",
+      "remote_sha": "8a4db52d72fb2ad529485f62a0df3283a814c388",
+      "local_sha": "8a4db52d72fb2ad529485f62a0df3283a814c388",
+      "unique_commits": [
+        {
+          "sha": "8a4db52d72fb2ad529485f62a0df3283a814c388",
+          "subject": "Run native reader diagnostics directly and avoid diagnostic UI notifications"
+        },
+        {
+          "sha": "faaf7f8bb1e0934e3ab2729c43d81752a04847c4",
+          "subject": "Capture native EPUB manager geometry for blocked navigation diagnosis"
+        }
+      ],
+      "action": "archive as annotated tag, then delete branch",
+      "archive_tag": "archive/branches/codex/native-epub-diagnostics-081-2026-11-07",
+      "archive_tag_object": "be2d79ab088db20836a24809698a5f81fdb745e9"
+    },
+    {
+      "branch": "codex/native-epub-post-turn-081",
+      "remote_sha": "68cfb4404316f701660c5eee2d45cee15f659f52",
+      "local_sha": "68cfb4404316f701660c5eee2d45cee15f659f52",
+      "unique_commits": [
+        {
+          "sha": "68cfb4404316f701660c5eee2d45cee15f659f52",
+          "subject": "Inspect completed native EPUB turn state after the full display prelude"
+        }
+      ],
+      "action": "archive as annotated tag, then delete branch",
+      "archive_tag": "archive/branches/codex/native-epub-post-turn-081-2026-11-07",
+      "archive_tag_object": "f299b4b5ea68873e714064e743bd7c4227eb6aed"
+    },
+    {
+      "branch": "codex/windows-capture-interval",
+      "remote_sha": "94dd447c8d33e15fa2e9376ccea597509656fbbe",
+      "local_sha": "94dd447c8d33e15fa2e9376ccea597509656fbbe",
+      "unique_commits": [
+        {
+          "sha": "94dd447c8d33e15fa2e9376ccea597509656fbbe",
+          "subject": "Calibrate live capture intervals against measured frame delivery"
+        },
+        {
+          "sha": "e22f449655ad2930c006da2d5e87ba08cc3f2a1d",
+          "subject": "Probe Windows capture minimum interval on the physical runner"
+        }
+      ],
+      "action": "archive as annotated tag, then delete branch",
+      "archive_tag": "archive/branches/codex/windows-capture-interval-2026-11-07",
+      "archive_tag_object": "ab53f147695bde2ea5d0b946bb5e648ded7d110d"
+    },
+    {
+      "branch": "fix/android-epub-recovery",
+      "remote_sha": "63ad4e7430b7c59b3f7982aa41a86dbda41019b0",
+      "local_sha": "d4c495e39ae83cd9701b4576b9987b2ede850503",
+      "unique_commits": [],
+      "action": "delete branch; preserve commits in main"
+    },
+    {
+      "branch": "work",
+      "remote_sha": "21997b92525a9bc91e55d4d12a4476d6da5fc90c",
+      "local_sha": "21997b92525a9bc91e55d4d12a4476d6da5fc90c",
+      "unique_commits": [],
+      "action": "delete branch; preserve commits in main"
+    }
+  ],
+  "existing_release_tags": "retain all",
+  "releases_and_assets": "retain all",
+  "android_signing": "unchanged",
+  "completed_at": "2026-11-07T09:45:03.913166+00:00",
+  "result": "Only main remains locally and remotely; experimental commits retained by three verified annotated archive tags."
+}

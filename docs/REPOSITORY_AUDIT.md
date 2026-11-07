@@ -1,5 +1,35 @@
 # Repository audit — 2026-11-07
 
+## Current branch state after the verified merge
+
+The working 0.9.1 history and repository organization were merged into main at
+`79cf68d4f338145732a18751b69352c69ab27a65`. Only **main** remains as a local and
+remote branch after the subsequent branch cleanup requested by the maintainer.
+The [exact cleanup inventory](inventory/branch-cleanup-2026-11-07.json) records
+all six removed branch tips, local tips, five unique experimental commits and
+three annotated archive tag objects. The original pre-organization inventory
+below remains a historical snapshot, not a list of current branches.
+
+| Removed branch | Preservation |
+|---|---|
+| `work` | Complete history is reachable from main |
+| `fix/android-epub-recovery` | Complete history is reachable from main |
+| `chore/repository-091` | Complete history is reachable from the merge commit |
+| `codex/native-epub-diagnostics-081` | `archive/branches/codex/native-epub-diagnostics-081-2026-11-07` (2 unique commits) |
+| `codex/native-epub-post-turn-081` | `archive/branches/codex/native-epub-post-turn-081-2026-11-07` (1 unique commit) |
+| `codex/windows-capture-interval` | `archive/branches/codex/windows-capture-interval-2026-11-07` (2 unique commits) |
+
+The archive tags were pushed and verified at the exact original commits before
+branch deletion. Remote deletion used expected-SHA leases; no branch was removed
+if its head differed from the inventoried value. A verified local Git bundle of
+the experimental commits also remains in ignored validation artifacts.
+All 22 pre-existing tags, 42 releases and 166 assets are preserved. The three new
+archive tags do not create releases. App code, builds and Android signing are
+unchanged. Existing diagnostic/release guards may still accept historical runs
+whose recorded branch was `fix/android-epub-recovery`; they also accept main and
+do not require that old branch to exist.
+
+
 ## Working baseline and comparison with main
 
 - Main/work: `21997b92525a9bc91e55d4d12a4476d6da5fc90c`, app **0.8.12+22**.

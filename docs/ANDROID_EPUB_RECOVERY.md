@@ -45,7 +45,7 @@ APK on GitHub, then runs it through the selected Windows runner. The fixed PC
 can use `kmreader-android-desktop`; MATEBOOK uses `kmreader-laptop`. If custom
 label routing does not assign the fixed PC, select `self-hosted` and set
 `expected_runner: GAETANO-FISSO`. The first job step checks that exact name
-before setup or device access. The candidate currently lives on `fix/android-epub-recovery`.
+before setup or device access. The candidate history was merged into `main`; the retired `fix/android-epub-recovery` branch is recorded in [the branch cleanup inventory](inventory/branch-cleanup-2026-11-07.json).
 Until the new workflow reaches the default branch, start the existing **Local
 Windows diagnostics** workflow on that candidate branch with mode
 `android-epub-recovery` and the chosen `runner_label`. It calls the Android
