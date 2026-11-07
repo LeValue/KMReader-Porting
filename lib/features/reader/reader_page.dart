@@ -310,7 +310,8 @@ class _ReaderPageState extends State<ReaderPage>
 
   bool _previewing = false;
   Rect _interactionBounds(Size size) =>
-      _split || _session.visiblePages(_viewIndex) == 1
+      _session.preferences.mode == ReadingMode.paged &&
+          (_split || _session.visiblePages(_viewIndex) == 1)
       ? _sheetBounds(size, 1)
       : Offset.zero & size;
 

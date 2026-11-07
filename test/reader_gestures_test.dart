@@ -16,7 +16,7 @@ import 'widget_test.dart' show FixtureRepository;
 import 'package:kmreader/features/reader/reader_viewport.dart';
 
 void main() {
-  for (final effect in ['cover', 'curl']) {
+  for (final effect in ['cover', 'curl', 'webtoon']) {
     testWidgets(
       'wide single-page mouse taps and drags use paper edges: $effect',
       (tester) async {
@@ -51,7 +51,10 @@ void main() {
         store.cache(
           profile.id,
           'reader:mouse',
-          ReaderPreferences(transition: effect).toJson(),
+          ReaderPreferences(
+            transition: effect == 'webtoon' ? 'cover' : effect,
+            mode: effect == 'webtoon' ? ReadingMode.webtoon : ReadingMode.paged,
+          ).toJson(),
         );
         await tester.pumpWidget(
           MaterialApp(
@@ -85,6 +88,26 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 350));
         await tester.pumpAndSettle();
+        if (effect == 'webtoon') {
+          final position = tester
+              .state<ScrollableState>(find.byType(Scrollable).first)
+              .position;
+          expect(
+            position.pixels,
+            0,
+            reason: 'Webtoon taps retain the full-width map',
+          );
+          await tester.tapAt(
+            const Offset(1590, 300),
+            kind: PointerDeviceKind.mouse,
+          );
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          expect(position.pixels, greaterThan(0));
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(milliseconds: 100));
+          return;
+        }
         expect(
           tester.widget<PageView>(find.byType(PageView)).controller!.page,
           closeTo(1, .01),
