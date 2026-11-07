@@ -14,7 +14,7 @@ on:
         type: boolean
         default: false
       draft_tag:
-        description: Existing empty versioned EPUB candidate draft
+        description: Existing empty version-matched release or candidate draft
         type: string
         default: ''
       publish_preview:

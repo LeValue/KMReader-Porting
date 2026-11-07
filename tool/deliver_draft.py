@@ -26,6 +26,11 @@ def api(path):
     return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
 
 
+def candidate_tag_matches(version, tag):
+    return re.fullmatch(re.escape('v' + version) +
+                        r'(?:-(?:epub-)?candidate\.[1-9][0-9]*)?', tag) is not None
+
+
 def verify():
     repository = os.environ['GH_REPO']
     requested, tag = os.environ['VERIFIED_RUN'], os.environ['DRAFT_TAG']
@@ -50,7 +55,7 @@ def verify():
         subprocess.check_call(['git', 'fetch', '--no-tags', '--depth=1', 'origin', source])
     subprocess.check_call(['git', 'diff', '--exit-code', source, 'HEAD', '--', *RUNTIME_PATHS])
     version, build = read_version(ROOT)
-    if not re.fullmatch(re.escape('v' + version) + r'-epub-candidate\.[1-9][0-9]*', tag):
+    if not candidate_tag_matches(version, tag):
         raise ValueError('Only a version-matched candidate draft can receive these files')
     releases = api(f'repos/{repository}/releases?per_page=100')
     release = next((r for r in releases if r['tag_name'] == tag), None)
