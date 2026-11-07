@@ -18,6 +18,10 @@ Local cleanup checks on Linux with Flutter 3.47.8 / Dart 3.13.7 / Python 3.11:
   operations are platform-gated. Synthetic self-check passed registration, signed
   catalog, offline EPUB/PDF/KFX preparation, persistent RPC reuse, progressive
   decoding and Kindle positions; no Amazon account was contacted.
+- Opt-in Chromium reader suite plus prepared-book app import: **33 passed**.
+- Real ONNX upscaler/bubble runtime tests: **7 passed**.
+- Isolated official Komga 1.29.1 backend test: **1 passed**, including download,
+  offline progress and WebPub sync; no existing server was modified.
 - Actionlint 1.7.12 on active workflows: passed; embedded shell/Python lint helpers
   disabled (`-shellcheck= -pyflakes=`). Local Markdown links and `git diff --check`
   passed.
@@ -30,8 +34,7 @@ The PR checks provide new hosted Android/Windows/native verification for the
 cleanup commit. Baseline [CI 42307062098](https://github.com/LeValue/KMReader-Porting/actions/runs/42307062098)
 already passed all three required jobs at `a5e51aa`; that result is retained as
 baseline evidence only. Personal-account and physical-device workflows are not
-run by this cleanup. Additional local browser/import, ONNX, backend and APK
-build results are reported in the PR's verification record.
+run by this cleanup. Local APK build and final hosted results are reported in the PR's verification record.
 
 
 ## 0.8.12 preview — EPUB input work and chapter lifetime
