@@ -10,6 +10,7 @@ import 'package:pointycastle/export.dart' as pc;
 import 'package:xml/xml.dart';
 
 import '../models.dart';
+import 'catalog_filter.dart';
 
 const kindleDeviceType = 'AGZZ1ST63LKBW';
 const kindleAppVersion = '6.38.0.100';
@@ -247,6 +248,31 @@ Map<String, String> kindleSigningHeaders({
   };
 }
 
+/// Send to Kindle uses raw SHA-256 inside PKCS#1 padding, unlike CDE requests.
+Map<String, String> kindleImportSigningHeaders(
+  (Json, String, String, String?) args,
+) {
+  final (device, path, body, suppliedTime) = args;
+  final time =
+      suppliedTime ??
+      '${DateTime.now().toUtc().toIso8601String().split('.').first}Z';
+  final digest = sha256.convert(
+    utf8.encode('POST\n$path\n$time\n$body\n${device['adp_token']}'),
+  );
+  final signer = pc.PKCS1Encoding(pc.RSAEngine())
+    ..init(
+      true,
+      pc.PrivateKeyParameter<pc.RSAPrivateKey>(
+        _privateKey(device['device_private_key']),
+      ),
+    );
+  final signature = signer.process(Uint8List.fromList(digest.bytes));
+  return {
+    'X-ADP-Authentication-Token': device['adp_token'],
+    'X-ADP-Request-Digest': '${base64Encode(signature)}:$time',
+  };
+}
+
 class KindleClient {
   KindleClient({http.Client? client, this.session, this.saveSession})
     : _http = client ?? http.Client();
@@ -255,6 +281,23 @@ class KindleClient {
   final Future<void> Function(KindleSession)? saveSession;
   Future<void>? _refreshing;
   bool _closed = false;
+  // The importer supplies its own bounded, abortable requests. No redirect or
+  // automatic mutation retry is added here; closing an account closes them too.
+  Future<http.StreamedResponse> importRequest(http.BaseRequest request) {
+    if (_closed) throw const KindleFailure('connection_closed');
+    return _http.send(request);
+  }
+
+  Future<void> saveImportDevice(Json device) async {
+    if (_closed || session == null) {
+      throw const KindleFailure('connection_closed');
+    }
+    final updated = KindleSession({...session!.json, 'send_device': device});
+    await saveSession?.call(updated);
+    if (_closed) throw const KindleFailure('connection_closed');
+    session = updated;
+  }
+
   void close() {
     _closed = true;
     _http.close();
@@ -380,7 +423,7 @@ class KindleClient {
       }, form: true);
       if (_closed) throw const KindleFailure('connection_closed');
       final updated = KindleSession({
-        ...current.json,
+        ...session!.json,
         'access_token': data['access_token'],
         'expires':
             DateTime.now().millisecondsSinceEpoch / 1000 +
@@ -479,37 +522,7 @@ class KindleClient {
         },
       ),
     );
-    final parsed = await compute(parseKindleCatalog, bytes);
-    final items = <String, Json>{
-      if (incremental && parsed['full_response'] != true)
-        for (final item in (previous?['items'] as List? ?? []).map(object))
-          text(item['key']): item,
-    };
-    for (final removed in (parsed['removed'] as List).map(object)) {
-      items.removeWhere(
-        (_, item) =>
-            item['id'] == removed['id'] &&
-            (text(removed['type']).isEmpty || item['type'] == removed['type']),
-      );
-    }
-    for (final item in (parsed['items'] as List).map(object)) {
-      items[text(item['key'])] = item;
-    }
-    final ordered = items.values.toList()
-      ..sort(
-        (a, b) =>
-            text(a['title'])
-                .toLowerCase()
-                .compareTo(text(b['title']).toLowerCase()),
-      );
-    return {
-      'schema': 1,
-      'marketplace': 'amazon.it',
-      'fetched_at': DateTime.now().toUtc().toIso8601String(),
-      'sync_time': parsed['sync_time'],
-      'complete': parsed['complete'],
-      'items': ordered,
-    };
+    return compute(_mergeKindleCatalog, (bytes, previous, incremental));
   }
 
   Future<(Json, Map<String, String>)> manifest(Json item) async {
@@ -645,6 +658,7 @@ Json parseKindleCatalog(List<int> bytes) {
             .toSet();
         final dictionary =
             tags.contains('DICT') ||
+            tags.contains('DICTIONARY') ||
             tags.contains('FREE_DICT') ||
             ['is_dictionary', 'isDictionary'].any(
               (key) => const {
@@ -670,6 +684,7 @@ Json parseKindleCatalog(List<int> bytes) {
               .map((e) => e.innerText.trim())
               .where((v) => v.isNotEmpty)
               .toList(),
+          'is_dictionary': dictionary,
           'revision': value(element, 'content_version').isEmpty
               ? value(element, 'version')
               : value(element, 'content_version'),
@@ -761,5 +776,40 @@ Json _readSidecar((Uint8List, bool) input) {
             int.parse('${record['startPosition']}') >= 0)
           record,
     ],
+  };
+}
+
+Json _mergeKindleCatalog((Uint8List, Json?, bool) input) {
+  final (bytes, previous, incremental) = input;
+  final parsed = parseKindleCatalog(bytes);
+  final items = <String, Json>{
+    if (incremental && parsed['full_response'] != true)
+      for (final item in (previous?['items'] as List? ?? []).map(object))
+        text(item['key']): item,
+  };
+  for (final removed in (parsed['removed'] as List).map(object)) {
+    items.removeWhere(
+      (_, item) =>
+          item['id'] == removed['id'] &&
+          (text(removed['type']).isEmpty || item['type'] == removed['type']),
+    );
+  }
+  for (final item in (parsed['items'] as List).map(object)) {
+    items[text(item['key'])] = item;
+  }
+  final ordered =
+      items.values.where((item) => !isKindleDictionary(item)).toList()..sort(
+        (a, b) =>
+            text(a['title'])
+                .toLowerCase()
+                .compareTo(text(b['title']).toLowerCase()),
+      );
+  return {
+    'schema': 1,
+    'marketplace': 'amazon.it',
+    'fetched_at': DateTime.now().toUtc().toIso8601String(),
+    'sync_time': parsed['sync_time'],
+    'complete': parsed['complete'],
+    'items': ordered,
   };
 }

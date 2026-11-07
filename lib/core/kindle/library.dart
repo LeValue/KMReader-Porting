@@ -12,6 +12,7 @@ import '../store.dart';
 import '../../features/reader/epub_document.dart';
 import '../../features/reader/epub_page_index.dart';
 import 'client.dart';
+import 'catalog_filter.dart';
 import 'conversion.dart';
 import 'cover_proxy.dart';
 
@@ -29,7 +30,61 @@ class KindleLibrary {
   final ServerProfile profile;
   final KindlePreparation preparation;
   void Function(String id)? onPrepared;
-  Future<void>? _refreshing;
+  Future<void>? _refreshing, _initializing, _indexing;
+  bool _closed = false;
+  int _activeCovers = 0;
+  final _coverWaiters = <Completer<void>>[];
+  final _coverBridges = <KindleCoverProxy>{};
+
+  Future<void> initialize() => _initializing ??= () async {
+    if (_closed) return;
+    if (_snapshot == null) {
+      final encoded = store.cachedEncoded(profile.id, 'kindle:catalog');
+      _snapshot = encoded == null
+          ? <String, dynamic>{}
+          : await compute(_decodeCatalogSnapshot, encoded);
+    }
+    if (!_closed && hasCatalog) await index();
+  }();
+
+  Future<void> get ready async {
+    await initialize();
+    await _indexing;
+    if (_closed) throw const KindleFailure('connection_closed');
+  }
+
+  Future<void> get settled async {
+    await _initializing;
+    await _refreshing;
+    await _indexing;
+  }
+
+  void close() {
+    _closed = true;
+    for (final waiter in _coverWaiters) {
+      if (!waiter.isCompleted) waiter.complete();
+    }
+    _coverWaiters.clear();
+    for (final proxy in _coverBridges.toList()) {
+      unawaited(proxy.close());
+    }
+  }
+
+  Future<void> _coverSlot() async {
+    while (_activeCovers >= 3 && !_closed) {
+      final waiter = Completer<void>();
+      _coverWaiters.add(waiter);
+      await waiter.future;
+    }
+    if (_closed) throw const KindleFailure('connection_closed');
+    _activeCovers++;
+  }
+
+  void _releaseCover() {
+    _activeCovers--;
+    if (_coverWaiters.isNotEmpty) _coverWaiters.removeAt(0).complete();
+  }
+
   Json? _snapshot;
   List<Json>? _visibleItems;
   Map<String, Json>? _byId;
@@ -45,7 +100,7 @@ class KindleLibrary {
     if (_visibleItems == null) {
       _visibleItems = (snapshot['items'] as List? ?? [])
           .map(object)
-          .where((item) => item['is_amazon_dictionary'] != true)
+          .where((item) => !isKindleDictionary(item))
           .toList();
       _byId = {for (final item in _visibleItems!) idFor(item): item};
     }
@@ -100,18 +155,33 @@ class KindleLibrary {
     };
   }
 
-  void index() {
-    final fingerprint = sha256
-        .convert(utf8.encode(jsonEncode({'schema': 2, 'snapshot': snapshot})))
-        .toString();
+  Future<void> index() {
+    if (_indexing != null) return _indexing!;
+    final work = _index();
+    _indexing = work;
+    return work.whenComplete(() => _indexing = null);
+  }
+
+  Future<void> _index() async {
+    if (_closed || store.accountRemoved(profile.id)) return;
+    final fingerprint = await compute(_catalogFingerprint, snapshot);
+    if (_closed || store.accountRemoved(profile.id)) return;
     if (store.setting<String>('kindleIndex:${profile.id}') == fingerprint) {
       return;
     }
-    final books = [
-      for (final item in items) CatalogItem('books', bookJson(item)),
-    ];
-    store.cacheBooks(profile.id, books);
-    final active = books.map((book) => book.id).toSet();
+    final visible = items;
+    final active = <String>{};
+    for (var offset = 0; offset < visible.length; offset += 24) {
+      await Future<void>.delayed(Duration.zero);
+      if (_closed || store.accountRemoved(profile.id)) return;
+      final batch = <CatalogItem>[];
+      for (final item in visible.skip(offset).take(24)) {
+        final book = CatalogItem('books', bookJson(item));
+        active.add(book.id);
+        batch.add(book);
+      }
+      store.cacheBooks(profile.id, batch);
+    }
     final obsolete = store.db
         .select(
           "SELECT id FROM catalog_records WHERE server=? AND kind='books'",
@@ -120,8 +190,20 @@ class KindleLibrary {
         .map((row) => row['id'] as String)
         .where((id) => !active.contains(id))
         .toList();
-    for (final id in obsolete) {
-      store.offlineCatalog.remove(profile.id, 'books', id);
+    for (var offset = 0; offset < obsolete.length; offset += 24) {
+      await Future<void>.delayed(Duration.zero);
+      if (_closed || store.accountRemoved(profile.id)) return;
+      store.db.execute('BEGIN IMMEDIATE');
+      try {
+        for (final id in obsolete.skip(offset).take(24)) {
+          store.offlineCatalog.remove(profile.id, 'books', id);
+          store.deleteCache(profile.id, 'book:$id');
+        }
+        store.db.execute('COMMIT');
+      } catch (_) {
+        store.db.execute('ROLLBACK');
+        rethrow;
+      }
     }
     store.setSetting('kindleIndex:${profile.id}', fingerprint);
   }
@@ -129,14 +211,18 @@ class KindleLibrary {
   Future<void> refresh({bool full = false}) async {
     if (_refreshing != null) return _refreshing;
     final work = () async {
+      await ready;
+      if (_closed) return;
       final next = await client.catalog(
         previous: hasCatalog ? snapshot : null,
         full: full,
       );
-      store.cache(profile.id, 'kindle:catalog', next);
+      final encoded = await compute(_encodeCatalogSnapshot, next);
+      if (_closed || store.accountRemoved(profile.id)) return;
+      store.cacheEncoded(profile.id, 'kindle:catalog', encoded);
       _snapshot = next;
       _visibleItems = null;
-      index();
+      await index();
     }();
     _refreshing = work;
     try {
@@ -191,8 +277,12 @@ class KindleLibrary {
   }
 
   Future<File?> cover(String id) async {
+    if (_closed) return null;
+    await initialize();
+    if (_closed) return null;
     final file = coverFile(id);
     final exists = await file.exists();
+    if (_closed) return null;
     if (exists &&
         integer(
               object(
@@ -217,12 +307,18 @@ class KindleLibrary {
     }
     final work = () async {
       KindleCoverProxy? proxy;
+      var acquired = false;
       try {
+        await _coverSlot();
+        acquired = true;
         final (manifest, headers) = await _manifest(id);
+        if (_closed) return null;
         proxy = await KindleCoverProxy.open(client, manifest, headers);
+        _coverBridges.add(proxy);
         final result = await (preparation as KindleCoverPreparation).cover(
           proxy.urls,
         );
+        if (_closed) return null;
         final encoded = text(result['image']);
         if (integer(result['pages']) > 0) {
           updatePages(
@@ -240,12 +336,15 @@ class KindleLibrary {
           return null;
         }
         await file.parent.create(recursive: true);
+        if (_closed) return null;
         await file.writeAsBytes(bytes, flush: true);
         return file;
       } catch (_) {
         return null;
       } finally {
+        if (proxy != null) _coverBridges.remove(proxy);
         await proxy?.close();
+        if (acquired) _releaseCover();
       }
     }();
     final tracked = work
@@ -289,6 +388,7 @@ class KindleLibrary {
     bool Function()? cancelled,
     Future<void>? abortTrigger,
   }) async {
+    await ready;
     final cached = _preparedFile(id);
     if (!await cached.exists() || await cached.length() == 0) {
       final pending = _preparing[id];
@@ -689,3 +789,16 @@ Uint8List? _epubCover(EpubDocument book) {
     return null;
   }
 }
+
+Json _decodeCatalogSnapshot(String encoded) {
+  try {
+    return object(jsonDecode(encoded));
+  } on FormatException {
+    return {};
+  }
+}
+
+String _encodeCatalogSnapshot(Json snapshot) => jsonEncode(snapshot);
+String _catalogFingerprint(Json snapshot) => sha256
+    .convert(utf8.encode(jsonEncode({'schema': 3, 'snapshot': snapshot})))
+    .toString();

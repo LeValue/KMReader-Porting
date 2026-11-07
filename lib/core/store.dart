@@ -169,12 +169,22 @@ class LocalStore {
   }
 
   dynamic cached(String server, String key) {
+    final encoded = cachedEncoded(server, key);
+    return encoded == null ? null : jsonDecode(encoded);
+  }
+
+  String? cachedEncoded(String server, String key) {
     final rows = db.select('SELECT value FROM cache WHERE server=? AND key=?', [
       server,
       key,
     ]);
-    return rows.isEmpty ? null : jsonDecode(rows.first['value'] as String);
+    return rows.isEmpty ? null : rows.first['value'] as String;
   }
+
+  void cacheEncoded(String server, String key, String encoded) => db.execute(
+    'INSERT OR REPLACE INTO cache(server,key,value,updated) VALUES(?,?,?,?)',
+    [server, key, encoded, DateTime.now().millisecondsSinceEpoch],
+  );
 
   void cache(String server, String key, dynamic value) {
     db.execute(

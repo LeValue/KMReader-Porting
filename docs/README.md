@@ -1,9 +1,10 @@
 # Documentation
 
-Current app: **0.9.1+29**, sourced from `a5e51aa` and retaining the later diagnostic
-fixes through `63ad4e7`. The 0.9.1 binaries are in a **draft**, not a published
-release. The latest published preview remains 0.8.12. See the
-[repository audit](REPOSITORY_AUDIT.md) for exact source and release inventory.
+Current source: **1.0.0+30 candidate**, based on working 0.9.1. Existing 0.9.x
+binaries remain in draft; the latest published preview remains 0.8.12.
+See [1.0 changes](releases/v1.0.0.md), [readiness](ROADMAP_1.0.md) and
+[validation](VALIDATION.md). Historical inventory is in the
+[repository audit](REPOSITORY_AUDIT.md).
 
 | Task | Document |
 |---|---|
@@ -12,6 +13,7 @@ release. The latest published preview remains 0.8.12. See the
 | Run checks and understand skipped tests | [Testing](TESTING.md) |
 | Build, sign and distribute | [Releasing](RELEASING.md) |
 | Understand shared Kindle scripts | [Kindle runtime dependencies](KINDLE_RUNTIME.md) |
+| Import local documents into Kindle | [Send to Kindle](KINDLE_IMPORT.md) |
 | Review the 0.9.1 behavior | [Kindle corrections](KINDLE_0.9.1.md), [release notes](releases/v0.9.1-preview.1.md) |
 | Review the cleanup and retained history | [Repository audit](REPOSITORY_AUDIT.md), [machine-readable inventory](inventory/repository-before-2026-11-07.json) |
 | Review functional gaps | [Parity](PARITY.md), [settings audit](SETTINGS_AUDIT.md), [reference](IPAD_REFERENCE.md) |

@@ -309,6 +309,11 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   bool _previewing = false;
+  Rect _interactionBounds(Size size) =>
+      _split || _session.visiblePages(_viewIndex) == 1
+      ? _sheetBounds(size, 1)
+      : Offset.zero & size;
+
   Drag? _pageDrag(DragStartDetails details) {
     _stopPageFlight();
     if (!_pages.hasClients) return null;
@@ -319,12 +324,17 @@ class _ReaderPageState extends State<ReaderPage>
         MediaQuery.disableAnimationsOf(context)) {
       return DiscreteReaderDrag(reverse: reverse, onTurn: _turn);
     }
-    if (p.transition != 'curl' || _curl.currentState == null) {
-      return _pages.position.drag(details, () {});
-    }
-    final origin = _viewIndex;
     final boundary =
         _pageBoundary.currentContext?.findRenderObject() as RenderBox?;
+    final size = boundary?.size ?? MediaQuery.sizeOf(context);
+    if (p.transition != 'curl' || _curl.currentState == null) {
+      final bounds = _interactionBounds(size);
+      return PageRelativeDrag(
+        _pages.position.drag(details, () {}),
+        bounds.width > 0 ? size.width / bounds.width : 1,
+      );
+    }
+    final origin = _viewIndex;
     return _curl.currentState!.drag(
       reverse: reverse,
       width: boundary == null
@@ -606,9 +616,10 @@ class _ReaderPageState extends State<ReaderPage>
       _toggleControlsFromTap();
       return;
     }
+    final bounds = _interactionBounds(size);
     switch (tapAction(
-      point.dx / size.width,
-      point.dy / size.height,
+      ((point.dx - bounds.left) / bounds.width).clamp(0, 1),
+      ((point.dy - bounds.top) / bounds.height).clamp(0, 1),
       _session.preferences,
     )) {
       case TapAction.previous:
@@ -1760,6 +1771,7 @@ class _ReaderPageState extends State<ReaderPage>
                   extendIntoCutout: settings.extendIntoCutout,
                   child: ReaderPageTransition(
                     key: _curl,
+                    fadeSinglePageCurl: true,
                     prepare: _preparedTurn,
                     canTurn: (physical) {
                       final delta = settings.direction == ReadingDirection.rtl

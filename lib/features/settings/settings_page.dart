@@ -91,8 +91,9 @@ class _SettingsIndex extends StatelessWidget {
     String title,
     IconData icon,
     Color color,
-    Widget page,
-  ) => ListTile(
+    Widget page, {
+    String? subtitle,
+  }) => ListTile(
     leading: Container(
       width: 32,
       height: 32,
@@ -103,6 +104,7 @@ class _SettingsIndex extends StatelessWidget {
       child: Icon(icon, color: Colors.white, size: 22),
     ),
     title: Text(tr(context, title)),
+    subtitle: subtitle == null ? null : Text(tr(context, subtitle)),
     trailing: Icon(
       CupertinoIcons.chevron_right,
       size: 16,
@@ -185,6 +187,7 @@ class _SettingsIndex extends StatelessWidget {
               ocr: repository.ocr,
               providers: TranslationProviders(app.store, vault: app.vault),
             ),
+            subtitle: 'Future features · experimental controls',
           ),
         ]),
         _group([

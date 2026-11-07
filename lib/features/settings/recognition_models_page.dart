@@ -40,6 +40,16 @@ class _RecognitionModelsPageState extends State<RecognitionModelsPage> {
     body: SectionScrollView(
       padding: const EdgeInsets.all(22),
       children: [
+        ListTile(
+          leading: const Icon(Icons.science_outlined),
+          title: Text(tr(context, 'Future features')),
+          subtitle: Text(
+            tr(
+              context,
+              'AI models and translation are outside the 1.0 scope. Existing experimental controls remain available.',
+            ),
+          ),
+        ),
         Card(
           child: Column(
             children: [

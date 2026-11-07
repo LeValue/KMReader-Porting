@@ -1,9 +1,8 @@
 # Development
 
-The current app is **0.9.1+29** in both `pubspec.yaml` and
-`lib/core/app_version.dart`. This cleanup keeps that version, dependency pins,
-package IDs and Android signing identity. Companion 0.3.1 is a separate version.
-See [the audit](REPOSITORY_AUDIT.md) for the source baseline and main comparison.
+The current source is the **1.0.0+30 candidate** in both `pubspec.yaml` and
+`lib/core/app_version.dart`, based on the working 0.9.1 baseline. See the
+[release notes](releases/v1.0.0.md) and [readiness work](ROADMAP_1.0.md).
 
 ## Prerequisites
 
@@ -66,7 +65,7 @@ keeps their import paths stable. Before moving Python files, read the
 [Kindle dependency map](KINDLE_RUNTIME.md). Keep generated output in ignored
 `build/`, `artifacts/` and `.dart_tool/`; retain useful builds locally.
 
-## Before a PR
+## Before integrating changes
 
 ```sh
 dart format --output=none --set-exit-if-changed lib test integration_test test_driver

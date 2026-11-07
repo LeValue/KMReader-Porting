@@ -11,6 +11,98 @@ import 'package:kmreader/features/reader/page_transition.dart';
 import 'package:kmreader/features/reader/comic_spread.dart';
 
 void main() {
+  testWidgets(
+    'single comic curl fades only the departing sheet; spreads stay opaque',
+    (tester) async {
+      Future<ui.Image> solid(Color color) async {
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder)..drawColor(Colors.black, BlendMode.src);
+        canvas.drawRect(
+          const Rect.fromLTWH(100, 0, 200, 300),
+          Paint()..color = color,
+        );
+        final picture = recorder.endRecording();
+        try {
+          return await picture.toImage(400, 300);
+        } finally {
+          picture.dispose();
+        }
+      }
+
+      final before = (await tester.runAsync(() => solid(Colors.red)))!;
+      final after = (await tester.runAsync(() => solid(Colors.green)))!;
+      addTearDown(before.dispose);
+      addTearDown(after.dispose);
+      Future<List<int>> pixels(bool fade, bool spread) async {
+        final key = GlobalKey();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: RepaintBoundary(
+                key: key,
+                child: SizedBox(
+                  width: 400,
+                  height: 300,
+                  child: CustomPaint(
+                    painter: PageTurnPainter(
+                      before,
+                      after,
+                      .85,
+                      'curl',
+                      1,
+                      fadeSinglePageCurl: fade,
+                      sheetBounds: spread
+                          ? const Rect.fromLTWH(200, 0, 150, 300)
+                          : const Rect.fromLTWH(100, 0, 200, 300),
+                      backBounds: spread
+                          ? const Rect.fromLTWH(50, 0, 150, 300)
+                          : null,
+                      stationaryBounds: spread
+                          ? const Rect.fromLTWH(50, 0, 150, 300)
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final image = (await tester.runAsync(
+          () =>
+              (key.currentContext!.findRenderObject() as RenderRepaintBoundary)
+                  .toImage(),
+        ))!;
+        final bytes = (await tester.runAsync(
+          () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+        ))!;
+        image.dispose();
+        return bytes.buffer.asUint8List();
+      }
+
+      final opaque = await pixels(false, false),
+          faded = await pixels(true, false);
+      var blended = 0;
+      for (var i = 0; i < opaque.length; i += 4) {
+        if (opaque[i] > 100 &&
+            opaque[i + 1] < 180 &&
+            faded[i] < opaque[i] - 15) {
+          blended++;
+        }
+      }
+      expect(
+        blended,
+        greaterThan(30),
+        reason:
+            'Departing paper must reveal the incoming page through its artwork',
+      );
+      expect(
+        await pixels(true, true),
+        await pixels(false, true),
+        reason: 'Double pages must retain their opaque front/back faces',
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   test('unequal spread formats retain the same screen spine', () {
     for (final aspects in [
       [.5, .75],

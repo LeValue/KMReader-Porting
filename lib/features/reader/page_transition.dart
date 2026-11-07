@@ -41,6 +41,7 @@ class ReaderPageTransition extends StatefulWidget {
     this.backBounds,
     this.stationaryBounds,
     this.motion = const PageMotion(),
+    this.fadeSinglePageCurl = false,
   });
   final PreparedPageTurn? Function(int direction)? prepare;
   final bool Function(int direction)? canTurn;
@@ -51,6 +52,7 @@ class ReaderPageTransition extends StatefulWidget {
   final Rect? Function(Size size, int direction)? backBounds;
   final Rect? Function(Size size, int direction)? stationaryBounds;
   final PageMotion motion;
+  final bool fadeSinglePageCurl;
   @override
   State<ReaderPageTransition> createState() => ReaderPageTransitionState();
 }
@@ -364,6 +366,7 @@ class ReaderPageTransitionState extends State<ReaderPageTransition>
                   sheetBounds: _sheetBounds,
                   backBounds: _backBounds,
                   stationaryBounds: _stationaryBounds,
+                  fadeSinglePageCurl: widget.fadeSinglePageCurl,
                 ),
               ),
             ),
@@ -386,6 +389,7 @@ class PageTurnPainter extends CustomPainter {
     this.sheetBounds,
     this.backBounds,
     this.stationaryBounds,
+    this.fadeSinglePageCurl = false,
   });
   final double foldSlope, grabY;
   final Rect? sheetBounds, backBounds, stationaryBounds;
@@ -395,6 +399,7 @@ class PageTurnPainter extends CustomPainter {
   final String style;
   final int direction;
   final PageMotion motion;
+  final bool fadeSinglePageCurl;
   void image(
     Canvas canvas,
     ui.Image source,
@@ -468,6 +473,9 @@ class PageTurnPainter extends CustomPainter {
                 size.height,
               ));
     final settle = Curves.easeInOut.transform(((p - .72) / .28).clamp(0, 1));
+    final opacity = fadeSinglePageCurl && back == null && stationary == null
+        ? 1 - settle
+        : 1.0;
     final hinge = direction > 0 ? bounds.left : bounds.right;
     final width = math.max(bounds.width, back?.width ?? 0);
     final height = math.max(bounds.height, back?.height ?? 0);
@@ -578,7 +586,8 @@ class PageTurnPainter extends CustomPainter {
           final shade =
               ((1 - .28 * math.pow(math.sin(point.angle).abs(), 1.4)) * 255)
                   .round();
-          colors[i] = 0xff000000 | shade << 16 | shade << 8 | shade;
+          colors[i] =
+              (255 * opacity).round() << 24 | shade << 16 | shade << 8 | shade;
         }
       }
       void triangle(int a, int b, int c) {
@@ -595,7 +604,9 @@ class PageTurnPainter extends CustomPainter {
         }
       }
       final shadow = Paint()
-        ..color = Colors.black.withValues(alpha: .26 * math.sin(math.pi * p))
+        ..color = Colors.black.withValues(
+          alpha: opacity * .26 * math.sin(math.pi * p),
+        )
         ..style = PaintingStyle.stroke
         ..strokeWidth = 5
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
@@ -695,6 +706,7 @@ class PageTurnPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(PageTurnPainter old) =>
+      old.fadeSinglePageCurl != fadeSinglePageCurl ||
       old.progress != progress ||
       old.foldSlope != foldSlope ||
       old.grabY != grabY ||
