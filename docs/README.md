@@ -2,7 +2,7 @@
 
 Current source: **1.0.0+31 development candidate**, based on working 0.9.1. Existing 0.9.x
 binaries remain in draft; the latest published preview remains 0.8.12.
-See the [verified candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55),
+See the [verified candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8),
 [1.0 changes](releases/v1.0.0.md), [readiness](ROADMAP_1.0.md) and
 [validation](VALIDATION.md). Historical inventory is in the
 [repository audit](REPOSITORY_AUDIT.md).

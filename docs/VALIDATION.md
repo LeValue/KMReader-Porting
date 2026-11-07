@@ -4,7 +4,9 @@
 
 This source revision adds the curl layer correction, separate Send-to-Kindle
 OAuth/diagnostics, partial PDOC management, and F-08/F-09 offline/live metadata
-work. The retained downloadable draft is still build 30; no old asset is replaced.
+work. Verified runtime/test source: `2f3c6385bdd6e2c2a25e65b192af6a0e92a0dc69`. The
+[build 31 candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8)
+is delivered; build 30 and all earlier assets remain preserved.
 
 Local checks on the development source:
 
@@ -17,7 +19,7 @@ Local checks on the development source:
   exercised by the main CI backend job.
 - The tilted spread pixel regression fails with the former painter in both
   directions and passes with the correction; it is included in the shared native
-  Android spread checks as well as host tests. Native execution awaits the new CI.
+  Android spread checks as well as host tests. Both native runs passed on this source.
 - EPUB editing tests cover original/content/identity preservation, real cover
   encoding, proportional 2048-pixel bound, existing cover replacement, unsupported
   layout rejection and accurate UTF-8 declarations for UTF-16 source metadata.
@@ -28,13 +30,42 @@ Local checks on the development source:
 - The retained Android certificate matches
   `d95f940bec20cec8563c946df8c62de1922852b9b5d3bf3a7765e9dc1b10322e`.
   Five pre-existing APK outputs were preserved before building. Remote inventory
-  still contains **43 releases / 171 assets**, with main as the only remote head.
+  preserved **43 releases / 171 assets**; after the new draft it contains
+  **44 releases / 176 assets**, with main as the only remote head.
 
-New signed-package and hosted Android/Windows results are recorded after the
-main build completes. These local checks do not establish real Amazon upload,
-current consumer-web deletion availability, physical-device acceptance, or full
-porting parity. See [the matrix](PARITY.md) and
-[PDOC management limits](KINDLE_LIBRARY_MANAGEMENT.md).
+[CI 42413142048](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048)
+passed `android`, `windows` and `android_reader_display`, including native Windows
+WebView2, actual Android rendering/insets, Chromium, prepared Kindle books, ONNX,
+Komga and optimized builds. The initial
+[680bb86 run](https://github.com/LeValue/KMReader-Porting/actions/runs/42396906772)
+passed Android/native Android but failed one Windows file-picker regression: its
+fixture mixed path separators and assumed file I/O completed after 50 ms.
+`2f3c638` uses a native path and waits for the selected filename. No application
+code changed for that correction; both CI outcomes remain available.
+
+[Delivery 42415254325](https://github.com/LeValue/KMReader-Porting/actions/runs/42415254325)
+reconstructed the exact locally signed APKs from bounded transport blobs and the
+verified unsigned CI base. The signing key never left the local environment.
+All five uploaded assets were downloaded again and match GitHub's SHA256 digests;
+all **710 Windows files** match the verified CI artifact individually.
+
+| Downloaded file | Bytes | SHA256 |
+|---|---:|---|
+| `KMReader-1.0.0-android-arm64-preview.apk` | 107000835 | `d61545fa7efdb2bea74c9b6971dc216df549426d1a64b52dc8273f2cb9d814b8` |
+| `KMReader-1.0.0-android-armv7-preview.apk` | 88121655 | `ceda8dde29ad3577af9885412e7ec8a3249b8d6bc768e33f5d02c1ef1ce81f2c` |
+| `KMReader-1.0.0-android-x64-preview.apk` | 113452279 | `7d63b847d3c17b9f33de40f2815eb9a7c433d5dac33a552ca36dfeb57fc7247a` |
+| `KMReader-1.0.0-windows-x64-preview.zip` | 104720133 | `45b6f92f26c5578ecd40de1662aeb810e445ed6446f96228e1eed3dba80e4cd4` |
+| `SHA256SUMS.txt` | 424 | `42cfb5aaa7f2f6e2dc52de74f1baf68a3ed94ffff5cea20ba69a44d45e5bb2b8` |
+
+The local build environment needed a user-owned Python 3.11 installation and a
+writable Kotlin daemon directory. These were environment adjustments; the
+retained key/properties hashes are unchanged, and five prior APK outputs were
+copied before building. No branch, older release, tag or asset was removed.
+
+These checks do not establish real Amazon upload/deletion acceptance,
+physical-device upgrade behavior, or full porting parity. Complete overwrite with
+cloud bookmark/state migration remains unimplemented. See [the matrix](PARITY.md)
+and [PDOC management limits](KINDLE_LIBRARY_MANAGEMENT.md).
 
 Historical read-only report
 [42308712643](https://github.com/LeValue/KMReader-Porting/actions/runs/42308712643)

@@ -42,12 +42,12 @@ remain excluded.
 
 | Area | Existing evidence | Work required before calling 1.0 ready |
 |---|---|---|
-| Continuous verification | [Candidate CI 42371503059](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059) passed all three jobs for `4b93c91`; the interrupted native job passed its isolated retry | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
+| Continuous verification | [Build 31 CI 42413142048](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048) passed all three jobs for `2f3c638`; historical failures/retries remain recorded | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
 | Reading and offline use | Host, Chromium and native tests cover EPUB, PDF, comic motion, prepared Kindle conversion, local import and offline progress | Check the complete login → browse → download → read → close/reopen journey on target Android and Windows, including interrupted transfer and network loss |
 | Data and upgrades | Account-scoped persistence, durable outbox, download resume, cache protection and versioned document tests exist | Verify an in-place upgrade from the signed 0.9.1 build without losing accounts, downloads, progress, bookmarks or preferences; test removing/reconnecting one account while another remains usable |
 | Device behavior | Hosted emulator/WebView2 checks and earlier named-device measurements are retained | Validate secure storage/app lock, background downloads, resume, rotation/fullscreen, long-book memory and responsive navigation on actual target hardware; record source and device with results |
 | Kindle | Synthetic protocol/conversion tests and earlier account-specific evidence exist; annotation import is one-way | Confirm the supported sign-in/download/offline/resume flow for the 1.0 candidate; describe annotation and first-download limitations accurately |
-| Distribution | All three signed Android ABIs and the complete matching Windows bundle are delivered to the new 1.0 draft; downloaded hashes and all 710 Windows files match verified source/CI | Confirm target-device install/upgrade compatibility and account acceptance before stable promotion; preserve all earlier drafts/assets |
+| Distribution | Build 31: all three signed Android ABIs and the complete Windows bundle are delivered to candidate.2; downloaded hashes and all 710 Windows files match verified source/CI | Confirm target-device install/upgrade compatibility and account acceptance before stable promotion; preserve all earlier drafts/assets |
 
 These are readiness requirements, not a claim that a 1.0 candidate has already
 passed them. Automated checks do not replace target-device acceptance or prove
