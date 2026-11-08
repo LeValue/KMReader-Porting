@@ -27,6 +27,7 @@ void main() {
     'target_changed',
     'retire',
     'retire_lost_reply',
+    'legacy_snapshot',
   ]) {
     test('replacement restores verified reading progress and completion: $mode', () async {
       final root = Directory.systemTemp.createTempSync('kindle-replacement-');
@@ -88,6 +89,7 @@ void main() {
           if (request.url.path.endsWith('/sidecar') &&
               request.method == 'GET') {
             final old = request.url.queryParameters['key'] == 'OLD';
+            if (old) expect(request.url.queryParameters['guid'], 'old');
             final position = old
                 ? (mode == 'source_changed' && uploaded ? 13 : 12)
                 : restored
@@ -267,6 +269,14 @@ void main() {
         cancel: KindleImportCancellation(),
       );
       final operation = manager.operations.single;
+      if (mode == 'legacy_snapshot') {
+        final path =
+            '${root.path}/${profile.id}/kindle-management/${operation['backup']}';
+        final backup = object(jsonDecode(File(path).readAsStringSync()))
+          ..remove('source_guid');
+        object(backup['sidecar'])['guid'] = 'legacy-representation';
+        File(path).writeAsStringSync(jsonEncode(backup));
+      }
       if (mode == 'source_changed' || mode == 'target_changed') {
         await expectLater(
           manager.restoreReplacement(text(operation['operation'])),

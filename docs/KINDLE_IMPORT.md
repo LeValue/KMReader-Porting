@@ -1,4 +1,4 @@
-# Local files to the Kindle library
+# Local files to Kindle
 
 **Build 32:** Firs registration preserves the reference XML declaration and exact
 `Content-Type: text/xml`. `Request.bodyBytes` prevents the charset parameter
@@ -22,10 +22,19 @@ corrections and acceptance are recorded for build 32 above and below. Reading
 credentials are preserved.
 
 In a Kindle account, choose **Send to Kindle / Invia a Kindle** in the Windows
-sidebar or the mobile app bar. Choose a local file, edit its title/author, select
-at least one destination device and send. Amazon archives the personal document
-in that account's cloud library as well as delivering it to those devices.
-Refresh the library after Amazon has finished processing it.
+sidebar or the mobile app bar, choose a local file and edit its title/author.
+Build 33 provides two distinct modes:
+
+- **Add to Kindle library** (default): `archive: true`, empty `targetDevices`.
+  No device list/selection is required. The file becomes available through this
+  account's cloud library on compatible devices after Amazon processes it.
+- Disable that switch for **Send only to selected devices**: `archive: false`,
+  at least one device required. This delivers to those targets without cloud
+  archiving; Amazon does not sync/share a device-only document.
+
+An accepted response means Amazon accepted the submission. Refresh the library
+for cloud uploads; synchronize the selected Kindle/app for device-only delivery.
+Device-list failures do not block cloud-library uploads.
 
 Supported inputs: EPUB, PDF, DOC/DOCX, TXT, RTF, HTM/HTML, JPG/JPEG, PNG, GIF and
 BMP, up to 200 MiB per file. PDF layout is preserved. CBZ/ZIP and purchased Kindle
@@ -62,7 +71,7 @@ Amazon publishes the supported customer workflow, not a stable REST contract.
 This is a native Dart implementation of the Send to Kindle protocol: a separate
 Firs registration, `kd.amazon.com/import/kindle-doc/get-device-list`,
 `/import/upload-url`, an unsigned streaming PUT, then
-`/import/kindle-doc/send-to-kindle` with `archive: true`. Import request signatures
+`/import/kindle-doc/send-to-kindle` with the explicitly selected `archive`/`targetDevices` mode. Import request signatures
 use a raw SHA-256 digest in PKCS#1 v1.5 padding. Existing CDE read signatures retain
 their DigestInfo format.
 
@@ -116,15 +125,23 @@ sections and card preferences survive the label change.
 
 ## Requested remote management
 
-Build 31 adds PDOC management from the document detail screen: remote deletion
-with backup/journal/catalog verification, and updated copies with edited EPUB
-metadata/cover. Complete overwrite with bookmark/reading-state migration is still
-missing and is never reported as successful. See
-[KINDLE_LIBRARY_MANAGEMENT.md](KINDLE_LIBRARY_MANAGEMENT.md) for implemented behavior,
-recovery states, historical API limitations and remaining real-account acceptance.
-Purchased Kindle Store books remain outside this management scope.
+Build 33 uses the current MyCD deletion endpoint, backs up source and state,
+edits EPUB metadata/cover on a copy, and restores reading progress/bookmarks
+before retirement of the previous edition. Unsupported or ambiguous migrations
+preserve the original. See [KINDLE_LIBRARY_MANAGEMENT.md](KINDLE_LIBRARY_MANAGEMENT.md)
+for coverage, recovery and actual account evidence. Purchased books are excluded.
 
 ## Real-account evidence, 2026-11-08
+
+Build 33 mode checks:
+
+- [Device-only delivery 42491041919](https://github.com/LeValue/KMReader-Porting/actions/runs/42491041919): exactly one generated EPUB, `archive: false`, the user's selected Android target, accepted by Amazon; absent from the reading account's cloud catalog on ten checks. The user confirmed receipt and successful opening in the selected Kindle Android app.
+- [Cloud-only upload 42491240326](https://github.com/LeValue/KMReader-Porting/actions/runs/42491240326): one generated EPUB, `archive: true`, no targets, accepted and present in the cloud catalog.
+- [Persistent bookmark readback 42505593479](https://github.com/LeValue/KMReader-Porting/actions/runs/42505593479): bookmark confirmed against the exact delivered edition, zero additional writes. Its [creation check 42505366992](https://github.com/LeValue/KMReader-Porting/actions/runs/42505366992) submitted once successfully but failed its numeric assertion because Amazon returns the position as a string. Corrected readback did not recreate it.
+- Complete replacement/deletion check: [42506920429](https://github.com/LeValue/KMReader-Porting/actions/runs/42506920429), outcome to be recorded after completion.
+
+Earlier build 32 evidence:
+
 
 - Service reads: [42479547564](https://github.com/LeValue/KMReader-Porting/actions/runs/42479547564), passed.
 - App cover/download/preparation: [42480022977](https://github.com/LeValue/KMReader-Porting/actions/runs/42480022977), passed.

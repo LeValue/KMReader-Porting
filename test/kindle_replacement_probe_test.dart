@@ -53,6 +53,17 @@ void main() {
         payload['management_probe'] = journals;
         final journal = object(journals['replacement_library']);
         journals['replacement_library'] = journal;
+        const verifiedFields = [
+          'completion_preserved',
+          'read_date_preserved',
+          'updated_cover_available',
+          'updated_title_visible',
+        ];
+        for (final key in verifiedFields) {
+          if (object(journal['verification'])[key] is bool) {
+            report[key] = object(journal['verification'])[key];
+          }
+        }
         final session = KindleSession(object(payload['session']));
         final profile = ServerProfile(
           id: session.id,
@@ -265,6 +276,13 @@ void main() {
               cover != null && await cover.exists();
           report['updated_title_visible'] =
               repository.library.item(updated.id)['title'] == journal['title'];
+          journal['verification'] = {
+            for (final key in verifiedFields) key: report[key],
+          };
+          await persist();
+          if (verifiedFields.any((key) => report[key] != true)) {
+            throw const KindleFailure('replacement_probe_metadata');
+          }
           await manager.retireReplacement(text(operation['operation']));
           await persist();
         }
@@ -284,7 +302,8 @@ void main() {
             manager.operations.single['state'] == 'done';
         report['passed'] =
             report['reading_state_restored'] == true &&
-            report['old_fixture_removed'] == true;
+            report['old_fixture_removed'] == true &&
+            verifiedFields.every((key) => report[key] == true);
         if (report['passed'] != true) {
           fail('Replacement not yet verified; no replay.');
         }

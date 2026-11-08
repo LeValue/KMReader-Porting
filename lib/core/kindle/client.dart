@@ -589,7 +589,8 @@ class KindleClient {
     final after = await sidecar(item, guid: guid, annotations: true);
     if (after == null ||
         after['guid'] != guid ||
-        after['annotations_loaded'] != true) {
+        after['annotations_loaded'] != true ||
+        after['annotations_complete'] != true) {
       return false;
     }
     final records = (after['records'] as List).map(object).toList();

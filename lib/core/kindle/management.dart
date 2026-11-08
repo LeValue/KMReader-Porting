@@ -100,7 +100,16 @@ class KindleDocumentManager {
     )) {
       throw const KindleFailure('management_pending');
     }
-    final sidecar = await client.sidecar(item, annotations: true);
+    final originalFile = repository.bookFile(await repository.book(book.id));
+    final sourceMap = await originalFile.exists()
+        ? await KindlePositionMap.open(originalFile.path)
+        : null;
+    final sourceGuid = sourceMap?.primary;
+    final sidecar = await client.sidecar(
+      item,
+      guid: sourceGuid,
+      annotations: true,
+    );
     _check();
     if (operations.any(
       (op) =>
@@ -122,6 +131,7 @@ class KindleDocumentManager {
       'book': book.id,
       'item': item,
       'sidecar': sidecar,
+      'source_guid': sourceGuid,
       'progress': repository.store.progress(repository.profile.id, book.id),
       'epub': repository.store.cached(repository.profile.id, 'epub:${book.id}'),
       'bookmarks':
@@ -157,7 +167,7 @@ class KindleDocumentManager {
             .toString();
       }
     }
-    final encoded = await Isolate.run(() => jsonEncode(backup));
+    final encoded = await _encodeBackup(backup);
     final file = File(p.join(folder.path, '${backup['operation']}.json'));
     final partial = File('${file.path}.part');
     await partial.writeAsString(encoded, flush: true);
@@ -422,7 +432,13 @@ class KindleDocumentManager {
           await File(p.join(folder, text(operation['backup']))).readAsString(),
         ),
       );
-      final current = await client.sidecar(item, annotations: true);
+      final current = await client.sidecar(
+        item,
+        guid: text(backup['source_guid']).isEmpty
+            ? null
+            : text(backup['source_guid']),
+        annotations: true,
+      );
       if (current == null ||
           _readingSnapshot(current) !=
               _readingSnapshot(object(backup['sidecar']))) {
@@ -560,12 +576,75 @@ class KindleDocumentManager {
         source.path,
         repository.bookFile(updated).path,
       );
+      // Older journals queried CDE without the delivered edition GUID. Retain
+      // that snapshot, then bind an updated one to the verified source. Never
+      // change a plan after a state write might have started.
+      if (text(backup['source_guid']).isEmpty) {
+        if (operation['state'] != 'replacement_migration_required') {
+          throw const KindleFailure('management_source_changed');
+        }
+        final verified = await client.sidecar(
+          originalItem,
+          guid: mapping.oldMap.primary,
+          annotations: true,
+        );
+        if (verified == null ||
+            verified['annotations_complete'] != true ||
+            !mapping.oldMap.matches(verified)) {
+          throw const KindleFailure('management_backup_unavailable');
+        }
+        final oldRecords = (object(backup['sidecar'])['records'] as List? ?? [])
+            .map(object);
+        final currentRecords = (verified['records'] as List? ?? [])
+            .map(object)
+            .toList();
+        for (final record in oldRecords.where(
+          (r) => const {
+            'kindle.bookmark',
+            'kindle.note',
+            'kindle.highlight',
+          }.contains(r['type']),
+        )) {
+          if (!currentRecords.any(
+            (r) =>
+                r['annotationId'] == record['annotationId'] &&
+                r['type'] == record['type'] &&
+                r['startPosition'] == record['startPosition'],
+          )) {
+            throw const KindleFailure('management_source_changed');
+          }
+        }
+        final oldRead = kindleLastRead(object(backup['sidecar']));
+        final newRead = kindleLastRead(verified);
+        final oldTime = DateTime.tryParse(text(oldRead?['time']));
+        final newTime = DateTime.tryParse(text(newRead?['time']));
+        if (oldRead != null &&
+            oldRead['position'] != newRead?['position'] &&
+            (newRead == null ||
+                oldTime != null &&
+                    (newTime == null || oldTime.isAfter(newTime)))) {
+          throw const KindleFailure('management_source_changed');
+        }
+        backup['sidecar'] = verified;
+        backup['source_guid'] = mapping.oldMap.primary;
+        final name = '${operation['operation']}-edition.json';
+        final partial = File(p.join(folder.path, '$name.part'));
+        await partial.writeAsString(await _encodeBackup(backup), flush: true);
+        await partial.rename(p.join(folder.path, name));
+        operation['previous_backup'] = operation['backup'];
+        operation['backup'] = name;
+        _save(operation);
+      }
       var plan = object(operation['migration_plan']);
       final interrupted =
           operation['state'] != 'replacement_migration_required';
       if (!interrupted) {
         final saved = object(backup['sidecar']);
-        final current = await client.sidecar(originalItem, annotations: true);
+        final current = await client.sidecar(
+          originalItem,
+          guid: text(backup['source_guid']),
+          annotations: true,
+        );
         if (current == null ||
             !mapping.oldMap.matches(current) ||
             _readingSnapshot(current) != _readingSnapshot(saved)) {
@@ -588,16 +667,17 @@ class KindleDocumentManager {
           if (error.status != 404) rethrow;
         }
         if (targetState != null &&
-            ((kindleLastRead(targetState)?['position'] as int? ?? 0) != 0 ||
-                (targetState['records'] as List? ?? [])
-                    .map(object)
-                    .any(
-                      (r) => const {
-                        'kindle.bookmark',
-                        'kindle.note',
-                        'kindle.highlight',
-                      }.contains(r['type']),
-                    ))) {
+            (targetState['annotations_complete'] != true ||
+                ((kindleLastRead(targetState)?['position'] as int? ?? 0) != 0 ||
+                    (targetState['records'] as List? ?? [])
+                        .map(object)
+                        .any(
+                          (r) => const {
+                            'kindle.bookmark',
+                            'kindle.note',
+                            'kindle.highlight',
+                          }.contains(r['type']),
+                        )))) {
           throw const KindleFailure('management_target_changed');
         }
         final localMarks = mapping.bookmarks(
@@ -661,6 +741,7 @@ class KindleDocumentManager {
       _personal(updated);
       final currentSource = await client.sidecar(
         originalItem,
+        guid: text(backup['source_guid']),
         annotations: true,
       );
       if (currentSource == null ||
@@ -804,6 +885,10 @@ String _readingSnapshot(Json sidecar) {
   return jsonEncode({
     'guid': sidecar['guid'],
     'acr': sidecar['acr'],
+    'annotations_complete': sidecar['annotations_complete'],
     'records': records,
   });
 }
+
+Future<String> _encodeBackup(Json value) =>
+    Isolate.run(() => jsonEncode(value));
