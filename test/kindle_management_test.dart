@@ -409,8 +409,9 @@ void main() {
     expect(repo.library.item(book.id)['id'], 'OLD');
   });
 
-  for (final loseReply in [false, true]) {
-    test('remote PDOC deletion ${loseReply ? 'lost reply is recoverable without replay' : 'requires full catalog readback'}', () async {
+  for (final mode in ['verify', 'lost_reply', 'auth_error']) {
+    final loseReply = mode == 'lost_reply';
+    test('remote PDOC deletion: $mode', () async {
       final root = Directory.systemTemp.createTempSync('kindle-management-');
       final store = LocalStore(sqlite3.openInMemory());
       final protocol = object(
@@ -508,7 +509,7 @@ void main() {
               '"csrfToken":"wrong-token";var csrfToken = "synthetic-csrf";',
               200,
               headers: {
-                'set-cookie': 'session-id=renewed-cookie; Path=/; Secure, bad=never-send; Domain=evil.invalid; Path=/',
+                'set-cookie': 'session-id=renewed-cookie; Domain=.amazon.it; Path=/; Secure, bad=never-send; Domain=evil.invalid; Path=/',
               },
             );
           }
@@ -542,6 +543,9 @@ void main() {
               },
             );
             expect(request.headers['cookie'], isNot(contains('never-send')));
+            if (mode == 'auth_error') {
+              return http.Response('{"error":"AUTHENTICATION_ERROR"}', 200);
+            }
             if (loseReply) {
               removed = true;
               throw const SocketException('lost response');
@@ -588,6 +592,23 @@ void main() {
         ),
       );
       expect(manager.operations, isEmpty);
+      if (mode == 'auth_error') {
+        await expectLater(
+          manager.delete(book),
+          throwsA(
+            isA<KindleFailure>().having(
+              (e) => e.code,
+              'code',
+              'management_authorization',
+            ),
+          ),
+        );
+        expect(manager.operations.single['state'], 'rejected');
+        expect(manager.operations.single['server_rejected'], true);
+        expect(deletions, 1);
+        expect(repo.library.item(book.id)['id'], 'DOCUMENT');
+        return;
+      }
       if (loseReply) {
         await expectLater(manager.delete(book), throwsA(isA<KindleFailure>()));
         expect(manager.operations.single['state'], 'delete_uncertain');
