@@ -1,4 +1,13 @@
 {
+  "Add to Kindle library": {"en": "Add to Kindle library", "it": "Aggiungi alla libreria Kindle"},
+  "Available on compatible devices connected to this account.": {"en": "Available on compatible devices connected to this account.", "it": "Disponibile sui dispositivi compatibili collegati a questo account."},
+  "Send only to selected devices": {"en": "Send only to selected devices", "it": "Invia solo ai dispositivi selezionati"},
+  "Files sent only to devices are not added to your cloud library and cannot be synced or shared.": {"en": "Files sent only to devices are not added to your cloud library and cannot be synced or shared.", "it": "I file inviati solo ai dispositivi non vengono aggiunti alla libreria cloud e non possono essere sincronizzati o condivisi."},
+  "Choose a file from this device and where to send it.": {"en": "Choose a file from this device and where to send it.", "it": "Scegli un file da questo dispositivo e la destinazione dell’invio."},
+  "Select at least one Kindle device.": {"en": "Select at least one Kindle device.", "it": "Seleziona almeno un dispositivo Kindle."},
+  "Enter a title up to 250 characters.": {"en": "Enter a title up to 250 characters.", "it": "Inserisci un titolo di massimo 250 caratteri."},
+  "No compatible Kindle devices found. You can still add this file to your Kindle library.": {"en": "No compatible Kindle devices found. You can still add this file to your Kindle library.", "it": "Nessun dispositivo Kindle compatibile trovato. Puoi comunque aggiungere il file alla libreria Kindle."},
+  "Accepted by Amazon for delivery to the selected devices. This file is not added to your cloud library.": {"en": "Accepted by Amazon for delivery to the selected devices. This file is not added to your cloud library.", "it": "Accettato da Amazon per l’invio ai dispositivi selezionati. Il file non viene aggiunto alla libreria cloud."},
   "Create Smart List": {
     "en": "New Smart List",
     "it": "Nuova lista intelligente",

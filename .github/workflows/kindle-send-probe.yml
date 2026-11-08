@@ -15,6 +15,10 @@ on:
         description: Send one generated EPUB; preserve its private journal and never replay it
         type: boolean
         default: false
+      management_probe:
+        description: Verify deletion of the exact generated test document, preserving its private recovery journal
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -41,6 +45,7 @@ jobs:
         env:
           KMREADER_KINDLE_PROBE_UPLOAD_FIXTURE: ${{ inputs.upload_fixture }}
           PROBE_APP_IMPORT: ${{ inputs.app_import }}
+          PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |
           $ErrorActionPreference = 'Stop'
           $private = Join-Path $env:RUNNER_TEMP ('kindle-send-private-' + $env:GITHUB_RUN_ID)
@@ -50,7 +55,11 @@ jobs:
           try {
             python -m tool.kindle_send_probe_bridge export $session
             if ($LASTEXITCODE -ne 0) { throw 'Existing personal Kindle session unavailable; no login attempted' }
-            if ($env:PROBE_APP_IMPORT -eq 'true') {
+            if ($env:PROBE_MANAGEMENT -eq 'true') {
+              $env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION = $session
+              $env:KMREADER_KINDLE_MANAGEMENT_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+              flutter test test/kindle_management_probe_test.dart --no-pub
+            } elseif ($env:PROBE_APP_IMPORT -eq 'true') {
               $env:KMREADER_KINDLE_UPLOAD_PRIVATE_SESSION = $session
               $env:KMREADER_KINDLE_UPLOAD_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
               flutter test test/kindle_upload_probe_test.dart --no-pub
@@ -68,6 +77,8 @@ jobs:
             Remove-Item Env:KMREADER_KINDLE_SEND_PROBE_REPORT -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_UPLOAD_PRIVATE_SESSION -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_UPLOAD_PROBE_REPORT -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_MANAGEMENT_REPORT -ErrorAction SilentlyContinue
             Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
           }
       - uses: actions/upload-artifact@v4

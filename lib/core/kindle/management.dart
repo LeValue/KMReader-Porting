@@ -322,15 +322,12 @@ class KindleDocumentManager {
     XFile prepared, {
     required String title,
     required String author,
-    required List<String> targets,
+    List<String> targets = const [],
     required KindleImportCancellation cancel,
     void Function(int, int)? onProgress,
     void Function()? onSubmitting,
   }) async {
-    if (title.trim().isEmpty ||
-        title.length > 250 ||
-        author.length > 250 ||
-        targets.isEmpty) {
+    if (title.trim().isEmpty || title.length > 250 || author.length > 250) {
       throw const KindleFailure('import_metadata');
     }
     cancel.check();
@@ -346,7 +343,8 @@ class KindleDocumentManager {
         prepared,
         title: title,
         author: author,
-        targets: targets,
+        targets: const [],
+        archive: true,
         cancel: cancel,
         onProgress: onProgress,
         onSubmitting: onSubmitting,

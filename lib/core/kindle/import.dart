@@ -315,7 +315,8 @@ class KindleImporter {
     XFile file, {
     required String title,
     required String author,
-    required List<String> targets,
+    List<String> targets = const [],
+    bool archive = true,
     required KindleImportCancellation cancel,
     void Function(int sent, int total)? onProgress,
     void Function()? onSubmitting,
@@ -329,11 +330,13 @@ class KindleImporter {
     if (size <= 0 || size > kindleImportMaxBytes) {
       throw const KindleFailure('import_size');
     }
-    if (title.trim().isEmpty ||
-        title.length > 250 ||
-        author.length > 250 ||
-        targets.isEmpty) {
+    if (title.trim().isEmpty || title.length > 250 || author.length > 250) {
       throw const KindleFailure('import_metadata');
+    }
+    final destinations = archive ? <String>[] : targets.toSet().toList();
+    if (!archive &&
+        (destinations.isEmpty || destinations.any((id) => id.trim().isEmpty))) {
+      throw const KindleFailure('import_targets');
     }
     final result = await _post('/import/upload-url', {
       'fileSize': size,
@@ -384,13 +387,13 @@ class KindleImporter {
           'inputFormat': format,
           'title': title.trim(),
         },
-        'archive': true,
+        'archive': archive,
         'fileSize': size,
         'forceConvert': false,
         'sendTimeMillis': DateTime.now().millisecondsSinceEpoch,
         'shouldExtractWebContent': false,
         'stkToken': token,
-        'targetDevices': targets,
+        'targetDevices': destinations,
       }, cancel);
     } on KindleFailure catch (error) {
       if (error.code == 'import_rejected' &&
