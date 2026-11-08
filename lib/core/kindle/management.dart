@@ -14,6 +14,7 @@ import 'import.dart';
 import 'edition_migration.dart';
 import 'positions.dart';
 import 'repository.dart';
+import 'web_cookies.dart';
 
 /// Remote mutations of personal documents only. HTTP success alone never
 /// establishes deletion or state migration. Journal entries survive app restarts.
@@ -240,70 +241,21 @@ class KindleDocumentManager {
     final raw = object(
       object(object(_decode(await _request(exchange)))['response'])['tokens'],
     )['cookies'];
-    final cookies = <String, String>{};
-    for (final entry in object(raw).entries) {
-      if (!const {
-        '.amazon.it',
-        'amazon.it',
-        '.www.amazon.it',
-        'www.amazon.it',
-      }.contains(entry.key)) {
-        continue;
-      }
-      for (final cookie in (entry.value as List? ?? []).map(object)) {
-        final name = text(cookie['Name']);
-        // The exchange endpoint wraps cookie values in literal quotes. Match
-        // Amazon clients' cookie normalization before constructing a header.
-        final value = text(cookie['Value']).replaceAll('"', '');
-        if (RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(name) &&
-            !RegExp(r'[;\r\n\x00]').hasMatch(value)) {
-          cookies[name] = value;
-        }
-      }
+    final cookies = KindleWebsiteCookies()..exchange(raw);
+    final pageUri = Uri.https('www.amazon.it', '/hz/mycd/myx');
+    final ajaxUri = Uri.https('www.amazon.it', '/hz/mycd/ajax');
+    if (cookies.header(pageUri).isEmpty) {
+      throw const KindleFailure('management_authorization');
     }
-    if (cookies.isEmpty) throw const KindleFailure('management_authorization');
-    String header() =>
-        cookies.entries.map((c) => '${c.key}=${c.value}').join('; ');
-    final page = http.Request('GET', Uri.https('www.amazon.it', '/hz/mycd/myx'))
-      ..headers.addAll({'Cookie': header(), 'User-Agent': 'Mozilla/5.0'});
+    final page = http.Request('GET', pageUri)
+      ..headers.addAll({
+        'Cookie': cookies.header(pageUri),
+        'User-Agent': 'Mozilla/5.0',
+      });
     final html = utf8.decode(
       await _request(
         page,
-        onHeaders: (headers) {
-          // The retail page can rotate the session which issued the CSRF token.
-          for (final value in (headers['set-cookie'] ?? '').split(
-            RegExp(r',(?=\s*[A-Za-z0-9_-]+=)'),
-          )) {
-            if (value.trim().isEmpty) continue;
-            try {
-              final cookie = Cookie.fromSetCookieValue(value.trim());
-              final domain = cookie.domain?.replaceFirst(RegExp(r'^\.'), '');
-              if (domain != null &&
-                  domain != 'amazon.it' &&
-                  domain != 'www.amazon.it') {
-                continue;
-              }
-              if (cookie.path != null &&
-                  !'/hz/mycd/ajax'.startsWith(cookie.path!)) {
-                continue;
-              }
-              if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cookie.name) ||
-                  RegExp(r'[;\r\n\x00]').hasMatch(cookie.value)) {
-                continue;
-              }
-              if (cookie.maxAge == 0 ||
-                  cookie.expires?.isBefore(DateTime.now()) == true) {
-                cookies.remove(cookie.name);
-              } else {
-                cookies[cookie.name] = cookie.value.replaceAll('"', '');
-              }
-            } on HttpException {
-              /* Ignore malformed cookies, never forward them. */
-            } on FormatException {
-              /* Ignore malformed cookies, never forward them. */
-            }
-          }
-        },
+        onHeaders: (headers) => cookies.receive(pageUri, headers),
       ),
     );
     final declaredCsrf = RegExp(
@@ -317,7 +269,9 @@ class KindleDocumentManager {
     if (csrf == null || csrf.isEmpty) {
       throw const KindleFailure('management_authorization');
     }
-    return (header(), csrf);
+    final header = cookies.header(ajaxUri);
+    if (header.isEmpty) throw const KindleFailure('management_authorization');
+    return (header, csrf);
   }
 
   /// Check this account's web authorization without mutating any document.
@@ -357,7 +311,10 @@ class KindleDocumentManager {
                 },
               }),
             };
-      final data = object(_decode(await _request(request))['OwnershipData']);
+      final reply = _decode(await _request(request));
+      final failure = _webFailure(reply);
+      if (failure != null) throw failure;
+      final data = object(reply['OwnershipData']);
       if (data['items'] is! List) {
         throw const KindleFailure('management_cloud_catalog');
       }
@@ -428,14 +385,23 @@ class KindleDocumentManager {
         ? 'replacement_retiring'
         : 'delete_submitting';
     _save(operation); // durable BEFORE the irreversible network write
+    late Json reply;
     try {
-      await _request(request);
+      reply = _decode(await _request(request));
     } catch (_) {
       operation['state'] = replacement
           ? 'replacement_retirement_uncertain'
           : 'delete_uncertain';
       _save(operation);
       rethrow;
+    }
+    final failure = _webFailure(reply);
+    if (failure != null) {
+      operation['state'] = replacement ? 'progress_restored' : 'rejected';
+      operation['server_rejected'] = true;
+      operation['last_error'] = failure.code;
+      _save(operation);
+      throw failure;
     }
     operation['state'] = replacement
         ? 'replacement_retirement_verifying'
@@ -946,6 +912,24 @@ String _readingSnapshot(Json sidecar) {
 
 Future<String> _encodeBackup(Json value) =>
     Isolate.run(() => jsonEncode(value));
+
+KindleFailure? _webFailure(Json reply) {
+  if (const {
+    'AUTHENTICATION_ERROR',
+    'MISSING_CSRF_TOCKEN_ERROR',
+    'CSRF_VALIDATION_FAILED',
+  }.contains(reply['error'])) {
+    return const KindleFailure('management_authorization', stage: 'mycd');
+  }
+  if (reply['error'] != null &&
+          reply['error'] != false &&
+          reply['error'] != '' &&
+          reply['error'] != 0 ||
+      object(reply['DeleteContent'])['success'] == false) {
+    return const KindleFailure('management_rejected', stage: 'mycd');
+  }
+  return null;
+}
 
 // CDE translates coordinates for each delivered representation. Stable annotation
 // identity/content must agree during legacy backup rebinding, not those offsets.
