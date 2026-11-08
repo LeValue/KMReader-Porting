@@ -40,6 +40,7 @@ void main() {
         'annotation_writes': 0,
       };
       Future<void> Function()? persist;
+      Future<void> Function()? diagnose;
       try {
         final file = File(path!);
         final payload = object(jsonDecode(await file.readAsString()));
@@ -139,6 +140,78 @@ void main() {
           }
         };
         transport.beforeMutation = persist;
+        diagnose = () async {
+          if (manager.operations.length != 1) return;
+          final operation = manager.operations.single;
+          final backup = object(
+            jsonDecode(
+              await File(p.join(folder.path, text(operation['backup'])))
+                  .readAsString(),
+            ),
+          );
+          final mapping = await KindlePositionMap.open(
+            p.join(folder.path, text(backup['source'])),
+          );
+          if (mapping == null) return;
+          final current = await repository.library.client.sidecar(
+            repository.library.item(text(operation['book'])),
+            guid: mapping.primary,
+            annotations: true,
+          );
+          final previous = object(backup['sidecar']);
+          final oldRecords = (previous['records'] as List? ?? [])
+              .map(object)
+              .toList();
+          final newRecords = (current?['records'] as List? ?? [])
+              .map(object)
+              .toList();
+          final oldMarks = oldRecords
+              .where((r) => r['type'] == 'kindle.bookmark')
+              .toList();
+          final newMarks = newRecords
+              .where((r) => r['type'] == 'kindle.bookmark')
+              .toList();
+          final oldRead = kindleLastRead(previous),
+              newRead = current == null ? null : kindleLastRead(current);
+          final oldTime = DateTime.tryParse(text(oldRead?['time']));
+          final newTime = DateTime.tryParse(text(newRead?['time']));
+          report['migration_diagnostic'] = {
+            'edition_snapshot_created': text(backup['source_guid']).isNotEmpty,
+            'backup_edition_matches': mapping.matches(previous),
+            'current_edition_matches':
+                current != null && mapping.matches(current),
+            'backup_complete': previous['annotations_complete'] == true,
+            'current_complete': current?['annotations_complete'] == true,
+            'backup_bookmark_count': oldMarks.length,
+            'current_bookmark_count': newMarks.length,
+            'annotation_ids_preserved': oldMarks.every(
+              (a) =>
+                  newMarks.any((b) => b['annotationId'] == a['annotationId']),
+            ),
+            'bookmark_positions_preserved': oldMarks.every(
+              (a) => newMarks.any(
+                (b) =>
+                    num.tryParse('${a['startPosition']}') ==
+                    num.tryParse('${b['startPosition']}'),
+              ),
+            ),
+            'bookmark_raw_positions_equal': oldMarks.every(
+              (a) =>
+                  newMarks.any((b) => a['startPosition'] == b['startPosition']),
+            ),
+            'backup_position_present': oldRead != null,
+            'current_position_present': newRead != null,
+            'positions_equal': oldRead?['position'] == newRead?['position'],
+            'backup_position_matches_seed':
+                oldRead?['position'] == journal['seed_position'],
+            'current_position_matches_seed':
+                newRead?['position'] == journal['seed_position'],
+            'backup_time_present': oldTime != null,
+            'current_time_present': newTime != null,
+            'backup_time_after_current':
+                oldTime != null && newTime != null && oldTime.isAfter(newTime),
+          };
+        };
         await repository.library.refresh(full: true);
         final originalItem = repository.library.items
             .where(
@@ -308,6 +381,11 @@ void main() {
           fail('Replacement not yet verified; no replay.');
         }
       } catch (error) {
+        try {
+          await diagnose?.call();
+        } catch (_) {
+          report['diagnostic_available'] = false;
+        }
         report['passed'] = false;
         report['error_code'] = error is KindleFailure
             ? error.code
