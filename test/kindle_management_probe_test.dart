@@ -31,14 +31,23 @@ void main() {
       try {
         final file = File(path!);
         final payload = object(jsonDecode(await file.readAsString()));
-        final fixture = object(payload['probe_operation']);
+        final libraryFixture =
+            Platform.environment['KMREADER_KINDLE_MANAGEMENT_FIXTURE'] ==
+            'library';
+        final fixture = object(
+          libraryFixture
+              ? object(payload['delivery_probes'])['library']
+              : payload['probe_operation'],
+        );
         final rawId = text(fixture['catalog_id']);
         if (rawId.isEmpty ||
             !text(fixture['title']).startsWith('KMReader test ')) {
           throw const KindleFailure('management_probe_fixture_missing');
         }
-        final journal = object(payload['management_probe']);
-        payload['management_probe'] = journal;
+        final journals = object(payload['management_probe']);
+        payload['management_probe'] = journals;
+        final journal = libraryFixture ? object(journals['library']) : journals;
+        if (libraryFixture) journals['library'] = journal;
         Future<void> seal() async {
           await file.writeAsString(jsonEncode(payload));
           final result = await Process.run('python', [
@@ -247,10 +256,9 @@ class _ManagementProbeClient extends http.BaseClient {
                 'images-fe.ssl-images-amazon.com',
               }.contains(u.host) &&
               u.path.startsWith('/images/') &&
-              u.query.isEmpty &&
               u.userInfo.isEmpty,
         )
-        .map((u) => u.toString())
+        .map((u) => u.replace(query: '', fragment: '').toString())
         .take(20)
         .toList();
     return http.StreamedResponse(

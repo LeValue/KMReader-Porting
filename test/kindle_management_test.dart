@@ -22,6 +22,85 @@ import 'package:sqlite3/sqlite3.dart';
 import 'support/epub_fixture.dart';
 
 void main() {
+  test('edit reuses the downloaded personal source with its format and rejects purchases', () async {
+    final root = Directory.systemTemp.createTempSync('kindle-edit-source-');
+    final store = LocalStore(sqlite3.openInMemory());
+    final protocol = object(
+      jsonDecode(
+        File('test/support/kindle_protocol_fixture.json').readAsStringSync(),
+      ),
+    );
+    final session = KindleSession({
+      ...object(protocol['session']),
+      'expires': DateTime.now().millisecondsSinceEpoch / 1000 + 3600,
+    });
+    final profile = ServerProfile(
+      id: session.id,
+      name: 'Kindle',
+      url: 'https://www.amazon.it',
+      email: '',
+      source: 'kindle',
+      authentication: Authentication.apiKey,
+    );
+    const item = {
+      'key': 'PDOC:SOURCE',
+      'id': 'SOURCE',
+      'type': 'PDOC',
+      'title': 'Cached personal document',
+      'revision': 'r1',
+    };
+    const purchase = {
+      'key': 'EBOK:PURCHASE',
+      'id': 'PURCHASE',
+      'type': 'EBOK',
+      'title': 'Purchased',
+      'revision': 'r1',
+    };
+    store.cache(profile.id, 'kindle:catalog', {
+      'items': [item, purchase],
+      'complete': true,
+      'dictionary_filter_version': 1,
+    });
+    final repo = KindleRepository(
+      profile: profile,
+      store: store,
+      directory: root,
+      client: KindleClient(
+        session: session,
+        client: MockClient((r) async {
+          fail('A cached source must not require a network request');
+        }),
+      ),
+    );
+    addTearDown(() async {
+      await repo.stopDownloadWork();
+      repo.dispose();
+      store.close();
+      await root.delete(recursive: true);
+    });
+    await repo.library.ready;
+    final book = Book(repo.library.bookJson(item));
+    final source = repo.bookFile(book);
+    await source.parent.create(recursive: true);
+    await fixture(root).copy(source.path);
+    store.saveDownload(profile.id, book, 'ready');
+    final manager = KindleDocumentManager(repo);
+    final selected = await manager.sourceForEdit(book);
+    expect(selected.name, endsWith('.epub'));
+    expect(selected.path, source.path);
+    expect(await selected.readAsBytes(), await source.readAsBytes());
+    await expectLater(
+      manager.sourceForEdit(Book(repo.library.bookJson(purchase))),
+      throwsA(
+        isA<KindleFailure>().having(
+          (e) => e.code,
+          'code',
+          'management_personal_only',
+        ),
+      ),
+    );
+  });
+
   test('EPUB edit preserves source, spine content and identity; installs a real cover', () async {
     final root = Directory.systemTemp.createTempSync('kindle-edit-');
     addTearDown(() => root.deleteSync(recursive: true));
@@ -425,9 +504,16 @@ void main() {
           }
           if (request.url.path == '/hz/mycd/myx') {
             expect(request.headers['cookie'], 'session-id=synthetic-cookie');
-            return http.Response('var csrfToken = "synthetic-csrf";', 200);
+            return http.Response(
+              'var csrfToken = "synthetic-csrf";',
+              200,
+              headers: {
+                'set-cookie': 'session-id=renewed-cookie; Path=/; Secure, bad=never-send; Domain=evil.invalid; Path=/',
+              },
+            );
           }
           if (request.url.path.contains('ajax-activity')) {
+            expect(request.headers['cookie'], 'session-id=renewed-cookie');
             deletions++;
             expect(manager.operations.single['state'], 'delete_submitting');
             expect(

@@ -20,6 +20,11 @@ on:
         type: choice
         options: [existing-library, library, device]
         default: existing-library
+      management_fixture:
+        description: Exact generated fixture eligible for management checks
+        type: choice
+        options: [original, library]
+        default: original
       management_probe:
         description: Verify deletion of the exact generated test document, preserving its private recovery journal
         type: boolean
@@ -51,6 +56,7 @@ jobs:
           KMREADER_KINDLE_PROBE_UPLOAD_FIXTURE: ${{ inputs.upload_fixture }}
           KMREADER_KINDLE_PROBE_DELIVERY_MODE: ${{ inputs.delivery_mode }}
           PROBE_APP_IMPORT: ${{ inputs.app_import }}
+          KMREADER_KINDLE_MANAGEMENT_FIXTURE: ${{ inputs.management_fixture }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |
           $ErrorActionPreference = 'Stop'

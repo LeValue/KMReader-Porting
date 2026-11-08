@@ -44,10 +44,12 @@ class SendBridgeTest(unittest.TestCase):
                 self.assertEqual(json.loads(ipc.read_text())["session"]["send_device"], device)
                 payload = json.loads(ipc.read_text())
                 payload["probe_operation"] = {"state": "upload_pending", "title": "SYNTHETIC", "catalog_id": "SYNTHETIC-DOC"}
+                payload["delivery_probes"] = {"device": {"state": "upload_pending"}}
                 ipc.write_text(json.dumps(payload))
                 bridge.transfer("seal", ipc)
                 bridge.transfer("export", ipc)
                 self.assertEqual(json.loads(ipc.read_text())["probe_operation"], payload["probe_operation"])
+                self.assertEqual(json.loads(ipc.read_text())["delivery_probes"], payload["delivery_probes"])
                 self.assertNotIn("refresh_token", records[target])
                 ipc.write_text(json.dumps({"session": records[source]}))
                 bridge.transfer("attach-fixture", ipc)

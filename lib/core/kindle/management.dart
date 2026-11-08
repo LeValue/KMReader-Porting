@@ -61,9 +61,14 @@ class KindleDocumentManager {
   /// The display name carries its prepared format without renaming the cache.
   Future<XFile> sourceForEdit(Book book) async {
     _personal(book);
-    await repository.download(book);
-    _personal(book);
-    final prepared = await repository.book(book.id);
+    var prepared = await repository.book(book.id);
+    if (repository.store.download(repository.profile.id, book.id)?['status'] !=
+            'ready' ||
+        !await repository.bookFile(prepared).exists()) {
+      await repository.download(book);
+      _personal(book);
+      prepared = await repository.book(book.id);
+    }
     if (!const {'epub', 'pdf'}.contains(prepared.format)) {
       throw const KindleFailure('management_source');
     }
@@ -162,6 +167,7 @@ class KindleDocumentManager {
   Future<List<int>> _request(
     http.Request request, {
     int limit = 4 * 1024 * 1024,
+    void Function(Map<String, String>)? onHeaders,
   }) async {
     _check();
     request.followRedirects = false;
@@ -169,6 +175,7 @@ class KindleDocumentManager {
       final reply = await client
           .importRequest(request)
           .timeout(const Duration(seconds: 60));
+      onHeaders?.call(reply.headers);
       final bytes = <int>[];
       await for (final chunk in reply.stream.timeout(
         const Duration(seconds: 60),
@@ -231,17 +238,51 @@ class KindleDocumentManager {
       }
     }
     if (cookies.isEmpty) throw const KindleFailure('management_authorization');
-    final header = cookies.entries.map((c) => '${c.key}=${c.value}').join('; ');
+    String header() =>
+        cookies.entries.map((c) => '${c.key}=${c.value}').join('; ');
     final page = http.Request('GET', Uri.https('www.amazon.it', '/hz/mycd/myx'))
-      ..headers.addAll({'Cookie': header, 'User-Agent': 'Mozilla/5.0'});
-    final html = utf8.decode(await _request(page));
+      ..headers.addAll({'Cookie': header(), 'User-Agent': 'Mozilla/5.0'});
+    final html = utf8.decode(
+      await _request(
+        page,
+        onHeaders: (headers) {
+          // The retail page can rotate the session which issued the CSRF token.
+          for (final value in (headers['set-cookie'] ?? '').split(
+            RegExp(r',(?=\s*[A-Za-z0-9_-]+=)'),
+          )) {
+            try {
+              final cookie = Cookie.fromSetCookieValue(value.trim());
+              final domain = cookie.domain?.replaceFirst(RegExp(r'^\.'), '');
+              if (domain != null &&
+                  domain != 'amazon.it' &&
+                  domain != 'www.amazon.it')
+                continue;
+              if (cookie.path != null &&
+                  !'/mn/dcw/myx/ajax-activity/'.startsWith(cookie.path!))
+                continue;
+              if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cookie.name) ||
+                  RegExp(r'[;\r\n\x00]').hasMatch(cookie.value))
+                continue;
+              if (cookie.maxAge == 0 ||
+                  cookie.expires?.isBefore(DateTime.now()) == true) {
+                cookies.remove(cookie.name);
+              } else {
+                cookies[cookie.name] = cookie.value.replaceAll('"', '');
+              }
+            } on FormatException {
+              /* Ignore malformed cookies, never forward them. */
+            }
+          }
+        },
+      ),
+    );
     final csrf = RegExp(
       r'''(?:var\s+)?csrfToken["']?\s*[=:]\s*["']([^"'\r\n]+)["']''',
     ).firstMatch(html)?.group(1);
     if (csrf == null || csrf.isEmpty) {
       throw const KindleFailure('management_authorization');
     }
-    return (header, csrf);
+    return (header(), csrf);
   }
 
   /// Check this account's web authorization without mutating any document.
