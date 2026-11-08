@@ -23,6 +23,8 @@ def transfer(operation, path):
         payload = {"session": session}
         if cached and cached.get("customer_id") == existing["customer_id"] and cached.get("probe_operation"):
             payload["probe_operation"] = cached["probe_operation"]
+        if cached and cached.get("customer_id") == existing["customer_id"] and cached.get("management_probe"):
+            payload["management_probe"] = cached["management_probe"]
         path.write_text(json.dumps(payload), encoding="utf-8")
     elif operation == "attach-fixture":
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -46,7 +48,9 @@ def transfer(operation, path):
             record["send_device"] = device
         if payload.get("probe_operation"):
             record["probe_operation"] = payload["probe_operation"]
-        if record.get("send_device") or record.get("probe_operation"):
+        if payload.get("management_probe"):
+            record["management_probe"] = payload["management_probe"]
+        if record.get("send_device") or record.get("probe_operation") or record.get("management_probe"):
             cache.save(record)
 
 

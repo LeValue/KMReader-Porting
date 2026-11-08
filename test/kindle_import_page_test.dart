@@ -75,6 +75,7 @@ void main() {
             if (request.method == 'PUT') return http.Response('', 200);
             deliveries++;
             final body = object(jsonDecode(request.body));
+            expect(body['archive'], false);
             expect(body['targetDevices'], ['SYNTHETIC-TARGET']);
             if (!accepted) throw const SocketException('Lost response');
             return http.Response(
@@ -108,6 +109,10 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(home: KindleImportPage(repository: repo)),
         );
+        final mode = find.text('Add to Kindle library');
+        await tester.ensureVisible(mode);
+        await tester.tap(mode);
+        await tester.pump();
         // RSA signing runs in a real isolate; let external futures finish.
         for (
           var i = 0;
@@ -175,7 +180,7 @@ void main() {
         expect(
           find.textContaining(
             accepted
-                ? 'Accepted by Amazon.'
+                ? 'Accepted by Amazon for delivery'
                 : 'Amazon did not confirm delivery.',
           ),
           findsOneWidget,

@@ -250,7 +250,7 @@ void main() {
       }
       expect(uploaded, 200000);
       expect(data['archive'], true);
-      expect(data['targetDevices'], ['SYNTHETIC-DEVICE']);
+      expect(data['targetDevices'], isEmpty);
       expect(object(data['documentMetadata'])['inputFormat'], 'epub');
       expect(object(data['documentMetadata'])['title'], 'My book');
       return jsonResponse({'statusCode': 0, 'sku': 'SYNTHETIC-DOCUMENT'});
@@ -322,6 +322,36 @@ void main() {
     await service.devices(KindleImportCancellation());
     expect(registrations, 1);
     expect(saves, 1);
+  });
+
+  test('device-only delivery disables archive and keeps only the chosen unique destinations', () async {
+    var deliveries = 0;
+    final service = importer((request, stream) async {
+      final bytes = await stream.expand((b) => b).toList();
+      if (request.url.path.endsWith('upload-url')) {
+        return jsonResponse(uploadUrl());
+      }
+      if (request.method == 'PUT') {
+        return http.StreamedResponse(const Stream.empty(), 200);
+      }
+      final body = object(jsonDecode(utf8.decode(bytes)));
+      expect(body['archive'], false);
+      expect(body['targetDevices'], ['FIRST', 'SECOND']);
+      deliveries++;
+      return jsonResponse({'statusCode': 0, 'sku': 'SYNTHETIC-DELIVERY'});
+    });
+    expect(
+      await service.upload(
+        file,
+        title: 'Synthetic',
+        author: '',
+        archive: false,
+        targets: ['FIRST', 'FIRST', 'SECOND'],
+        cancel: KindleImportCancellation(),
+      ),
+      'SYNTHETIC-DELIVERY',
+    );
+    expect(deliveries, 1);
   });
 
   for (final mode in ['lost_reply', 'server_error', 'missing_sku']) {
@@ -432,7 +462,7 @@ void main() {
         'import_size',
       ),
       (file, '', ['device'], 'import_metadata'),
-      (file, 'Title', <String>[], 'import_metadata'),
+      (file, 'Title', <String>[], 'import_targets'),
     ]) {
       await expectLater(
         service.upload(
@@ -440,6 +470,7 @@ void main() {
           title: input.$2,
           author: '',
           targets: input.$3,
+          archive: false,
           cancel: KindleImportCancellation(),
         ),
         throwsA(failure(input.$4)),

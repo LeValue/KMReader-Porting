@@ -27,10 +27,11 @@ class _KindleImportPageState extends State<KindleImportPage> {
   final _title = TextEditingController(), _author = TextEditingController();
   final _summary = TextEditingController(), _language = TextEditingController();
   var _cancel = KindleImportCancellation();
+  var _deviceCancel = KindleImportCancellation();
   List<KindleImportDevice>? _devices;
   final _targets = <String>{};
   XFile? _file, _cover;
-  bool _loading = true, _busy = false, _submitting = false;
+  bool _archive = true, _loading = false, _busy = false, _submitting = false;
   bool _accepted = false, _uncertain = false;
   bool _authorizationNeeded = false;
   double _progress = 0;
@@ -48,12 +49,12 @@ class _KindleImportPageState extends State<KindleImportPage> {
           .whereType<String>()
           .join(', ');
     }
-    _loadDevices();
   }
 
   @override
   void dispose() {
     _cancel.cancel();
+    _deviceCancel.cancel();
     _title.dispose();
     _author.dispose();
     _summary.dispose();
@@ -76,8 +77,8 @@ class _KindleImportPageState extends State<KindleImportPage> {
             'import_format' =>
               'This file format is not supported by Send to Kindle.',
             'import_size' => 'Choose a non-empty file up to 200 MB.',
-            'import_metadata' =>
-              'Enter a title and select at least one Kindle device.',
+            'import_metadata' => 'Enter a title up to 250 characters.',
+            'import_targets' => 'Select at least one Kindle device.',
             'import_cancelled' => 'Upload cancelled before delivery.',
             'import_delivery_uncertain' => 'Amazon did not confirm delivery. Check your Kindle library before sending this file again.',
             'import_rejected' => 'Amazon rejected the request. Check your connection and Kindle account, or use the Amazon website.',
@@ -89,14 +90,15 @@ class _KindleImportPageState extends State<KindleImportPage> {
   }
 
   Future<void> _loadDevices() async {
-    _cancel = KindleImportCancellation();
+    if (_loading) return;
+    _deviceCancel = KindleImportCancellation();
     setState(() {
       _loading = true;
       _deviceError = null;
       _authorizationNeeded = false;
     });
     try {
-      final devices = await _importer.devices(_cancel);
+      final devices = await _importer.devices(_deviceCancel);
       if (!mounted) return;
       setState(() {
         _devices = devices;
@@ -230,6 +232,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
           title: _title.text,
           author: _author.text,
           targets: _targets.toList(),
+          archive: _archive,
           cancel: _cancel,
           onProgress: (sent, total) {
             if (mounted) setState(() => _progress = sent / total);
@@ -241,11 +244,15 @@ class _KindleImportPageState extends State<KindleImportPage> {
       }
       if (!mounted) return;
       setState(() => _accepted = true);
-      widget.repository.refreshContent();
+      if (_archive) widget.repository.refreshContent();
     } catch (error) {
       if (mounted) {
         setState(() {
           _error = _message(error);
+          _authorizationNeeded =
+              error is KindleFailure &&
+              error.stage == 'registration' &&
+              (error.status == 401 || error.status == 403);
           _uncertain =
               error is KindleFailure &&
               error.code == 'import_delivery_uncertain';
@@ -292,7 +299,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
               Text(
                 tr(
                   context,
-                  'Choose a file from this device. Amazon will add it to this account’s Kindle library and deliver it to the selected devices.',
+                  'Choose a file from this device and where to send it.',
                 ),
               ),
               if (widget.replacing != null)
@@ -365,39 +372,67 @@ class _KindleImportPageState extends State<KindleImportPage> {
                   child: Text(tr(context, 'Remove selected cover')),
                 ),
               const SizedBox(height: 12),
-              Text(
-                tr(context, 'Deliver to'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (_loading)
-                const LinearProgressIndicator()
-              else if (_devices == null)
-                TextButton(
-                  onPressed: _loadDevices,
-                  child: Text(tr(context, 'Retry')),
-                )
-              else if (_devices!.isEmpty)
+              if (widget.replacing == null)
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(tr(context, 'Add to Kindle library')),
+                  subtitle: Text(
+                    tr(
+                      context,
+                      'Available on compatible devices connected to this account.',
+                    ),
+                  ),
+                  value: _archive,
+                  onChanged: _busy || _accepted || _uncertain
+                      ? null
+                      : (value) {
+                          setState(() => _archive = value);
+                          if (!value && _devices == null && !_loading) {
+                            _loadDevices();
+                          }
+                        },
+                ),
+              if (!_archive) ...[
+                Text(
+                  tr(context, 'Send only to selected devices'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 Text(
                   tr(
                     context,
-                    'No compatible Kindle devices found. Use the Amazon website to add documents to your library.',
+                    'Files sent only to devices are not added to your cloud library and cannot be synced or shared.',
                   ),
-                )
-              else
-                for (final device in _devices!)
-                  CheckboxListTile(
-                    title: Text(device.name),
-                    value: _targets.contains(device.serial),
-                    onChanged: _busy || _accepted || _uncertain
-                        ? null
-                        : (value) => setState(() {
-                            if (value == true) {
-                              _targets.add(device.serial);
-                            } else {
-                              _targets.remove(device.serial);
-                            }
-                          }),
-                  ),
+                ),
+                if (_loading)
+                  const LinearProgressIndicator()
+                else if (_devices == null)
+                  TextButton(
+                    onPressed: _loadDevices,
+                    child: Text(tr(context, 'Retry')),
+                  )
+                else if (_devices!.isEmpty)
+                  Text(
+                    tr(
+                      context,
+                      'No compatible Kindle devices found. You can still add this file to your Kindle library.',
+                    ),
+                  )
+                else
+                  for (final device in _devices!)
+                    CheckboxListTile(
+                      title: Text(device.name),
+                      value: _targets.contains(device.serial),
+                      onChanged: _busy || _accepted || _uncertain
+                          ? null
+                          : (value) => setState(() {
+                              if (value == true) {
+                                _targets.add(device.serial);
+                              } else {
+                                _targets.remove(device.serial);
+                              }
+                            }),
+                    ),
+              ],
               if (_busy) ...[
                 const SizedBox(height: 16),
                 LinearProgressIndicator(value: _submitting ? null : _progress),
@@ -424,13 +459,17 @@ class _KindleImportPageState extends State<KindleImportPage> {
                                 ),
                               );
                           if (mounted && connected == true) {
-                            await _loadDevices();
+                            setState(() {
+                              _authorizationNeeded = false;
+                              _error = null;
+                            });
+                            if (!_archive) await _loadDevices();
                           }
                         },
                   icon: const Icon(Icons.login),
                   label: Text(tr(context, 'Authorize Send to Kindle')),
                 ),
-              if (_deviceError != null)
+              if (!_archive && _deviceError != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: SelectableText(
@@ -457,7 +496,9 @@ class _KindleImportPageState extends State<KindleImportPage> {
                     tr(
                       context,
                       widget.replacing == null
-                          ? 'Accepted by Amazon. Processing can take a few minutes; refresh your library later.'
+                          ? (_archive
+                                ? 'Accepted by Amazon. Processing can take a few minutes; refresh your library later.'
+                                : 'Accepted by Amazon for delivery to the selected devices. This file is not added to your cloud library.')
                           : 'Updated copy accepted. The original is preserved; reading position and bookmarks have not been migrated yet.',
                     ),
                   ),
@@ -466,9 +507,9 @@ class _KindleImportPageState extends State<KindleImportPage> {
               FilledButton.icon(
                 onPressed:
                     _busy ||
-                        _loading ||
+                        (!_archive && _loading) ||
                         _file == null ||
-                        _targets.isEmpty ||
+                        (!_archive && (_devices == null || _targets.isEmpty)) ||
                         _accepted ||
                         _uncertain
                     ? null
