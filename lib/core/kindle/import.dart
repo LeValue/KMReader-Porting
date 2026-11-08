@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
-import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
@@ -12,8 +10,6 @@ import 'package:xml/xml.dart';
 import '../models.dart';
 import 'client.dart';
 import 'send_login.dart';
-
-part 'web_import.dart';
 
 const kindleImportExtensions = [
   'epub',
@@ -53,13 +49,8 @@ class KindleImportDevice {
 /// Local files -> Amazon's archived personal documents. No Komga server upload.
 /// Protocol reference and verification limits: docs/KINDLE_IMPORT.md.
 class KindleImporter {
-  KindleImporter(this.client) : _legacy = false;
-
-  /// Retained desktop protocol for diagnostics and protocol fixtures.
-  KindleImporter.legacy(this.client) : _legacy = true;
+  KindleImporter(this.client);
   final KindleClient client;
-  final bool _legacy;
-  late final _website = _KindleWebsiteImporter(this);
   Future<Json>? _registering;
   static const _clientInfo = {
     'appName': 'ShellExtension',
@@ -70,9 +61,8 @@ class KindleImporter {
 
   Future<List<int>> _send(
     http.BaseRequest request,
-    KindleImportCancellation cancel, {
-    void Function(http.StreamedResponse)? onResponse,
-  }) async {
+    KindleImportCancellation cancel,
+  ) async {
     cancel.check();
     try {
       final response = await client
@@ -86,7 +76,6 @@ class KindleImporter {
               throw const KindleFailure('import_network');
             },
           );
-      onResponse?.call(response);
       final bytes = <int>[];
       await for (final chunk in response.stream.timeout(
         const Duration(seconds: 90),
@@ -174,8 +163,8 @@ class KindleImporter {
             'User-Agent': 'Mozilla/5.0',
             'Accept-Language': 'en-US,*',
           })
-          // Firs is a legacy XML service: preserve the reference envelope and
-          // exact media type instead of Request.body adding a charset to it.
+          // Preserve Firs' reference XML envelope and exact text/xml media type.
+          // Request.body would silently add a charset parameter to that header.
           ..bodyBytes = utf8.encode(
             '<?xml version="1.0" encoding="UTF-8"?>\n${xml.toXmlString()}',
           );
@@ -304,7 +293,6 @@ class KindleImporter {
   Future<List<KindleImportDevice>> devices(
     KindleImportCancellation cancel,
   ) async {
-    if (!_legacy) return _website.devices(cancel);
     final result = await _post(
       '/import/kindle-doc/get-device-list',
       {},
@@ -332,17 +320,6 @@ class KindleImporter {
     void Function(int sent, int total)? onProgress,
     void Function()? onSubmitting,
   }) async {
-    if (!_legacy) {
-      return _website.upload(
-        file,
-        title: title,
-        author: author,
-        targets: targets,
-        cancel: cancel,
-        onProgress: onProgress,
-        onSubmitting: onSubmitting,
-      );
-    }
     cancel.check();
     final format = p.extension(file.name).replaceFirst('.', '').toLowerCase();
     if (!kindleImportExtensions.contains(format)) {

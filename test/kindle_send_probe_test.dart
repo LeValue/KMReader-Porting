@@ -34,7 +34,7 @@ void main() {
           client: transport,
           saveSession: save,
         );
-        final devices = await KindleImporter.legacy(client)
+        final devices = await KindleImporter(client)
             .devices(KindleImportCancellation());
         report['device_count'] = devices.length;
         final registrations = transport.registrations;
@@ -46,8 +46,7 @@ void main() {
           client: transport,
           saveSession: save,
         );
-        await KindleImporter.legacy(restored)
-            .devices(KindleImportCancellation());
+        await KindleImporter(restored).devices(KindleImportCancellation());
         report['reused_without_registration'] =
             transport.registrations == registrations;
         expect(report['reused_without_registration'], true);

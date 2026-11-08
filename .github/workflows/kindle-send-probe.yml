@@ -1,4 +1,4 @@
-name: Personal Kindle send registration check
+name: Personal Kindle send check
 on:
   workflow_dispatch:
     inputs:
@@ -15,8 +15,8 @@ on:
         description: Check first-party web STK using the existing reader session, without Firs registration
         type: boolean
         default: false
-      app_web:
-        description: Exercise the current Dart web importer instead of legacy Firs
+      app_import:
+        description: Exercise the app importer and its generated-document acceptance check
         type: boolean
         default: false
       upload_fixture:
@@ -47,12 +47,12 @@ jobs:
           $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
           dart pub get --enforce-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source probe dependencies' }
-      - name: Register once and verify saved send credentials without document writes
+      - name: Check saved send credentials and the explicitly selected synthetic upload
         if: ${{ !inputs.web_session }}
         env:
           KMREADER_KINDLE_PROBE_XML_DECLARATION: ${{ inputs.xml_declaration }}
           KMREADER_KINDLE_PROBE_UPLOAD_FIXTURE: ${{ inputs.upload_fixture }}
-          PROBE_APP_WEB: ${{ inputs.app_web }}
+          PROBE_APP_IMPORT: ${{ inputs.app_import }}
         run: |
           $ErrorActionPreference = 'Stop'
           $private = Join-Path $env:RUNNER_TEMP ('kindle-send-private-' + $env:GITHUB_RUN_ID)
@@ -62,10 +62,10 @@ jobs:
           try {
             python -m tool.kindle_send_probe_bridge export $session
             if ($LASTEXITCODE -ne 0) { throw 'Existing personal Kindle session unavailable; no login attempted' }
-            if ($env:PROBE_APP_WEB -eq 'true') {
-              $env:KMREADER_KINDLE_WEB_PRIVATE_SESSION = $session
-              $env:KMREADER_KINDLE_WEB_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
-              flutter test test/kindle_web_probe_test.dart --no-pub
+            if ($env:PROBE_APP_IMPORT -eq 'true') {
+              $env:KMREADER_KINDLE_UPLOAD_PRIVATE_SESSION = $session
+              $env:KMREADER_KINDLE_UPLOAD_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+              flutter test test/kindle_upload_probe_test.dart --no-pub
             } else {
               $env:KMREADER_KINDLE_SEND_PRIVATE_SESSION = $session
               $env:KMREADER_KINDLE_SEND_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
@@ -78,8 +78,8 @@ jobs:
           } finally {
             Remove-Item Env:KMREADER_KINDLE_SEND_PRIVATE_SESSION -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_SEND_PROBE_REPORT -ErrorAction SilentlyContinue
-            Remove-Item Env:KMREADER_KINDLE_WEB_PRIVATE_SESSION -ErrorAction SilentlyContinue
-            Remove-Item Env:KMREADER_KINDLE_WEB_PROBE_REPORT -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_UPLOAD_PRIVATE_SESSION -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_UPLOAD_PROBE_REPORT -ErrorAction SilentlyContinue
             Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
           }
       - name: Check first-party web access without a new browser login

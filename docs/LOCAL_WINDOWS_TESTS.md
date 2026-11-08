@@ -31,7 +31,7 @@ Passwords, OTPs, callback URLs, session files and DPAPI blobs must remain local.
 Signing in to KMReader alone does not establish that a prototype DPAPI session
 exists: the bridge fails explicitly when the latter is unavailable.
 
-The separate manual workflow **Personal Kindle send registration check**
+The separate manual workflow **Personal Kindle send check**
 (`kindle-send-probe.yml`) runs the current Dart importer from source. It permits
 one Firs send-device registration, bearer renewal and destination-device queries.
 It blocks upload, delivery, deletion and annotation writes at the HTTP transport.
@@ -45,9 +45,18 @@ and is removed in `finally`; only the named metrics JSON is uploaded.
 
 The probe reloads the saved session before its second device query to verify
 that no second registration or browser login is required. This checks credential
-reuse, not delivery acceptance. Upload/edit/overwrite/bookmark-migration/delete
-acceptance needs an additional test using uniquely identified synthetic PDOCs;
-these operations are deliberately absent from this registration check.
+reuse, not delivery acceptance. Select `app_import: true` for the app's importer;
+`upload_fixture: true` additionally permits one locally generated EPUB, an unsigned
+upload to the exact URL returned by Amazon, one delivery and catalog readback.
+Its transport rejects other writes and validates the generated title, author,
+format and size before delivery. A private DPAPI journal is sealed before any
+possible submission; pending/accepted sends are checked rather than repeated.
+The title, response and returned ID stay on the PC. Deletion and annotation writes
+remain blocked. This does not establish full overwrite/bookmark migration.
+
+`web_session` and `xml_declaration` are research comparisons, not application
+fallbacks. The web experiment is archived after its POST routes required Amazon
+sign-in despite authenticated GETs; the native Firs path is used by the app.
 
 The first build downloads Flutter 3.47.8 into the runner tool cache and checks
 the archive against the official release manifest's SHA256. Pub dependencies

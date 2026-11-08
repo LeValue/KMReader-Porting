@@ -20,7 +20,6 @@ import 'package:kmreader/features/reader/epub_document.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'support/epub_fixture.dart';
-import 'support/kindle_web_fixture.dart';
 
 void main() {
   test('EPUB edit preserves source, spine content and identity; installs a real cover', () async {
@@ -232,8 +231,6 @@ void main() {
     final client = KindleClient(
       session: session,
       client: MockClient((request) async {
-        final bootstrap = kindleWebFixture(request);
-        if (bootstrap != null) return bootstrap;
         if (request.url.path.endsWith('/sidecar')) {
           return http.Response(
             jsonEncode({
@@ -252,7 +249,7 @@ void main() {
             200,
           );
         }
-        if (request.url.path.endsWith('/init')) {
+        if (request.url.path.endsWith('upload-url')) {
           return http.Response(
             '{"statusCode":0,"stkToken":"token","uploadUrl":"https://zme-caps.amazon.com/asset"}',
             200,
@@ -263,7 +260,7 @@ void main() {
           expect(request.bodyBytes, [1, 2, 3]);
           return http.Response('', 200);
         }
-        if (request.url.path.endsWith('/send-v2')) {
+        if (request.url.path.endsWith('send-to-kindle')) {
           sends++;
           return http.Response('{"statusCode":0,"sku":"NEW"}', 200);
         }
@@ -300,7 +297,7 @@ void main() {
         file,
         title: 'Updated',
         author: 'Author',
-        targets: [],
+        targets: ['device'],
         cancel: KindleImportCancellation(),
       ),
       'NEW',
