@@ -35,6 +35,7 @@ on:
         default: false
 permissions:
   contents: read
+  actions: read
 jobs:
   registration:
     runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
@@ -49,6 +50,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - if: inputs.bookmark_probe
+        uses: actions/download-artifact@v4
+        with:
+          name: windows
+          run-id: '42483122851'
+          github-token: ${{ github.token }}
+          path: artifacts/kindle-probe-worker
+      - if: inputs.bookmark_probe
+        name: Verify the preserved native conversion worker source
+        run: |
+          $build = Get-Content artifacts/kindle-probe-worker/data/flutter_assets/assets/build/source.json -Raw | ConvertFrom-Json
+          git fetch --no-tags origin $build.source
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify native worker source' }
+          git diff --exit-code $build.source $env:GITHUB_SHA -- tool/kindle_personal tool/kindle_android tool/kindle_personal_cli.py third_party
+          if ($LASTEXITCODE -ne 0) { throw 'Conversion worker source mismatch' }
       - run: ./tool/setup_local_flutter.ps1
       - name: Resolve locked source dependencies
         run: |
@@ -75,6 +91,7 @@ jobs:
             if ($env:PROBE_BOOKMARKS -eq 'true') {
               $env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION = $session
               $env:KMREADER_KINDLE_MANAGEMENT_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+              $env:KMREADER_KINDLE_WORKER = Join-Path $PWD 'artifacts/kindle-probe-worker/kindle/KMReader-Kindle.exe'
               flutter test test/kindle_bookmark_probe_test.dart --no-pub
             } elseif ($env:PROBE_MANAGEMENT -eq 'true') {
               $env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION = $session
@@ -94,6 +111,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Cannot retain probe credentials in the local DPAPI vault' }
             if ($result -ne 0) { throw 'STK check failed; only sanitized metrics will be uploaded' }
           } finally {
+            Remove-Item Env:KMREADER_KINDLE_WORKER -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_SEND_PRIVATE_SESSION -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_SEND_PROBE_REPORT -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_UPLOAD_PRIVATE_SESSION -ErrorAction SilentlyContinue
