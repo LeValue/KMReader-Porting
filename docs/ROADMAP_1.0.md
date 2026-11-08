@@ -2,7 +2,7 @@
 
 The next publication target is **1.0.0**. Existing 0.9.x candidates stay in draft
 while work continues; previous builds and releases remain available for recovery.
-Current source is **1.0.0+31 development candidate**; stable publication remains gated by the checks below.
+Current source is **1.0.0+33 development candidate**; stable publication remains gated by the checks below.
 Changing the version number alone does not complete this milestone.
 
 ## Working scope
@@ -32,8 +32,10 @@ release. The matrix records future work and platform exclusions explicitly.
 Build 31 introduces remote PDOC deletion with backup/journal/catalog verification,
 and EPUB title/author/language/description/cover editing followed by sending an
 updated copy. Dedicated send OAuth and sanitized stage diagnostics address
-concrete client authorization gaps. Full overwrite with cloud bookmark/state
-migration is still missing: the original remains protected and F-13 stays open.
+concrete client authorization gaps. Build 33 adds distinct cloud/device delivery and a resumable EPUB replacement
+workflow that restores exact reading position, cloud bookmarks and local
+completion before retiring the previous edition. F-13 remains open for the
+coverage and acceptance gaps in the service record.
 See [the service record](KINDLE_LIBRARY_MANAGEMENT.md) and K-01–K-06 for the
 remaining API work and real-account/device acceptance. Purchased Amazon books
 remain excluded.

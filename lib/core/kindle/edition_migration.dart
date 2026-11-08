@@ -145,8 +145,7 @@ class KindleEditionMigration {
           throw const KindleFailure('management_local_locator');
         }
         current = current.children[child];
-        if (step.group(2) != null &&
-            current.id != step.group(2)) {
+        if (step.group(2) != null && current.id != step.group(2)) {
           throw const KindleFailure('management_local_locator');
         }
       } else {

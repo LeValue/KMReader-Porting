@@ -1,120 +1,144 @@
 # Gestione remota dei documenti personali Kindle
 
-Stato della sorgente **1.0.0+32**: gestione remota ancora parziale; invio verificato
-su account reale, eliminazione/modifica e migrazione ancora da verificare. I pacchetti della build 30
-non contengono queste modifiche. La voce **F-13** della [matrice](PARITY.md) resta
-aperta, soprattutto per la sostituzione con migrazione dello stato.
+Sorgente **1.0.0+33**, candidata di sviluppo. La gestione riguarda i documenti
+personali **PDOC**; gli acquisti Amazon (`EBOK`) non possono raggiungere le
+mutazioni. La voce **F-13** della [matrice](PARITY.md) resta aperta per la copertura
+residua e l'accettazione finale sulle app installate. Build e release precedenti,
+cronologia, componenti Kindle attivi e firma Android restano conservati.
 
-L'ambito concordato è **PDOC**, i documenti personali caricati dall'utente.
-I libri acquistati da Amazon (`EBOK`) sono esclusi sia nell'interfaccia sia nel
-servizio che esegue le operazioni. Nessuna release, ramo o chiave Android viene
-rimossa per introdurre questo servizio.
+## Aggiunta e destinazione
 
-## Operazioni presenti
+**Invia a Kindle** distingue due operazioni, verificate sull'account reale:
 
-Dal dettaglio di un documento personale, **Gestisci documento Kindle** offre:
+- **Aggiungi alla libreria Kindle**, predefinita: archiviazione cloud, nessun
+  dispositivo obbligatorio; accesso dai dispositivi compatibili dell'account.
+- Interruttore disattivato: **Invia solo ai dispositivi selezionati**, con almeno
+  una destinazione. Il documento non entra nel cloud e non viene sincronizzato
+  o condiviso da Amazon. L'utente ha confermato ricezione e apertura sul Kindle
+  Android scelto nella prova.
 
-- **Modifica metadati e copertina:** scelta del file originale dal dispositivo,
-  titolo/autore e, per EPUB, lingua, descrizione e immagine JPG/PNG fino a 20 MB.
-  Le immagini vengono ridotte proporzionalmente a un lato massimo di 2048 pixel;
-  una copertina esistente deve essere JPEG/PNG. Formati diversi vengono rifiutati
-  prima di creare/inviare la nuova versione, conservando il file originale.
-  L'EPUB viene ricostruito in un isolate, preservando identità, spine e risorse
-  testuali; l'originale non viene sovrascritto. La copia viene inviata ad Amazon,
-  quindi la modifica non è un semplice override della cache di KMReader.
+Le selezioni precedenti non vengono inoltrate in modalità libreria. Un errore
+nel recupero dei dispositivi non impedisce l'aggiunta al cloud. Sessione di lettura
+e credenziali di invio persistenti vengono riutilizzate senza un nuovo accesso
+per ogni operazione. [Protocollo e prove di invio](KINDLE_IMPORT.md).
+
+## Modifica ed eliminazione
+
+Dal dettaglio del documento, **Gestisci documento Kindle** offre:
+
+- **Modifica metadati e copertina:** recupera il documento tramite la coda normale
+  dell'app o riutilizza il file già scaricato. È possibile scegliere un altro
+  file dal dispositivo. Per EPUB: titolo, autore, lingua, descrizione e copertina
+  JPG/PNG fino a 20 MB; ridimensionamento proporzionale a un massimo di 2048 pixel.
+  Le copertine esistenti non supportate vengono rifiutate prima dell'invio.
+- **Salva:** invia la copia aggiornata al cloud, ne verifica l'identità e tenta
+  il ripristino dello stato descritto sotto. Il documento precedente viene
+  ritirato soltanto dopo il ripristino verificato. Un'accettazione Amazon non
+  basta a dichiarare concluso l'aggiornamento.
 - **Elimina dalla libreria Kindle:** conferma esplicita della cancellazione
-  permanente del solo PDOC selezionato. Prima della richiesta vengono salvati i
-  dati di lettura. Il risultato resta in verifica finché un catalogo completo
-  letto da Amazon non conferma l'assenza del documento. HTTP 200 non basta.
-  I file già scaricati e il progresso locale restano conservati.
-- **Gestione contenuti Amazon:** accesso al sito ufficiale per controllare la
-  libreria quando l'interfaccia di servizio non è disponibile o cambia.
+  permanente del PDOC selezionato. Prima della richiesta viene salvato lo stato
+  di lettura. Il catalogo completo deve confermare l'assenza; HTTP 200 non basta.
+  File locali, progresso e dati di recupero vengono conservati.
+- **Gestione contenuti Amazon:** apre il sito ufficiale per controllare la
+  libreria e gestire i casi non ancora supportati dall'app.
 
-L'autorizzazione web per la cancellazione usa cookie generati dal refresh token
-**dell'account collegato**, con dominio Amazon.it e CSRF. Non legge il profilo del
-browser e non chiede cookie da incollare. Una risposta persa non ripete la
-cancellazione: **Verifica eliminazione** esegue soltanto letture. I libri acquistati
-non possono raggiungere la richiesta di cancellazione.
+La modifica dell'EPUB avviene su una copia, in un isolate. Il sorgente, l'identità
+interna, la spine e le risorse testuali sono conservati. La richiesta inviata ad
+Amazon modifica un documento cloud; non è un semplice override della cache.
+Il contratto corrente di cancellazione è `POST /hz/mycd/ajax`, form con `data`
+JSON, CSRF della pagina MyCD e header `client: MYX`. I cookie vengono generati dal
+refresh token dell'account collegato, normalizzati e aggiornati con gli eventuali
+`Set-Cookie` della pagina. Le chiavi ADP non vengono inviate alle pagine web.
+Il precedente endpoint consumer non viene usato come fallback.
 
-## Sostituzione: limite ancora aperto
+## Ripristino del progresso prima della sostituzione
 
-**Non è ancora implementata la sovrascrittura completa con risincronizzazione di
-posizione e segnalibri richiesta dall'utente.** L'interfaccia lo indica prima
-dell'invio: per ora si può inviare una copia aggiornata, conservando l'originale.
+Il ripristino comprende il **punto effettivo nel testo**, i segnalibri cloud e
+locali, il progresso locale, lo stato **in corso/completato**, la data di lettura
+e le preferenze del lettore. Non viene copiato alla cieca il numero di pagina,
+la percentuale, un CFI o un GUID della vecchia edizione.
 
-Prima dell'invio vengono registrati account/documento/revisione, stato cloud
-riconosciuto dal parser (posizione, segnalibri, evidenziazioni e note), progresso
-locale, locatore EPUB e segnalibri locali. La risposta Amazon viene associata
-all'ID della nuova copia e al digest del file inviato. L'operazione rimane
-`replacement_migration_required`; questo stato **non** significa migrazione
-riuscita e blocca la cancellazione dell'originale tramite lo stesso servizio.
+1. Prima dell'invio, salvare sorgente con digest, account/documento/revisione,
+   posizione cloud, segnalibri, evidenziazioni/note riconosciute, progresso e
+   locatori/preferenze locali. Una risposta incompleta non equivale a zero note.
+2. Associare la copia all'ID restituito da Amazon; attendere catalogo e conversione.
+3. Confrontare le mappe delle due edizioni e rimappare le posizioni su testo
+   Unicode **identico e non ambiguo**. I CFI locali devono risolversi contro il
+   DOM originario; quelli non verificabili fermano la migrazione.
+4. Registrare l'intento prima della scrittura. Inviare posizione e segnalibri
+   sulla nuova edizione, poi rileggerli dal cloud con il suo GUID verificato.
+5. Pubblicare progresso, completamento, data di lettura, segnalibri e locatore
+   locale in una transazione SQLite. Anche l'overlay in memoria viene invalidato
+   in caso di rollback. Il locatore migrato consente la ripresa offline.
+6. Ricontrollare lo stato dell'originale e della nuova copia. Solo dopo queste
+   verifiche, rimuovere il vecchio PDOC e confermarne l'assenza dal catalogo.
 
-`KindleClient.pushPosition` scrive e rilegge una posizione della stessa edizione;
-non fornisce ancora scrittura verificata dei segnalibri su una nuova edizione.
-Copiare alla cieca CFI, GUID o numeri di posizione non sarebbe un ripristino.
-Il runner personale ora consente prove con la sessione locale: registrazione,
-riuso delle credenziali e invio di un EPUB sintetico sono passati. Non è ancora
-verificato il protocollo di scrittura dei segnalibri su una nuova edizione.
-Nessun documento preesistente è stato modificato o eliminato durante queste prove.
+Modifiche concorrenti allo stato di lettura fermano l'operazione. Dopo una risposta
+persa, **Ripristina il progresso di lettura** esegue soltanto la verifica del piano
+registrato: non reinvia il file né ripete la scrittura dei segnalibri. **Completa
+l'aggiornamento del documento** ritenta il ritiro solo quando lo stato ripristinato
+è verificato e non è già partita una cancellazione. Quando la cancellazione è
+incerta, **Verifica eliminazione** legge il catalogo senza ripetere la mutazione.
 
-Per completare la sostituzione occorre ancora:
+### Copertura residua
 
-1. Verificare le API effettive di aggiornamento e scrittura delle annotazioni.
-2. Attendere conversione e identificare la nuova copia tramite l'identità restituita.
-3. Confrontare i contenuti e rimappare posizione/segnalibri su ancore non ambigue.
-4. Scrivere e rileggere lo stato nel cloud; verificarlo su un altro Kindle/app.
-5. Riconciliare eventuali modifiche concorrenti all'originale, migrare i riferimenti
-   locali e soltanto allora ritirare il vecchio PDOC se ha un ID diverso.
+La rimappatura è implementata per EPUB preparati con una mappa Kindle valida.
+La presenza di **note o evidenziazioni**, un PDF o un'edizione senza mappa, testo
+modificato/ambiguo e CFI non supportati impediscono il ritiro dell'originale.
+Questi casi restano da completare: non vengono considerati riusciti e non sono
+spostati automaticamente tra le funzionalità future della 1.0.
 
 ## Registro e recupero
 
-Il registro `kindle:management` è separato per account. Prima di una mutazione il
-backup viene scritto con file temporaneo e rinomina nella cartella privata
-`<account>/kindle-management/`; il piccolo registro SQLite conserva il riferimento.
-Le operazioni sono salvate **prima** della richiesta remota. Backup e note non
-finiscono nei log, nelle fixture o negli artefatti CI. Non è prevista una pulizia
-automatica dei backup in questa revisione.
+Il registro `kindle:management` è separato per account. I backup sono nella
+cartella privata `<account>/kindle-management/`, scritti con temporaneo e rinomina;
+per una sostituzione viene conservata anche la copia del sorgente con SHA256.
+Non vengono puliti automaticamente. Backup, identificativi personali, cookie,
+chiavi e contenuto dei libri non fanno parte dei log o degli artefatti CI.
+Le prove personali mantengono il registro sul PC, protetto con DPAPI.
 
 | Stato | Significato e recupero |
 |---|---|
-| `backed_up` | Backup completato, richiesta di mutazione non iniziata; annullabile dall'interfaccia. |
-| `delete_submitting`, `delete_uncertain`, `delete_verifying` | Verificare il catalogo senza ripetere la cancellazione. |
-| `done` | L'assenza del PDOC è stata confermata da un catalogo completo. |
-| `replacement_submitting`, `replacement_uncertain` | Controllare la libreria Amazon; nessun reinvio automatico. |
-| `replacement_migration_required` | Nuova copia accettata; originale e stato precedente conservati, migrazione incompleta. |
-| `rejected` | Operazione fermata prima dell'invio della mutazione o errore di invio definitivo. Un nuovo tentativo deve essere esplicito. |
+| `backed_up` | Backup completato, mutazione non iniziata; annullabile. |
+| `delete_submitting`, `delete_uncertain`, `delete_verifying` | Rileggere il catalogo senza ripetere la cancellazione. |
+| `replacement_submitting`, `replacement_uncertain` | Consegna da controllare; nessun nuovo invio automatico. |
+| `replacement_migration_required` | Copia accettata; ripristino da completare. |
+| `migration_submitting`, `migration_uncertain` | Scrittura dello stato da verificare, senza replay. |
+| `progress_restored` | Stato cloud verificato e progresso locale ripristinato; originale ancora presente. |
+| `replacement_retiring`, `replacement_retirement_uncertain`, `replacement_retirement_verifying` | Ritiro del vecchio PDOC avviato: solo verifica del catalogo. |
+| `done` | Cancellazione confermata; per una sostituzione, anche ripristino verificato. |
+| `rejected` | Mutazione non iniziata o invio definitivamente rifiutato; nuovo tentativo esplicito. |
 
-Un download o un'outbox di lettura pendenti bloccano l'avvio della gestione dello
-stesso documento. Un'operazione aperta impedisce mutazioni concorrenti sullo
-stesso PDOC, anche dopo il riavvio. Una disconnessione non può completare una
-scrittura tardiva nella cache di un account chiuso.
+Download/outbox pendenti bloccano la gestione dello stesso documento. Un'operazione
+aperta impedisce mutazioni concorrenti, anche dopo il riavvio. La chiusura di un
+account impedisce di pubblicare risultati tardivi nella sua cache.
 
-## Requisiti e prove residue
+## Requisiti e prove
 
-| ID | Requisito | Situazione nella build 32 |
+| ID | Requisito | Situazione nella sorgente 33 |
 |---|---|---|
-| K-01 | Risolvere il blocco di Invio a Kindle | Build 32: richiesta XML e tipo di contenuto Firs corretti; TTL dell'URL relativo. Registrazione, riuso dopo ricostruzione sessione e invio reale di un EPUB sintetico con rilettura catalogo passati sul desktop: [42482337075](https://github.com/LeValue/KMReader-Porting/actions/runs/42482337075), [42483122733](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122733). Nessun nuovo login browser; resta l'accettazione della UI installata su Android/Windows (K-06). |
-| K-02 | Eliminazione cloud PDOC | Servizio, conferma, backup, journal e rilettura implementati. Protocollo web non stabile e non verificato su Amazon reale. |
-| K-03 | Metadati e copertina | Modifica EPUB su copia e invio implementati; aggiornamento in-place non dimostrato. Confermare metadati/copertina dopo conversione Amazon. |
-| K-04 | Migrazione stato e segnalibri | Backup implementato; rimappatura, scrittura cloud delle annotazioni e migrazione completa ancora mancanti. |
-| K-05 | Registro durevole e recupero | Implementato per invii/cancellazioni incerti; nessun ritiro automatico dell'originale durante una migrazione incompleta. |
-| K-06 | Accettazione Android/Windows/altro Kindle | Da eseguire su account dedicato e dispositivi reali. |
+| K-01 | Invio locale con sessione persistente e modalità distinte | Libreria e solo dispositivo verificati; ricezione/apertura Android confermata dall'utente. Resta accettazione UI installata su entrambe le piattaforme. |
+| K-02 | Eliminazione cloud PDOC | Endpoint corrente, conferma, backup, journal, verifica e recupero implementati; prova completa reale in corso. |
+| K-03 | Metadati e copertina | Recupero dall'app, modifica EPUB su copia e invio implementati; conferma dopo conversione nella prova completa reale. Nessun aggiornamento in-place presunto. |
+| K-04 | Ripristino progresso e segnalibri | Implementato per EPUB con mappa verificata, inclusi completamento/data e ripresa offline; test conferma, risposta persa, conflitti e rollback passati. Restano copertura di PDF/note/evidenziazioni e verifica completa reale. |
+| K-05 | Registro durevole e recupero | Piano salvato prima delle mutazioni; invii incerti non ripetuti, originale ritirabile solo dopo verifica. Prova personale conserva backup/registro sul PC tra processi. |
+| K-06 | Accettazione Android/Windows/altro Kindle | Servizi provati dal desktop e consegna Kindle Android confermata; restano UI aggiornata e ripresa su un secondo dispositivo dopo sostituzione. |
 
-[Test](../test/kindle_management_test.dart): EPUB immutato, risorse testuali e
-copertina reale, input non validi, blocco EBOK, backup, copia aggiornata senza
-ritiro dell'originale, cancellazione non confermata e risposta persa senza replay.
-Queste fixture verificano il codice client, non la disponibilità attuale delle
-API Amazon né l'avvenuta sincronizzazione con altri dispositivi.
+Prove locali: [modifica/eliminazione](../test/kindle_management_test.dart),
+[rimappatura](../test/kindle_edition_migration_test.dart),
+[ripristino e ritiro](../test/kindle_replacement_test.dart).
+[Prova completa reale 42506920429](https://github.com/LeValue/KMReader-Porting/actions/runs/42506920429):
+esito da registrare al termine. È limitata al documento sintetico generato dalla
+prova di aggiunta al cloud; nessun libro preesistente dell'utente è modificabile
+dal suo guard HTTP. [Altre evidenze](KINDLE_IMPORT.md).
 
 ## Fonti del protocollo
 
-Amazon descrive la [rimozione dei documenti personali](https://digprjsurvey.amazon.co.uk/csad/help/node/TEYEjk3h6UBK0eAr0c)
-e la [cancellazione permanente](https://www.amazonforum.com/s/question/0D54P00007LcdkYSAR/how-do-i-remove-old-books-from-library),
-ma non pubblica un contratto REST stabile per queste mutazioni.
-
-La richiesta `DeleteContent`/`KindlePDoc` e il percorso consumer web sono descritti
-nel [riferimento primario amazon_fiona_js](https://github.com/fatso83/amazon_fiona_js/blob/4092714156b31a3fecfa46c2ac552df613e395c7/TODO.md).
-È un protocollo storico: non si presume che Amazon lo mantenga disponibile.
-Lo scambio refresh-token/cookie segue il [client Audible](https://github.com/mkb79/Audible/blob/master/src/audible/auth.py),
-adattato all'account e al dominio Kindle Amazon.it. Le credenziali ADP di lettura
-non vengono inviate alle pagine web. Per l'invio, vedere [KINDLE_IMPORT.md](KINDLE_IMPORT.md).
+Il JavaScript MyCD attuale di Amazon contiene `ajax_fmyx`, `DeleteContent`,
+`KindlePDoc`, form e header `MYX`:
+[risorsa pubblica verificata](https://m.media-amazon.com/images/I/91XIVcpdV8L._RC%7C81vusVJblyL.js,01K8GZbiiAL.js_.js).
+Il [riferimento storico](https://github.com/fatso83/amazon_fiona_js/blob/4092714156b31a3fecfa46c2ac552df613e395c7/TODO.md)
+resta utile per il contesto, ma il suo vecchio endpoint non viene considerato attuale.
+Lo scambio cookie segue il [client Audible](https://github.com/mkb79/Audible/blob/master/src/audible/auth.py),
+adattato al dominio Kindle Amazon.it. La scrittura XML delle annotazioni è stata
+verificata su un PDOC sintetico con GUID reale: l'alias `_LATEST_` non viene usato.
