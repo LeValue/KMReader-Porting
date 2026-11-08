@@ -15,6 +15,14 @@ on:
         description: Check first-party web STK using the existing reader session, without Firs registration
         type: boolean
         default: false
+      app_web:
+        description: Exercise the current Dart web importer instead of legacy Firs
+        type: boolean
+        default: false
+      upload_fixture:
+        description: Send one generated EPUB; preserve its private journal and never replay it
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -43,6 +51,8 @@ jobs:
         if: ${{ !inputs.web_session }}
         env:
           KMREADER_KINDLE_PROBE_XML_DECLARATION: ${{ inputs.xml_declaration }}
+          KMREADER_KINDLE_PROBE_UPLOAD_FIXTURE: ${{ inputs.upload_fixture }}
+          PROBE_APP_WEB: ${{ inputs.app_web }}
         run: |
           $ErrorActionPreference = 'Stop'
           $private = Join-Path $env:RUNNER_TEMP ('kindle-send-private-' + $env:GITHUB_RUN_ID)
@@ -52,9 +62,15 @@ jobs:
           try {
             python -m tool.kindle_send_probe_bridge export $session
             if ($LASTEXITCODE -ne 0) { throw 'Existing personal Kindle session unavailable; no login attempted' }
-            $env:KMREADER_KINDLE_SEND_PRIVATE_SESSION = $session
-            $env:KMREADER_KINDLE_SEND_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
-            flutter test test/kindle_send_probe_test.dart --no-pub
+            if ($env:PROBE_APP_WEB -eq 'true') {
+              $env:KMREADER_KINDLE_WEB_PRIVATE_SESSION = $session
+              $env:KMREADER_KINDLE_WEB_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+              flutter test test/kindle_web_probe_test.dart --no-pub
+            } else {
+              $env:KMREADER_KINDLE_SEND_PRIVATE_SESSION = $session
+              $env:KMREADER_KINDLE_SEND_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+              flutter test test/kindle_send_probe_test.dart --no-pub
+            }
             $result = $LASTEXITCODE
             python -m tool.kindle_send_probe_bridge seal $session
             if ($LASTEXITCODE -ne 0) { throw 'Cannot retain probe credentials in the local DPAPI vault' }
@@ -62,6 +78,8 @@ jobs:
           } finally {
             Remove-Item Env:KMREADER_KINDLE_SEND_PRIVATE_SESSION -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_SEND_PROBE_REPORT -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_WEB_PRIVATE_SESSION -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_WEB_PROBE_REPORT -ErrorAction SilentlyContinue
             Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
           }
       - name: Check first-party web access without a new browser login

@@ -4,7 +4,7 @@
 Aggiornamento del documento: 7 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+31 in sviluppo**. La candidata distribuita **1.0.0+30**, verificata al
+**1.0.0+32 in sviluppo**. La candidata distribuita **1.0.0+30**, verificata al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.

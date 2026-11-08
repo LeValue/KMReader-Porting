@@ -12,7 +12,6 @@ import '../../core/kindle/document_edit.dart';
 import '../../core/models.dart';
 import '../../core/kindle/repository.dart';
 import '../../ui/strings.dart';
-import 'kindle_send_login_page.dart';
 
 class KindleImportPage extends StatefulWidget {
   const KindleImportPage({super.key, required this.repository, this.replacing});
@@ -28,7 +27,6 @@ class _KindleImportPageState extends State<KindleImportPage> {
   final _summary = TextEditingController(), _language = TextEditingController();
   var _cancel = KindleImportCancellation();
   List<KindleImportDevice>? _devices;
-  final _targets = <String>{};
   XFile? _file, _cover;
   bool _loading = true, _busy = false, _submitting = false;
   bool _accepted = false, _uncertain = false;
@@ -76,7 +74,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
               'This file format is not supported by Send to Kindle.',
             'import_size' => 'Choose a non-empty file up to 200 MB.',
             'import_metadata' =>
-              'Enter a title and select at least one Kindle device.',
+              'Enter a title and keep title and author within 250 characters.',
             'import_cancelled' => 'Upload cancelled before delivery.',
             'import_delivery_uncertain' => 'Amazon did not confirm delivery. Check your Kindle library before sending this file again.',
             'import_rejected' => 'Amazon rejected the request. Check your connection and Kindle account, or use the Amazon website.',
@@ -98,7 +96,6 @@ class _KindleImportPageState extends State<KindleImportPage> {
       if (!mounted) return;
       setState(() {
         _devices = devices;
-        _targets.clear();
       });
     } catch (error) {
       if (mounted) setState(() => _deviceError = _message(error));
@@ -205,7 +202,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
           prepared,
           title: _title.text,
           author: _author.text,
-          targets: _targets.toList(),
+          targets: const [],
           cancel: _cancel,
           onProgress: (sent, total) {
             if (mounted) setState(() => _progress = sent / total);
@@ -219,7 +216,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
           prepared,
           title: _title.text,
           author: _author.text,
-          targets: _targets.toList(),
+          targets: const [],
           cancel: _cancel,
           onProgress: (sent, total) {
             if (mounted) setState(() => _progress = sent / total);
@@ -282,7 +279,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
               Text(
                 tr(
                   context,
-                  'Choose a file from this device. Amazon will add it to this account’s Kindle library and deliver it to the selected devices.',
+                  'Choose a file from this device. Amazon will add it to this account’s Kindle library using your existing connection.',
                 ),
               ),
               if (widget.replacing != null)
@@ -366,28 +363,8 @@ class _KindleImportPageState extends State<KindleImportPage> {
                   onPressed: _loadDevices,
                   child: Text(tr(context, 'Retry')),
                 )
-              else if (_devices!.isEmpty)
-                Text(
-                  tr(
-                    context,
-                    'No compatible Kindle devices found. Use the Amazon website to add documents to your library.',
-                  ),
-                )
               else
-                for (final device in _devices!)
-                  CheckboxListTile(
-                    title: Text(device.name),
-                    value: _targets.contains(device.serial),
-                    onChanged: _busy || _accepted || _uncertain
-                        ? null
-                        : (value) => setState(() {
-                            if (value == true) {
-                              _targets.add(device.serial);
-                            } else {
-                              _targets.remove(device.serial);
-                            }
-                          }),
-                  ),
+                Text(tr(context, 'Kindle library for this account')),
               if (_busy) ...[
                 const SizedBox(height: 16),
                 LinearProgressIndicator(value: _submitting ? null : _progress),
@@ -401,25 +378,6 @@ class _KindleImportPageState extends State<KindleImportPage> {
                   child: Text(tr(context, 'Cancel')),
                 ),
               ],
-              if (_deviceError != null)
-                TextButton.icon(
-                  onPressed: _loading || _busy
-                      ? null
-                      : () async {
-                          final connected = await Navigator.of(context)
-                              .push<bool>(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      KindleSendLoginPage(importer: _importer),
-                                ),
-                              );
-                          if (mounted && connected == true) {
-                            await _loadDevices();
-                          }
-                        },
-                  icon: const Icon(Icons.login),
-                  label: Text(tr(context, 'Authorize Send to Kindle')),
-                ),
               if (_deviceError != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -458,7 +416,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
                     _busy ||
                         _loading ||
                         _file == null ||
-                        _targets.isEmpty ||
+                        _devices == null ||
                         _accepted ||
                         _uncertain
                     ? null
