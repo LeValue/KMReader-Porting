@@ -14,6 +14,8 @@ import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/kindle/kindle_import_page.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'support/kindle_web_fixture.dart';
+
 void main() {
   for (final scenario in ['accepted', 'uncertain', 'devices_error']) {
     final accepted = scenario == 'accepted';
@@ -47,6 +49,8 @@ void main() {
             },
           }),
           client: MockClient((request) async {
+            final bootstrap = kindleWebFixture(request);
+            if (bootstrap != null) return bootstrap;
             if (request.url.path.endsWith('get-device-list')) {
               if (deviceError) return http.Response('PRIVATE SERVER BODY', 503);
               return http.Response(
@@ -62,7 +66,7 @@ void main() {
                 200,
               );
             }
-            if (request.url.path.endsWith('upload-url')) {
+            if (request.url.path.endsWith('/init')) {
               return http.Response(
                 jsonEncode({
                   'statusCode': 0,
@@ -75,7 +79,8 @@ void main() {
             if (request.method == 'PUT') return http.Response('', 200);
             deliveries++;
             final body = object(jsonDecode(request.body));
-            expect(body['targetDevices'], ['SYNTHETIC-TARGET']);
+            expect(body['deviceList'], isEmpty);
+            expect(body['archive'], true);
             if (!accepted) throw const SocketException('Lost response');
             return http.Response(
               '{"statusCode":0,"sku":"SYNTHETIC-DOCUMENT"}',
@@ -108,10 +113,12 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(home: KindleImportPage(repository: repo)),
         );
-        // RSA signing runs in a real isolate; let external futures finish.
+        // Let the asynchronous account/CSRF checks complete.
         for (
           var i = 0;
-          i < 12 && find.text('My Kindle').evaluate().isEmpty;
+          i < 100 &&
+              find.text('Kindle library for this account').evaluate().isEmpty &&
+              find.textContaining('HTTP 503').evaluate().isEmpty;
           i++
         ) {
           await tester.runAsync(
@@ -135,7 +142,7 @@ void main() {
           }
           expect(find.text('Local document.txt'), findsOneWidget);
           expect(find.textContaining('HTTP 503'), findsOneWidget);
-          expect(find.text('Authorize Send to Kindle'), findsOneWidget);
+          expect(find.text('Authorize Send to Kindle'), findsNothing);
           expect(
             tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
             isNull,
@@ -143,7 +150,7 @@ void main() {
           await tester.pumpWidget(const SizedBox());
           return;
         }
-        expect(find.text('My Kindle'), findsOneWidget);
+        expect(find.text('Kindle library for this account'), findsOneWidget);
         expect(find.text('Chosen Kindle account'), findsOneWidget);
         expect(
           tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
@@ -154,8 +161,6 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 50)),
         );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('My Kindle'));
-        await tester.pump();
         final button = find.byType(FilledButton);
         expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
         await tester.ensureVisible(button);

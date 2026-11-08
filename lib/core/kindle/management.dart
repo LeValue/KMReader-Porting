@@ -327,10 +327,7 @@ class KindleDocumentManager {
     void Function(int, int)? onProgress,
     void Function()? onSubmitting,
   }) async {
-    if (title.trim().isEmpty ||
-        title.length > 250 ||
-        author.length > 250 ||
-        targets.isEmpty) {
+    if (title.trim().isEmpty || title.length > 250 || author.length > 250) {
       throw const KindleFailure('import_metadata');
     }
     cancel.check();

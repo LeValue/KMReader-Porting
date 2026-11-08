@@ -96,14 +96,25 @@ def transfer(operation, path):
         if cached and cached.get("customer_id") == existing["customer_id"]:
             if cached.get("send_device"):
                 session["send_device"] = cached["send_device"]
-        path.write_text(json.dumps({"session": session}), encoding="utf-8")
+        payload = {"session": session}
+        if cached and cached.get("customer_id") == existing["customer_id"] and cached.get("probe_operation"):
+            payload["probe_operation"] = cached["probe_operation"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
     else:
-        session = json.loads(path.read_text(encoding="utf-8"))["session"]
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        session = payload["session"]
         if session.get("customer_id") != existing["customer_id"]:
             raise ValueError("account_mismatch")
+        record = cache.load() or {}
+        if record.get("customer_id") != existing["customer_id"]:
+            record = {"customer_id": existing["customer_id"]}
         device = session.get("send_device", {})
         if device.get("adp_token") and device.get("device_private_key"):
-            cache.save({"customer_id": existing["customer_id"], "send_device": device})
+            record["send_device"] = device
+        if payload.get("probe_operation"):
+            record["probe_operation"] = payload["probe_operation"]
+        if record.get("send_device") or record.get("probe_operation"):
+            cache.save(record)
 
 
 def main():
