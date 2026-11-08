@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kmreader/core/kindle/client.dart';
 import 'package:kmreader/core/kindle/conversion.dart';
+import 'package:kmreader/core/kindle/library.dart';
 import 'package:kmreader/core/kindle/positions.dart';
 import 'package:kmreader/core/kindle/repository.dart';
 import 'package:kmreader/core/models.dart';
@@ -114,6 +115,15 @@ void main() {
     final client = KindleClient(
       session: session,
       client: MockClient((request) async {
+        if (request.url.path.endsWith('syncMetaData')) {
+          return http.Response(
+            '<response><add_update_list><meta_data><ASIN>opaque+/id</ASIN>'
+            '<cde_contenttype>PDOC</cde_contenttype>'
+            '<title>Documento sintetico</title></meta_data>'
+            '</add_update_list></response>',
+            200,
+          );
+        }
         if (request.url.path.endsWith('/sidecar')) {
           if (networkUnavailable) return http.Response('', 503);
           if (request.method == 'GET') {
@@ -205,6 +215,39 @@ void main() {
     store.close();
     root.deleteSync(recursive: true);
   });
+  test(
+    'confirmed cloud removal cannot reappear from a retained device catalog',
+    () async {
+      final raw = repo.library.item(book.id);
+      store.recordProgress(repo.profile.id, book.id, {
+        'page': 17,
+        'completed': true,
+      });
+      await repo.download(book);
+      repo.library.markCloudRemoved(text(raw['id']));
+      await repo.library.refresh(full: true);
+      expect(repo.library.items.any((item) => item['id'] == raw['id']), false);
+      expect(await repo.bookFile(book).exists(), true);
+      expect(store.progress(repo.profile.id, book.id)?['page'], 17);
+      final reopened = KindleLibrary(
+        profile: repo.profile,
+        store: store,
+        directory: root,
+        client: KindleClient(
+          session: repo.library.client.session,
+          client: MockClient((request) async {
+            fail('Offline reopening must not require a network request');
+          }),
+        ),
+        preparation: preparation,
+      );
+      await reopened.ready;
+      expect(reopened.items.any((item) => item['id'] == raw['id']), false);
+      reopened.allowCloudDocument(text(raw['id']));
+      expect(reopened.items.any((item) => item['id'] == raw['id']), true);
+      reopened.close();
+    },
+  );
   test(
     'same catalog supports library search and hides Amazon dictionaries',
     () async {

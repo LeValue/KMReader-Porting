@@ -33,6 +33,10 @@ on:
         description: Read-only cloud ownership diagnostics; no native download or mutations
         type: boolean
         default: false
+      retry_removal:
+        description: Explicitly retry the generated original's removal after verified cloud ownership
+        type: boolean
+        default: false
       bookmark_probe:
         description: Verify one bookmark on the exact generated test document only
         type: boolean
@@ -58,14 +62,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - if: inputs.bookmark_probe || inputs.replacement_probe && !inputs.cloud_only
+      - if: inputs.bookmark_probe || inputs.replacement_probe && !inputs.cloud_only && !inputs.retry_removal
         uses: actions/download-artifact@v4
         with:
           name: windows
           run-id: '42483122851'
           github-token: ${{ github.token }}
           path: artifacts/kindle-probe-worker
-      - if: inputs.bookmark_probe || inputs.replacement_probe && !inputs.cloud_only
+      - if: inputs.bookmark_probe || inputs.replacement_probe && !inputs.cloud_only && !inputs.retry_removal
         name: Verify the preserved native conversion worker source
         run: |
           $build = Get-Content artifacts/kindle-probe-worker/data/flutter_assets/assets/build/source.json -Raw | ConvertFrom-Json
@@ -87,6 +91,7 @@ jobs:
           KMREADER_KINDLE_MANAGEMENT_FIXTURE: ${{ inputs.management_fixture }}
           PROBE_REPLACEMENT: ${{ inputs.replacement_probe }}
           KMREADER_KINDLE_CLOUD_ONLY: ${{ inputs.cloud_only }}
+          KMREADER_KINDLE_RETRY_REMOVAL: ${{ inputs.retry_removal }}
           PROBE_BOOKMARKS: ${{ inputs.bookmark_probe }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |

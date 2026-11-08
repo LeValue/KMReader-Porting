@@ -27,6 +27,7 @@ void main() {
     'target_changed',
     'retire',
     'retire_lost_reply',
+    'retire_retry',
     'legacy_snapshot',
     'legacy_changed',
   ]) {
@@ -83,7 +84,7 @@ void main() {
         client: MockClient((request) async {
           if (request.url.path.endsWith('syncMetaData')) {
             return http.Response(
-              '<response><add_update_list>${removed ? '' : '<meta_data><ASIN>OLD</ASIN><cde_contenttype>PDOC</cde_contenttype><title>Original</title></meta_data>'}<meta_data><ASIN>NEW</ASIN><cde_contenttype>PDOC</cde_contenttype><title>Updated</title></meta_data></add_update_list></response>',
+              '<response><add_update_list>${removed ? '' : '<meta_data><ASIN>OLD</ASIN><cde_contenttype>PDOC</cde_contenttype><title>Original</title><content_version>1</content_version></meta_data>'}<meta_data><ASIN>NEW</ASIN><cde_contenttype>PDOC</cde_contenttype><title>Updated</title><content_version>1</content_version></meta_data></add_update_list></response>',
               200,
             );
           }
@@ -179,8 +180,23 @@ void main() {
               return http.Response('var csrfToken = "test";', 200);
             }
             if (request.url.path == '/hz/mycd/ajax') {
-              deletions++;
               final data = object(jsonDecode(request.bodyFields['data']!));
+              if (object(data['param']).containsKey('OwnershipData')) {
+                return http.Response(
+                  jsonEncode({
+                    'OwnershipData': {
+                      'items': [
+                        if (!removed) {'asin': 'OLD', 'category': 'KindlePDoc'},
+                        {'asin': 'NEW', 'category': 'KindlePDoc'},
+                      ],
+                      'numberOfItems': removed ? 1 : 2,
+                      'hasMoreItems': false,
+                    },
+                  }),
+                  200,
+                );
+              }
+              deletions++;
               expect(
                 object(
                   object(object(data['param'])['DeleteContent'])['asinDetails'],
@@ -191,7 +207,7 @@ void main() {
                 store.progress(profile.id, targetBookId)?['completed'],
                 true,
               );
-              removed = true;
+              removed = mode != 'retire_retry' || deletions > 1;
               if (mode == 'retire_lost_reply') {
                 throw const SocketException('lost delete response');
               }
@@ -366,8 +382,27 @@ void main() {
           } else {
             await manager.retireReplacement(text(operation['operation']));
           }
+          if (mode == 'retire_retry') {
+            expect(
+              manager.operations.single['state'],
+              'replacement_retirement_verifying',
+            );
+            expect(deletions, 1);
+            final retry = manager.retryRemoval(text(operation['operation']));
+            await expectLater(
+              manager.retryRemoval(text(operation['operation'])),
+              throwsA(
+                isA<KindleFailure>().having(
+                  (e) => e.code,
+                  'code',
+                  'management_busy',
+                ),
+              ),
+            );
+            await retry;
+          }
           expect(manager.operations.single['state'], 'done');
-          expect(deletions, 1);
+          expect(deletions, mode == 'retire_retry' ? 2 : 1);
           expect(repo.library.items.any((i) => i['id'] == 'NEW'), true);
         }
       }

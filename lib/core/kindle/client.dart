@@ -15,6 +15,8 @@ import 'catalog_filter.dart';
 const kindleDeviceType = 'AGZZ1ST63LKBW';
 const kindleAppVersion = '6.38.0.100';
 const kindleSoftwareVersion = '1184366692';
+String kindlePdocIdentity(String id) =>
+    RegExp(r'^[A-Fa-f0-9]{32}$').hasMatch(id) ? id.toUpperCase() : id;
 const kindleUserAgent = 'Kindle/1.0.235280.0.10 CFNetwork/1220.1 Darwin/20.3.0';
 const kindleCatalogUrl =
     'https://todo-ta-g7g.amazon.com/FionaTodoListProxy/syncMetaData';

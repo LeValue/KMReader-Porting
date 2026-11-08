@@ -1,4 +1,8 @@
 {
+  "Amazon did not authorize library management. Your reading session is preserved.": {"en": "Amazon did not authorize library management. Your reading session is preserved.", "it": "Amazon non ha autorizzato la gestione della libreria. La sessione di lettura è conservata."},
+  "Amazon rejected the library operation. The original document is preserved.": {"en": "Amazon rejected the library operation. The original document is preserved.", "it": "Amazon ha rifiutato l’operazione sulla libreria. Il documento originale è conservato."},
+  "A new removal attempt was requested": {"en": "A new removal attempt was requested", "it": "È stato richiesto un nuovo tentativo di rimozione"},
+  "Retry removal": {"en": "Retry removal", "it": "Riprova la rimozione"},
   "Document updated and reading progress restored": {"en": "Document updated and reading progress restored", "it": "Documento aggiornato e progresso di lettura ripristinato"},
   "Finish document update": {"en": "Finish document update", "it": "Completa l’aggiornamento del documento"},
   "Saving replaces this document after restoring and verifying its reading progress and bookmarks. If verification fails, the original is preserved.": {"en": "Saving replaces this document after restoring and verifying its reading progress and bookmarks. If verification fails, the original is preserved.", "it": "Il salvataggio sostituisce il documento dopo aver ripristinato e verificato il progresso di lettura e i segnalibri. Se la verifica non riesce, l’originale viene conservato."},
