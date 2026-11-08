@@ -505,15 +505,17 @@ void main() {
           if (request.url.path == '/hz/mycd/myx') {
             expect(request.headers['cookie'], 'session-id=synthetic-cookie');
             return http.Response(
-              'var csrfToken = "synthetic-csrf";',
+              '"csrfToken":"wrong-token";var csrfToken = "synthetic-csrf";',
               200,
               headers: {
                 'set-cookie': 'session-id=renewed-cookie; Path=/; Secure, bad=never-send; Domain=evil.invalid; Path=/',
               },
             );
           }
-          if (request.url.path.contains('ajax-activity')) {
+          if (request.url.path == '/hz/mycd/ajax') {
             expect(request.headers['cookie'], 'session-id=renewed-cookie');
+            expect(request.headers['client'], 'MYX');
+            expect(request.bodyFields['csrfToken'], 'synthetic-csrf');
             deletions++;
             expect(manager.operations.single['state'], 'delete_submitting');
             expect(

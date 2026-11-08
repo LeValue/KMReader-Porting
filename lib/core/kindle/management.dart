@@ -11,6 +11,8 @@ import 'package:http/http.dart' as http;
 import '../models.dart';
 import 'client.dart';
 import 'import.dart';
+import 'edition_migration.dart';
+import 'positions.dart';
 import 'repository.dart';
 
 /// Remote mutations of personal documents only. HTTP success alone never
@@ -108,7 +110,9 @@ class KindleDocumentManager {
       throw const KindleFailure('management_pending');
     }
     // A missing/malformed sidecar is not an empty set of bookmarks.
-    if (sidecar == null || sidecar['annotations_loaded'] != true) {
+    if (sidecar == null ||
+        sidecar['annotations_loaded'] != true ||
+        sidecar['annotations_complete'] != true) {
       throw const KindleFailure('management_backup_unavailable');
     }
     final backup = <String, dynamic>{
@@ -134,7 +138,6 @@ class KindleDocumentManager {
           [],
       'created': DateTime.now().toUtc().toIso8601String(),
     };
-    final encoded = await Isolate.run(() => jsonEncode(backup));
     final folder = Directory(
       p.join(
         repository.directory.path,
@@ -144,6 +147,17 @@ class KindleDocumentManager {
     );
     await folder.create(recursive: true);
     _check();
+    if (kind == 'replace') {
+      final source = repository.bookFile(await repository.book(book.id));
+      if (await source.exists()) {
+        final copy = File(p.join(folder.path, '${backup['operation']}.source'));
+        await source.copy(copy.path);
+        backup['source'] = p.basename(copy.path);
+        backup['source_sha256'] = (await sha256.bind(copy.openRead()).first)
+            .toString();
+      }
+    }
+    final encoded = await Isolate.run(() => jsonEncode(backup));
     final file = File(p.join(folder.path, '${backup['operation']}.json'));
     final partial = File('${file.path}.part');
     await partial.writeAsString(encoded, flush: true);
@@ -250,6 +264,7 @@ class KindleDocumentManager {
           for (final value in (headers['set-cookie'] ?? '').split(
             RegExp(r',(?=\s*[A-Za-z0-9_-]+=)'),
           )) {
+            if (value.trim().isEmpty) continue;
             try {
               final cookie = Cookie.fromSetCookieValue(value.trim());
               final domain = cookie.domain?.replaceFirst(RegExp(r'^\.'), '');
@@ -259,7 +274,7 @@ class KindleDocumentManager {
                 continue;
               }
               if (cookie.path != null &&
-                  !'/mn/dcw/myx/ajax-activity/'.startsWith(cookie.path!)) {
+                  !'/hz/mycd/ajax'.startsWith(cookie.path!)) {
                 continue;
               }
               if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cookie.name) ||
@@ -272,6 +287,8 @@ class KindleDocumentManager {
               } else {
                 cookies[cookie.name] = cookie.value.replaceAll('"', '');
               }
+            } on HttpException {
+              /* Ignore malformed cookies, never forward them. */
             } on FormatException {
               /* Ignore malformed cookies, never forward them. */
             }
@@ -279,9 +296,14 @@ class KindleDocumentManager {
         },
       ),
     );
-    final csrf = RegExp(
-      r'''(?:var\s+)?csrfToken["']?\s*[=:]\s*["']([^"'\r\n]+)["']''',
+    final declaredCsrf = RegExp(
+      r'''var\s+csrfToken\s*=\s*["']([^"'\r\n]+)["']''',
     ).firstMatch(html)?.group(1);
+    final csrf =
+        declaredCsrf ??
+        RegExp(r'''(?:var\s+)?csrfToken["']?\s*[=:]\s*["']([^"'\r\n]+)["']''')
+            .firstMatch(html)
+            ?.group(1);
     if (csrf == null || csrf.isEmpty) {
       throw const KindleFailure('management_authorization');
     }
@@ -299,52 +321,118 @@ class KindleDocumentManager {
     try {
       final auth = await _webAuthorization();
       final item = _personal(book);
-      // Recorded consumer-web protocol, scoped to one PDOC. No EBOK operation,
-      // bulk deletion, fallback endpoint or automatic replay is permitted.
-      final request =
-          http.Request(
-              'POST',
-              Uri.https(
-                'www.amazon.it',
-                '/mn/dcw/myx/ajax-activity/ref=myx_ajax',
-              ),
-            )
-            ..headers.addAll({
-              'Cookie': auth.$1,
-              'Origin': 'https://www.amazon.it',
-              'Referer': 'https://www.amazon.it/hz/mycd/myx',
-              'User-Agent': 'Mozilla/5.0',
-            })
-            ..bodyFields = {
-              'csrfToken': auth.$2,
-              'data': jsonEncode({
-                'param': {
-                  'DeleteContent': {
-                    'asinDetails': {
-                      text(item['id']): {'category': 'KindlePDoc'},
-                    },
-                  },
-                },
-              }),
-            };
-      operation['state'] = 'delete_submitting';
-      _save(operation); // durable BEFORE the irreversible network write
-      try {
-        await _request(request);
-      } catch (_) {
-        operation['state'] = 'delete_uncertain';
-        _save(operation);
-        rethrow;
-      }
-      operation['state'] = 'delete_verifying';
-      _save(operation);
-      await verifyDeletion(text(operation['operation']));
+      await _submitDeletion(operation, item, auth);
     } catch (_) {
       if (operation['state'] == 'backed_up') {
         operation['state'] = 'rejected';
         _save(operation);
       }
       rethrow;
+    }
+  }
+
+  Future<void> _submitDeletion(
+    Json operation,
+    Json item,
+    (String, String) auth,
+  ) async {
+    final replacement = operation['kind'] == 'replace';
+    // Current MyCD ajax_fmyx protocol, scoped to one PDOC. No EBOK operation,
+    // bulk deletion, fallback endpoint or automatic replay is permitted.
+    final request =
+        http.Request('POST', Uri.https('www.amazon.it', '/hz/mycd/ajax'))
+          ..headers.addAll({
+            'Cookie': auth.$1,
+            'client': 'MYX',
+            'Origin': 'https://www.amazon.it',
+            'Referer': 'https://www.amazon.it/hz/mycd/myx',
+            'User-Agent': 'Mozilla/5.0',
+          })
+          ..bodyFields = {
+            'csrfToken': auth.$2,
+            'data': jsonEncode({
+              'param': {
+                'DeleteContent': {
+                  'asinDetails': {
+                    text(item['id']): {'category': 'KindlePDoc'},
+                  },
+                },
+              },
+            }),
+          };
+    operation['state'] = replacement
+        ? 'replacement_retiring'
+        : 'delete_submitting';
+    _save(operation); // durable BEFORE the irreversible network write
+    try {
+      await _request(request);
+    } catch (_) {
+      operation['state'] = replacement
+          ? 'replacement_retirement_uncertain'
+          : 'delete_uncertain';
+      _save(operation);
+      rethrow;
+    }
+    operation['state'] = replacement
+        ? 'replacement_retirement_verifying'
+        : 'delete_verifying';
+    _save(operation);
+    await verifyDeletion(text(operation['operation']));
+  }
+
+  /// Retire the previous edition only after remote readback and local atomic
+  /// restoration. No interrupted or unverified migration can enter this path.
+  Future<void> retireReplacement(String id) async {
+    _check();
+    if (_starting[repository] == true) {
+      throw const KindleFailure('management_busy');
+    }
+    _starting[repository] = true;
+    try {
+      final operation = operations
+          .where(
+            (op) =>
+                op['operation'] == id &&
+                op['kind'] == 'replace' &&
+                op['state'] == 'progress_restored',
+          )
+          .firstOrNull;
+      if (operation == null) throw const KindleFailure('management_operation');
+      final plan = object(operation['migration_plan']);
+      final original = await repository.book(text(operation['book']));
+      final item = _personal(original);
+      final updated = await repository.book(text(plan['target']));
+      final target = _personal(updated);
+      if (!await client.readingStateConfirmed(
+        target,
+        text(plan['guid']),
+        position: plan['position'] as int?,
+        bookmarks: (plan['bookmarks'] as List).cast<int>(),
+      )) {
+        throw const KindleFailure('management_migration_not_confirmed');
+      }
+      final auth = await _webAuthorization();
+      final folder = p.join(
+        repository.directory.path,
+        repository.profile.id,
+        'kindle-management',
+      );
+      final backup = object(
+        jsonDecode(
+          await File(p.join(folder, text(operation['backup']))).readAsString(),
+        ),
+      );
+      final current = await client.sidecar(item, annotations: true);
+      if (current == null ||
+          _readingSnapshot(current) !=
+              _readingSnapshot(object(backup['sidecar']))) {
+        throw const KindleFailure('management_source_changed');
+      }
+      _personal(original);
+      _personal(updated);
+      await _submitDeletion(operation, item, auth);
+    } finally {
+      _starting[repository] = false;
     }
   }
 
@@ -362,7 +450,18 @@ class KindleDocumentManager {
   Future<bool> verifyDeletion(String id) async {
     _check();
     final operation = operations
-        .where((op) => op['operation'] == id && op['kind'] == 'delete')
+        .where(
+          (op) =>
+              op['operation'] == id &&
+              (op['kind'] == 'delete' ||
+                  op['kind'] == 'replace' &&
+                      const {
+                        'replacement_retiring',
+                        'replacement_retirement_uncertain',
+                        'replacement_retirement_verifying',
+                        'done',
+                      }.contains(op['state'])),
+        )
         .firstOrNull;
     if (operation == null) throw const KindleFailure('management_operation');
     final item = object(operation['item']);
@@ -373,7 +472,11 @@ class KindleDocumentManager {
     final absent = !(catalog['items'] as List)
         .map(object)
         .any((entry) => entry['id'] == item['id'] && entry['type'] == 'PDOC');
-    operation['state'] = absent ? 'done' : 'delete_verifying';
+    operation['state'] = absent
+        ? 'done'
+        : operation['kind'] == 'replace'
+        ? 'replacement_retirement_verifying'
+        : 'delete_verifying';
     _save(operation);
     if (absent) {
       // Reconcile the visible catalog, retaining source files, backup and progress.
@@ -381,6 +484,240 @@ class KindleDocumentManager {
       repository.localCatalogChanged();
     }
     return absent;
+  }
+
+  /// Resume a previously accepted update without uploading it again. The plan
+  /// is journalled before any cloud write, and an interrupted write is only read
+  /// back. The original cannot be retired while this operation is incomplete.
+  Future<void> restoreReplacement(String id) async {
+    _check();
+    if (_starting[repository] == true) {
+      throw const KindleFailure('management_busy');
+    }
+    _starting[repository] = true;
+    try {
+      final operation = operations
+          .where((op) => op['operation'] == id && op['kind'] == 'replace')
+          .firstOrNull;
+      if (operation == null ||
+          !const {
+            'replacement_migration_required',
+            'migration_submitting',
+            'migration_uncertain',
+            'progress_restored',
+          }.contains(operation['state'])) {
+        throw const KindleFailure('management_operation');
+      }
+      if (operation['state'] == 'progress_restored') return;
+      final folder = Directory(
+        p.join(
+          repository.directory.path,
+          repository.profile.id,
+          'kindle-management',
+        ),
+      );
+      final backupName = text(operation['backup']);
+      if (p.basename(backupName) != backupName) {
+        throw const KindleFailure('management_backup_unavailable');
+      }
+      final backup = object(
+        jsonDecode(await File(p.join(folder.path, backupName)).readAsString()),
+      );
+      final sourceName = text(backup['source']);
+      if (sourceName.isEmpty || p.basename(sourceName) != sourceName) {
+        throw const KindleFailure('management_source');
+      }
+      final source = File(p.join(folder.path, sourceName));
+      if ((await sha256.bind(source.openRead()).first).toString() !=
+          backup['source_sha256']) {
+        throw const KindleFailure('management_source');
+      }
+      await repository.library.refresh(full: true);
+      _check();
+      final original = await repository.book(text(operation['book']));
+      final originalItem = _personal(original);
+      final targetItem = repository.library.items
+          .where(
+            (item) =>
+                item['id'] == operation['new_id'] && item['type'] == 'PDOC',
+          )
+          .firstOrNull;
+      if (targetItem == null || targetItem['id'] == originalItem['id']) {
+        throw const KindleFailure('management_conversion_pending');
+      }
+      var updated = await repository.book(repository.library.idFor(targetItem));
+      _personal(updated);
+      if (repository.store.download(
+                repository.profile.id,
+                updated.id,
+              )?['status'] !=
+              'ready' ||
+          !await repository.bookFile(updated).exists()) {
+        await repository.download(updated);
+      }
+      updated = await repository.book(updated.id);
+      final mapping = await KindleEditionMigration.open(
+        source.path,
+        repository.bookFile(updated).path,
+      );
+      var plan = object(operation['migration_plan']);
+      final interrupted =
+          operation['state'] != 'replacement_migration_required';
+      if (!interrupted) {
+        final saved = object(backup['sidecar']);
+        final current = await client.sidecar(originalItem, annotations: true);
+        if (current == null ||
+            !mapping.oldMap.matches(current) ||
+            _readingSnapshot(current) != _readingSnapshot(saved)) {
+          throw const KindleFailure('management_source_changed');
+        }
+        final records = (saved['records'] as List? ?? []).map(object).toList();
+        if (records.any(
+          (r) => const {'kindle.note', 'kindle.highlight'}.contains(r['type']),
+        )) {
+          throw const KindleFailure('management_annotation_migration');
+        }
+        Json? targetState;
+        try {
+          targetState = await client.sidecar(
+            targetItem,
+            guid: mapping.newMap.primary,
+            annotations: true,
+          );
+        } on KindleFailure catch (error) {
+          if (error.status != 404) rethrow;
+        }
+        if (targetState != null &&
+            ((kindleLastRead(targetState)?['position'] as int? ?? 0) != 0 ||
+                (targetState['records'] as List? ?? [])
+                    .map(object)
+                    .any(
+                      (r) => const {
+                        'kindle.bookmark',
+                        'kindle.note',
+                        'kindle.highlight',
+                      }.contains(r['type']),
+                    ))) {
+          throw const KindleFailure('management_target_changed');
+        }
+        final localMarks = mapping.bookmarks(
+          (backup['bookmarks'] as List? ?? []).map(object).toList(),
+        );
+        final epub = object(backup['epub']);
+        final remote = kindleLastRead(saved);
+        int? oldPosition = remote?['position'] as int?;
+        final localTime = DateTime.tryParse(text(epub['modified']));
+        final remoteTime = DateTime.tryParse(text(remote?['time']));
+        if (text(epub['cfi']).isNotEmpty &&
+            (oldPosition == null ||
+                localTime != null &&
+                    (remoteTime == null || localTime.isAfter(remoteTime)))) {
+          oldPosition = mapping.cfiPosition(text(epub['cfi']));
+        }
+        final bookmarks = records
+            .where((r) => r['type'] == 'kindle.bookmark')
+            .map((r) => mapping.position(int.parse('${r['startPosition']}')))
+            .toSet()
+            .toList();
+        plan = {
+          'guid': mapping.newMap.primary,
+          'position': oldPosition == null
+              ? null
+              : mapping.position(oldPosition),
+          'locator': oldPosition == null ? null : mapping.locator(oldPosition),
+          'bookmarks': bookmarks,
+          'local_bookmarks': localMarks,
+          'target': updated.id,
+        };
+        operation['migration_plan'] = plan;
+        operation['state'] = 'migration_submitting';
+        _save(operation);
+        try {
+          await client.pushReadingState(
+            targetItem,
+            text(plan['guid']),
+            position: plan['position'] as int?,
+            bookmarks: bookmarks,
+          );
+        } catch (_) {
+          operation['state'] = 'migration_uncertain';
+          _save(operation);
+          rethrow;
+        }
+      }
+      if (plan['target'] != updated.id ||
+          plan['guid'] != mapping.newMap.primary ||
+          !await client.readingStateConfirmed(
+            targetItem,
+            text(plan['guid']),
+            position: plan['position'] as int?,
+            bookmarks: (plan['bookmarks'] as List).cast<int>(),
+          )) {
+        operation['state'] = 'migration_uncertain';
+        _save(operation);
+        throw const KindleFailure('management_migration_not_confirmed');
+      }
+      _personal(original);
+      _personal(updated);
+      final currentSource = await client.sidecar(
+        originalItem,
+        annotations: true,
+      );
+      if (currentSource == null ||
+          _readingSnapshot(currentSource) !=
+              _readingSnapshot(object(backup['sidecar']))) {
+        throw const KindleFailure('management_source_changed');
+      }
+      _check();
+      final progress = object(backup['progress']);
+      final epub = object(backup['epub']);
+      final locator = object(plan['locator']);
+      repository.store.transaction(() {
+        // Preserve completion/read dates, and replace the edition-specific
+        // locator. Old progress and its backup remain available for recovery.
+        if (progress.isNotEmpty) {
+          final progression = object(progress['progression']);
+          repository.store.recordProgress(repository.profile.id, updated.id, {
+            ...progress,
+            if (progress['completed'] == true) 'page': updated.pages,
+            if (locator.isNotEmpty)
+              'progression': {
+                ...progression,
+                'locator': {
+                  'href': locator['href'],
+                  'type': 'application/xhtml+xml',
+                  'locations': {
+                    ...object(object(progression['locator'])['locations']),
+                    'fragments': <String>[],
+                  },
+                },
+              },
+          });
+        }
+        repository.store.cache(repository.profile.id, 'epub:${updated.id}', {
+          ...epub,
+          'cfi': '',
+          'chapter': 0,
+          'progress': 0,
+          if (locator.isNotEmpty) 'kindleResume': locator,
+        });
+        repository.store.cache(
+          repository.profile.id,
+          'epubBookmarks:${updated.id}',
+          plan['local_bookmarks'],
+        );
+        repository.store.cache(
+          repository.profile.id,
+          'kindle:replacement:${original.id}',
+          {'book': updated.id, 'operation': id},
+        );
+        operation['state'] = 'progress_restored';
+        _save(operation);
+      });
+      repository.localCatalogChanged();
+    } finally {
+      _starting[repository] = false;
+    }
   }
 
   /// Stage an updated version with an exact identity returned by Amazon. Until
@@ -447,4 +784,26 @@ Json _decode(List<int> bytes) {
   } catch (_) {
     throw const KindleFailure('management_response');
   }
+}
+
+String _readingSnapshot(Json sidecar) {
+  dynamic ordered(dynamic value) {
+    if (value is Map) {
+      final keys = value.keys.cast<String>().toList()..sort();
+      return {for (final key in keys) key: ordered(value[key])};
+    }
+    if (value is List) return value.map(ordered).toList();
+    return value;
+  }
+
+  final records =
+      (sidecar['records'] as List? ?? [])
+          .map((r) => jsonEncode(ordered(r)))
+          .toList()
+        ..sort();
+  return jsonEncode({
+    'guid': sidecar['guid'],
+    'acr': sidecar['acr'],
+    'records': records,
+  });
 }

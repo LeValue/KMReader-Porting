@@ -35,7 +35,14 @@ void main() {
       try {
         final file = File(path!);
         final payload = object(jsonDecode(await file.readAsString()));
-        final fixture = object(payload['probe_operation']);
+        final libraryFixture =
+            Platform.environment['KMREADER_KINDLE_MANAGEMENT_FIXTURE'] ==
+            'library';
+        final fixture = object(
+          libraryFixture
+              ? object(payload['delivery_probes'])['library']
+              : payload['probe_operation'],
+        );
         final id = text(fixture['catalog_id']);
         if (id.isEmpty ||
             !text(fixture['title']).startsWith('KMReader test ')) {
@@ -43,8 +50,11 @@ void main() {
         }
         final journal = object(payload['management_probe']);
         payload['management_probe'] = journal;
-        final bookmark = object(journal['bookmark_probe']);
-        journal['bookmark_probe'] = bookmark;
+        final bookmarkKey = libraryFixture
+            ? 'bookmark_probe_library'
+            : 'bookmark_probe';
+        final bookmark = object(journal[bookmarkKey]);
+        journal[bookmarkKey] = bookmark;
         Future<void> seal() async {
           await file.writeAsString(jsonEncode(payload));
           final process = await Process.run('python', [

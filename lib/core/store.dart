@@ -283,6 +283,21 @@ class LocalStore {
         : object(jsonDecode(rows.first['value'] as String));
   }
 
+  /// Atomic cache/progress publication. On rollback invalidate the in-memory
+  /// progress overlay as well as SQLite, so an interrupted migration is invisible.
+  void transaction(void Function() action) {
+    db.execute('SAVEPOINT document_state');
+    try {
+      action();
+      db.execute('RELEASE SAVEPOINT document_state');
+    } catch (_) {
+      db.execute('ROLLBACK TO SAVEPOINT document_state');
+      db.execute('RELEASE SAVEPOINT document_state');
+      _progress.clear();
+      rethrow;
+    }
+  }
+
   void recordProgressBatch(String server, Map<String, Json> values) {
     db.execute('BEGIN IMMEDIATE');
     try {

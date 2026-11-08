@@ -580,6 +580,105 @@ class KindleClient {
     }
   }
 
+  Future<bool> readingStateConfirmed(
+    Json item,
+    String guid, {
+    int? position,
+    List<int> bookmarks = const [],
+  }) async {
+    final after = await sidecar(item, guid: guid, annotations: true);
+    if (after == null ||
+        after['guid'] != guid ||
+        after['annotations_loaded'] != true) {
+      return false;
+    }
+    final records = (after['records'] as List).map(object).toList();
+    return (position == null ||
+            records.any(
+              (r) =>
+                  r['type'] == 'kindle.most_recent_read' &&
+                  num.tryParse('${r['location']}') == position,
+            )) &&
+        bookmarks.every(
+          (p) => records.any(
+            (r) =>
+                r['type'] == 'kindle.bookmark' &&
+                num.tryParse('${r['startPosition']}') == p,
+          ),
+        );
+  }
+
+  /// One submission followed by readback. Callers persist their intent before
+  /// invoking this method and must only verify after an interrupted response.
+  Future<void> pushReadingState(
+    Json item,
+    String guid, {
+    int? position,
+    List<int> bookmarks = const [],
+  }) async {
+    if (item['type'] != 'PDOC' ||
+        text(item['id']).isEmpty ||
+        guid.isEmpty ||
+        position != null && position < 0 ||
+        bookmarks.any((p) => p < 0)) {
+      throw const KindleFailure('position_invalid');
+    }
+    final timestamp =
+        '${DateTime.now().toUtc().toIso8601String().split('.').first}+0000';
+    if (position != null || bookmarks.isNotEmpty) {
+      final xml = XmlBuilder();
+      xml.element(
+        'annotations',
+        attributes: {'version': '1.0', 'timestamp': timestamp},
+        nest: () {
+          xml.element(
+            'book',
+            attributes: {'key': text(item['id']), 'type': 'PDOC', 'guid': guid},
+            nest: () {
+              if (position != null) {
+                xml.element(
+                  'last_read',
+                  attributes: {
+                    'begin': '$position',
+                    'pos': '$position',
+                    'timestamp': timestamp,
+                  },
+                );
+              }
+              for (final bookmark in bookmarks.toSet()) {
+                xml.element(
+                  'bookmark',
+                  attributes: {
+                    'action': 'create',
+                    'begin': '$bookmark',
+                    'timestamp': timestamp,
+                  },
+                );
+              }
+            },
+          );
+        },
+      );
+      final response = await request(
+        Uri.https('cde-ta-g7g.amazon.com', '/FionaCDEServiceEngine/sidecar', {
+          'type': 'PDOC',
+        }),
+        method: 'POST',
+        body: utf8.encode(xml.buildDocument().toXmlString()),
+        headers: {'Content-Type': 'application/xml'},
+      );
+      await _bounded(response);
+    }
+    if (!await readingStateConfirmed(
+      item,
+      guid,
+      position: position,
+      bookmarks: bookmarks,
+    )) {
+      throw const KindleFailure('management_migration_not_confirmed');
+    }
+  }
+
   Future<Json> pushPosition(
     Json item,
     String guid,
@@ -752,7 +851,23 @@ Map<String, String> _signRequest((Uri, Json, String, List<int>) value) =>
 Json _readSidecar((Uint8List, bool) input) {
   final root = object(jsonDecode(utf8.decode(input.$1)));
   final payload = object(root['payload'] ?? root);
+  bool position(dynamic value) {
+    final n = num.tryParse('$value');
+    return n != null && n.isFinite && n >= 0 && n == n.roundToDouble();
+  }
+
+  bool supported(Json record) => switch (record['type']) {
+    'kindle.most_recent_read' || 'kindle.lpr' => position(record['location']),
+    'kindle.bookmark' || 'kindle.highlight' || 'kindle.note' =>
+      text(record['annotationId']).isNotEmpty &&
+          position(record['startPosition']),
+    _ => false,
+  };
   return {
+    'annotations_complete':
+        input.$2 &&
+        payload['records'] is List &&
+        (payload['records'] as List).map(object).every(supported),
     for (final key in ['guid', 'acr', 'syncToken']) key: text(payload[key]),
     'annotations_loaded': input.$2,
     'records': [
