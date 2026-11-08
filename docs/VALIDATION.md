@@ -1,5 +1,71 @@
 # Development validation
 
+## 1.0.0+33 development — 2026-11-08
+
+Application source: `e9a7712da95c227a86e5d613409e2c3dda2a7949`.
+This remains a development candidate; full parity and installed-device acceptance
+are not closed by the service checks below.
+[Final CI 42514188143](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143)
+passed all three required jobs on this exact application source, without retries.
+Later documentation edits do not alter the verified runtime or bundle.
+
+- Linux and Windows host suites each passed **441 tests, 39 skipped**; skipped
+  opt-in checks are not counted as executed. Release tooling: **14 passed**.
+  Shared runtime/browser Python suites, prepared Kindle import and Chromium
+  reader checks (**33 passed**), real ONNX (**7 passed**) and isolated real Komga
+  passed. Windows native WebView2 (**32 passed, 1 skipped**), release build and
+  isolated executable startup passed. Native Android passed the 2 window-insets
+  checks and all 32 reader/display checks, including curl regressions.
+- [Windows build 33](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143/artifacts/13631676249)
+  was downloaded and checked: valid ZIP, **710 files**, application and bundled
+  worker are x64 PE executables, embedded version `1.0.0+33` and source match CI.
+  Size: 106,667,380 bytes; SHA256 matches GitHub's artifact digest:
+  `d21515e59f617573f1d6f5a71db5bbf70b69ae1f855fd7b29c969213a38eb6e7`.
+  The Android CI APK is explicitly **unsigned** and is not offered as an installed
+  signed-app update; the retained signed build 31 remains available.
+
+- Local final regression set: **45 passed** (replacement/recovery, management,
+  repository/offline reopening, complete cloud inventory and scoped cookies).
+  All 244 Dart source/test files pass formatting; analyzer reports no issues.
+- Real cloud upload [42491240326](https://github.com/LeValue/KMReader-Porting/actions/runs/42491240326)
+  accepted one generated EPUB with `archive: true` and no device targets.
+  [Device-only delivery 42491041919](https://github.com/LeValue/KMReader-Porting/actions/runs/42491041919)
+  used `archive: false` and exactly the selected Android destination; the user
+  confirmed receipt and successful opening. The device-only fixture did not
+  appear in the reading account's cloud catalog on ten checks.
+- Real EPUB replacement [42514185821](https://github.com/LeValue/KMReader-Porting/actions/runs/42514185821)
+  passed: updated title/cover, cloud position/bookmarks on the new edition,
+  preserved local completion/read date, explicit Amazon deletion acknowledgement
+  and verified absence of the original generated PDOC. This resumed the existing
+  accepted replacement with **0 uploads, 0 annotation writes and 1 deletion**.
+  The original backup and progress remain on the personal PC, protected by DPAPI;
+  pre-existing user books were excluded by the HTTP guard.
+- [Fresh-process readback 42514327712](https://github.com/LeValue/KMReader-Porting/actions/runs/42514327712)
+  passed on the same final source with **0 uploads, 0 deletions and 0 annotation
+  writes**. The complete cloud catalog contains the updated fixture and no longer
+  contains the original; target cloud position/bookmarks remain confirmed and the
+  durable operation is `done`.
+- Earlier lifecycle attempts remain visible. [42506920429](https://github.com/LeValue/KMReader-Porting/actions/runs/42506920429)
+  uploaded the replacement once; an edition-bound position check blocked further
+  steps. [42509219752](https://github.com/LeValue/KMReader-Porting/actions/runs/42509219752)
+  restored target state once but did not delete the original: HTTP 200 contained
+  an authentication error. Diagnosis found that host-only cookie expiry had
+  incorrectly removed the parent-domain authentication cookie. The scoped jar
+  and application-error checks fix that failure; saved-session read-only cloud
+  inventory [42512287415](https://github.com/LeValue/KMReader-Porting/actions/runs/42512287415)
+  passed without another browser login. No pending upload or state write was
+  replayed during recovery.
+- A retained device-delivery catalog cannot resurrect a confirmed cloud deletion:
+  account-scoped removal markers survive refresh and offline reopening while
+  retaining files/progress. Explicit retry first checks complete cloud ownership
+  and source revision/title; a replacement also rechecks restored target state.
+- PDF, notes/highlights, ambiguous/changed text and unsupported local CFIs keep
+  the original. F-13 remains open for those cases and installed UI/second-device
+  acceptance. See [K-01–K-06](KINDLE_LIBRARY_MANAGEMENT.md).
+- The Android keystore and signing-properties hashes still match the retained
+  build 31 guards. Existing branches, tags, releases, assets and builds are kept.
+  No stable release or new draft is published by these checks.
+
 ## 1.0.0+32 development — 2026-11-08
 
 Verified application/worker source: `7549aaeb118850dbbc64f56ba42e458999f63fa2`.

@@ -35,7 +35,11 @@ updated copy. Dedicated send OAuth and sanitized stage diagnostics address
 concrete client authorization gaps. Build 33 adds distinct cloud/device delivery and a resumable EPUB replacement
 workflow that restores exact reading position, cloud bookmarks and local
 completion before retiring the previous edition. F-13 remains open for the
-coverage and acceptance gaps in the service record.
+coverage and acceptance gaps in the service record. The real synthetic EPUB
+lifecycle passed [42514185821](https://github.com/LeValue/KMReader-Porting/actions/runs/42514185821):
+converted metadata/cover, restored cloud position/bookmarks, local completion/date
+and verified retirement. PDF/notes/highlights and installed UI/second-device
+acceptance remain open.
 See [the service record](KINDLE_LIBRARY_MANAGEMENT.md) and K-01–K-06 for the
 remaining API work and real-account/device acceptance. Purchased Amazon books
 remain excluded.
@@ -44,12 +48,12 @@ remain excluded.
 
 | Area | Existing evidence | Work required before calling 1.0 ready |
 |---|---|---|
-| Continuous verification | [Build 31 CI 42413142048](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048) passed all three jobs for `2f3c638`; historical failures/retries remain recorded | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
+| Continuous verification | [Build 33 CI 42514188143](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143) passed all three jobs for `e9a7712` without retries; historical failures/retries remain recorded | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
 | Reading and offline use | Host, Chromium and native tests cover EPUB, PDF, comic motion, prepared Kindle conversion, local import and offline progress | Check the complete login → browse → download → read → close/reopen journey on target Android and Windows, including interrupted transfer and network loss |
 | Data and upgrades | Account-scoped persistence, durable outbox, download resume, cache protection and versioned document tests exist | Verify an in-place upgrade from the signed 0.9.1 build without losing accounts, downloads, progress, bookmarks or preferences; test removing/reconnecting one account while another remains usable |
 | Device behavior | Hosted emulator/WebView2 checks and earlier named-device measurements are retained | Validate secure storage/app lock, background downloads, resume, rotation/fullscreen, long-book memory and responsive navigation on actual target hardware; record source and device with results |
 | Kindle | Synthetic protocol/conversion tests and earlier account-specific evidence exist; annotation import is one-way | Confirm the supported sign-in/download/offline/resume flow for the 1.0 candidate; describe annotation and first-download limitations accurately |
-| Distribution | Build 31: all three signed Android ABIs and the complete Windows bundle are delivered to candidate.2; downloaded hashes and all 710 Windows files match verified source/CI | Confirm target-device install/upgrade compatibility and account acceptance before stable promotion; preserve all earlier drafts/assets |
+| Distribution | Build 33 Windows bundle downloaded and verified against source/CI and SHA256, including all 710 files. Build 31 signed Android ABIs remain retained; CI 33 APK is unsigned | Confirm target-device install/upgrade compatibility and account acceptance before stable promotion; preserve all earlier drafts/assets |
 
 These are readiness requirements, not a claim that a 1.0 candidate has already
 passed them. Automated checks do not replace target-device acceptance or prove

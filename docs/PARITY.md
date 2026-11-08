@@ -45,14 +45,16 @@ non è stata dimostrata un'identità pixel per pixel con Apple.
 | Futuro / escluso | Fuori dal perimetro per una motivazione dichiarata; non viene conteggiato come parità implementata. |
 | Chiuso | Requisito, implementazione/adattamento ed evidenza soddisfano il criterio di accettazione. |
 
-Le evidenze correnti sono in [VALIDATION.md](VALIDATION.md): CI
-[42371503059](https://github.com/LeValue/KMReader-Porting/actions/runs/42371503059)
-con tutti e tre i job superati, consegna
-[42383704677](https://github.com/LeValue/KMReader-Porting/actions/runs/42383704677),
-APK firmati e pacchetto Windows riscaricati e verificati. Il primo tentativo del
-job Android nativo è fallito dopo la perdita della connessione finale al driver;
-la ripetizione sullo stesso codice è passata. Entrambi gli esiti sono conservati.
-Questi risultati descrivono la candidata, non l'accettazione completa della matrice.
+Le evidenze correnti sono in [VALIDATION.md](VALIDATION.md). La build 33,
+sorgente `e9a7712da95c227a86e5d613409e2c3dda2a7949`, ha superato
+[tutti e tre i job CI 42514188143](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143)
+senza ripetizioni; il pacchetto Windows è stato riscaricato e verificato, inclusi
+710 file, eseguibili x64, versione/sorgente incorporati e SHA256. I pacchetti
+Android firmati precedenti restano conservati; l'APK CI 33 è non firmato.
+La prova reale EPUB ha confermato metadati/copertina, ripristino di progresso e
+segnalibri, ritiro dell'originale e riapertura senza nuove scritture. Restano
+copertura residua del servizio, accettazione installata e gli altri requisiti
+indicati sotto. Le evidenze delle build precedenti rimangono nel registro.
 
 L'[audit delle impostazioni](SETTINGS_AUDIT.md) registra 128 chiavi/campi:
 105 implementati, 9 adattati, 5 parziali, 3 interni e 6 non disponibili sulla
@@ -128,14 +130,14 @@ richiede implementazione e verifica del comportamento.
 | F-08 | Mappatura delle famiglie eventi upstream, eliminazioni nell'indice offline senza toccare file/progresso, protezione da risposte tardive, scope utente, riconciliazione dopo riconnessione, rispetto del refresh disabilitato, stop su SessionExpired. [Regressioni](../test/parity_closure_test.dart), [SSE](../test/server_event_test.dart). | Accettazione con backend e UI su entrambe le piattaforme; audit completo A-01/A-02. |
 | F-09 | Statistiche offline da tutti i metadati indicizzati, comprese serie/generi/tag, scope libreria/account; indici interrotti marcati incompleti; catalogo/cronologia segnalano cache parziali. Endpoint estesi e errori di autenticazione conservano il comportamento già testato. [Regressioni](../test/parity_closure_test.dart), [statistiche](../test/reading_stats_test.dart). | Confronto finale sul server con estensioni e accettazione AT-04. |
 | F-12 | Etichetta Autore nelle dieci lingue e traduzioni italiane dei nuovi flussi Kindle. | Le altre nuove frasi restano con fallback inglese nelle lingue non ancora completate; F-12 non è chiusa. |
-| F-13 | OAuth invio separato, copia EPUB modificata, eliminazione PDOC con backup/journal/verifica. | Build 33 implementa ripristino del punto nel testo, segnalibri e stato locale di completamento per EPUB con mappatura verificata; endpoint MyCD aggiornato. Restano da registrare la prova completa reale e i limiti descritti in K-01–K-06, compresi PDF e note/evidenziazioni. |
+| F-13 | OAuth invio separato, copia EPUB modificata, eliminazione PDOC con backup/journal/verifica. | Build 33 implementa ripristino del punto nel testo, segnalibri e stato locale di completamento per EPUB con mappatura verificata; endpoint MyCD aggiornato. Prova reale EPUB completata: metadati/copertina, progresso/segnalibri e ritiro confermati. Restano i limiti K-01–K-06, compresi PDF, note/evidenziazioni e accettazione UI/secondo dispositivo. |
 
 Aggiornamento build 32: sul desktop reale sono passati registrazione Firs,
 riuso delle credenziali e invio di un solo EPUB sintetico con rilettura del catalogo
 ([42483122733](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122733)).
 Le correzioni riguardano media type/XML e TTL relativo dell'upload URL. Questo
 chiude la riproduzione del blocco di invio in K-01, non F-13 o AT-06 nel complesso:
-Build 33 distingue anche libreria cloud e solo dispositivi: prove account passate e ricezione Android confermata dall’utente. Restano accettazione UI installata e copertura completa di eliminazione/metadati/migrazione, con gli esiti nel registro del servizio.
+Build 33 distingue anche libreria cloud e solo dispositivi: prove account passate e ricezione Android confermata dall’utente. Eliminazione, metadati/copertina e ripristino EPUB sono verificati sul documento sintetico reale ([42514185821](https://github.com/LeValue/KMReader-Porting/actions/runs/42514185821)). Restano accettazione UI installata/secondo dispositivo e copertura PDF/note/evidenziazioni; F-13 resta aperta.
 
 Questi interventi completano sottorequisiti concreti. Nessuna riga è dichiarata
 «Chiusa» soltanto perché il relativo test host passa; l'accettazione residua resta

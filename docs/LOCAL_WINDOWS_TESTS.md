@@ -34,7 +34,7 @@ exists: the bridge fails explicitly when the latter is unavailable.
 The separate manual workflow **Personal Kindle send check**
 (`kindle-send-probe.yml`) runs the current Dart importer from source. It permits
 one Firs send-device registration, bearer renewal and destination-device queries.
-It blocks upload, delivery, deletion and annotation writes at the HTTP transport.
+By default it blocks upload, delivery, deletion and annotation writes at the HTTP transport.
 The report contains fixed field names, HTTP status and counters only. Successful
 send credentials are kept under the user's `KMReader/KindleSendProbe` directory
 with Windows DPAPI, scoped to the source account, and reused on later probes.
@@ -51,8 +51,20 @@ upload to the exact URL returned by Amazon, one delivery and catalog readback.
 Its transport rejects other writes and validates the generated title, author,
 format and size before delivery. A private DPAPI journal is sealed before any
 possible submission; pending/accepted sends are checked rather than repeated.
-The title, response and returned ID stay on the PC. Deletion and annotation writes
-remain blocked. This does not establish full overwrite/bookmark migration.
+The title, response and returned ID stay on the PC. Ordinary import checks keep
+deletion and annotation writes blocked. Use `delivery_mode: library` for cloud
+archiving without a target or `delivery_mode: device` for delivery only to the
+explicitly selected device; each has a separate private fixture journal.
+
+The opt-in `replacement_probe` checks the generated cloud fixture's update,
+reading-position/bookmark restoration, metadata/cover and verified retirement.
+Its guard permits only that fixture and the exact new ID returned by Amazon.
+Private recovery files and state persist between processes. `cloud_only` makes
+this path read-only; `retry_removal` explicitly recovers a pending retirement
+after ownership, revision and restored-state checks, without a new upload or
+annotation write. A completed operation is only read back on subsequent runs.
+See [lifecycle checks](TESTING.md#personal-kindle-lifecycle-checks) for flag
+semantics and [real evidence/limits](KINDLE_LIBRARY_MANAGEMENT.md) before use.
 
 For `kindle-runtime`, `fixture_only: true` restricts conversion/download/cache
 checks to the exact PDOC ID/title in that private journal. A missing or mismatched

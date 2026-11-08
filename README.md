@@ -13,7 +13,7 @@ The current source is the **1.0.0+33 development candidate**, built on working 0
 [1.0 changes](docs/releases/v1.0.0.md) include single-page comic gestures/curl,
 local-file Send to Kindle, dictionary filtering, responsive Kindle indexing and
 separate recently added books/comics on the dashboard.
-Build 31 additionally fixes tilted spread curl layers, adds dedicated Kindle send authorization, personal-document management with recovery records, and improves live/offline metadata. [Kindle management limits](docs/KINDLE_LIBRARY_MANAGEMENT.md) include the still incomplete bookmark/state migration.
+Build 31 additionally fixes tilted spread curl layers, adds dedicated Kindle send authorization, personal-document management with recovery records, and improves live/offline metadata.
 Build 32 fixes real-account Send to Kindle registration (XML/media type) and the relative upload URL lifetime. A generated EPUB was accepted and found in the real catalog; a second process reused credentials without another login or upload. See [live evidence](docs/KINDLE_IMPORT.md).
 Build 33 separates cloud-library upload from device-only delivery, retrieves the existing document for editing, and restores verified EPUB reading position, bookmarks and local completion before retiring the old edition. Interruption recovery verifies the journal without repeating submissions. [Management coverage and limits](docs/KINDLE_LIBRARY_MANAGEMENT.md) remain explicit; final build/account checks are recorded in validation.
 AI/model/translation extensions and Komga server upload are future work.
@@ -21,10 +21,15 @@ See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
-[Download Windows build 32](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851/artifacts/13619305441).
-Extract the complete ZIP and run `kmreader.exe`. The existing app account is reused.
-The archive contains 710 files and its SHA256 matches GitHub's artifact digest:
-`5e40d5988fb030aece9f65c61d4c16bb1959d733212707d1f439e002fc52bf21`.
+[Download Windows build 33](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143/artifacts/13631676249).
+Extract the complete ZIP into its own directory and run `kmreader.exe`. The existing
+app account is reused. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143)
+passed Android, native Android reader and Windows checks. The downloaded archive
+contains 710 files, matches source `e9a7712da95c227a86e5d613409e2c3dda2a7949`, and its SHA256
+matches GitHub's artifact digest:
+`d21515e59f617573f1d6f5a71db5bbf70b69ae1f855fd7b29c969213a38eb6e7`.
+[Previous Windows build 32](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851/artifacts/13619305441)
+remains available.
 
 [Retained Android / Windows candidate build 31](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8).
 It remains a draft requiring repository write access. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048),
@@ -81,8 +86,9 @@ Kindle services are managed through Settings / Servers. Kindle conversion uses
 shared Python modules and an on-demand native worker; the historical
 `tool/kindle_personal/` name does **not** mean those scripts are disposable.
 Read the [runtime dependency map](docs/KINDLE_RUNTIME.md) before moving them.
-Cloud annotation import is one-way; local bookmarks are not represented as
-successfully uploaded to Amazon.
+Normal cloud annotation import is one-way. Document replacement separately
+restores verified reading position and bookmarks on the new edition; unsupported
+annotations preserve the original. See [management limits](docs/KINDLE_LIBRARY_MANAGEMENT.md).
 
 ## Repository layout
 

@@ -138,7 +138,17 @@ Build 33 mode checks:
 - [Device-only delivery 42491041919](https://github.com/LeValue/KMReader-Porting/actions/runs/42491041919): exactly one generated EPUB, `archive: false`, the user's selected Android target, accepted by Amazon; absent from the reading account's cloud catalog on ten checks. The user confirmed receipt and successful opening in the selected Kindle Android app.
 - [Cloud-only upload 42491240326](https://github.com/LeValue/KMReader-Porting/actions/runs/42491240326): one generated EPUB, `archive: true`, no targets, accepted and present in the cloud catalog.
 - [Persistent bookmark readback 42505593479](https://github.com/LeValue/KMReader-Porting/actions/runs/42505593479): bookmark confirmed against the exact delivered edition, zero additional writes. Its [creation check 42505366992](https://github.com/LeValue/KMReader-Porting/actions/runs/42505366992) submitted once successfully but failed its numeric assertion because Amazon returns the position as a string. Corrected readback did not recreate it.
-- Complete replacement/deletion check: [42506920429](https://github.com/LeValue/KMReader-Porting/actions/runs/42506920429), outcome to be recorded after completion.
+- [EPUB replacement and retirement 42514185821](https://github.com/LeValue/KMReader-Porting/actions/runs/42514185821)
+  passed: updated title/cover, restored cloud position/bookmarks, local completion
+  and read date, acknowledged deletion and confirmed absence of the old generated
+  fixture. It resumed the one previously accepted copy: **0 uploads, 0 annotation
+  writes, 1 deletion** in this final recovery. Earlier failed attempts are retained
+  and explained in [management](KINDLE_LIBRARY_MANAGEMENT.md).
+
+- [Fresh-process replacement readback 42514327712](https://github.com/LeValue/KMReader-Porting/actions/runs/42514327712)
+  passed with **zero uploads, deletions or annotation writes**. The cloud catalog
+  contains only the updated fixture of the pair, and target position/bookmarks
+  remain confirmed.
 
 Earlier build 32 evidence:
 

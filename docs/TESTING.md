@@ -79,3 +79,31 @@ device requirements. Hosted measurements do not prove physical-device FPS.
 
 Record the source commit, exact command, pass/skip/failure counts and device
 limits in [validation](VALIDATION.md). Old versioned evidence remains intact.
+
+## Personal Kindle lifecycle checks
+
+`kindle-send-probe.yml` is manual and uses the existing DPAPI session on the
+selected personal Windows runner. It does not request credentials through CI
+inputs. Only generated fixtures recorded in that runner's private journal can
+be changed; a transport guard rejects other documents and duplicate submissions.
+The public report contains counts and checks, never session values or book data.
+
+- `app_import=true`, `upload_fixture=true`, `delivery_mode=library` or `device`
+  verifies distinct cloud/device payloads. Their private journals are separate;
+  an accepted/uncertain submission is never automatically sent again.
+- `replacement_probe=true` updates the generated cloud fixture, checks converted
+  metadata/cover, restores and reads back target position/bookmarks, and retires
+  the original only after confirmed restoration. Its private files, local state
+  and operation journal survive workflow runs.
+- `replacement_probe=true`, `cloud_only=true` reads complete cloud ownership
+  without native conversion or mutations.
+- `replacement_probe=true`, `retry_removal=true` explicitly recovers a pending
+  removal after cloud ownership/source checks and restored-state readback. It
+  reuses the accepted copy and saved migration plan, without uploading or writing
+  annotations again. A completed journal makes the next run read-only.
+
+The retry flag is an explicit fixture-only recovery action, not an ordinary test
+default. In the app, **Check** remains read-only and **Retry removal** is separate.
+Record initial writes and subsequent zero-write readback as distinct evidence;
+the real lifecycle and remaining coverage are in
+[Kindle management](KINDLE_LIBRARY_MANAGEMENT.md).
