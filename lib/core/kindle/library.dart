@@ -97,11 +97,43 @@ class KindleLibrary {
   Json get snapshot =>
       _snapshot ??= object(store.cached(profile.id, 'kindle:catalog'));
   bool get hasCatalog => snapshot['items'] is List;
+  void markCloudRemoved(String rawId) {
+    if (_closed) throw const KindleFailure('connection_closed');
+    final removed = object(
+      store.cached(profile.id, 'kindle:removed-documents'),
+    );
+    removed[kindlePdocIdentity(rawId)] = DateTime.now()
+        .toUtc()
+        .toIso8601String();
+    store.cache(profile.id, 'kindle:removed-documents', removed);
+    _visibleItems = null;
+    _byId = null;
+  }
+
+  void allowCloudDocument(String rawId) {
+    if (_closed) throw const KindleFailure('connection_closed');
+    final removed = object(
+      store.cached(profile.id, 'kindle:removed-documents'),
+    );
+    if (removed.remove(kindlePdocIdentity(rawId)) == null) return;
+    store.cache(profile.id, 'kindle:removed-documents', removed);
+    _visibleItems = null;
+    _byId = null;
+  }
+
   List<Json> get items {
     if (_visibleItems == null) {
+      final removed = object(
+        store.cached(profile.id, 'kindle:removed-documents'),
+      );
       _visibleItems = (snapshot['items'] as List? ?? [])
           .map(object)
-          .where((item) => !isKindleDictionary(item))
+          .where(
+            (item) =>
+                !isKindleDictionary(item) &&
+                !(item['type'] == 'PDOC' &&
+                    removed.containsKey(kindlePdocIdentity(text(item['id'])))),
+          )
           .toList();
       _byId = {for (final item in _visibleItems!) idFor(item): item};
     }

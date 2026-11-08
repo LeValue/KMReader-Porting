@@ -409,7 +409,12 @@ void main() {
     expect(repo.library.item(book.id)['id'], 'OLD');
   });
 
-  for (final mode in ['verify', 'lost_reply', 'auth_error']) {
+  for (final mode in [
+    'verify',
+    'lost_reply',
+    'auth_error',
+    'missing_sidecar',
+  ]) {
     final loseReply = mode == 'lost_reply';
     test('remote PDOC deletion: $mode', () async {
       final root = Directory.systemTemp.createTempSync('kindle-management-');
@@ -463,6 +468,7 @@ void main() {
               ),
               isEmpty,
             );
+            if (mode == 'missing_sidecar') return http.Response('', 404);
             return http.Response(
               jsonEncode({
                 'payload': {
@@ -517,6 +523,32 @@ void main() {
             expect(request.headers['cookie'], 'session-id=renewed-cookie');
             expect(request.headers['client'], 'MYX');
             expect(request.bodyFields['csrfToken'], 'synthetic-csrf');
+            final query = object(
+              object(jsonDecode(request.bodyFields['data']!))['param'],
+            );
+            if (query.containsKey('OwnershipData')) {
+              expect(
+                object(query['OwnershipData'])['contentType'],
+                'KindlePDoc',
+              );
+              return http.Response(
+                jsonEncode({
+                  'OwnershipData': {
+                    'items': [
+                      if (!removed)
+                        {
+                          'asin': 'DOCUMENT',
+                          'category': 'KindlePDoc',
+                          'title': 'Personal document',
+                        },
+                    ],
+                    'numberOfItems': removed ? 0 : 1,
+                    'hasMoreItems': false,
+                  },
+                }),
+                200,
+              );
+            }
             deletions++;
             expect(manager.operations.single['state'], 'delete_submitting');
             expect(
@@ -529,7 +561,7 @@ void main() {
                   ),
                 )['sidecar'],
               )['records'],
-              hasLength(2),
+              hasLength(mode == 'missing_sidecar' ? 0 : 2),
             );
             final payload = object(jsonDecode(request.bodyFields['data']!));
             expect(
@@ -615,6 +647,9 @@ void main() {
       } else {
         await manager.delete(book);
         expect(manager.operations.single['state'], 'delete_verifying');
+        if (mode == 'missing_sidecar') {
+          expect(manager.operations.single['cloud_state_unavailable'], true);
+        }
       }
       await expectLater(
         manager.delete(book),

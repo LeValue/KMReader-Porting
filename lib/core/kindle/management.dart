@@ -97,7 +97,7 @@ class KindleDocumentManager {
     if (operations.any(
       (op) =>
           op['book'] == book.id &&
-          !const ['done', 'rejected'].contains(op['state']),
+          !const ['done', 'rejected', 'superseded'].contains(op['state']),
     )) {
       throw const KindleFailure('management_pending');
     }
@@ -106,23 +106,34 @@ class KindleDocumentManager {
         ? await KindlePositionMap.open(originalFile.path)
         : null;
     final sourceGuid = sourceMap?.primary;
-    final sidecar = await client.sidecar(
-      item,
-      guid: sourceGuid,
-      annotations: true,
-    );
+    Json? sidecar;
+    try {
+      sidecar = await client.sidecar(item, guid: sourceGuid, annotations: true);
+    } on KindleFailure catch (error) {
+      if (kind != 'delete' || error.status != 404) rethrow;
+      // Explicit permanent deletion can proceed when Amazon has no sidecar.
+      // Record this as unavailable, never as a successful empty cloud backup.
+      sidecar = {
+        'guid': sourceGuid,
+        'annotations_loaded': false,
+        'annotations_complete': false,
+        'records': [],
+        'http_status': 404,
+      };
+    }
     _check();
     if (operations.any(
       (op) =>
           op['book'] == book.id &&
-          !const ['done', 'rejected'].contains(op['state']),
+          !const ['done', 'rejected', 'superseded'].contains(op['state']),
     )) {
       throw const KindleFailure('management_pending');
     }
     // A missing/malformed sidecar is not an empty set of bookmarks.
     if (sidecar == null ||
-        sidecar['annotations_loaded'] != true ||
-        sidecar['annotations_complete'] != true) {
+        (sidecar['annotations_loaded'] != true ||
+                sidecar['annotations_complete'] != true) &&
+            !(kind == 'delete' && sidecar['http_status'] == 404)) {
       throw const KindleFailure('management_backup_unavailable');
     }
     final backup = <String, dynamic>{
@@ -184,6 +195,7 @@ class KindleDocumentManager {
       ])
         key: backup[key],
       'backup': p.basename(file.path),
+      if (sidecar['http_status'] == 404) 'cloud_state_unavailable': true,
     };
     _save(operation);
     return operation;
@@ -315,7 +327,7 @@ class KindleDocumentManager {
       final failure = _webFailure(reply);
       if (failure != null) throw failure;
       final data = object(reply['OwnershipData']);
-      if (data['items'] is! List) {
+      if (data['items'] is! List || data['success'] == false) {
         throw const KindleFailure('management_cloud_catalog');
       }
       final batch = (data['items'] as List).map(object).toList();
@@ -328,6 +340,13 @@ class KindleDocumentManager {
       }
       items.addAll(batch);
       final total = int.tryParse('${data['numberOfItems']}');
+      if (total != null &&
+          (total < 0 ||
+              total < items.length ||
+              data['hasMoreItems'] == false && total != items.length ||
+              data['hasMoreItems'] == true && total <= items.length)) {
+        throw const KindleFailure('management_catalog_incomplete');
+      }
       if (data['hasMoreItems'] == false ||
           total != null && total <= items.length) {
         return {'items': items, 'complete': true};
@@ -505,9 +524,20 @@ class KindleDocumentManager {
     if (catalog['complete'] != true) {
       throw const KindleFailure('management_catalog_incomplete');
     }
-    final absent = !(catalog['items'] as List)
+    var absent = !(catalog['items'] as List)
         .map(object)
         .any((entry) => entry['id'] == item['id'] && entry['type'] == 'PDOC');
+    if (!absent) {
+      final cloud = await cloudDocuments();
+      absent = !(cloud['items'] as List)
+          .map(object)
+          .any(
+            (entry) =>
+                kindlePdocIdentity(text(entry['asin'])) ==
+                kindlePdocIdentity(text(item['id'])),
+          );
+      operation['cloud_absence_verified'] = absent;
+    }
     operation['state'] = absent
         ? 'done'
         : operation['kind'] == 'replace'
@@ -515,11 +545,72 @@ class KindleDocumentManager {
         : 'delete_verifying';
     _save(operation);
     if (absent) {
+      repository.library.markCloudRemoved(text(item['id']));
       // Reconcile the visible catalog, retaining source files, backup and progress.
       await repository.library.refresh(full: true);
       repository.localCatalogChanged();
     }
     return absent;
+  }
+
+  /// An explicit retry first checks cloud ownership. Background verification
+  /// never invokes this path or repeats an uncertain mutation.
+  Future<void> retryRemoval(String id) async {
+    _check();
+    if (_starting[repository] == true) {
+      throw const KindleFailure('management_busy');
+    }
+    _starting[repository] = true;
+    try {
+      final operation = operations
+          .where(
+            (op) =>
+                op['operation'] == id &&
+                const {
+                  'delete_submitting',
+                  'delete_uncertain',
+                  'delete_verifying',
+                  'replacement_retiring',
+                  'replacement_retirement_uncertain',
+                  'replacement_retirement_verifying',
+                }.contains(op['state']),
+          )
+          .firstOrNull;
+      if (operation == null) throw const KindleFailure('management_operation');
+      final item = object(operation['item']);
+      final cloud = await cloudDocuments();
+      final owned = (cloud['items'] as List)
+          .map(object)
+          .any(
+            (entry) =>
+                kindlePdocIdentity(text(entry['asin'])) ==
+                kindlePdocIdentity(text(item['id'])),
+          );
+      if (!owned) {
+        await verifyDeletion(id);
+        return;
+      }
+      final book = await repository.book(text(operation['book']));
+      final current = _personal(book);
+      if (current['revision'] != item['revision'] ||
+          current['title'] != item['title']) {
+        throw const KindleFailure('management_source_changed');
+      }
+      operation['removal_retries'] = integer(operation['removal_retries']) + 1;
+      operation['previous_removal_state'] = operation['state'];
+      operation['state'] = operation['kind'] == 'replace'
+          ? 'progress_restored'
+          : 'superseded';
+      _save(operation);
+      _starting[repository] = false;
+      if (operation['kind'] == 'replace') {
+        await retireReplacement(id);
+      } else {
+        await delete(book);
+      }
+    } finally {
+      _starting[repository] = false;
+    }
   }
 
   /// Resume a previously accepted update without uploading it again. The plan
@@ -856,6 +947,7 @@ class KindleDocumentManager {
         onSubmitting: onSubmitting,
       );
       operation['new_id'] = sku;
+      repository.library.allowCloudDocument(sku);
       operation['state'] = 'replacement_migration_required';
       _save(operation);
       return sku;

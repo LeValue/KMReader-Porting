@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/kindle/management.dart';
+import '../../core/kindle/client.dart';
 import '../../core/kindle/chrome.dart';
 import '../../core/kindle/repository.dart';
 import '../../core/models.dart';
@@ -28,7 +29,17 @@ class _KindleDocumentPageState extends State<KindleDocumentPage> {
     try {
       await action();
     } catch (error) {
-      if (mounted) showError(context, error);
+      if (mounted) {
+        showError(
+          context,
+          error is KindleFailure && error.code == 'management_authorization'
+              ? tr(
+                  context,
+                  'Amazon did not authorize library management. Your reading session is preserved.',
+                )
+              : error,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -121,7 +132,11 @@ class _KindleDocumentPageState extends State<KindleDocumentPage> {
                   operation['kind'] == 'replace'
                       ? 'Document updated and reading progress restored'
                       : 'Deletion confirmed by Amazon catalog',
-                'rejected' => 'Operation stopped before sending',
+                'rejected' =>
+                  operation['server_rejected'] == true
+                      ? 'Amazon rejected the library operation. The original document is preserved.'
+                      : 'Operation stopped before sending',
+                'superseded' => 'A new removal attempt was requested',
                 'progress_restored' => 'Reading progress and bookmarks restored. The original document is preserved.',
                 'migration_submitting' || 'migration_uncertain' =>
                   'Reading state awaiting cloud verification',
@@ -167,17 +182,34 @@ class _KindleDocumentPageState extends State<KindleDocumentPage> {
                           text(operation['state'])
                               .startsWith('replacement_retir')) &&
                       operation['state'] != 'done' &&
-                      operation['state'] != 'rejected'
-                ? IconButton(
-                    tooltip: tr(context, 'Check deletion'),
-                    icon: const Icon(Icons.refresh),
-                    onPressed: _busy
-                        ? null
-                        : () => _run(() async {
-                            await _manager.verifyDeletion(
-                              text(operation['operation']),
-                            );
-                          }),
+                      operation['state'] != 'rejected' &&
+                      operation['state'] != 'superseded'
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: tr(context, 'Check deletion'),
+                        icon: const Icon(Icons.refresh),
+                        onPressed: _busy
+                            ? null
+                            : () => _run(() async {
+                                await _manager.verifyDeletion(
+                                  text(operation['operation']),
+                                );
+                              }),
+                      ),
+                      IconButton(
+                        tooltip: tr(context, 'Retry removal'),
+                        icon: const Icon(Icons.replay),
+                        onPressed: _busy
+                            ? null
+                            : () => _run(
+                                () => _manager.retryRemoval(
+                                  text(operation['operation']),
+                                ),
+                              ),
+                      ),
+                    ],
                   )
                 : null,
           ),

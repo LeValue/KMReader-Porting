@@ -54,6 +54,8 @@ void main() {
         payload['management_probe'] = journals;
         final journal = object(journals['replacement_library']);
         journals['replacement_library'] = journal;
+        report['deletion_acknowledged'] =
+            journal['deletion_acknowledged'] == true;
         const verifiedFields = [
           'completion_preserved',
           'read_date_preserved',
@@ -157,6 +159,11 @@ void main() {
                 book: store.progress(profile.id, book),
           };
           journal['cache'] = {
+            if (store.cached(profile.id, 'kindle:removed-documents') != null)
+              'kindle:removed-documents': store.cached(
+                profile.id,
+                'kindle:removed-documents',
+              ),
             for (final book in books)
               for (final key in ['epub:$book', 'epubBookmarks:$book'])
                 if (store.cached(profile.id, key) != null)
@@ -338,6 +345,16 @@ void main() {
           await persist();
         }
         var operation = manager.operations.single;
+        if (Platform.environment['KMREADER_KINDLE_RETRY_REMOVAL'] == 'true' &&
+            journal['explicit_removal_retry'] != true &&
+            text(operation['state']).startsWith('replacement_retir')) {
+          journal['explicit_removal_retry'] = true;
+          await persist();
+          report['explicit_removal_retry'] = true;
+          await manager.retryRemoval(text(operation['operation']));
+          await persist();
+          operation = manager.operations.single;
+        }
         if (const {
           'replacement_submitting',
           'replacement_uncertain',
@@ -411,9 +428,27 @@ void main() {
         report['operation_state'] = manager.operations.single['state'];
         report['old_fixture_removed'] =
             manager.operations.single['state'] == 'done';
+        if (report['old_fixture_removed'] == true) {
+          report['old_fixture_removed'] = await manager.verifyDeletion(
+            text(operation['operation']),
+          );
+          final target = repository.library.items.singleWhere(
+            (item) =>
+                item['id'] == operation['new_id'] && item['type'] == 'PDOC',
+          );
+          report['cloud_state_confirmed'] = await repository.library.client
+              .readingStateConfirmed(
+                target,
+                text(plan['guid']),
+                position: plan['position'] as int?,
+                bookmarks: (plan['bookmarks'] as List).cast<int>(),
+              );
+        }
         report['passed'] =
             report['reading_state_restored'] == true &&
             report['old_fixture_removed'] == true &&
+            report['cloud_state_confirmed'] == true &&
+            report['deletion_acknowledged'] == true &&
             verifiedFields.every((key) => report[key] == true);
         if (report['passed'] != true) {
           fail('Replacement not yet verified; no replay.');
@@ -667,6 +702,36 @@ class _ReplacementTransport extends http.BaseClient {
           : uri.path,
       'http_status': response.statusCode,
     });
+    if (delete) {
+      final bytes = await response.stream.toBytes();
+      final reply = object(jsonDecode(utf8.decode(bytes)));
+      final result = object(reply['DeleteContent']);
+      final accepted =
+          result['success'] == true &&
+          object(result['resultMap'])[original] == true;
+      report['deletion_acknowledged'] = accepted;
+      journal['deletion_acknowledged'] = accepted;
+      report['deletion_result'] = {
+        'recognized': reply.containsKey('DeleteContent'),
+        'success': result['success'] == true,
+        'document_success': accepted,
+        'error':
+            const {
+              'AUTHENTICATION_ERROR',
+              'MISSING_CSRF_TOCKEN_ERROR',
+              'CSRF_VALIDATION_FAILED',
+            }.contains(reply['error'])
+            ? reply['error']
+            : reply['error'] == null
+            ? 'absent'
+            : 'other',
+      };
+      return http.StreamedResponse(
+        Stream.value(bytes),
+        response.statusCode,
+        headers: response.headers,
+      );
+    }
     if (ownership) {
       final currentCookies = cookies();
       report['web_post_cookie_schema'] = {

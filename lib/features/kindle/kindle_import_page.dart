@@ -87,6 +87,8 @@ class _KindleImportPageState extends State<KindleImportPage> {
   String _message(Object error) {
     final key = error is KindleFailure
         ? switch (error.code) {
+            'management_authorization' => 'Amazon did not authorize library management. Your reading session is preserved.',
+            'management_rejected' => 'Amazon rejected the library operation. The original document is preserved.',
             'management_conversion_pending' => 'Amazon is still preparing the updated document. Restore progress later from document management.',
             'management_source_changed' || 'management_target_changed' => 'Reading state changed during the update. Both copies are preserved.',
             'management_mapping_ambiguous' ||
@@ -284,7 +286,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
           if (mounted) setState(() => _error = _message(error));
         }
       } else {
-        await _importer.upload(
+        final sku = await _importer.upload(
           prepared,
           title: _title.text,
           author: _author.text,
@@ -298,6 +300,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
             if (mounted) setState(() => _submitting = true);
           },
         );
+        if (_archive) widget.repository.library.allowCloudDocument(sku);
       }
       if (!mounted) return;
       setState(() => _accepted = true);
