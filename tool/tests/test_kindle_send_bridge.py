@@ -43,12 +43,18 @@ class SendBridgeTest(unittest.TestCase):
                 bridge.transfer("export", ipc)
                 self.assertEqual(json.loads(ipc.read_text())["session"]["send_device"], device)
                 payload = json.loads(ipc.read_text())
-                payload["probe_operation"] = {"state": "upload_pending", "title": "SYNTHETIC"}
+                payload["probe_operation"] = {"state": "upload_pending", "title": "SYNTHETIC", "catalog_id": "SYNTHETIC-DOC"}
                 ipc.write_text(json.dumps(payload))
                 bridge.transfer("seal", ipc)
                 bridge.transfer("export", ipc)
                 self.assertEqual(json.loads(ipc.read_text())["probe_operation"], payload["probe_operation"])
                 self.assertNotIn("refresh_token", records[target])
+                ipc.write_text(json.dumps({"session": records[source]}))
+                bridge.transfer("attach-fixture", ipc)
+                self.assertEqual(json.loads(ipc.read_text())["probe_operation"]["catalog_id"], "SYNTHETIC-DOC")
+                ipc.write_text(json.dumps({"session": {"customer_id": "other-account"}}))
+                with self.assertRaisesRegex(ValueError, "probe_fixture_missing"):
+                    bridge.transfer("attach-fixture", ipc)
                 session["customer_id"] = "other-account"
                 ipc.write_text(json.dumps({"session": session}))
                 with self.assertRaisesRegex(ValueError, "account_mismatch"):

@@ -130,6 +130,13 @@ richiede implementazione e verifica del comportamento.
 | F-12 | Etichetta Autore nelle dieci lingue e traduzioni italiane dei nuovi flussi Kindle. | Le altre nuove frasi restano con fallback inglese nelle lingue non ancora completate; F-12 non è chiusa. |
 | F-13 | OAuth invio separato, copia EPUB modificata, eliminazione PDOC con backup/journal/verifica. | La sovrascrittura con migrazione cloud di stato/segnalibri **non è completa**; K-01–K-06 e account reale restano aperti. |
 
+Aggiornamento build 32: sul desktop reale sono passati registrazione Firs,
+riuso delle credenziali e invio di un solo EPUB sintetico con rilettura del catalogo
+([42483122733](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122733)).
+Le correzioni riguardano media type/XML e TTL relativo dell'upload URL. Questo
+chiude la riproduzione del blocco di invio in K-01, non F-13 o AT-06 nel complesso:
+restano UI/dispositivi, eliminazione, metadati/copertina e migrazione completa.
+
 Questi interventi completano sottorequisiti concreti. Nessuna riga è dichiarata
 «Chiusa» soltanto perché il relativo test host passa; l'accettazione residua resta
 esplicita. I pacchetti della build 30 non contengono gli interventi della build 31.
