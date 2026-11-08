@@ -25,6 +25,10 @@ on:
         type: choice
         options: [original, library]
         default: original
+      bookmark_probe:
+        description: Verify one bookmark on the exact generated test document only
+        type: boolean
+        default: false
       management_probe:
         description: Verify deletion of the exact generated test document, preserving its private recovery journal
         type: boolean
@@ -57,6 +61,7 @@ jobs:
           KMREADER_KINDLE_PROBE_DELIVERY_MODE: ${{ inputs.delivery_mode }}
           PROBE_APP_IMPORT: ${{ inputs.app_import }}
           KMREADER_KINDLE_MANAGEMENT_FIXTURE: ${{ inputs.management_fixture }}
+          PROBE_BOOKMARKS: ${{ inputs.bookmark_probe }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -67,7 +72,11 @@ jobs:
           try {
             python -m tool.kindle_send_probe_bridge export $session
             if ($LASTEXITCODE -ne 0) { throw 'Existing personal Kindle session unavailable; no login attempted' }
-            if ($env:PROBE_MANAGEMENT -eq 'true') {
+            if ($env:PROBE_BOOKMARKS -eq 'true') {
+              $env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION = $session
+              $env:KMREADER_KINDLE_MANAGEMENT_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+              flutter test test/kindle_bookmark_probe_test.dart --no-pub
+            } elseif ($env:PROBE_MANAGEMENT -eq 'true') {
               $env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION = $session
               $env:KMREADER_KINDLE_MANAGEMENT_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
               flutter test test/kindle_management_probe_test.dart --no-pub

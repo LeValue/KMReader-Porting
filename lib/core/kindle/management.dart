@@ -255,14 +255,17 @@ class KindleDocumentManager {
               final domain = cookie.domain?.replaceFirst(RegExp(r'^\.'), '');
               if (domain != null &&
                   domain != 'amazon.it' &&
-                  domain != 'www.amazon.it')
+                  domain != 'www.amazon.it') {
                 continue;
+              }
               if (cookie.path != null &&
-                  !'/mn/dcw/myx/ajax-activity/'.startsWith(cookie.path!))
+                  !'/mn/dcw/myx/ajax-activity/'.startsWith(cookie.path!)) {
                 continue;
+              }
               if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cookie.name) ||
-                  RegExp(r'[;\r\n\x00]').hasMatch(cookie.value))
+                  RegExp(r'[;\r\n\x00]').hasMatch(cookie.value)) {
                 continue;
+              }
               if (cookie.maxAge == 0 ||
                   cookie.expires?.isBefore(DateTime.now()) == true) {
                 cookies.remove(cookie.name);
