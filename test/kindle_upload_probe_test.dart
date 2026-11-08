@@ -252,6 +252,9 @@ class _UploadProbeClient extends http.BaseClient {
     }
     if (url.path.endsWith('/upload-url')) {
       uploadUri = Uri.tryParse(text(value['uploadUrl']));
+      if (value['expiryTime'] is num) {
+        report['upload_url_validity_ms'] = value['expiryTime'];
+      }
     }
     if (url.path.endsWith('/send-to-kindle')) {
       operation()['response'] = value; // Local DPAPI journal only.

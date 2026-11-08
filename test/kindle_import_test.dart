@@ -187,9 +187,8 @@ void main() {
     'stkToken': 'SYNTHETIC-UPLOAD',
     'uploadUrl':
         url ?? 'https://zme-caps.amazon.com/asset/SYNTHETIC?sig=temporary',
-    'expiryTime': DateTime.now()
-        .add(const Duration(minutes: 10))
-        .millisecondsSinceEpoch,
+    // Reference API fixture: a one-hour relative TTL, not an epoch timestamp.
+    'expiryTime': 3600000,
   };
 
   test('import signature matches independent raw PKCS1 vector without changing CDE signing', () {
