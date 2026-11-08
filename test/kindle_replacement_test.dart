@@ -28,6 +28,7 @@ void main() {
     'retire',
     'retire_lost_reply',
     'legacy_snapshot',
+    'legacy_changed',
   ]) {
     test('replacement restores verified reading progress and completion: $mode', () async {
       final root = Directory.systemTemp.createTempSync('kindle-replacement-');
@@ -269,15 +270,32 @@ void main() {
         cancel: KindleImportCancellation(),
       );
       final operation = manager.operations.single;
-      if (mode == 'legacy_snapshot') {
+      if (mode.startsWith('legacy_')) {
         final path =
             '${root.path}/${profile.id}/kindle-management/${operation['backup']}';
         final backup = object(jsonDecode(File(path).readAsStringSync()))
           ..remove('source_guid');
-        object(backup['sidecar'])['guid'] = 'legacy-representation';
+        final sidecar = object(backup['sidecar']);
+        backup['sidecar'] = sidecar;
+        sidecar['guid'] = 'legacy-representation';
+        final records = (sidecar['records'] as List).map(object).toList();
+        sidecar['records'] = records;
+        for (final record in records) {
+          if (record['type'] == 'kindle.bookmark') {
+            record['startPosition'] = '9911';
+            if (mode == 'legacy_changed') {
+              record['noteText'] = 'Changed content';
+            }
+          }
+          if (record['type'] == 'kindle.most_recent_read') {
+            record['location'] = 99912;
+          }
+        }
         File(path).writeAsStringSync(jsonEncode(backup));
       }
-      if (mode == 'source_changed' || mode == 'target_changed') {
+      if (mode == 'source_changed' ||
+          mode == 'target_changed' ||
+          mode == 'legacy_changed') {
         await expectLater(
           manager.restoreReplacement(text(operation['operation'])),
           throwsA(isA<KindleFailure>()),
@@ -295,6 +313,28 @@ void main() {
         }
         await manager.restoreReplacement(text(operation['operation']));
         expect(manager.operations.single['state'], 'progress_restored');
+        if (mode == 'legacy_snapshot') {
+          expect(
+            manager.operations.single['previous_backup'],
+            operation['backup'],
+          );
+          final retained = object(
+            jsonDecode(
+              File(
+                '${root.path}/${profile.id}/kindle-management/${operation['backup']}',
+              ).readAsStringSync(),
+            ),
+          );
+          expect(object(retained['sidecar'])['guid'], 'legacy-representation');
+          expect(
+            (object(retained['sidecar'])['records'] as List)
+                .map(object)
+                .singleWhere(
+                  (r) => r['type'] == 'kindle.most_recent_read',
+                )['location'],
+            99912,
+          );
+        }
         expect(writes, 1);
         expect(store.progress(profile.id, newBook.id)?['completed'], true);
         expect(
