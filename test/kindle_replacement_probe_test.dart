@@ -118,6 +118,11 @@ void main() {
               )
               .length,
         };
+        if (Platform.environment['KMREADER_KINDLE_CLOUD_ONLY'] == 'true') {
+          report['probe_kind'] = 'read_only_cloud_inventory';
+          report['passed'] = true;
+          return;
+        }
         final folder = Directory(
           p.join(root.path, profile.id, 'kindle-management'),
         );
@@ -612,6 +617,59 @@ class _ReplacementTransport extends http.BaseClient {
           : uri.path,
       'http_status': response.statusCode,
     });
+    if (ownership) {
+      final bytes = <int>[];
+      await for (final chunk in response.stream) {
+        if (bytes.length + chunk.length > 4 * 1024 * 1024) {
+          throw const KindleFailure('response_size');
+        }
+        bytes.addAll(chunk);
+      }
+      final root = object(jsonDecode(utf8.decode(bytes)));
+      final data = object(root['OwnershipData']);
+      report['ownership_response'] = {
+        'recognized': root.containsKey('OwnershipData'),
+        'items_is_list': data['items'] is List,
+        'declared_failure': data['success'] == false,
+        'error':
+            const {
+              'AUTHENTICATION_ERROR',
+              'MISSING_CSRF_TOCKEN_ERROR',
+              'CSRF_VALIDATION_FAILED',
+            }.contains(root['error'])
+            ? root['error']
+            : root['error'] == null
+            ? 'absent'
+            : 'other',
+        'category_counts': {
+          for (final category in [
+            'KindlePDoc',
+            'KindleEBook',
+            'missing',
+            'other',
+          ])
+            category: (data['items'] as List? ?? [])
+                .map(object)
+                .where(
+                  (item) => category == 'missing'
+                      ? item['category'] == null
+                      : category == 'other'
+                      ? item['category'] != null &&
+                            !const {
+                              'KindlePDoc',
+                              'KindleEBook',
+                            }.contains(item['category'])
+                      : item['category'] == category,
+                )
+                .length,
+        },
+      };
+      return http.StreamedResponse(
+        Stream.value(bytes),
+        response.statusCode,
+        headers: response.headers,
+      );
+    }
     if (uri.path != '/import/upload-url') return response;
     final bytes = await response.stream.toBytes();
     final value = object(jsonDecode(utf8.decode(bytes)));
