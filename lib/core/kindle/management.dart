@@ -326,6 +326,60 @@ class KindleDocumentManager {
     await _webAuthorization();
   }
 
+  /// Account cloud ownership, distinct from a reading device's delivery list.
+  /// Only PDOC metadata is requested. A partial result never proves absence.
+  Future<Json> cloudDocuments() async {
+    final auth = await _webAuthorization();
+    final items = <Json>[];
+    final ids = <String>{};
+    for (var start = 0; start < 1000; start += 100) {
+      final request =
+          http.Request('POST', Uri.https('www.amazon.it', '/hz/mycd/ajax'))
+            ..headers.addAll({
+              'Cookie': auth.$1,
+              'client': 'MYX',
+              'Origin': 'https://www.amazon.it',
+              'Referer': 'https://www.amazon.it/hz/mycd/myx',
+              'User-Agent': 'Mozilla/5.0',
+            })
+            ..bodyFields = {
+              'csrfToken': auth.$2,
+              'data': jsonEncode({
+                'param': {
+                  'OwnershipData': {
+                    'sortOrder': 'DESCENDING',
+                    'sortIndex': 'DATE',
+                    'startIndex': start,
+                    'batchSize': 100,
+                    'contentType': 'KindlePDoc',
+                    'itemStatus': ['Active'],
+                  },
+                },
+              }),
+            };
+      final data = object(_decode(await _request(request))['OwnershipData']);
+      if (data['items'] is! List) {
+        throw const KindleFailure('management_cloud_catalog');
+      }
+      final batch = (data['items'] as List).map(object).toList();
+      for (final item in batch) {
+        if (item['category'] != 'KindlePDoc' ||
+            text(item['asin']).isEmpty ||
+            !ids.add(text(item['asin']))) {
+          throw const KindleFailure('management_cloud_catalog');
+        }
+      }
+      items.addAll(batch);
+      final total = int.tryParse('${data['numberOfItems']}');
+      if (data['hasMoreItems'] == false ||
+          total != null && total <= items.length) {
+        return {'items': items, 'complete': true};
+      }
+      if (batch.isEmpty) break;
+    }
+    throw const KindleFailure('management_catalog_incomplete');
+  }
+
   Future<void> delete(Book book) async {
     final operation = await _backup(book, 'delete');
     try {

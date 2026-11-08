@@ -85,6 +85,39 @@ void main() {
         );
         final repository = repo;
         final manager = KindleDocumentManager(repository);
+        final cloud = await manager.cloudDocuments();
+        final cloudItems = (cloud['items'] as List).map(object).toList();
+        String canonical(String value) =>
+            RegExp(r'^[A-Fa-f0-9]{32}$').hasMatch(value)
+            ? value.toUpperCase()
+            : value;
+        final pending = (journal['operations'] as List? ?? [])
+            .map(object)
+            .firstOrNull;
+        report['cloud_inventory'] = {
+          'complete': cloud['complete'] == true,
+          'count': cloudItems.length,
+          'source_id_present': cloudItems.any(
+            (item) => canonical(text(item['asin'])) == canonical(rawId),
+          ),
+          'source_title_present': cloudItems.any(
+            (item) => item['title'] == fixture['title'],
+          ),
+          'target_id_present': cloudItems.any(
+            (item) =>
+                canonical(text(item['asin'])) ==
+                canonical(text(pending?['new_id'])),
+          ),
+          'target_title_present': cloudItems.any(
+            (item) => item['title'] == journal['title'],
+          ),
+          'uuid_ids': cloudItems
+              .where(
+                (item) =>
+                    RegExp(r'^[A-Fa-f0-9]{32}$').hasMatch(text(item['asin'])),
+              )
+              .length,
+        };
         final folder = Directory(
           p.join(root.path, profile.id, 'kindle-management'),
         );
@@ -444,10 +477,28 @@ class _ReplacementTransport extends http.BaseClient {
         request.method == 'POST' &&
         uri.host == 'cde-ta-g7g.amazon.com' &&
         uri.path == '/FionaCDEServiceEngine/sidecar';
-    final delete =
+    final webAjax =
         request.method == 'POST' &&
         uri.host == 'www.amazon.it' &&
         uri.path == '/hz/mycd/ajax';
+    var ownership = false;
+    if (webAjax && request is http.Request) {
+      final param = object(
+        object(jsonDecode(request.bodyFields['data'] ?? '{}'))['param'],
+      );
+      if (param.length == 1 && param.containsKey('OwnershipData')) {
+        final query = object(param['OwnershipData']);
+        ownership =
+            query['contentType'] == 'KindlePDoc' &&
+            query['batchSize'] == 100 &&
+            query['sortIndex'] == 'DATE' &&
+            query['sortOrder'] == 'DESCENDING' &&
+            query['startIndex'] is int &&
+            (query['startIndex'] as int) >= 0 &&
+            (query['startIndex'] as int) < 1000;
+      }
+    }
+    final delete = webAjax && !ownership;
     final upload =
         request.method == 'POST' &&
             uri.host == 'kd.amazon.com' &&
@@ -459,7 +510,7 @@ class _ReplacementTransport extends http.BaseClient {
     if (uri.scheme != 'https' ||
         uri.port != 443 ||
         uri.userInfo.isNotEmpty ||
-        !(auth || read || sidecar || delete || upload)) {
+        !(auth || read || sidecar || delete || ownership || upload)) {
       throw const KindleFailure('replacement_probe_guard');
     }
     if (sidecar) {
@@ -550,6 +601,8 @@ class _ReplacementTransport extends http.BaseClient {
     (steps as List).add({
       'step': sidecar
           ? 'write_generated_state'
+          : ownership
+          ? 'read_cloud_ownership'
           : delete
           ? 'retire_generated_original'
           : request.method == 'PUT'
