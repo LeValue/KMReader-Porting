@@ -238,29 +238,51 @@ class _ManagementProbeClient extends http.BaseClient {
     final page = html.parse(utf8.decode(bytes));
     report['web_page'] = {
       'script_count': page.querySelectorAll('script[src]').length,
+      'bytes': bytes.length,
+      for (final marker in [
+        'DeleteContent',
+        'digital-console',
+        'csrfToken',
+        'ajax-activity',
+        '/ap/signin',
+        'MYCD',
+        'mycd',
+      ])
+        marker: utf8.decode(bytes).contains(marker),
       'signin_form': page.querySelector('form[name=signIn]') != null,
       'robot_check': page.querySelector('input#captchacharacters') != null,
     };
-    report['public_scripts'] = page
-        .querySelectorAll('script[src]')
-        .map((e) => Uri.tryParse(e.attributes['src'] ?? ''))
-        .map((u) => u == null ? null : uri.resolveUri(u))
-        .whereType<Uri>()
-        .where(
-          (u) =>
-              u.scheme == 'https' &&
-              const {
-                'm.media-amazon.com',
-                'images-eu.ssl-images-amazon.com',
-                'images-na.ssl-images-amazon.com',
-                'images-fe.ssl-images-amazon.com',
-              }.contains(u.host) &&
-              u.path.startsWith('/images/') &&
-              u.userInfo.isEmpty,
-        )
-        .map((u) => u.replace(query: '', fragment: '').toString())
-        .take(20)
-        .toList();
+    report['public_scripts'] =
+        <String>[
+              ...page
+                  .querySelectorAll('script[src]')
+                  .map((e) => e.attributes['src'] ?? ''),
+              ...RegExp(
+                r'''(?:https:)?//(?:m\.media-amazon\.com|images-(?:eu|na|fe)\.ssl-images-amazon\.com)/images/[^\s"'<>\\]+''',
+              ).allMatches(utf8.decode(bytes)).map((m) => m.group(0)!),
+            ]
+            .map(Uri.tryParse)
+            .map((u) => u == null ? null : uri.resolveUri(u))
+            .whereType<Uri>()
+            .where(
+              (u) =>
+                  u.scheme == 'https' &&
+                  const {
+                    'm.media-amazon.com',
+                    'images-eu.ssl-images-amazon.com',
+                    'images-na.ssl-images-amazon.com',
+                    'images-fe.ssl-images-amazon.com',
+                  }.contains(u.host) &&
+                  u.path.startsWith('/images/') &&
+                  u.userInfo.isEmpty,
+            )
+            .map(
+              (u) =>
+                  Uri(scheme: 'https', host: u.host, path: u.path).toString(),
+            )
+            .toSet()
+            .take(40)
+            .toList();
     return http.StreamedResponse(
       Stream.value(bytes),
       response.statusCode,
