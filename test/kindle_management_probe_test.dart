@@ -239,6 +239,16 @@ class _ManagementProbeClient extends http.BaseClient {
     report['web_page'] = {
       'script_count': page.querySelectorAll('script[src]').length,
       'bytes': bytes.length,
+      'declared_csrf': RegExp(r'var\s+csrfToken\s*=')
+          .hasMatch(utf8.decode(bytes)),
+      'csrf_candidates': RegExp(
+        r'''csrfToken["']?\s*[=:]\s*["']([^"'\r\n]+)["']''',
+      ).allMatches(utf8.decode(bytes)).length,
+      'retail_signin_link':
+          page
+              .querySelector('#nav-link-accountList')
+              ?.attributes['data-nav-role'] ==
+          'signin',
       for (final marker in [
         'DeleteContent',
         'digital-console',
@@ -274,6 +284,7 @@ class _ManagementProbeClient extends http.BaseClient {
                     'images-fe.ssl-images-amazon.com',
                   }.contains(u.host) &&
                   u.path.startsWith('/images/') &&
+                  u.path.endsWith('.js') &&
                   u.userInfo.isEmpty,
             )
             .map(
@@ -281,7 +292,7 @@ class _ManagementProbeClient extends http.BaseClient {
                   Uri(scheme: 'https', host: u.host, path: u.path).toString(),
             )
             .toSet()
-            .take(40)
+            .take(100)
             .toList();
     return http.StreamedResponse(
       Stream.value(bytes),

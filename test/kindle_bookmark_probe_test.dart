@@ -4,6 +4,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kmreader/core/kindle/client.dart';
+import 'package:kmreader/core/kindle/conversion.dart';
+import 'package:kmreader/core/kindle/positions.dart';
+import 'package:kmreader/core/kindle/repository.dart';
+import 'package:kmreader/core/store.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:xml/xml.dart';
 
@@ -22,6 +27,11 @@ void main() {
         'annotation_writes': 0,
       };
       KindleClient? client;
+      KindleRepository? repository;
+      final root = Directory.systemTemp.createTempSync(
+        'kindle-bookmark-probe-',
+      );
+      final store = LocalStore(sqlite3.openInMemory());
       try {
         final file = File(path!);
         final payload = object(jsonDecode(await file.readAsString()));
@@ -66,13 +76,42 @@ void main() {
           throw const KindleFailure('bookmark_probe_identity');
         }
         final item = matches.single;
+        NativeKindlePreparation.executableOverride =
+            Platform.environment['KMREADER_KINDLE_WORKER'];
+        final session = client.session!;
+        repository = KindleRepository(
+          profile: ServerProfile(
+            id: session.id,
+            name: 'Generated bookmark probe',
+            url: 'https://www.amazon.it',
+            email: '',
+            source: 'kindle',
+            authentication: Authentication.apiKey,
+          ),
+          store: store,
+          directory: root,
+          client: client,
+        );
+        await repository.library.refresh(full: true);
+        final book = await repository.book(repository.library.idFor(item));
+        await repository.download(book);
+        final prepared = await repository.book(book.id);
+        final mapping = await KindlePositionMap.open(
+          repository.bookFile(prepared).path,
+        );
+        if (mapping == null ||
+            mapping.primary == null ||
+            mapping.entries.isEmpty) {
+          throw const KindleFailure('bookmark_probe_mapping_missing');
+        }
+        final guid = mapping.primary!;
+        final probePosition = integer(mapping.entries.first['position']);
+        transport.guid = guid;
+        transport.position = probePosition;
+        report['verified_mapping_available'] = true;
         Json? sidecar;
         try {
-          sidecar = await client.sidecar(
-            item,
-            guid: '_LATEST_',
-            annotations: true,
-          );
+          sidecar = await client.sidecar(item, guid: guid, annotations: true);
         } on KindleFailure catch (error) {
           if (error.status != 404) rethrow;
           report['initial_sidecar_missing'] = true;
@@ -80,7 +119,9 @@ void main() {
         bool confirmed(Json? value) => (value?['records'] as List? ?? [])
             .map(object)
             .any(
-              (r) => r['type'] == 'kindle.bookmark' && r['startPosition'] == 0,
+              (r) =>
+                  r['type'] == 'kindle.bookmark' &&
+                  r['startPosition'] == probePosition,
             );
         if (!confirmed(sidecar) && bookmark.isEmpty) {
           bookmark['state'] = 'submitting';
@@ -95,13 +136,13 @@ void main() {
             nest: () {
               builder.element(
                 'book',
-                attributes: {'key': id, 'type': 'PDOC', 'guid': '_LATEST_'},
+                attributes: {'key': id, 'type': 'PDOC', 'guid': guid},
                 nest: () {
                   builder.element(
                     'bookmark',
                     attributes: {
                       'action': 'create',
-                      'begin': '0',
+                      'begin': '$probePosition',
                       'timestamp': timestamp,
                     },
                   );
@@ -126,11 +167,7 @@ void main() {
           );
           bookmark['state'] = 'submitted';
           await seal();
-          sidecar = await client.sidecar(
-            item,
-            guid: '_LATEST_',
-            annotations: true,
-          );
+          sidecar = await client.sidecar(item, guid: guid, annotations: true);
         }
         report['bookmark_confirmed'] = confirmed(sidecar);
         report['guid_present'] = text(sidecar?['guid']).isNotEmpty;
@@ -152,7 +189,11 @@ void main() {
         if (error is KindleFailure) report['http_status'] = error.status;
         fail('Bookmark check failed; inspect sanitized metrics.');
       } finally {
+        await repository?.stopDownloadWork();
+        repository?.dispose();
         client?.close();
+        store.close();
+        await root.delete(recursive: true);
         final output =
             Platform.environment['KMREADER_KINDLE_MANAGEMENT_REPORT'];
         if (output != null) {
@@ -171,6 +212,8 @@ class _BookmarkProbeClient extends http.BaseClient {
   final Json report;
   final delegate = http.Client();
   int writes = 0;
+  String? guid;
+  int? position;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final uri = request.url;
@@ -181,7 +224,8 @@ class _BookmarkProbeClient extends http.BaseClient {
         request.method == 'GET' &&
         (sidecar && uri.queryParameters['key'] == id ||
             uri.host == 'todo-ta-g7g.amazon.com' &&
-                uri.path == '/FionaTodoListProxy/syncMetaData');
+                uri.path == '/FionaTodoListProxy/syncMetaData' ||
+            kindleAllowedUri(uri) && !sidecar);
     final auth =
         request.method == 'POST' &&
         uri.host == 'api.amazon.it' &&
@@ -203,11 +247,11 @@ class _BookmarkProbeClient extends http.BaseClient {
       if (books.length != 1 ||
           books.single.getAttribute('key') != id ||
           books.single.getAttribute('type') != 'PDOC' ||
-          books.single.getAttribute('guid') != '_LATEST_' ||
+          books.single.getAttribute('guid') != guid ||
           books.single.childElements.length != 1 ||
           marks.length != 1 ||
           marks.single.getAttribute('action') != 'create' ||
-          marks.single.getAttribute('begin') != '0') {
+          marks.single.getAttribute('begin') != '$position') {
         throw const KindleFailure('bookmark_probe_document_guard');
       }
       report['annotation_writes'] = writes;
