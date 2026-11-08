@@ -609,7 +609,7 @@ class KindleDocumentManager {
             (r) =>
                 r['annotationId'] == record['annotationId'] &&
                 r['type'] == record['type'] &&
-                r['startPosition'] == record['startPosition'],
+                _annotationIdentity(r) == _annotationIdentity(record),
           )) {
             throw const KindleFailure('management_source_changed');
           }
@@ -892,3 +892,21 @@ String _readingSnapshot(Json sidecar) {
 
 Future<String> _encodeBackup(Json value) =>
     Isolate.run(() => jsonEncode(value));
+
+// CDE translates coordinates for each delivered representation. Stable annotation
+// identity/content must agree during legacy backup rebinding, not those offsets.
+String _annotationIdentity(Json record) => _readingSnapshot({
+  'records': [
+    {
+      for (final entry in record.entries)
+        if (!const {
+          'startPosition',
+          'endPosition',
+          'location',
+          'startLocation',
+          'endLocation',
+        }.contains(entry.key))
+          entry.key: entry.value,
+    },
+  ],
+});
