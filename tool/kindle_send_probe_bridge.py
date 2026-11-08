@@ -25,13 +25,14 @@ def website_probe(output):
     opener = urllib.request.build_opener(NoRedirect())
     cookies = {}
 
-    def request(stage, path, data=None):
+    def request(stage, path, data=None, extra_headers=None):
         headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
         if cookies:
             headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
         if isinstance(data, dict):
             headers["Content-Type"] = "application/x-www-form-urlencoded"
             data = urllib.parse.urlencode(data).encode()
+        headers.update(extra_headers or {})
         req = urllib.request.Request("https://www.amazon.it" + path,
                                      data=data, headers=headers)
         try:
@@ -47,6 +48,9 @@ def website_probe(output):
                 return body
         except urllib.error.HTTPError as error:
             report[stage] = {"http_status": error.code}
+            location = urllib.parse.urlsplit(error.headers.get("Location", ""))
+            report[stage]["redirect_host"] = location.hostname if location.hostname in ("www.amazon.it", "www.amazon.com") else "other"
+            report[stage]["redirect_path"] = location.path if location.path in ("/ap/signin", "/sendtokindle", "/sendtokindle/get-device-list", "/sendtokindle/login") else "other"
             raise ValueError("website_request") from None
 
     try:
@@ -77,6 +81,10 @@ def website_probe(output):
             raise ValueError("website_not_authenticated")
         page = request("csrf", "/sendtokindle/empty").decode("utf-8")
         report["csrf_available"] = bool(re.search(r'''name=['"]csrfToken['"]\s+value=['"]([^'"\r\n]+)['"]''', page))
+        token = re.search(r'''name=['"]csrfToken['"]\s+value=['"]([^'"\r\n]+)['"]''', page)
+        if token:
+            request("devices", "/sendtokindle/get-device-list", json.dumps({"extName": "chrome_ocs", "extVersion": "1.0"}).encode(),
+                    {"Content-Type": "application/json", "anti-csrftoken-a2z": token.group(1), "Origin": "https://www.amazon.it", "Referer": "https://www.amazon.it/sendtokindle"})
         report["passed"] = report["csrf_available"]
     except Exception:
         report["passed"] = False
