@@ -37,8 +37,10 @@ Dal dettaglio del documento, **Gestisci documento Kindle** offre:
   basta a dichiarare concluso l'aggiornamento.
 - **Elimina dalla libreria Kindle:** conferma esplicita della cancellazione
   permanente del PDOC selezionato. Prima della richiesta viene salvato lo stato
-  di lettura. Il catalogo completo deve confermare l'assenza; HTTP 200 non basta.
-  File locali, progresso e dati di recupero vengono conservati.
+  di lettura. Un sidecar non disponibile (404) viene registrato come tale, non
+  come stato vuoto; non impedisce una cancellazione esplicita, ma impedisce una
+  sostituzione con ripristino. Il catalogo completo deve confermare l'assenza;
+  HTTP 200 non basta. File locali, progresso e dati di recupero restano conservati.
 - **Gestione contenuti Amazon:** apre il sito ufficiale per controllare la
   libreria e gestire i casi non ancora supportati dall'app.
 
@@ -47,8 +49,10 @@ interna, la spine e le risorse testuali sono conservati. La richiesta inviata ad
 Amazon modifica un documento cloud; non è un semplice override della cache.
 Il contratto corrente di cancellazione è `POST /hz/mycd/ajax`, form con `data`
 JSON, CSRF della pagina MyCD e header `client: MYX`. I cookie vengono generati dal
-refresh token dell'account collegato, normalizzati e aggiornati con gli eventuali
-`Set-Cookie` della pagina. Le chiavi ADP non vengono inviate alle pagine web.
+refresh token dell'account collegato e conservati per dominio, percorso e nome.
+La scadenza di un cookie del solo host non cancella quello di autenticazione del
+dominio padre. Gli errori applicativi Amazon, anche con HTTP 200, fermano
+l'operazione e conservano l'originale. Le chiavi ADP non vengono inviate alle pagine web.
 Il precedente endpoint consumer non viene usato come fallback.
 
 ## Ripristino del progresso prima della sostituzione
@@ -79,6 +83,16 @@ registrato: non reinvia il file né ripete la scrittura dei segnalibri. **Comple
 l'aggiornamento del documento** ritenta il ritiro solo quando lo stato ripristinato
 è verificato e non è già partita una cancellazione. Quando la cancellazione è
 incerta, **Verifica eliminazione** legge il catalogo senza ripetere la mutazione.
+**Riprova eliminazione** è un'azione esplicita separata: controlla la proprietà
+cloud del documento esatto, la revisione e il titolo; per una sostituzione
+ricontrolla anche il ripristino prima di richiedere il ritiro. Riutilizza la
+stessa copia e lo stesso piano, senza reinviare il file o i segnalibri.
+
+Il catalogo di consegna di un dispositivo può trattenere i metadati dopo la
+cancellazione cloud. In quel caso la conferma viene dal catalogo completo MyCD
+dell'account. Un marcatore persistente impedisce che quei metadati facciano
+riapparire il documento, anche offline dopo il riavvio; non cancella file o
+progresso e può essere rimosso da una successiva aggiunta confermata.
 
 ### Copertura residua
 
@@ -100,14 +114,15 @@ Le prove personali mantengono il registro sul PC, protetto con DPAPI.
 | Stato | Significato e recupero |
 |---|---|
 | `backed_up` | Backup completato, mutazione non iniziata; annullabile. |
-| `delete_submitting`, `delete_uncertain`, `delete_verifying` | Rileggere il catalogo senza ripetere la cancellazione. |
+| `delete_submitting`, `delete_uncertain`, `delete_verifying` | Verifica senza scritture; nuovo tentativo solo con l'azione esplicita e i controlli di proprietà/revisione. |
 | `replacement_submitting`, `replacement_uncertain` | Consegna da controllare; nessun nuovo invio automatico. |
 | `replacement_migration_required` | Copia accettata; ripristino da completare. |
 | `migration_submitting`, `migration_uncertain` | Scrittura dello stato da verificare, senza replay. |
 | `progress_restored` | Stato cloud verificato e progresso locale ripristinato; originale ancora presente. |
-| `replacement_retiring`, `replacement_retirement_uncertain`, `replacement_retirement_verifying` | Ritiro del vecchio PDOC avviato: solo verifica del catalogo. |
+| `replacement_retiring`, `replacement_retirement_uncertain`, `replacement_retirement_verifying` | Ritiro avviato: verifica senza replay; eventuale tentativo esplicito riusa copia e ripristino verificato. |
 | `done` | Cancellazione confermata; per una sostituzione, anche ripristino verificato. |
-| `rejected` | Mutazione non iniziata o invio definitivamente rifiutato; nuovo tentativo esplicito. |
+| `rejected` | Mutazione non iniziata o richiesta rifiutata da Amazon; originale conservato. |
+| `superseded` | Tentativo di cancellazione conservato nello storico e sostituito da un nuovo tentativo esplicito. |
 
 Download/outbox pendenti bloccano la gestione dello stesso documento. Un'operazione
 aperta impedisce mutazioni concorrenti, anche dopo il riavvio. La chiusura di un
@@ -118,19 +133,35 @@ account impedisce di pubblicare risultati tardivi nella sua cache.
 | ID | Requisito | Situazione nella sorgente 33 |
 |---|---|---|
 | K-01 | Invio locale con sessione persistente e modalità distinte | Libreria e solo dispositivo verificati; ricezione/apertura Android confermata dall'utente. Resta accettazione UI installata su entrambe le piattaforme. |
-| K-02 | Eliminazione cloud PDOC | Endpoint corrente, conferma, backup, journal, verifica e recupero implementati; prova completa reale in corso. |
-| K-03 | Metadati e copertina | Recupero dall'app, modifica EPUB su copia e invio implementati; conferma dopo conversione nella prova completa reale. Nessun aggiornamento in-place presunto. |
-| K-04 | Ripristino progresso e segnalibri | Implementato per EPUB con mappa verificata, inclusi completamento/data e ripresa offline; test conferma, risposta persa, conflitti e rollback passati. Restano copertura di PDF/note/evidenziazioni e verifica completa reale. |
+| K-02 | Eliminazione cloud PDOC | Cancellazione reale del solo PDOC sintetico confermata da Amazon e dall'assenza nel catalogo; recupero del tentativo precedente senza nuovo upload. Resta accettazione UI installata. |
+| K-03 | Metadati e copertina | Recupero dall'app e modifica EPUB su copia implementati; titolo e copertina convertiti verificati sull'account reale. Nessun aggiornamento in-place presunto; resta accettazione UI. |
+| K-04 | Ripristino progresso e segnalibri | Punto di lettura e segnalibri riletti dal cloud sulla nuova edizione; completamento e data conservati nella prova reale. Test conferma, risposta persa, conflitti, rollback e ripresa offline passati. Restano PDF/note/evidenziazioni e accettazione sui dispositivi. |
 | K-05 | Registro durevole e recupero | Piano salvato prima delle mutazioni; invii incerti non ripetuti, originale ritirabile solo dopo verifica. Prova personale conserva backup/registro sul PC tra processi. |
 | K-06 | Accettazione Android/Windows/altro Kindle | Servizi provati dal desktop e consegna Kindle Android confermata; restano UI aggiornata e ripresa su un secondo dispositivo dopo sostituzione. |
 
 Prove locali: [modifica/eliminazione](../test/kindle_management_test.dart),
 [rimappatura](../test/kindle_edition_migration_test.dart),
 [ripristino e ritiro](../test/kindle_replacement_test.dart).
-[Prova completa reale 42506920429](https://github.com/LeValue/KMReader-Porting/actions/runs/42506920429):
-esito da registrare al termine. È limitata al documento sintetico generato dalla
-prova di aggiunta al cloud; nessun libro preesistente dell'utente è modificabile
-dal suo guard HTTP. [Altre evidenze](KINDLE_IMPORT.md).
+[Prova reale conclusa 42514185821](https://github.com/LeValue/KMReader-Porting/actions/runs/42514185821)
+sulla sorgente `e9a7712da95c227a86e5d613409e2c3dda2a7949`: nuova edizione con titolo/copertina
+verificati, punto di lettura e segnalibri confermati dal cloud, completamento/data
+conservati, cancellazione dell'originale riconosciuta da Amazon e assenza verificata.
+Il caricamento iniziale è stato effettuato una sola volta nella
+[prova 42506920429](https://github.com/LeValue/KMReader-Porting/actions/runs/42506920429);
+[42509219752](https://github.com/LeValue/KMReader-Porting/actions/runs/42509219752)
+ha ripristinato lo stato sulla nuova copia ma si era fermata al ritiro per il difetto
+dei cookie. Il recupero finale ha eseguito **0 upload, 0 scritture di annotazioni e
+1 cancellazione**, dopo aver ricontrollato proprietà e stato. I tentativi falliti
+restano nella cronologia e non sono contati come prove riuscite.
+
+[Riapertura in un nuovo processo 42514327712](https://github.com/LeValue/KMReader-Porting/actions/runs/42514327712)
+passata con **0 upload, 0 cancellazioni e 0 scritture di annotazioni**: vecchia
+copia assente, copia aggiornata presente, progresso/segnalibri cloud ancora
+confermati e registro `done`.
+
+Tutte queste prove riguardano lo stesso documento sintetico generato dalla prova
+di aggiunta al cloud. Il guard HTTP impedisce modifiche ai libri preesistenti
+dell'utente. [Altre evidenze](KINDLE_IMPORT.md).
 
 ## Fonti del protocollo
 
