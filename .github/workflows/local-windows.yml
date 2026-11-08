@@ -22,6 +22,10 @@ on:
         description: Reuse an existing responsiveness bundle or Android diagnostic APK with identical app/test source
         type: string
         default: ''
+      fixture_only:
+        description: Kindle runtime mode reads only the generated upload-test document
+        type: boolean
+        default: false
       expected_runner:
         description: Optional exact PC runner name for the Android USB test
         type: string
@@ -54,6 +58,7 @@ jobs:
     with:
       verified_run: ${{ inputs.prebuilt_run }}
       runner_label: ${{ inputs.runner_label }}
+      fixture_only: ${{ inputs.fixture_only }}
   android_recovery:
     if: inputs.mode == 'android-epub-recovery'
     uses: ./.github/workflows/local-android.yml

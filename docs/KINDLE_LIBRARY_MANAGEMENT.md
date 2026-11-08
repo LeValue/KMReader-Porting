@@ -1,7 +1,7 @@
 # Gestione remota dei documenti personali Kindle
 
-Stato della sorgente **1.0.0+31**: prima implementazione parziale, non ancora
-verificata su un account Amazon reale. I pacchetti già distribuiti della build 30
+Stato della sorgente **1.0.0+32**: gestione remota ancora parziale; invio verificato
+su account reale, eliminazione/modifica e migrazione ancora da verificare. I pacchetti della build 30
 non contengono queste modifiche. La voce **F-13** della [matrice](PARITY.md) resta
 aperta, soprattutto per la sostituzione con migrazione dello stato.
 
@@ -52,9 +52,10 @@ riuscita e blocca la cancellazione dell'originale tramite lo stesso servizio.
 `KindleClient.pushPosition` scrive e rilegge una posizione della stessa edizione;
 non fornisce ancora scrittura verificata dei segnalibri su una nuova edizione.
 Copiare alla cieca CFI, GUID o numeri di posizione non sarebbe un ripristino.
-L'assenza di credenziali/account di prova in questo ambiente impedisce di
-verificare nuove scritture cloud. Non sono state eseguite mutazioni su documenti
-reali durante lo sviluppo.
+Il runner personale ora consente prove con la sessione locale: registrazione,
+riuso delle credenziali e invio di un EPUB sintetico sono passati. Non è ancora
+verificato il protocollo di scrittura dei segnalibri su una nuova edizione.
+Nessun documento preesistente è stato modificato o eliminato durante queste prove.
 
 Per completare la sostituzione occorre ancora:
 
@@ -90,9 +91,9 @@ scrittura tardiva nella cache di un account chiuso.
 
 ## Requisiti e prove residue
 
-| ID | Requisito | Situazione nella build 31 |
+| ID | Requisito | Situazione nella build 32 |
 |---|---|---|
-| K-01 | Risolvere il blocco di Invio a Kindle | Token di invio già validi indipendenti dal rinnovo del lettore; nuovo OAuth STK con PKCE e verifica dello stesso account; diagnostica per fase/HTTP. Prove sintetiche presenti, verifica dell'errore Windows reale ancora aperta. |
+| K-01 | Risolvere il blocco di Invio a Kindle | Build 32: richiesta XML e tipo di contenuto Firs corretti; TTL dell'URL relativo. Registrazione, riuso dopo ricostruzione sessione e invio reale di un EPUB sintetico con rilettura catalogo passati sul desktop: [42482337075](https://github.com/LeValue/KMReader-Porting/actions/runs/42482337075), [42483122733](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122733). Nessun nuovo login browser; resta l'accettazione della UI installata su Android/Windows (K-06). |
 | K-02 | Eliminazione cloud PDOC | Servizio, conferma, backup, journal e rilettura implementati. Protocollo web non stabile e non verificato su Amazon reale. |
 | K-03 | Metadati e copertina | Modifica EPUB su copia e invio implementati; aggiornamento in-place non dimostrato. Confermare metadati/copertina dopo conversione Amazon. |
 | K-04 | Migrazione stato e segnalibri | Backup implementato; rimappatura, scrittura cloud delle annotazioni e migrazione completa ancora mancanti. |

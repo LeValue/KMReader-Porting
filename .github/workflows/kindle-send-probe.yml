@@ -7,14 +7,6 @@ on:
         type: choice
         options: [kmreader-android-desktop, kmreader-laptop]
         default: kmreader-android-desktop
-      xml_declaration:
-        description: Compare the reference XML envelope without changing the importer
-        type: boolean
-        default: false
-      web_session:
-        description: Check first-party web STK using the existing reader session, without Firs registration
-        type: boolean
-        default: false
       app_import:
         description: Exercise the app importer and its generated-document acceptance check
         type: boolean
@@ -39,18 +31,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - if: ${{ !inputs.web_session }}
-        run: ./tool/setup_local_flutter.ps1
+      - run: ./tool/setup_local_flutter.ps1
       - name: Resolve locked source dependencies
-        if: ${{ !inputs.web_session }}
         run: |
           $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
           dart pub get --enforce-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source probe dependencies' }
       - name: Check saved send credentials and the explicitly selected synthetic upload
-        if: ${{ !inputs.web_session }}
         env:
-          KMREADER_KINDLE_PROBE_XML_DECLARATION: ${{ inputs.xml_declaration }}
           KMREADER_KINDLE_PROBE_UPLOAD_FIXTURE: ${{ inputs.upload_fixture }}
           PROBE_APP_IMPORT: ${{ inputs.app_import }}
         run: |
@@ -74,7 +62,7 @@ jobs:
             $result = $LASTEXITCODE
             python -m tool.kindle_send_probe_bridge seal $session
             if ($LASTEXITCODE -ne 0) { throw 'Cannot retain probe credentials in the local DPAPI vault' }
-            if ($result -ne 0) { throw 'STK registration failed; only sanitized metrics will be uploaded' }
+            if ($result -ne 0) { throw 'STK check failed; only sanitized metrics will be uploaded' }
           } finally {
             Remove-Item Env:KMREADER_KINDLE_SEND_PRIVATE_SESSION -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_SEND_PROBE_REPORT -ErrorAction SilentlyContinue
@@ -82,12 +70,6 @@ jobs:
             Remove-Item Env:KMREADER_KINDLE_UPLOAD_PROBE_REPORT -ErrorAction SilentlyContinue
             Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
           }
-      - name: Check first-party web access without a new browser login
-        if: inputs.web_session
-        run: |
-          New-Item artifacts/kindle-send-report -ItemType Directory -Force | Out-Null
-          python -m tool.kindle_send_probe_bridge web-check artifacts/kindle-send-report/report.json
-          if ($LASTEXITCODE -ne 0) { throw 'First-party STK check failed; inspect fixed-vocabulary metrics' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

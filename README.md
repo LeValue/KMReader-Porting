@@ -14,7 +14,7 @@ The current source is the **1.0.0+32 development candidate**, built on working 0
 local-file Send to Kindle, dictionary filtering, responsive Kindle indexing and
 separate recently added books/comics on the dashboard.
 Build 31 additionally fixes tilted spread curl layers, adds dedicated Kindle send authorization, personal-document management with recovery records, and improves live/offline metadata. [Kindle management limits](docs/KINDLE_LIBRARY_MANAGEMENT.md) include the still incomplete bookmark/state migration.
-Build 32 fixes real-account Send to Kindle registration by preserving the exact XML envelope and media type. Saved credentials are reused without another browser login; see [live evidence](docs/KINDLE_IMPORT.md).
+Build 32 fixes real-account Send to Kindle registration (XML/media type) and the relative upload URL lifetime. A generated EPUB was accepted and found in the real catalog; a second process reused credentials without another login or upload. See [live evidence](docs/KINDLE_IMPORT.md).
 AI/model/translation extensions and Komga server upload are future work.
 See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION.md)
 for completed checks and target-device acceptance still needed before stable

@@ -29,11 +29,12 @@ void main() {
       try {
         NativeKindlePreparation.executableOverride =
             Platform.environment['KMREADER_KINDLE_WORKER'];
-        final session = KindleSession(
-          object(
-            object(jsonDecode(await File(path!).readAsString()))['session'],
-          ),
-        );
+        final payload = object(jsonDecode(await File(path!).readAsString()));
+        final session = KindleSession(object(payload['session']));
+        final fixtureOnly =
+            Platform.environment['KMREADER_KINDLE_RUNTIME_FIXTURE'] == 'true';
+        final generated = object(payload['probe_operation']);
+        report['generated_fixture_only'] = fixtureOnly;
         final profile = ServerProfile(
           id: session.id,
           name: 'Read-only check',
@@ -52,9 +53,17 @@ void main() {
         await repo.library.refresh();
         report['catalog_ms'] = clock.elapsedMilliseconds;
         final candidates = repo.library.items
-            .where((item) => item['type'] == 'PDOC')
+            .where(
+              (item) =>
+                  item['type'] == 'PDOC' &&
+                  (!fixtureOnly ||
+                      item['id'] == generated['catalog_id'] &&
+                          item['title'] == generated['title']),
+            )
             .take(5)
             .toList();
+        if (candidates.isEmpty)
+          throw const KindleFailure('probe_fixture_missing');
         var selected = candidates.first;
         var annotationsExpected = false;
         // Prefer a book with existing cloud annotations, so the live import
@@ -115,7 +124,9 @@ void main() {
             )['edition_matches'] ==
             true;
         expect(report['download_ready'], true);
-        expect(report['cover_available_before_download'], true);
+        // The generated EPUB deliberately has no cover resource.
+        if (!fixtureOnly)
+          expect(report['cover_available_before_download'], true);
         expect(report['pages_available'], true);
         expect(report['cached_copy_network_requests'], 0);
         if (annotationsExpected) {

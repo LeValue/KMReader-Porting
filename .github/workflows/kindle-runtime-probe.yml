@@ -8,6 +8,9 @@ on:
       runner_label:
         type: string
         default: kmreader-android-desktop
+      fixture_only:
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -20,6 +23,10 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
+      - if: inputs.fixture_only
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - uses: actions/download-artifact@v4
         with:
           name: windows
@@ -35,6 +42,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve locked runtime probe dependencies' }
       - name: Check covers and the real download queue without cloud annotation writes
         shell: powershell
+        env:
+          PROBE_FIXTURE_ONLY: ${{ inputs.fixture_only }}
         run: |
           $ErrorActionPreference = 'Stop'
           $binaryRoot = Join-Path $PWD 'artifacts/kindle-runtime-build'
@@ -53,6 +62,11 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Existing prototype session unavailable; no login or registration attempted' }
             $session = Join-Path $private 'native-session.json'
             [IO.File]::WriteAllText($session, ($response -join "`n"), (New-Object Text.UTF8Encoding($false)))
+            if ($env:PROBE_FIXTURE_ONLY -eq 'true') {
+              python -m tool.kindle_send_probe_bridge attach-fixture $session
+              if ($LASTEXITCODE -ne 0) { throw 'Generated fixture journal unavailable; no other document will be read' }
+              $env:KMREADER_KINDLE_RUNTIME_FIXTURE = 'true'
+            }
             $env:KMREADER_KINDLE_PRIVATE_SESSION = $session
             $env:KMREADER_KINDLE_WORKER = $worker
             $env:KMREADER_KINDLE_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-runtime-report/report.json'
@@ -60,6 +74,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Kindle runtime check failed; only sanitized metrics will be uploaded' }
           } finally {
             Remove-Item Env:KMREADER_KINDLE_PRIVATE_SESSION -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_RUNTIME_FIXTURE -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_WORKER -ErrorAction SilentlyContinue
             $response = $null
             Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue

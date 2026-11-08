@@ -54,9 +54,15 @@ possible submission; pending/accepted sends are checked rather than repeated.
 The title, response and returned ID stay on the PC. Deletion and annotation writes
 remain blocked. This does not establish full overwrite/bookmark migration.
 
-`web_session` and `xml_declaration` are research comparisons, not application
-fallbacks. The web experiment is archived after its POST routes required Amazon
-sign-in despite authenticated GETs; the native Firs path is used by the app.
+For `kindle-runtime`, `fixture_only: true` restricts conversion/download/cache
+checks to the exact PDOC ID/title in that private journal. A missing or mismatched
+fixture fails instead of selecting another book. The native worker and app-source
+checks remain required. A generated EPUB without a cover may report no cover;
+publication readiness and immutable prepared-cache reuse are still asserted.
+
+Superseded web-session and XML-envelope comparisons are archived, with their
+source snapshots and evidence. They are no longer workflow options. The native
+Firs path is used by the app; active converter/prototype modules remain untouched.
 
 The first build downloads Flutter 3.47.8 into the runner tool cache and checks
 the archive against the official release manifest's SHA256. Pub dependencies

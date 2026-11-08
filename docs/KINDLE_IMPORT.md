@@ -7,6 +7,11 @@ on the real account. The corrected registration and persisted-session reuse pass
 on `kmreader-android-desktop` without a new login. Reading-device credentials and
 the separate optional OAuth fallback remain unchanged.
 
+The upload URL's `expiryTime` is a **relative millisecond lifetime** (3600000 in
+the live response), not an epoch date. A fresh positive lifetime is accepted;
+the URL is never cached or replayed. Network/device failures no longer display a
+new authorization action; that fallback is limited to registration HTTP 401/403.
+
 **Build 31 changes:** valid saved send credentials no longer depend on renewing
 an unrelated reading bearer. Device-loading errors retain a sanitized stage and
 HTTP status, including after choosing a file. If automatic registration is denied,
@@ -123,7 +128,8 @@ Purchased Kindle Store books remain outside this management scope.
 - Service reads: [42479547564](https://github.com/LeValue/KMReader-Porting/actions/runs/42479547564), passed.
 - App cover/download/preparation: [42480022977](https://github.com/LeValue/KMReader-Porting/actions/runs/42480022977), passed.
 - Corrected Firs registration, destination query and credential reuse after loading the saved session: [42482337075](https://github.com/LeValue/KMReader-Porting/actions/runs/42482337075), passed without an OAuth/browser login.
-- Generated-EPUB upload and catalog readback are checked separately; they are not implied by successful registration.
+- Generated EPUB, streaming transfer, accepted delivery and subsequent PDOC catalog readback: [42483122733](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122733), passed. Exactly one synthetic document was submitted; no existing document was modified/deleted and no annotations were written.
+- Fresh workflow/process reopening: [42483886657](https://github.com/LeValue/KMReader-Porting/actions/runs/42483886657), passed with 9 destinations, the same fixture present and **zero** document submissions. No OAuth/browser or Firs registration was needed.
 
 The first-party web alternative authenticated GET requests, but POST device/init
 requests redirected to Amazon sign-in. It is archived under
