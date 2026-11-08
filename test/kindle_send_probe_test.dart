@@ -105,8 +105,9 @@ class _ProbeClient extends http.BaseClient {
     if (registration &&
         Platform.environment['KMREADER_KINDLE_PROBE_XML_DECLARATION'] ==
             'true') {
-      if (request is! http.Request)
+      if (request is! http.Request) {
         throw const KindleFailure('send_probe_envelope');
+      }
       request.body = '<?xml version="1.0" encoding="UTF-8"?>\n${request.body}';
       report['xml_declaration_added_by_probe'] = true;
     }
