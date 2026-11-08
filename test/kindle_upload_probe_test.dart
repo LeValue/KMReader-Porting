@@ -10,9 +10,9 @@ import 'package:kmreader/core/kindle/import.dart';
 import 'package:kmreader/core/models.dart';
 
 void main() {
-  final path = Platform.environment['KMREADER_KINDLE_WEB_PRIVATE_SESSION'];
+  final path = Platform.environment['KMREADER_KINDLE_UPLOAD_PRIVATE_SESSION'];
   test(
-    'personal website STK uses existing account and a generated EPUB only',
+    'personal STK uses saved credentials and a generated EPUB only',
     () async {
       final report = <String, dynamic>{
         'schema': 1,
@@ -43,7 +43,7 @@ void main() {
           }
         }
 
-        final transport = _WebProbeClient(report, upload, () => operation);
+        final transport = _UploadProbeClient(report, upload, () => operation);
         client = KindleClient(
           session: KindleSession(object(payload['session'])),
           client: transport,
@@ -53,9 +53,8 @@ void main() {
           },
         );
         final importer = KindleImporter(client);
-        report['device_count'] = (await importer.devices(
-          KindleImportCancellation(),
-        )).length;
+        final destinations = await importer.devices(KindleImportCancellation());
+        report['device_count'] = destinations.length;
         // A new importer must reuse the same reader account without an OAuth/Firs call.
         await KindleImporter(client).devices(KindleImportCancellation());
         report['reopened_without_browser'] = true;
@@ -89,7 +88,7 @@ void main() {
               XFile(document.path),
               title: title,
               author: 'KMReader test',
-              targets: [],
+              targets: [if (destinations.isNotEmpty) destinations.first.serial],
               cancel: KindleImportCancellation(),
               onSubmitting: () => submitted = true,
             );
@@ -130,22 +129,23 @@ void main() {
             report['error_code'] == null &&
             (!upload || report['fixture_visible_in_catalog'] == true);
         if (report['passed'] != true) {
-          fail('Web STK fixture check failed; inspect sanitized metrics.');
+          fail('STK fixture check failed; inspect sanitized metrics.');
         }
       } catch (error) {
         report['passed'] = false;
         report['error_code'] ??= error is KindleFailure
             ? error.code
-            : 'web_probe';
+            : 'upload_probe';
         if (error is KindleFailure) {
           report['error_stage'] = error.stage;
           report['http_status'] = error.status;
         }
-        fail('Web STK check failed; inspect sanitized metrics.');
+        fail('STK check failed; inspect sanitized metrics.');
       } finally {
         client?.close();
         await root.delete(recursive: true);
-        final output = Platform.environment['KMREADER_KINDLE_WEB_PROBE_REPORT'];
+        final output =
+            Platform.environment['KMREADER_KINDLE_UPLOAD_PROBE_REPORT'];
         if (output != null) {
           await File(output).writeAsString(jsonEncode(report));
         }
@@ -156,8 +156,8 @@ void main() {
   );
 }
 
-class _WebProbeClient extends http.BaseClient {
-  _WebProbeClient(this.report, this.upload, this.operation);
+class _UploadProbeClient extends http.BaseClient {
+  _UploadProbeClient(this.report, this.upload, this.operation);
   final Json report;
   final bool upload;
   final Json Function() operation;
@@ -168,49 +168,41 @@ class _WebProbeClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final url = request.url;
-    final web = url.host == 'www.amazon.it';
+    final service = url.host == 'kd.amazon.com';
     final get =
         request.method == 'GET' &&
-        (web &&
-                const [
-                  '/sendtokindle/extension/checkAuth',
-                  '/sendtokindle/empty',
-                ].contains(url.path) ||
-            url.host == 'todo-ta-g7g.amazon.com' &&
-                url.path == '/FionaTodoListProxy/syncMetaData');
+        url.host == 'todo-ta-g7g.amazon.com' &&
+        url.path == '/FionaTodoListProxy/syncMetaData';
     final auth =
         request.method == 'POST' &&
-        (web &&
-                const [
-                  '/ap/exchangetoken/cookies',
-                  '/sendtokindle/get-device-list',
-                ].contains(url.path) ||
+        (service && url.path == '/import/kindle-doc/get-device-list' ||
             url.host == 'api.amazon.it' && url.path == '/auth/token');
     final write =
         upload &&
         (request.method == 'POST' &&
-                web &&
+                service &&
                 const [
-                  '/sendtokindle/init',
-                  '/sendtokindle/send-v2',
+                  '/import/upload-url',
+                  '/import/kindle-doc/send-to-kindle',
                 ].contains(url.path) ||
             request.method == 'PUT' && url == uploadUri);
     if (url.scheme != 'https' ||
         url.port != 443 ||
         url.userInfo.isNotEmpty ||
         !(get || auth || write)) {
-      throw const KindleFailure('web_probe_guard');
+      throw const KindleFailure('upload_probe_guard');
     }
-    if (url.path == '/sendtokindle/send-v2') {
+    if (url.path == '/import/kindle-doc/send-to-kindle') {
       if (++deliveries > 1 || request is! http.Request) {
-        throw const KindleFailure('web_probe_delivery_limit');
+        throw const KindleFailure('upload_probe_delivery_limit');
       }
       final body = object(jsonDecode(request.body));
-      if (body['title'] != operation()['title'] ||
-          body['author'] != 'KMReader test' ||
-          body['inputFormat'] != 'epub' ||
+      final metadata = object(body['documentMetadata']);
+      if (metadata['title'] != operation()['title'] ||
+          metadata['author'] != 'KMReader test' ||
+          metadata['inputFormat'] != 'epub' ||
           body['fileSize'] != operation()['size']) {
-        throw const KindleFailure('web_probe_document_guard');
+        throw const KindleFailure('upload_probe_document_guard');
       }
       report['document_uploads'] = deliveries;
     }
@@ -238,8 +230,8 @@ class _WebProbeClient extends http.BaseClient {
     }
     (requests as List).add(step);
     if (!const [
-      '/sendtokindle/init',
-      '/sendtokindle/send-v2',
+      '/import/upload-url',
+      '/import/kindle-doc/send-to-kindle',
     ].contains(url.path)) {
       return response;
     }
@@ -258,10 +250,10 @@ class _WebProbeClient extends http.BaseClient {
     } catch (_) {
       /* No raw response logging. */
     }
-    if (url.path.endsWith('/init')) {
+    if (url.path.endsWith('/upload-url')) {
       uploadUri = Uri.tryParse(text(value['uploadUrl']));
     }
-    if (url.path.endsWith('/send-v2')) {
+    if (url.path.endsWith('/send-to-kindle')) {
       operation()['response'] = value; // Local DPAPI journal only.
       const fields = {
         'sku',

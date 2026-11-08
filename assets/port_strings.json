@@ -1,16 +1,4 @@
 {
-  "Enter a title and keep title and author within 250 characters.": {
-    "en": "Enter a title and keep title and author within 250 characters.",
-    "it": "Inserisci un titolo. Titolo e autore possono contenere al massimo 250 caratteri ciascuno."
-  },
-  "Choose a file from this device. Amazon will add it to this account’s Kindle library using your existing connection.": {
-    "en": "Choose a file from this device. Amazon will add it to this account’s Kindle library using your existing connection.",
-    "it": "Scegli un file da questo dispositivo. Amazon lo aggiungerà alla libreria Kindle di questo account usando il collegamento già attivo."
-  },
-  "Kindle library for this account": {
-    "en": "Kindle library for this account",
-    "it": "Libreria Kindle di questo account"
-  },
   "Create Smart List": {
     "en": "New Smart List",
     "it": "Nuova lista intelligente",

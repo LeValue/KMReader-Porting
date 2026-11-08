@@ -44,7 +44,7 @@ void main() {
       saveSession: save,
     );
     addTearDown(client.close);
-    return KindleImporter.legacy(client);
+    return KindleImporter(client);
   }
 
   test('STK callback is audience-bound, rejects wrong hosts, state and duplicate codes', () {
@@ -153,7 +153,7 @@ void main() {
       );
       addTearDown(client.close);
       expect(
-        await KindleImporter.legacy(client).devices(KindleImportCancellation()),
+        await KindleImporter(client).devices(KindleImportCancellation()),
         isEmpty,
       );
     },
