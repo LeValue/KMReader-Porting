@@ -15,6 +15,11 @@ on:
         description: Send one generated EPUB; preserve its private journal and never replay it
         type: boolean
         default: false
+      delivery_mode:
+        description: Delivery verification; new modes use separate private journals
+        type: choice
+        options: [existing-library, library, device]
+        default: existing-library
       management_probe:
         description: Verify deletion of the exact generated test document, preserving its private recovery journal
         type: boolean
@@ -44,6 +49,7 @@ jobs:
       - name: Check saved send credentials and the explicitly selected synthetic upload
         env:
           KMREADER_KINDLE_PROBE_UPLOAD_FIXTURE: ${{ inputs.upload_fixture }}
+          KMREADER_KINDLE_PROBE_DELIVERY_MODE: ${{ inputs.delivery_mode }}
           PROBE_APP_IMPORT: ${{ inputs.app_import }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |

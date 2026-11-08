@@ -1,4 +1,7 @@
 {
+  "Edit the metadata and cover of this Kindle document.": {"en": "Edit the metadata and cover of this Kindle document.", "it": "Modifica i metadati e la copertina di questo documento Kindle."},
+  "Downloading the document for editing…": {"en": "Downloading the document for editing…", "it": "Scaricamento del documento da modificare…"},
+  "Retry downloading document": {"en": "Retry downloading document", "it": "Riprova a scaricare il documento"},
   "Add to Kindle library": {"en": "Add to Kindle library", "it": "Aggiungi alla libreria Kindle"},
   "Available on compatible devices connected to this account.": {"en": "Available on compatible devices connected to this account.", "it": "Disponibile sui dispositivi compatibili collegati a questo account."},
   "Send only to selected devices": {"en": "Send only to selected devices", "it": "Invia solo ai dispositivi selezionati"},

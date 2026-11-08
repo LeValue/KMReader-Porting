@@ -411,7 +411,7 @@ void main() {
                   'tokens': {
                     'cookies': {
                       '.amazon.it': [
-                        {'Name': 'session-id', 'Value': 'synthetic-cookie'},
+                        {'Name': 'session-id', 'Value': '"synthetic-cookie"'},
                       ],
                       '.evil.invalid': [
                         {'Name': 'bad', 'Value': 'never-send'},

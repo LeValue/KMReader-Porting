@@ -57,6 +57,21 @@ class KindleDocumentManager {
     return item;
   }
 
+  /// Retrieve this personal document through the app's normal verified queue.
+  /// The display name carries its prepared format without renaming the cache.
+  Future<XFile> sourceForEdit(Book book) async {
+    _personal(book);
+    await repository.download(book);
+    _personal(book);
+    final prepared = await repository.book(book.id);
+    if (!const {'epub', 'pdf'}.contains(prepared.format)) {
+      throw const KindleFailure('management_source');
+    }
+    final file = repository.bookFile(prepared);
+    if (!await file.exists()) throw const KindleFailure('management_source');
+    return _KindleEditSource(file.path, '${book.title}.${prepared.format}');
+  }
+
   Future<Json> _backup(Book book, String kind) async {
     if (_starting[repository] == true) {
       throw const KindleFailure('management_busy');
@@ -205,7 +220,10 @@ class KindleDocumentManager {
         continue;
       }
       for (final cookie in (entry.value as List? ?? []).map(object)) {
-        final name = text(cookie['Name']), value = text(cookie['Value']);
+        final name = text(cookie['Name']);
+        // The exchange endpoint wraps cookie values in literal quotes. Match
+        // Amazon clients' cookie normalization before constructing a header.
+        final value = text(cookie['Value']).replaceAll('"', '');
         if (RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(name) &&
             !RegExp(r'[;\r\n\x00]').hasMatch(value)) {
           cookies[name] = value;
@@ -224,6 +242,12 @@ class KindleDocumentManager {
       throw const KindleFailure('management_authorization');
     }
     return (header, csrf);
+  }
+
+  /// Check this account's web authorization without mutating any document.
+  Future<void> checkAuthorization() async {
+    _check();
+    await _webAuthorization();
   }
 
   Future<void> delete(Book book) async {
@@ -364,6 +388,13 @@ class KindleDocumentManager {
       rethrow;
     }
   }
+}
+
+class _KindleEditSource extends XFile {
+  _KindleEditSource(super.path, this._name);
+  final String _name;
+  @override
+  String get name => _name;
 }
 
 Json _decode(List<int> bytes) {
