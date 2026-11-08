@@ -49,6 +49,9 @@ void main() {
             },
           }),
           client: MockClient((request) async {
+            if (deviceError && request.url.path.endsWith('checkAuth')) {
+              return http.Response('PRIVATE SERVER BODY', 503);
+            }
             final bootstrap = kindleWebFixture(request);
             if (bootstrap != null) return bootstrap;
             if (request.url.path.endsWith('get-device-list')) {
