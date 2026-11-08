@@ -35,6 +35,8 @@ class _KindleImportPageState extends State<KindleImportPage> {
   bool _accepted = false, _uncertain = false;
   bool _authorizationNeeded = false;
   bool _preparingSource = false;
+  bool _restored = false;
+  bool _updated = false;
   double _progress = 0;
   String? _error, _deviceError;
 
@@ -85,6 +87,13 @@ class _KindleImportPageState extends State<KindleImportPage> {
   String _message(Object error) {
     final key = error is KindleFailure
         ? switch (error.code) {
+            'management_conversion_pending' => 'Amazon is still preparing the updated document. Restore progress later from document management.',
+            'management_source_changed' || 'management_target_changed' => 'Reading state changed during the update. Both copies are preserved.',
+            'management_mapping_ambiguous' ||
+            'management_mapping_unavailable' ||
+            'management_local_locator' => 'The reading position cannot be mapped safely. The original is preserved.',
+            'management_annotation_migration' => 'Notes or highlights cannot yet be migrated. The original is preserved.',
+            'management_migration_not_confirmed' => 'Amazon has not confirmed restored reading state. Check its status without sending another copy.',
             'management_cover_layout' => 'This EPUB uses a cover format that cannot be replaced safely. Use an EPUB with a JPG or PNG cover.',
             'management_cover' =>
               'Choose a valid JPG or PNG cover up to 20 MB.',
@@ -232,7 +241,8 @@ class _KindleImportPageState extends State<KindleImportPage> {
         throw const KindleFailure('management_epub_required');
       }
       if (widget.replacing case final book?) {
-        await KindleDocumentManager(widget.repository).sendUpdatedVersion(
+        final manager = KindleDocumentManager(widget.repository);
+        final sku = await manager.sendUpdatedVersion(
           book,
           prepared,
           title: _title.text,
@@ -246,6 +256,33 @@ class _KindleImportPageState extends State<KindleImportPage> {
             if (mounted) setState(() => _submitting = true);
           },
         );
+        // Acceptance must disable resubmission even when conversion or state
+        // restoration is still pending. A retry restores state, never reuploads.
+        if (mounted) setState(() => _accepted = true);
+        final operation = manager.operations
+            .where(
+              (op) =>
+                  op['kind'] == 'replace' &&
+                  op['book'] == book.id &&
+                  op['new_id'] == sku,
+            )
+            .last;
+        try {
+          await manager.restoreReplacement(text(operation['operation']));
+          if (mounted) setState(() => _restored = true);
+          await manager.retireReplacement(text(operation['operation']));
+          if (mounted) {
+            setState(
+              () => _updated = manager.operations.any(
+                (op) =>
+                    op['operation'] == operation['operation'] &&
+                    op['state'] == 'done',
+              ),
+            );
+          }
+        } catch (error) {
+          if (mounted) setState(() => _error = _message(error));
+        }
       } else {
         await _importer.upload(
           prepared,
@@ -330,7 +367,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
                   child: Text(
                     tr(
                       context,
-                      'Amazon receives an updated copy. The original is kept until reading position and bookmarks can be migrated and verified. Automatic replacement is not yet available.',
+                      'Saving replaces this document after restoring and verifying its reading progress and bookmarks. If verification fails, the original is preserved.',
                     ),
                   ),
                 ),
@@ -535,7 +572,11 @@ class _KindleImportPageState extends State<KindleImportPage> {
                           ? (_archive
                                 ? 'Accepted by Amazon. Processing can take a few minutes; refresh your library later.'
                                 : 'Accepted by Amazon for delivery to the selected devices. This file is not added to your cloud library.')
-                          : 'Updated copy accepted. The original is preserved; reading position and bookmarks have not been migrated yet.',
+                          : (_updated
+                                ? 'Document updated and reading progress restored'
+                                : _restored
+                                ? 'Reading progress and bookmarks restored. Check document management to finish the update.'
+                                : 'Updated copy accepted. Restore reading progress from document management; the original is preserved.'),
                     ),
                   ),
                 ),

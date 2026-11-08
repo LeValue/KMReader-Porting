@@ -852,7 +852,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           icon: const Icon(CupertinoIcons.trash),
                           onPressed: () {
                             final values = session.bookmarks
-                              ..removeWhere((v) => v['cfi'] == mark['cfi']);
+                              ..removeWhere(
+                                (v) => mark['id'] != null
+                                    ? v['id'] == mark['id']
+                                    : v['cfi'] == mark['cfi'],
+                              );
                             widget.repository.store.cache(
                               widget.repository.profile.id,
                               session.bookmarkKey,

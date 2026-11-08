@@ -401,7 +401,9 @@ class EpubSession extends ChangeNotifier {
         session.cfi = '';
         session.progression = 0;
       }
-      final external = await externalPosition;
+      final external =
+          await externalPosition ??
+          (saved['kindleResume'] is Map ? object(saved['kindleResume']) : null);
       if (external != null) {
         final chapter = session.chapterFor(text(external['href']));
         if (chapter >= 0) {
@@ -552,7 +554,8 @@ class EpubSession extends ChangeNotifier {
     )) {
       return;
     }
-    final old = object(repository.store.cached(repository.profile.id, key));
+    final old = object(repository.store.cached(repository.profile.id, key))
+      ..remove('kindleResume');
     repository.store.cache(repository.profile.id, key, {
       ...old,
       ...preferences.toJson(),

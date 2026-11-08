@@ -182,9 +182,7 @@ class _ManagementProbeClient extends http.BaseClient {
     final uri = request.url;
     final web = uri.host == 'www.amazon.it';
     final deletion =
-        web &&
-        uri.path == '/mn/dcw/myx/ajax-activity/ref=myx_ajax' &&
-        request.method == 'POST';
+        web && uri.path == '/hz/mycd/ajax' && request.method == 'POST';
     final read =
         request.method == 'GET' &&
         (web && uri.path == '/hz/mycd/myx' ||

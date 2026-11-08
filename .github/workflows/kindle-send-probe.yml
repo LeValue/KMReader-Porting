@@ -25,6 +25,10 @@ on:
         type: choice
         options: [original, library]
         default: original
+      replacement_probe:
+        description: Update only the generated cloud fixture and verify state restoration before retirement
+        type: boolean
+        default: false
       bookmark_probe:
         description: Verify one bookmark on the exact generated test document only
         type: boolean
@@ -50,14 +54,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - if: inputs.bookmark_probe
+      - if: inputs.bookmark_probe || inputs.replacement_probe
         uses: actions/download-artifact@v4
         with:
           name: windows
           run-id: '42483122851'
           github-token: ${{ github.token }}
           path: artifacts/kindle-probe-worker
-      - if: inputs.bookmark_probe
+      - if: inputs.bookmark_probe || inputs.replacement_probe
         name: Verify the preserved native conversion worker source
         run: |
           $build = Get-Content artifacts/kindle-probe-worker/data/flutter_assets/assets/build/source.json -Raw | ConvertFrom-Json
@@ -77,6 +81,7 @@ jobs:
           KMREADER_KINDLE_PROBE_DELIVERY_MODE: ${{ inputs.delivery_mode }}
           PROBE_APP_IMPORT: ${{ inputs.app_import }}
           KMREADER_KINDLE_MANAGEMENT_FIXTURE: ${{ inputs.management_fixture }}
+          PROBE_REPLACEMENT: ${{ inputs.replacement_probe }}
           PROBE_BOOKMARKS: ${{ inputs.bookmark_probe }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |
@@ -88,7 +93,12 @@ jobs:
           try {
             python -m tool.kindle_send_probe_bridge export $session
             if ($LASTEXITCODE -ne 0) { throw 'Existing personal Kindle session unavailable; no login attempted' }
-            if ($env:PROBE_BOOKMARKS -eq 'true') {
+            if ($env:PROBE_REPLACEMENT -eq 'true') {
+              $env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION = $session
+              $env:KMREADER_KINDLE_MANAGEMENT_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+              $env:KMREADER_KINDLE_WORKER = Join-Path $PWD 'artifacts/kindle-probe-worker/kindle/KMReader-Kindle.exe'
+              flutter test test/kindle_replacement_probe_test.dart --no-pub
+            } elseif ($env:PROBE_BOOKMARKS -eq 'true') {
               $env:KMREADER_KINDLE_MANAGEMENT_PRIVATE_SESSION = $session
               $env:KMREADER_KINDLE_MANAGEMENT_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
               $env:KMREADER_KINDLE_WORKER = Join-Path $PWD 'artifacts/kindle-probe-worker/kindle/KMReader-Kindle.exe'

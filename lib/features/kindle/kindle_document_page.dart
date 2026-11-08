@@ -117,8 +117,14 @@ class _KindleDocumentPageState extends State<KindleDocumentPage> {
           ListTile(
             title: Text(
               tr(context, switch (operation['state']) {
-                'done' => 'Deletion confirmed by Amazon catalog',
+                'done' =>
+                  operation['kind'] == 'replace'
+                      ? 'Document updated and reading progress restored'
+                      : 'Deletion confirmed by Amazon catalog',
                 'rejected' => 'Operation stopped before sending',
+                'progress_restored' => 'Reading progress and bookmarks restored. The original document is preserved.',
+                'migration_submitting' || 'migration_uncertain' =>
+                  'Reading state awaiting cloud verification',
                 'replacement_migration_required' =>
                   'Updated copy sent; state migration incomplete',
                 'replacement_uncertain' => 'Delivery uncertain. Check your Kindle library before sending again.',
@@ -128,9 +134,40 @@ class _KindleDocumentPageState extends State<KindleDocumentPage> {
             ),
             subtitle: Text(text(operation['updated'])),
             trailing:
-                operation['kind'] == 'delete' &&
-                    operation['state'] != 'done' &&
-                    operation['state'] != 'rejected'
+                operation['kind'] == 'replace' &&
+                    const {
+                      'replacement_migration_required',
+                      'migration_submitting',
+                      'migration_uncertain',
+                    }.contains(operation['state'])
+                ? IconButton(
+                    tooltip: tr(context, 'Restore reading progress'),
+                    icon: const Icon(Icons.restore),
+                    onPressed: _busy
+                        ? null
+                        : () => _run(
+                            () => _manager.restoreReplacement(
+                              text(operation['operation']),
+                            ),
+                          ),
+                  )
+                : operation['state'] == 'progress_restored'
+                ? IconButton(
+                    tooltip: tr(context, 'Finish document update'),
+                    icon: const Icon(Icons.done),
+                    onPressed: _busy
+                        ? null
+                        : () => _run(
+                            () => _manager.retireReplacement(
+                              text(operation['operation']),
+                            ),
+                          ),
+                  )
+                : (operation['kind'] == 'delete' ||
+                          text(operation['state'])
+                              .startsWith('replacement_retir')) &&
+                      operation['state'] != 'done' &&
+                      operation['state'] != 'rejected'
                 ? IconButton(
                     tooltip: tr(context, 'Check deletion'),
                     icon: const Icon(Icons.refresh),
