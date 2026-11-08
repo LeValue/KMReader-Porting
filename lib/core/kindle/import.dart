@@ -345,11 +345,13 @@ class KindleImporter {
       throw const KindleFailure('delivery_address');
     }
     final expiry = result['expiryTime'];
-    if (expiry is num && expiry > 0) {
-      final milliseconds = expiry < 100000000000 ? expiry * 1000 : expiry;
-      if (milliseconds <= DateTime.now().millisecondsSinceEpoch) {
-        throw const KindleFailure('import_expired');
-      }
+    // STK returns a relative validity in milliseconds (e.g. 3600000), not an
+    // epoch timestamp. The URL is freshly requested and never cached/replayed.
+    if (expiry != null && (expiry is! num || !expiry.isFinite)) {
+      throw const KindleFailure('import_response', stage: 'upload_url');
+    }
+    if (expiry is num && expiry <= 0) {
+      throw const KindleFailure('import_expired', stage: 'upload_url');
     }
     var sent = 0;
     final clock = Stopwatch()..start();
