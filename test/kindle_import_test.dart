@@ -283,6 +283,8 @@ void main() {
         if (request.url.path.endsWith('registerDeviceWithToken')) {
           registrations++;
           expect(request.url.host, 'firs-ta-g7g.amazon.com');
+          expect(request.headers['content-type'], 'text/xml');
+          expect(body, startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
           expect(body, contains('<deviceType>A1K6D1WRW0MALS</deviceType>'));
           return http.StreamedResponse(
             Stream.value(
