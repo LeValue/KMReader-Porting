@@ -62,8 +62,9 @@ void main() {
             )
             .take(5)
             .toList();
-        if (candidates.isEmpty)
+        if (candidates.isEmpty) {
           throw const KindleFailure('probe_fixture_missing');
+        }
         var selected = candidates.first;
         var annotationsExpected = false;
         // Prefer a book with existing cloud annotations, so the live import
@@ -125,8 +126,9 @@ void main() {
             true;
         expect(report['download_ready'], true);
         // The generated EPUB deliberately has no cover resource.
-        if (!fixtureOnly)
+        if (!fixtureOnly) {
           expect(report['cover_available_before_download'], true);
+        }
         expect(report['pages_available'], true);
         expect(report['cached_copy_network_requests'], 0);
         if (annotationsExpected) {

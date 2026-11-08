@@ -20,7 +20,12 @@ See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
-[Download Android / Windows candidate build 31](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8).
+[Download Windows build 32](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851/artifacts/13619305441).
+Extract the complete ZIP and run `kmreader.exe`. The existing app account is reused.
+The archive contains 710 files and its SHA256 matches GitHub's artifact digest:
+`5e40d5988fb030aece9f65c61d4c16bb1959d733212707d1f439e002fc52bf21`.
+
+[Retained Android / Windows candidate build 31](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8).
 It remains a draft requiring repository write access. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048),
 [delivery checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42415254325)
 and downloaded hashes passed; all 710 Windows files match the CI bundle.
