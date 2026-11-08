@@ -460,6 +460,7 @@ class _ReplacementTransport extends http.BaseClient {
   Future<void> Function()? beforeMutation;
   Uri? uploadUri;
   int uploads = 0, deletions = 0, seeds = 0, migrations = 0;
+  Map<String, String> _pageCookies = {};
   String get target => text(
     (journal['operations'] as List? ?? [])
         .map(object)
@@ -469,6 +470,25 @@ class _ReplacementTransport extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final uri = request.url;
+    Map<String, String> cookies() => {
+      for (final field
+          in (request.headers['cookie'] ?? request.headers['Cookie'] ?? '')
+              .split(';'))
+        if (field.contains('='))
+          field.split('=').first.trim(): field.substring(
+            field.indexOf('=') + 1,
+          ),
+    };
+    const cookieNames = {
+      'session-id',
+      'session-token',
+      'session-id-time',
+      'ubid-acbit',
+      'x-acbit',
+      'at-acbit',
+      'sess-at-acbit',
+      'session-token-time',
+    };
     final auth =
         request.method == 'POST' &&
         (uri.host == 'api.amazon.it' && uri.path == '/auth/token' ||
@@ -602,6 +622,36 @@ class _ReplacementTransport extends http.BaseClient {
       await beforeMutation!();
     }
     final response = await delegate.send(request);
+    if (uri.host == 'www.amazon.it' && uri.path == '/hz/mycd/myx') {
+      _pageCookies = cookies();
+      report['web_cookie_schema'] = {
+        'get_names': _pageCookies.keys.where(cookieNames.contains).toList()
+          ..sort(),
+        'get_empty': _pageCookies.entries
+            .where((e) => cookieNames.contains(e.key) && e.value.isEmpty)
+            .length,
+        'get_set_cookie': response.headers.containsKey('set-cookie'),
+      };
+      final bytes = await response.stream.toBytes();
+      final page = utf8.decode(bytes);
+      final csrf =
+          RegExp(r'''var\s+csrfToken\s*=\s*["']([^"'\r\n]+)["']''')
+              .firstMatch(page)
+              ?.group(1) ??
+          '';
+      report['csrf_schema'] = {
+        'present': csrf.isNotEmpty,
+        'contains_escape': csrf.contains('\\'),
+        'contains_entity': csrf.contains('&'),
+        'base64_characters': RegExp(r'^[A-Za-z0-9+/=_-]+$').hasMatch(csrf),
+        'placeholder': const {'null', 'undefined', ''}.contains(csrf),
+      };
+      return http.StreamedResponse(
+        Stream.value(bytes),
+        response.statusCode,
+        headers: response.headers,
+      );
+    }
     final steps = report['steps'] ??= <Json>[];
     (steps as List).add({
       'step': sidecar
@@ -618,6 +668,29 @@ class _ReplacementTransport extends http.BaseClient {
       'http_status': response.statusCode,
     });
     if (ownership) {
+      final currentCookies = cookies();
+      report['web_post_cookie_schema'] = {
+        'names': currentCookies.keys.where(cookieNames.contains).toList()
+          ..sort(),
+        'changed_names':
+            currentCookies.keys
+                .where(
+                  (key) =>
+                      cookieNames.contains(key) &&
+                      currentCookies[key] != _pageCookies[key],
+                )
+                .toList()
+              ..sort(),
+        'missing_names':
+            _pageCookies.keys
+                .where(
+                  (key) =>
+                      cookieNames.contains(key) &&
+                      !currentCookies.containsKey(key),
+                )
+                .toList()
+              ..sort(),
+      };
       final bytes = <int>[];
       await for (final chunk in response.stream) {
         if (bytes.length + chunk.length > 4 * 1024 * 1024) {
