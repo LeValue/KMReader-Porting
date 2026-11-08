@@ -215,11 +215,28 @@ class _WebProbeClient extends http.BaseClient {
       report['document_uploads'] = deliveries;
     }
     final response = await delegate.send(request);
-    (report['requests'] ??= <Json>[]) as List;
-    (report['requests'] as List).add({
+    final requests = report['requests'] ??= <Json>[];
+    final step = <String, dynamic>{
       'step': request.method == 'PUT' ? 'upload_transfer' : url.path,
       'http_status': response.statusCode,
-    });
+    };
+    if (response.statusCode >= 300 && response.statusCode < 400) {
+      final location = Uri.tryParse(response.headers['location'] ?? '');
+      step['redirect_host'] =
+          const {'www.amazon.it', 'www.amazon.com'}.contains(location?.host)
+          ? location!.host
+          : 'other';
+      step['redirect_path'] =
+          const {
+            '/ap/signin',
+            '/sendtokindle',
+            '/sendtokindle/get-device-list',
+            '/sendtokindle/login',
+          }.contains(location?.path)
+          ? location!.path
+          : 'other';
+    }
+    (requests as List).add(step);
     if (!const [
       '/sendtokindle/init',
       '/sendtokindle/send-v2',
