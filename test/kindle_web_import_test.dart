@@ -54,6 +54,8 @@ void main() {
               return http.Response('{"ownedDevices":[]}', 200);
             }
             if (request.url.path == '/sendtokindle/init') {
+              expect(request.headers['cookie'], 'session-id=synthetic-cookie');
+              expect(request.headers['anti-csrftoken-a2z'], 'synthetic-csrf');
               expect(
                 object(jsonDecode(request.body))['fileSize'],
                 bytes.length,

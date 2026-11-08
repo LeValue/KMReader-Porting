@@ -176,23 +176,10 @@ class _KindleWebsiteImporter {
   Future<List<KindleImportDevice>> devices(
     KindleImportCancellation cancel,
   ) async {
-    final value = await _post(
-      'get-device-list',
-      {'extName': 'chrome_ocs', 'extVersion': '1.0'},
-      'devices',
-      cancel,
-    );
-    if (value['ownedDevices'] is! List) {
-      throw const KindleFailure('import_response', stage: 'devices');
-    }
-    return [
-      for (final item in (value['ownedDevices'] as List).map(object))
-        if (text(item['deviceSerialNumber']).isNotEmpty)
-          KindleImportDevice(
-            text(item['deviceSerialNumber']),
-            text(item['deviceName'], 'Kindle'),
-          ),
-    ];
+    // Archive-only sends have no individual destination selection. A legacy
+    // device-list route must not block adding documents to the cloud library.
+    await _ensure(cancel);
+    return const [];
   }
 
   Future<String> upload(
