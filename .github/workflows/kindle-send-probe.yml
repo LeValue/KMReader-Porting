@@ -7,6 +7,10 @@ on:
         type: choice
         options: [kmreader-android-desktop, kmreader-laptop]
         default: kmreader-android-desktop
+      xml_declaration:
+        description: Compare the reference XML envelope without changing the importer
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -26,9 +30,12 @@ jobs:
       - run: ./tool/setup_local_flutter.ps1
       - name: Resolve locked source dependencies
         run: |
+          $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
           dart pub get --enforce-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source probe dependencies' }
       - name: Register once and verify saved send credentials without document writes
+        env:
+          KMREADER_KINDLE_PROBE_XML_DECLARATION: ${{ inputs.xml_declaration }}
         run: |
           $ErrorActionPreference = 'Stop'
           $private = Join-Path $env:RUNNER_TEMP ('kindle-send-private-' + $env:GITHUB_RUN_ID)

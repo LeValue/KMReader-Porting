@@ -32,6 +32,33 @@ Map<String, dynamic> kindleRegistrationMetrics(List<int> bytes) {
         .toSet();
     result['fields'] = fields.where(names.contains).toList()..sort();
     result['other_fields'] = names.difference(fields).length;
+    final messages = xml
+        .findAllElements('message')
+        .map((e) => e.innerText.toLowerCase())
+        .join(' ');
+    // Protocol keywords are booleans, never excerpts of the actual message.
+    const terms = [
+      'xml',
+      'request',
+      'parameter',
+      'token',
+      'auth',
+      'invalid',
+      'device',
+      'serial',
+      'pid',
+      'software',
+      'missing',
+      'expired',
+      'denied',
+      'permission',
+      'customer',
+      'parse',
+      'syntax',
+      'encoding',
+      'internal',
+    ];
+    result['error_terms'] = terms.where(messages.contains).toList();
   } catch (_) {
     try {
       final value = jsonDecode(utf8.decode(bytes));
