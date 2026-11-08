@@ -137,6 +137,10 @@ void main() {
         report['error_code'] ??= error is KindleFailure
             ? error.code
             : 'web_probe';
+        if (error is KindleFailure) {
+          report['error_stage'] = error.stage;
+          report['http_status'] = error.status;
+        }
         fail('Web STK check failed; inspect sanitized metrics.');
       } finally {
         client?.close();
@@ -211,6 +215,11 @@ class _WebProbeClient extends http.BaseClient {
       report['document_uploads'] = deliveries;
     }
     final response = await delegate.send(request);
+    (report['requests'] ??= <Json>[]) as List;
+    (report['requests'] as List).add({
+      'step': request.method == 'PUT' ? 'upload_transfer' : url.path,
+      'http_status': response.statusCode,
+    });
     if (!const [
       '/sendtokindle/init',
       '/sendtokindle/send-v2',
