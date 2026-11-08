@@ -34,6 +34,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
   bool _archive = true, _loading = false, _busy = false, _submitting = false;
   bool _accepted = false, _uncertain = false;
   bool _authorizationNeeded = false;
+  bool _preparingSource = false;
   double _progress = 0;
   String? _error, _deviceError;
 
@@ -48,6 +49,25 @@ class _KindleImportPageState extends State<KindleImportPage> {
           .map((a) => object(a)['name'])
           .whereType<String>()
           .join(', ');
+      _loadSource();
+    }
+  }
+
+  Future<void> _loadSource() async {
+    final book = widget.replacing;
+    if (book == null || _preparingSource) return;
+    setState(() {
+      _preparingSource = true;
+      _error = null;
+    });
+    try {
+      final source = await KindleDocumentManager(widget.repository)
+          .sourceForEdit(book);
+      if (mounted) setState(() => _file = source);
+    } catch (error) {
+      if (mounted) setState(() => _error = _message(error));
+    } finally {
+      if (mounted) setState(() => _preparingSource = false);
     }
   }
 
@@ -299,7 +319,9 @@ class _KindleImportPageState extends State<KindleImportPage> {
               Text(
                 tr(
                   context,
-                  'Choose a file from this device and where to send it.',
+                  widget.replacing == null
+                      ? 'Choose a file from this device and where to send it.'
+                      : 'Edit the metadata and cover of this Kindle document.',
                 ),
               ),
               if (widget.replacing != null)
@@ -317,8 +339,21 @@ class _KindleImportPageState extends State<KindleImportPage> {
                 'EPUB, PDF, DOC/DOCX, TXT, RTF, HTML, JPG, PNG, GIF, BMP · ${tr(context, 'Up to 200 MB')}',
               ),
               const SizedBox(height: 20),
+              if (_preparingSource) ...[
+                const LinearProgressIndicator(),
+                Text(tr(context, 'Downloading the document for editing…')),
+              ],
+              if (widget.replacing != null &&
+                  _file == null &&
+                  !_preparingSource)
+                TextButton(
+                  onPressed: _loadSource,
+                  child: Text(tr(context, 'Retry downloading document')),
+                ),
               OutlinedButton.icon(
-                onPressed: _busy || _uncertain ? null : _pick,
+                onPressed: _busy || _uncertain || _preparingSource
+                    ? null
+                    : _pick,
                 icon: const Icon(Icons.upload_file),
                 label: Text(_file?.name ?? tr(context, 'Choose file')),
               ),
@@ -357,6 +392,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
               OutlinedButton.icon(
                 onPressed:
                     _busy ||
+                        _preparingSource ||
                         _accepted ||
                         _uncertain ||
                         (_file != null &&
@@ -515,7 +551,12 @@ class _KindleImportPageState extends State<KindleImportPage> {
                     ? null
                     : _send,
                 icon: const Icon(Icons.send),
-                label: Text(tr(context, 'Send to Kindle')),
+                label: Text(
+                  tr(
+                    context,
+                    widget.replacing == null ? 'Send to Kindle' : 'Save',
+                  ),
+                ),
               ),
               if (_accepted || _uncertain)
                 TextButton(

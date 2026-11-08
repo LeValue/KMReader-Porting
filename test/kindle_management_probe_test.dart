@@ -103,6 +103,8 @@ void main() {
           journal['backups'] = backups;
           await seal();
         };
+        await manager.checkAuthorization();
+        report['authorization_checked'] = true;
         if (manager.operations.isNotEmpty) {
           final op = manager.operations.last;
           report['deletion_confirmed'] = await manager.verifyDeletion(
@@ -225,15 +227,26 @@ class _ManagementProbeClient extends http.BaseClient {
       bytes.addAll(chunk);
     }
     final page = html.parse(utf8.decode(bytes));
+    report['web_page'] = {
+      'script_count': page.querySelectorAll('script[src]').length,
+      'signin_form': page.querySelector('form[name=signIn]') != null,
+      'robot_check': page.querySelector('input#captchacharacters') != null,
+    };
     report['public_scripts'] = page
         .querySelectorAll('script[src]')
         .map((e) => Uri.tryParse(e.attributes['src'] ?? ''))
+        .map((u) => u == null ? null : uri.resolveUri(u))
         .whereType<Uri>()
         .where(
           (u) =>
               u.scheme == 'https' &&
-              u.host == 'm.media-amazon.com' &&
-              u.path.startsWith('/images/I/') &&
+              const {
+                'm.media-amazon.com',
+                'images-eu.ssl-images-amazon.com',
+                'images-na.ssl-images-amazon.com',
+                'images-fe.ssl-images-amazon.com',
+              }.contains(u.host) &&
+              u.path.startsWith('/images/') &&
               u.query.isEmpty &&
               u.userInfo.isEmpty,
         )

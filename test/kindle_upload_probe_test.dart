@@ -28,9 +28,25 @@ void main() {
       try {
         final file = File(path!);
         final payload = object(jsonDecode(await file.readAsString()));
-        var operation = object(payload['probe_operation']);
+        final mode =
+            Platform.environment['KMREADER_KINDLE_PROBE_DELIVERY_MODE'] ??
+            'existing-library';
+        if (!const {'existing-library', 'library', 'device'}.contains(mode)) {
+          throw const KindleFailure('probe_delivery_mode');
+        }
+        final archiveToLibrary = mode != 'device';
+        report['delivery_mode'] = mode;
+        final modes = object(payload['delivery_probes']);
+        var operation = object(
+          mode == 'existing-library' ? payload['probe_operation'] : modes[mode],
+        );
         Future<void> seal() async {
-          payload['probe_operation'] = operation;
+          if (mode == 'existing-library') {
+            payload['probe_operation'] = operation;
+          } else {
+            modes[mode] = operation;
+            payload['delivery_probes'] = modes;
+          }
           await file.writeAsString(jsonEncode(payload));
           final result = await Process.run('python', [
             '-m',
@@ -55,6 +71,13 @@ void main() {
         final importer = KindleImporter(client);
         final destinations = await importer.devices(KindleImportCancellation());
         report['device_count'] = destinations.length;
+        final target = destinations
+            .where((d) => d.name == "kiritovex's 4th Android Device")
+            .firstOrNull;
+        if (!archiveToLibrary && target == null) {
+          throw const KindleFailure('probe_selected_device_missing');
+        }
+        if (!archiveToLibrary) report['selected_device_found'] = true;
         // A new importer must reuse the same reader account without an OAuth/Firs call.
         await KindleImporter(client).devices(KindleImportCancellation());
         report['reopened_without_browser'] = true;
@@ -62,7 +85,12 @@ void main() {
             (operation.isEmpty || operation['state'] == 'preflight_failed')) {
           final title =
               'KMReader test ${DateTime.now().toUtc().millisecondsSinceEpoch}';
-          operation = {'title': title, 'state': 'upload_pending'};
+          operation = {
+            'title': title,
+            'state': 'upload_pending',
+            'archive': archiveToLibrary,
+            'targets': [if (!archiveToLibrary) target!.serial],
+          };
           final archive = Archive();
           archive.addFile(
             ArchiveFile.string('mimetype', 'application/epub+zip')
@@ -88,7 +116,8 @@ void main() {
               XFile(document.path),
               title: title,
               author: 'KMReader test',
-              targets: [if (destinations.isNotEmpty) destinations.first.serial],
+              archive: archiveToLibrary,
+              targets: [if (!archiveToLibrary) target!.serial],
               cancel: KindleImportCancellation(),
               onSubmitting: () => submitted = true,
             );
@@ -127,7 +156,9 @@ void main() {
         }
         report['passed'] =
             report['error_code'] == null &&
-            (!upload || report['fixture_visible_in_catalog'] == true);
+            (!upload ||
+                operation['state'] == 'accepted' &&
+                    report['fixture_visible_in_catalog'] == archiveToLibrary);
         if (report['passed'] != true) {
           fail('STK fixture check failed; inspect sanitized metrics.');
         }
@@ -201,7 +232,10 @@ class _UploadProbeClient extends http.BaseClient {
       if (metadata['title'] != operation()['title'] ||
           metadata['author'] != 'KMReader test' ||
           metadata['inputFormat'] != 'epub' ||
-          body['fileSize'] != operation()['size']) {
+          body['fileSize'] != operation()['size'] ||
+          body['archive'] != (operation()['archive'] ?? true) ||
+          jsonEncode(body['targetDevices']) !=
+              jsonEncode(operation()['targets'] ?? [])) {
         throw const KindleFailure('upload_probe_document_guard');
       }
       report['document_uploads'] = deliveries;
