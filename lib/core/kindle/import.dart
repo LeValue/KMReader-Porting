@@ -174,7 +174,11 @@ class KindleImporter {
             'User-Agent': 'Mozilla/5.0',
             'Accept-Language': 'en-US,*',
           })
-          ..body = xml.toXmlString();
+          // Firs is a legacy XML service: preserve the reference envelope and
+          // exact media type instead of Request.body adding a charset to it.
+          ..bodyBytes = utf8.encode(
+            '<?xml version="1.0" encoding="UTF-8"?>\n${xml.toXmlString()}',
+          );
     final bytes = await _stage('registration', () => _send(request, cancel));
     // Keep parser and private response off the UI isolate.
     final device = await _stage(
