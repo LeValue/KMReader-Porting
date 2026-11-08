@@ -1,5 +1,49 @@
 # Development validation
 
+## 1.0.0+32 development — 2026-11-08
+
+Verified application/worker source: `7549aaeb118850dbbc64f56ba42e458999f63fa2`.
+[CI 42483122851](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851)
+passed Android, native Android display/curl and Windows jobs. Later documentation
+and diagnostic-harness changes do not alter the shipped runtime or worker source.
+The source remains a development candidate; the complete parity matrix is open.
+
+- Host checks: **417 passed, 36 skipped**; analyzer clean. Tool tests: **14 passed**.
+  Prepared Kindle/browser fixtures and real Komga checks passed. Native Windows
+  WebView2, release build and isolated startup passed.
+- The first Android backend attempt timed out in the existing fixed-layout
+  scrolled EPUB browser test. The complete job passed on the same source after
+  retry; the full local browser suite also passed **32 tests** without reader,
+  fixture or timeout changes. The first failure remains in the run history; its
+  precise timing cause is not established.
+- Firs registration now preserves the reference XML declaration and exact
+  `text/xml` media type. Upload URL validity is a relative millisecond lifetime,
+  not an epoch date. Both regressions reject their former implementations in
+  negative-control runs; the production source was restored byte-for-byte.
+- Personal Windows account: [registration and persisted reuse](https://github.com/LeValue/KMReader-Porting/actions/runs/42482337075)
+  passed with 9 destinations and no browser login. [Generated EPUB upload](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122733)
+  was accepted and found in the catalog. [Fresh-process reopening](https://github.com/LeValue/KMReader-Porting/actions/runs/42483886657)
+  passed with **zero** further submissions.
+- [Native download/preparation of that exact generated PDOC](https://github.com/LeValue/KMReader-Porting/actions/runs/42485477861)
+  passed: catalog 927 ms, preparation/download 595 ms, pages available, prepared
+  cache reuse 4 ms and **zero network requests** for the cached copy. This fixture
+  deliberately has no cover or annotations: those absent features are not claimed
+  as tested. No existing cloud document was modified/deleted and no annotations
+  were written. Private IDs/session/journal stayed on the personal PC.
+- [Windows ZIP](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851/artifacts/13619305441)
+  was downloaded and verified: 710 files, valid archive, x64 executable, bundled
+  Kindle worker and embedded build `1.0.0+32`/source matching the CI revision.
+  SHA256 matches GitHub's artifact digest:
+  `5e40d5988fb030aece9f65c61d4c16bb1959d733212707d1f439e002fc52bf21`.
+- Android signing properties and keystore hashes match the retained build 31
+  guards. Earlier builds, branches, tags and release assets were preserved; no
+  stable release or new draft was published during this repair.
+
+The unsupported web-transport attempt is archived, including its source and
+test snapshots. Active Kindle converter/prototype modules remain unchanged.
+Remote deletion, metadata/cover acceptance and complete overwrite/bookmark/state
+migration remain separately tracked in [K-01–K-06](KINDLE_LIBRARY_MANAGEMENT.md).
+
 ## 1.0.0+31 development — 2026-11-07
 
 This source revision adds the curl layer correction, separate Send-to-Kindle

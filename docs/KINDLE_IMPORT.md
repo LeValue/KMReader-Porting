@@ -17,8 +17,9 @@ an unrelated reading bearer. Device-loading errors retain a sanitized stage and
 HTTP status, including after choosing a file. If automatic registration is denied,
 **Authorize Send to Kindle** uses a separate desktop OAuth/PKCE flow and verifies
 that the result belongs to the connected Kindle account before saving its keys.
-This addresses concrete client gaps; the original Windows account failure still
-needs live acceptance. Reading credentials are preserved.
+These build 31 changes addressed client gaps; the real registration/upload
+corrections and acceptance are recorded for build 32 above and below. Reading
+credentials are preserved.
 
 In a Kindle account, choose **Send to Kindle / Invia a Kindle** in the Windows
 sidebar or the mobile app bar. Choose a local file, edit its title/author, select
@@ -130,6 +131,7 @@ Purchased Kindle Store books remain outside this management scope.
 - Corrected Firs registration, destination query and credential reuse after loading the saved session: [42482337075](https://github.com/LeValue/KMReader-Porting/actions/runs/42482337075), passed without an OAuth/browser login.
 - Generated EPUB, streaming transfer, accepted delivery and subsequent PDOC catalog readback: [42483122733](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122733), passed. Exactly one synthetic document was submitted; no existing document was modified/deleted and no annotations were written.
 - Fresh workflow/process reopening: [42483886657](https://github.com/LeValue/KMReader-Porting/actions/runs/42483886657), passed with 9 destinations, the same fixture present and **zero** document submissions. No OAuth/browser or Firs registration was needed.
+- [Native preparation and prepared-cache reuse](https://github.com/LeValue/KMReader-Porting/actions/runs/42485477861), passed for that exact generated PDOC. It has no cover/annotations; the check does not imply cover editing or bookmark migration acceptance.
 
 The first-party web alternative authenticated GET requests, but POST device/init
 requests redirected to Amazon sign-in. It is archived under
