@@ -25,6 +25,7 @@ void main() {
           'root': 'response',
           'fields': ['error', 'response'],
           'other_fields': 0,
+          'error_terms': [],
         },
       );
     },
