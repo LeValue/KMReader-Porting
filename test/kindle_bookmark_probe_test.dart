@@ -121,7 +121,7 @@ void main() {
             .any(
               (r) =>
                   r['type'] == 'kindle.bookmark' &&
-                  r['startPosition'] == probePosition,
+                  num.tryParse('${r['startPosition']}') == probePosition,
             );
         if (!confirmed(sidecar) && bookmark.isEmpty) {
           bookmark['state'] = 'submitting';
@@ -171,6 +171,30 @@ void main() {
         }
         report['bookmark_confirmed'] = confirmed(sidecar);
         report['guid_present'] = text(sidecar?['guid']).isNotEmpty;
+        report['record_shapes'] = [
+          for (final r in (sidecar?['records'] as List? ?? []).map(object))
+            {
+              'type':
+                  const {
+                    'kindle.bookmark',
+                    'kindle.highlight',
+                    'kindle.note',
+                    'kindle.lpr',
+                    'kindle.most_recent_read',
+                  }.contains(r['type'])
+                  ? r['type']
+                  : 'other',
+              'start_type': r['startPosition'] == null
+                  ? 'absent'
+                  : r['startPosition'] is num
+                  ? 'number'
+                  : r['startPosition'] is String
+                  ? 'string'
+                  : 'other',
+              'start_matches':
+                  num.tryParse('${r['startPosition']}') == probePosition,
+            },
+        ];
         report['recognized_record_count'] =
             (sidecar?['records'] as List? ?? []).length;
         report['passed'] = report['bookmark_confirmed'] == true;
@@ -259,7 +283,13 @@ class _BookmarkProbeClient extends http.BaseClient {
     final reply = await delegate.send(request);
     final steps = report['steps'] ??= <Json>[];
     (steps as List).add({
-      'step': write ? 'create_test_bookmark' : uri.path,
+      'step': write
+          ? 'create_test_bookmark'
+          : uri.path.startsWith('/delivery/manifest/')
+          ? 'fixture_manifest'
+          : uri.path.startsWith('/delivery/')
+          ? 'fixture_resource'
+          : uri.path,
       'http_status': reply.statusCode,
     });
     return reply;
