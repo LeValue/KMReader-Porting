@@ -1,0 +1,59 @@
+name: Personal Kindle send registration check
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Personal PC with an existing DPAPI Kindle session
+        type: choice
+        options: [kmreader-android-desktop, kmreader-laptop]
+        default: kmreader-android-desktop
+permissions:
+  contents: read
+jobs:
+  registration:
+    runs-on: [self-hosted, Windows, X64, '${{ inputs.runner_label }}']
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: ./tool/setup_local_flutter.ps1
+      - name: Resolve locked source dependencies
+        run: |
+          dart pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source probe dependencies' }
+      - name: Register once and verify saved send credentials without document writes
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $private = Join-Path $env:RUNNER_TEMP ('kindle-send-private-' + $env:GITHUB_RUN_ID)
+          New-Item $private -ItemType Directory -Force | Out-Null
+          New-Item artifacts/kindle-send-report -ItemType Directory -Force | Out-Null
+          $session = Join-Path $private 'session.json'
+          try {
+            python -m tool.kindle_send_probe_bridge export $session
+            if ($LASTEXITCODE -ne 0) { throw 'Existing personal Kindle session unavailable; no login attempted' }
+            $env:KMREADER_KINDLE_SEND_PRIVATE_SESSION = $session
+            $env:KMREADER_KINDLE_SEND_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-send-report/report.json'
+            flutter test test/kindle_send_probe_test.dart --no-pub
+            $result = $LASTEXITCODE
+            python -m tool.kindle_send_probe_bridge seal $session
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot retain probe credentials in the local DPAPI vault' }
+            if ($result -ne 0) { throw 'STK registration failed; only sanitized metrics will be uploaded' }
+          } finally {
+            Remove-Item Env:KMREADER_KINDLE_SEND_PRIVATE_SESSION -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_SEND_PROBE_REPORT -ErrorAction SilentlyContinue
+            Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kindle-send-registration-metrics
+          path: artifacts/kindle-send-report/report.json
+          if-no-files-found: error
+          retention-days: 7

@@ -18,6 +18,36 @@ Choose **Run workflow** and one of these modes:
 | `native` | Build on a GitHub-hosted Windows runner, then execute the existing reader regression suite locally in debug mode. |
 | `profile` | Build on a GitHub-hosted Windows runner, then measure EPUB locally in profile mode with natural native frame scheduling. |
 | `responsiveness` | Build a standalone release probe on GitHub, smoke test it there, then measure first/following input, idle, scrolling and settings on the selected PC. No local Flutter SDK is needed. |
+| `kindle-probe` | Read the existing prototype's local DPAPI session and inspect Amazon services; set `prebuilt_run` to `services`. No login or library mutation. |
+| `kindle-runtime` | Exercise reading/download preparation using a verified Windows build; set `prebuilt_run` to its successful CI run ID. No annotation writes. |
+
+## Real-account Send to Kindle checks
+
+Use the existing personal desktop runner label `kmreader-android-desktop`
+(or `kmreader-laptop` on the laptop). Start `run.cmd` under the Windows user
+who connected the personal Kindle prototype and wait for `Listening for Jobs`.
+Keep the PC connected; leave it unlocked when an interactive login is needed.
+Passwords, OTPs, callback URLs, session files and DPAPI blobs must remain local.
+Signing in to KMReader alone does not establish that a prototype DPAPI session
+exists: the bridge fails explicitly when the latter is unavailable.
+
+The separate manual workflow **Personal Kindle send registration check**
+(`kindle-send-probe.yml`) runs the current Dart importer from source. It permits
+one Firs send-device registration, bearer renewal and destination-device queries.
+It blocks upload, delivery, deletion and annotation writes at the HTTP transport.
+The report contains fixed field names, HTTP status and counters only. Successful
+send credentials are kept under the user's `KMReader/KindleSendProbe` directory
+with Windows DPAPI, scoped to the source account, and reused on later probes.
+The original prototype vault is read without modification. This diagnostic vault
+is separate from KMReader's application vault; it does not silently reconnect the
+installed app. Plaintext IPC exists only in a job-specific temporary directory
+and is removed in `finally`; only the named metrics JSON is uploaded.
+
+The probe reloads the saved session before its second device query to verify
+that no second registration or browser login is required. This checks credential
+reuse, not delivery acceptance. Upload/edit/overwrite/bookmark-migration/delete
+acceptance needs an additional test using uniquely identified synthetic PDOCs;
+these operations are deliberately absent from this registration check.
 
 The first build downloads Flutter 3.47.8 into the runner tool cache and checks
 the archive against the official release manifest's SHA256. Pub dependencies
