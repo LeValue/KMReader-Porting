@@ -1,5 +1,46 @@
 # Development validation
 
+## Signed Android 1.0.0+33 delivery — 2026-11-09
+
+[Candidate.3 Android/Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b).
+Locally compiled APKs use the **exact verified runtime source**
+`e9a7712da95c227a86e5d613409e2c3dda2a7949`, matching Windows build 33 and
+[complete CI 42514188143](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143).
+No application/runtime changes were made for this delivery. The later checkout
+`b052b05` contains documentation changes only; the delivery gate verifies that
+all runtime paths match the successful CI revision.
+
+- Built three complete optimized APKs separately, with the retained private
+  signing configuration and forced versionCode **33** for each ABI. Package:
+  `dev.levalue.kmreader.preview`; versionName: `1.0.0`; non-debuggable.
+- All three pass APK signature verification, exact ABI/package/version/provenance
+  checks, ZIP integrity and **16 KiB ZIP alignment**. Public certificate SHA256:
+  `d95f940bec20cec8563c946df8c62de1922852b9b5d3bf3a7765e9dc1b10322e`.
+  The keystore and signing-properties hashes still match the retained build 31
+  guards. No private key was uploaded or regenerated.
+- [Delivery 42612973171](https://github.com/LeValue/KMReader-Porting/actions/runs/42612973171)
+  passed: CI-based transport reconstructed the exact signed bytes, then repeated
+  source, signature, architecture, alignment and digest checks before upload.
+  No compilation/test job is counted as newly run by this delivery-only workflow;
+  its successful source-matched CI is the complete run above.
+- Downloaded **all five assets** and checked `SHA256SUMS.txt` plus every GitHub
+  asset digest/size. All three downloaded APKs are byte-identical to the locally
+  verified originals. All **710 Windows files** match the successful CI bundle;
+  the release ZIP adds the expected `KMReader/` directory.
+- Retained every pre-existing release/asset: **44 releases / 176 assets** before,
+  **45 releases / 181 assets** after. Candidate.3 targets the verified source and
+  remains a draft/prerelease. No previous binary, tag, branch or release was
+  replaced or deleted; no stable release was published.
+- Android device install/upgrade and account acceptance on the installed APK
+  remain open. Signature/package/version compatibility is verified; this entry
+  does not claim a physical-device installation or close the parity matrix.
+
+| APK | Bytes | SHA256 |
+|---|---:|---|
+| `KMReader-1.0.0-android-arm64-preview.apk` | 107,133,567 | `55ea43c437af3140cb153b8e2c754317a913d520b66792662f294c54354db338` |
+| `KMReader-1.0.0-android-armv7-preview.apk` | 88,270,767 | `50cfcf750c150321c7707fa014bb9a020c7984279d0db5846f0312ecc41c6aa1` |
+| `KMReader-1.0.0-android-x64-preview.apk` | 113,584,783 | `342db7cd8adb30e6f508099ffd09261d5285eba4a26cdc609fb9b76d8bb53c4d` |
+
 ## 1.0.0+33 development — 2026-11-08
 
 Application source: `e9a7712da95c227a86e5d613409e2c3dda2a7949`.

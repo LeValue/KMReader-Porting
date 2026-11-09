@@ -3,7 +3,7 @@
 The next publication target is **1.0.0**; keep existing 0.9.x candidates in draft
 until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
-Current source: **1.0.0+31 development candidate**. Existing 0.9.x releases remain in draft;
+Current source: **1.0.0+33 development candidate**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.
 
@@ -116,7 +116,7 @@ First close the scope audits, functional gaps and target acceptance in the
 The seven candidate changes and successful package delivery do not establish
 complete functional parity. Keep unresolved requirements visible.
 
-The source version is now 1.0.0+31; the preview tool remains useful for identity,
+The source version is now 1.0.0+33; the preview tool remains useful for identity,
 ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
 [the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to
 represent a stable 1.0 release: it deliberately generates a preview tag/prerelease.
@@ -135,3 +135,10 @@ an ordinary main-branch push.
 Build 31 is already delivered to [candidate.2](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8)
 from `2f3c6385bdd6e2c2a25e65b192af6a0e92a0dc69`. Preserve it and the build 30 draft;
 choose the next unused candidate number for a subsequent update.
+
+Build 33 is delivered to [candidate.3](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b) from verified runtime
+`e9a7712da95c227a86e5d613409e2c3dda2a7949`, including all three locally signed
+Android APKs and the matching Windows bundle. [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/42612973171)
+and all downloaded hashes passed; all 710 Windows files match CI. The original
+certificate/package are retained. Preserve candidate.3 and all earlier assets;
+a subsequent delivery must use the next unused candidate number.

@@ -21,6 +21,14 @@ See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
+[Download signed Android build 33](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b) — choose
+`android-arm64` for recent phones/tablets, `android-armv7` for 32-bit ARM, or
+`android-x64` for x86_64 devices/emulators. Install the APK over **KMReader Preview**
+without uninstalling. All three APKs retain the original certificate/package and
+versionCode 33. [Delivery and downloaded-byte checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42612973171)
+passed; `SHA256SUMS.txt` accompanies the files. This candidate remains a draft
+requiring repository write access; stable 1.0 acceptance remains open.
+
 [Download Windows build 33](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143/artifacts/13631676249).
 Extract the complete ZIP into its own directory and run `kmreader.exe`. The existing
 app account is reused. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143)

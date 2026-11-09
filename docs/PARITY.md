@@ -50,7 +50,11 @@ sorgente `e9a7712da95c227a86e5d613409e2c3dda2a7949`, ha superato
 [tutti e tre i job CI 42514188143](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143)
 senza ripetizioni; il pacchetto Windows è stato riscaricato e verificato, inclusi
 710 file, eseguibili x64, versione/sorgente incorporati e SHA256. I pacchetti
-Android firmati precedenti restano conservati; l'APK CI 33 è non firmato.
+Android firmati 33 sono ora disponibili in [candidate.3](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b): firma,
+architetture, versione/sorgente e hash dei file riscaricati verificati. I pacchetti
+precedenti restano conservati; l'APK grezzo della CI 33 è non firmato e non è
+il pacchetto di aggiornamento. L'accettazione dell'installazione sui dispositivi
+resta aperta.
 La prova reale EPUB ha confermato metadati/copertina, ripristino di progresso e
 segnalibri, ritiro dell'originale e riapertura senza nuove scritture. Restano
 copertura residua del servizio, accettazione installata e gli altri requisiti
