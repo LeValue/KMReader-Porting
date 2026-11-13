@@ -8,12 +8,13 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
 
 from apk_delta import apply_delta, make_delta
-from deliver_draft import verify
+from deliver_draft import verify, android_variants
 from preview_metadata import apk_provenance, validate_provenance
 
 
@@ -34,7 +35,11 @@ def main():
                                '--name', 'android-release-unsigned', '--dir', str(base_dir)])
     validate_provenance(apk_provenance(base), source, version, build)
     result = {'verified_run': run, 'source': source, 'apk_deltas': True}
-    for label, prefix in [('arm64', 'preview'), ('armv7', 'preview_armv7'), ('x64', 'preview_x64')]:
+    universal = os.environ.get('ANDROID_UNIVERSAL', '').lower() == 'true'
+    if universal:
+        result['android_universal'] = True
+    for key, label, _ in android_variants(universal):
+        prefix = {'PREVIEW': 'preview', 'ARMV7': 'preview_armv7', 'X64': 'preview_x64'}[key]
         file = args.directory / f'KMReader-{version}-android-{label}-preview.apk'
         validate_provenance(apk_provenance(file), source, version, build)
         expected = hashlib.sha256(file.read_bytes()).hexdigest()
