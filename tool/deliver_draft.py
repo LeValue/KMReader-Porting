@@ -65,6 +65,19 @@ def verify():
     return repository, requested, source, version, build, release
 
 
+def android_variants(universal=False):
+    return [('PREVIEW', 'universal', None)] if universal else [
+        ('PREVIEW', 'arm64', 'arm64-v8a'),
+        ('ARMV7', 'armv7', 'armeabi-v7a'), ('X64', 'x64', 'x86_64')]
+
+
+def validate_universal_badging(badging):
+    match = re.search(r'^native-code: (.+)$', badging, re.M)
+    abis = re.findall(r"'([^']+)'", match[1]) if match else []
+    if len(abis) != 3 or set(abis) != {'arm64-v8a', 'armeabi-v7a', 'x86_64'}:
+        raise ValueError('Universal APK must contain exactly all three supported ABIs')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verify-only', action='store_true')
@@ -86,8 +99,7 @@ def main():
         delta_base = base_directory / 'app-release.apk'
         validate_provenance(apk_provenance(delta_base), source, version, build)
     files = []
-    for prefix, label, abi in [('PREVIEW', 'arm64', 'arm64-v8a'),
-                               ('ARMV7', 'armv7', 'armeabi-v7a'), ('X64', 'x64', 'x86_64')]:
+    for prefix, label, abi in android_variants(os.environ.get('ANDROID_UNIVERSAL', '').lower() == 'true'):
         target = output / f'KMReader-{version}-android-{label}-preview.apk'
         if args.apk_directory:
             local = args.apk_directory / target.name
@@ -119,8 +131,13 @@ def main():
         subprocess.check_call([str(sdk / 'zipalign'), '-c', '-P', '16', '4', str(target)])
         badging = output / (label + '-badging.txt')
         badging.write_text(subprocess.check_output([str(sdk / 'aapt2'), 'dump', 'badging', str(target)], text=True))
-        subprocess.check_call(['python3', str(ROOT / 'tool/preview_metadata.py'), '--apk-badging', str(badging),
-                               '--abi', abi, '--apk', str(target), '--source', source])
+        metadata_command = ['python3', str(ROOT / 'tool/preview_metadata.py'), '--apk-badging', str(badging),
+                            '--apk', str(target), '--source', source]
+        if abi:
+            metadata_command.extend(['--abi', abi])
+        else:
+            validate_universal_badging(badging.read_text())
+        subprocess.check_call(metadata_command)
         with zipfile.ZipFile(target) as archive:
             if archive.read('assets/flutter_assets/assets/epub/reader.js') != (ROOT / 'assets/epub/reader.js').read_bytes():
                 raise ValueError('Unexpected Android reader assets')
