@@ -5,6 +5,10 @@
 class KMReaderCurlSurface {
   static shared;
   static disabled=false;
+  static rasterScale(width,height){
+    // Match native glyph resolution on phones without unbounded texture memory.
+    return Math.max(1,Math.min(devicePixelRatio||1,4,Math.sqrt(32*1024*1024/(width*height*4))));
+  }
   constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'page-curl-surface';
@@ -167,7 +171,7 @@ class KMReaderCurlSurface {
   }
   upload(before,after,width,height) {
     if(this.disposed||this.gl.isContextLost())throw Error('Curl surface unavailable');
-    const gl=this.gl,dpr=Math.min(2,devicePixelRatio||1);this.width=width;this.height=height;
+    const gl=this.gl,dpr=KMReaderCurlSurface.rasterScale(width,height);this.width=width;this.height=height;
     const pixelWidth=Math.round(width*dpr),pixelHeight=Math.round(height*dpr);
     if(this.canvas.width!==pixelWidth)this.canvas.width=pixelWidth;
     if(this.canvas.height!==pixelHeight)this.canvas.height=pixelHeight;
@@ -296,6 +300,20 @@ class KMReaderSheetEffect {
       catch(_){const cancelled=this.stopped;this.stop();if(!cancelled)await move();return false;}
     }
     if(this.stopped)return false;
+    if(this.style==='slide'&&preview){
+      try{
+        const [before,after]=await this.wait(Promise.all([preview.before,preview.after]));
+        if(this.stopped||!after)return false;
+        this.previewLayer=document.createElement('div');
+        this.previewLayer.style.cssText='position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:2147483645';
+        this.styles=[before,after].map(image=>{
+          const clone=image.cloneNode();
+          clone.style.cssText='position:absolute;inset:0;width:100%;height:100%;will-change:transform';
+          this.previewLayer.append(clone);return clone.style;
+        });
+        document.body.append(this.previewLayer);this.update(0);this.ready=true;return true;
+      }catch(_){this.stop();return false;}
+    }
     if(this.style==='curl'){
       let moved=false;
       try{
@@ -445,7 +463,7 @@ class KMReaderSheetEffect {
     this.cancelWait();this.finishAnimation?.();this.finishAnimation=null;
     try{this.transition?.skipTransition();}catch(_){}
     if(this.transition||this.surface?.canvas.isConnected)KMReaderSheetEffect.retireCapture(!!this.transition);
-    this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();
+    this.previewLayer?.remove();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();
     if(this.surface?.effect===this)this.surface.effect=null;
   }
 }
@@ -658,7 +676,8 @@ class KMReaderPageSnapshot {
       ${preferences.advancedLayout === false ? '' : `p{margin-block-end:${preferences.paragraphSpacing}em !important;text-indent:${preferences.indent}em !important;} body{letter-spacing:${preferences.letterSpacing}em !important;word-spacing:${preferences.wordSpacing}em !important;}`}
       pre{white-space:pre-wrap !important;overflow-wrap:anywhere !important;max-inline-size:100%;box-sizing:border-box;}
       ::selection{background:rgba(75,135,230,.38);color:inherit;}img,svg,video{max-width:100% !important;object-fit:contain;}a{color:${preferences.theme === 'black' ? '#9fc6ff' : '#235a9c'};}`;
-    if (sheet.textContent !== css) sheet.textContent = css;
+    const resolvedCss=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}';
+    if (sheet.textContent !== resolvedCss) sheet.textContent = resolvedCss;
   }
   async function stable(contents) {
     await tick();
@@ -1438,7 +1457,7 @@ class KMReaderPageSnapshot {
       if(!isFixedLayout())KMReaderPageSnapshot.compact(root,doc,clip,cached);
       root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
       const css=(await Promise.all([...doc.styleSheets].map(sheet=>cssSheet(sheet,doc.baseURI)))).join('\n');
-      const style=doc.createElement('style');style.textContent=css+'\n*{caret-color:transparent!important}::selection{background:transparent!important}';root.querySelector('head').append(style);
+      const style=doc.createElement('style');style.textContent=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}*{caret-color:transparent!important}::selection{background:transparent!important}';root.querySelector('head').append(style);
       const original=doc.querySelectorAll('img'),clones=root.querySelectorAll('img');
       await Promise.all([...clones].map(async(img,i)=>{const url=original[i].currentSrc||original[i].src;if(url)img.setAttribute('src',await embeddedResource(url,doc.baseURI));img.removeAttribute('srcset');img.removeAttribute('loading');}));
       await Promise.all([...root.querySelectorAll('image')].map(async(img)=>{const url=img.getAttribute('href')||img.getAttributeNS('http://www.w3.org/1999/xlink','href');if(url){const data=await embeddedResource(url,doc.baseURI);img.setAttribute('href',data);img.removeAttributeNS('http://www.w3.org/1999/xlink','href');}}));
@@ -1450,7 +1469,7 @@ class KMReaderPageSnapshot {
     return value;
   }
   async function captureSheet(shift=0,sourceFrames){
-    const width=innerWidth,height=innerHeight,dpr=Math.min(2,devicePixelRatio||1),revision=captureRevision;
+    const width=innerWidth,height=innerHeight,dpr=KMReaderCurlSurface.rasterScale(width,height),revision=captureRevision;
     const frames=sourceFrames||[...document.querySelectorAll('#viewer iframe')].filter(f=>{const b=f.getBoundingClientRect();return b.right>0&&b.left<width&&b.bottom>0&&b.top<height;});
     const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift),annotations:annotationMarkup(frame,shift)};}));
     if(!parts.length)throw Error('No visible publication');
@@ -1478,7 +1497,7 @@ class KMReaderPageSnapshot {
       ...[...document.querySelectorAll('#viewer iframe')].map(f=>{const b=f.getBoundingClientRect();return [b.x,b.y,b.width,b.height].join(',');})].join('|');
   }
   function previewShift(delta){
-    if(!curlEligible()||isFixedLayout())return null;
+    if(preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||isFixedLayout())return null;
     const frames=[...document.querySelectorAll('#viewer iframe')];
     if(frames.length!==1)return null;
     const physical=(delta>0)!==(config.direction==='rtl')?1:-1;
@@ -1496,7 +1515,7 @@ class KMReaderPageSnapshot {
     const shift=previewShift(delta);
     if(shift!==null)return captureSheet(shift);
     const manager=rendition?.manager,views=manager?.views?.all();
-    if(!curlEligible()||isFixedLayout()||verticalWriting()||views?.length!==1)return Promise.resolve(null);
+    if(preferences.flow!=='paged'||isFixedLayout()||verticalWriting()||views?.length!==1)return Promise.resolve(null);
     const section=delta>0?views[0].section.next():views[0].section.prev();
     if(!section)return Promise.resolve(null);
     const revision=captureRevision,key=[revision,section.index,delta,innerWidth,innerHeight].join('|');
@@ -1570,7 +1589,7 @@ class KMReaderPageSnapshot {
         surface.upload(idleImage,null,innerWidth,innerHeight);
         // Cache both directions without moving the publication. Navigating
         // during a drag used to invalidate input routing and require rollback.
-        const budget=innerWidth*innerHeight*Math.min(2,devicePixelRatio||1)**2*4;
+        const budget=innerWidth*innerHeight*KMReaderCurlSurface.rasterScale(innerWidth,innerHeight)**2*4;
         for(const delta of budget*3<=32*1024*1024?[1,-1]:[1]){
           const image=await previewImage(delta);
           if(!valid()||origin!==previewOrigin())return;
@@ -1650,21 +1669,22 @@ class KMReaderPageSnapshot {
       interactiveNavigation = true;
       let moved=false;
       try {
-        const preview=preferences.transition==='curl'?await timeout(Promise.race([
+        const preview=['curl','slide'].includes(preferences.transition)?await timeout(Promise.race([
           preparePreview(delta).catch(()=>null),finished.then(()=>null)
         ]),2500):null;
-        // In-chapter curl is a visual preview only. The live document and CFI
+        // Curl and slide gestures preview without replacing the input iframe.
+        // The live document and CFI
         // remain on the original page until the user commits, including chapter
         // boundaries prepared in a temporary view without replacing input.
         if(preview&&!state.invalidated){
-          state.effect=sheetEffect=new KMReaderSheetEffect('curl',physical,preferences,contact.y/innerHeight,delta<0,
+          state.effect=sheetEffect=new KMReaderSheetEffect(preferences.transition,physical,preferences,contact.y/innerHeight,delta<0,
             rendition.manager?.layout?.divisor===2,captureSheet);
           if(!await state.effect.start(()=>Promise.resolve(),preview)){
             if(sheetEffect===state.effect)sheetEffect=undefined;
             state.effect=null;
           }
           state.effect?.track(state.progress,state.point);
-        }else if(preferences.transition!=='curl'&&!state.invalidated){
+        }else if(!['curl','slide'].includes(preferences.transition)&&!state.invalidated){
           state.effect=await transitionMove(delta,preferences.transition,contact.y/innerHeight);
           moved=true;state.effect?.track(state.progress,state.point);
         }

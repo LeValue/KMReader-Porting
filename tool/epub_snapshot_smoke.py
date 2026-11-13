@@ -11,7 +11,8 @@ from playwright.sync_api import sync_playwright
 url, config = sys.argv[1], json.loads(sys.argv[2])
 with sync_playwright() as pw:
     browser = pw.chromium.launch(headless=True, args=['--no-sandbox'])
-    page = browser.new_page(viewport=config['viewport'])
+    page = browser.new_page(viewport=config['viewport'], device_scale_factor=config.get('deviceScaleFactor',1),
+        is_mobile=config.get('deviceScaleFactor',1)>1,has_touch=True)
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(url)
@@ -55,6 +56,22 @@ with sync_playwright() as pw:
         assert max(ImageStat.Stat(ImageChops.difference(live, optimized)).mean) < 1, (
             'Curl changed the live text layout', fraction, config['viewport'])
         assert result['glyphsAfter'] < result['glyphsBefore'] / 3, result['glyphsAfter']
+    if config.get('deviceScaleFactor',1)>1:
+        live=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+        page.evaluate('''async () => {
+          window.nativeTexture=await pageCapture();
+          window.nativeSurface=new KMReaderCurlSurface();
+          await nativeSurface.whenReady();
+          nativeSurface.upload(nativeTexture,nativeTexture,innerWidth,innerHeight);
+          document.body.append(nativeSurface.canvas);
+        }''')
+        for endpoint in [0, .00001, .99999, 1]:
+            page.evaluate('(p)=>nativeSurface.render(p,false,1,0,.5)',endpoint)
+            animated=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            assert animated.size==live.size
+            difference=max(ImageStat.Stat(ImageChops.difference(live,animated)).mean)
+            assert difference<1, ('Near-flat curl changed native glyphs',endpoint,difference)
+        page.evaluate('()=>{nativeSurface.dispose();}')
     if config['direction'] == 'ltr' and config['viewport']['width'] == 390:
         note = page.evaluate('''async () => {
           const content=snapshotRendition.getContents()[0],doc=content.document,pre=doc.querySelector('pre');
