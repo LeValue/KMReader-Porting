@@ -9,7 +9,7 @@ achieved**; see the [porting closure matrix](docs/PARITY.md) and
 
 ## Current version and downloads
 
-The current source is the **1.0.0+33 development candidate**, built on working 0.9.1.
+The current source is the **1.0.0+34 development candidate**, built on working 0.9.1.
 [1.0 changes](docs/releases/v1.0.0.md) include single-page comic gestures/curl,
 local-file Send to Kindle, dictionary filtering, responsive Kindle indexing and
 separate recently added books/comics on the dashboard.

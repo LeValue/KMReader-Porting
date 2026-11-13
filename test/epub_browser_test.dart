@@ -350,6 +350,41 @@ void main() {
       skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
     );
   }
+  test(
+    'chapter touch drags preserve the input iframe and subsequent navigation',
+    () async {
+      final file = fixture(directory);
+      final document = EpubDocument.open(file.path);
+      final host = await EpubHost.open(document, filePath: file.path);
+      try {
+        final result = await Process.run('python3', [
+          'tool/epub_chapter_drag_smoke.py',
+          host.reader.toString(),
+          jsonEncode({
+            'url': host.publication.toString(),
+            'preferences': EpubPreferences.fromJson({
+              'theme': 'white',
+              'transition': 'slide',
+              'followGesture': true,
+            }).toJson(),
+            'nonce': 'chapter-drag',
+            'direction': 'ltr',
+            'href': 'one.xhtml',
+          }),
+        ]);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+      } finally {
+        await host.close();
+        document.close();
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+    skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+  );
   for (final (width, direction) in [
     (390, 'ltr'),
     (393, 'ltr'),
@@ -378,6 +413,7 @@ void main() {
                 'fontSize': 19,
               }).toJson(),
               'nonce': 'snapshots',
+              'deviceScaleFactor': width == 393 ? 3 : 1,
               'direction': direction,
               'href': 'one.xhtml',
               'viewport': {'width': width, 'height': width < 800 ? 844 : 720},
@@ -428,6 +464,7 @@ void main() {
           document.close();
         }
       },
+      timeout: const Timeout(Duration(minutes: 2)),
       skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
     );
   }
