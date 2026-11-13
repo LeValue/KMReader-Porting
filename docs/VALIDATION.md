@@ -1,5 +1,54 @@
 # Development validation
 
+## 1.0.0+34 reader fixes and delivery — 2026-11-13
+
+[Candidate.4 Android/Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a). Runtime source:
+`2ebd0d9426e0f05e7e9011bb8ddfc70ffb0f10e1`. [Complete CI 43507849435](https://github.com/LeValue/KMReader-Porting/actions/runs/43507849435)
+passed Android, native Android display and Windows on this exact source without
+retries. Later delivery-tool/documentation commits do not change runtime paths.
+
+- The slide gesture now previews without replacing its input iframe. A chapter
+  is committed after release, so the event owner survives the boundary. A fresh
+  mobile regression performs **six touch chapter crossings**, then direct
+  navigation, without reopening. The old reader stalled until the external
+  90-second negative-control guard terminated it; the corrected test passed.
+- Curl textures and GPU surfaces share a native-density scale within a bounded
+  texture budget. Mobile text autosizing is disabled consistently for live and
+  captured text. The **3× mobile** comparison covers compact/full/live pages and
+  curl progress 0, 0.00001, 0.99999 and 1. The former 2× cap fails this regression.
+- Local final browser suite: **33 passed**, analyzer clean, all 244 Dart files
+  formatted. CI Linux/Windows host suites: **441 passed, 40 skipped** each.
+  Source CI tool checks: **14 passed**; Python runtime/browser suite passed,
+  prepared-book/Chromium checks **34 passed**, ONNX **7 passed**, real Komga passed.
+  Native Android passed **2 insets + 32 reader/display checks**. Windows native
+  WebView2 passed **32, 1 skipped**, followed by release build and isolated startup.
+- One optimized **universal APK** includes ARM64, ARMv7 and x86_64. The successful
+  CI APK was signed locally with the retained key: `dev.levalue.kmreader.preview`,
+  versionName `1.0.0`, versionCode **34**, non-debuggable, verified v2/v3 signature
+  and **16 KiB ZIP alignment**. Every ZIP payload matches the verified CI input;
+  the signing block adds no runtime changes. Keystore/properties guards match
+  build 31. Certificate SHA256 remains
+  `d95f940bec20cec8563c946df8c62de1922852b9b5d3bf3a7765e9dc1b10322e`.
+- [Delivery 43511674638](https://github.com/LeValue/KMReader-Porting/actions/runs/43511674638)
+  passed using the existing candidate workflow. Delivery-only source `fd3d9c2`
+  adds an explicit universal mode while preserving three separate APKs by default;
+  all **16 local delivery/tool tests** pass, including missing/duplicate/extra ABI
+  rejection. Source CI, certificate, package, provenance, alignment and uploaded
+  bytes are checked again. The private key remains local.
+- Downloaded/hashed the full APK stream: **260,349,933 bytes**, SHA256
+  `535f4ea56d59fa77ba336eeca01249d924a22a02fb5d78ebabe04d7a0671ff1f`, identical to the local signed APK. Windows CI ZIP downloaded
+  and checked: x64 app/worker, source/version, integrity and digest; all **710**
+  candidate Windows files match its contents byte for byte. All three asset
+  digests/sizes and both `SHA256SUMS.txt` payload entries match.
+- Preserved **45 releases / 181 assets**; inventory after delivery is **46 / 184**.
+  Candidate.4 targets the verified runtime and remains a draft/prerelease. Earlier
+  builds/keys/branches/tags/releases are retained; no stable release was published.
+
+The tests use synthetic EPUBs. Side-by-side comparison on the reported Hyperion
+pages and a physical-phone install remain acceptance checks, especially the rare
+spacing change. This does not close the full parity matrix or certify that the
+user's exact volume was exercised.
+
 ## Signed Android 1.0.0+33 delivery — 2026-11-09
 
 [Candidate.3 Android/Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b).

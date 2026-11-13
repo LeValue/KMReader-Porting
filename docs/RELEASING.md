@@ -142,3 +142,14 @@ Android APKs and the matching Windows bundle. [Delivery](https://github.com/LeVa
 and all downloaded hashes passed; all 710 Windows files match CI. The original
 certificate/package are retained. Preserve candidate.3 and all earlier assets;
 a subsequent delivery must use the next unused candidate number.
+
+Build 34 is delivered to [candidate.4](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a), with a universal signed Android
+APK and matching Windows bundle. The universal APK is compiled by source-matched
+CI and signed locally; all ZIP payloads are verified against that CI input. The
+original certificate and package are retained. Delivery gained an opt-in
+`android_universal=true` workflow input: stage the canonical
+`KMReader-<version>-android-universal-preview.apk` with `ANDROID_UNIVERSAL=true`,
+then pass the staged inputs to the same candidate workflow. It validates exactly
+ARM64/ARMv7/x86_64 together; default delivery still requires three separate APKs.
+No duplicate workflow or private-key upload is needed. Source, native CI,
+provenance, signatures, alignment and digest gates remain mandatory.

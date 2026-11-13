@@ -21,23 +21,22 @@ See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
-[Download signed Android build 33](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b) — choose
-`android-arm64` for recent phones/tablets, `android-armv7` for 32-bit ARM, or
-`android-x64` for x86_64 devices/emulators. Install the APK over **KMReader Preview**
-without uninstalling. All three APKs retain the original certificate/package and
-versionCode 33. [Delivery and downloaded-byte checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42612973171)
-passed; `SHA256SUMS.txt` accompanies the files. This candidate remains a draft
-requiring repository write access; stable 1.0 acceptance remains open.
+[Download Android / Windows build 34](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a).
+Android: install `android-universal-preview.apk` over **KMReader Preview** without
+uninstalling. This single APK includes ARM64, ARMv7 and x86_64, retains the
+original certificate/package, and has versionCode **34**. Windows: extract the
+complete ZIP and run `KMReader/kmreader.exe`.
 
-[Download Windows build 33](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143/artifacts/13631676249).
-Extract the complete ZIP into its own directory and run `kmreader.exe`. The existing
-app account is reused. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143)
-passed Android, native Android reader and Windows checks. The downloaded archive
-contains 710 files, matches source `e9a7712da95c227a86e5d613409e2c3dda2a7949`, and its SHA256
-matches GitHub's artifact digest:
-`d21515e59f617573f1d6f5a71db5bbf70b69ae1f855fd7b29c969213a38eb6e7`.
-[Previous Windows build 32](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851/artifacts/13619305441)
-remains available.
+Build 34 fixes tracked EPUB drags across chapter boundaries and improves curl
+text consistency and native-density rendering. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43507849435)
+and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43511674638)
+passed. The APK download matches the locally signed bytes; all 710 Windows files
+match CI. `SHA256SUMS.txt` accompanies the downloads. This remains a candidate
+draft requiring repository write access; [device acceptance remains open](docs/VALIDATION.md).
+
+[Retained optimized Android / Windows build 33](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b)
+and [Windows build 32](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851/artifacts/13619305441)
+remain available.
 
 [Retained Android / Windows candidate build 31](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8).
 It remains a draft requiring repository write access. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048),

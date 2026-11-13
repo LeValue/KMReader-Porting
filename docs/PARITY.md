@@ -1,10 +1,10 @@
 # Matrice di parità e chiusura del porting KMReader
 
 **Stato: porting ancora aperto; release stabile non pronta.**
-Aggiornamento del documento: 8 novembre 2026. Piattaforme: Android e Windows.
+Aggiornamento del documento: 13 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+33 in sviluppo**. La candidata distribuita **1.0.0+30**, verificata al
+**1.0.0+34 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -45,16 +45,16 @@ non è stata dimostrata un'identità pixel per pixel con Apple.
 | Futuro / escluso | Fuori dal perimetro per una motivazione dichiarata; non viene conteggiato come parità implementata. |
 | Chiuso | Requisito, implementazione/adattamento ed evidenza soddisfano il criterio di accettazione. |
 
-Le evidenze correnti sono in [VALIDATION.md](VALIDATION.md). La build 33,
-sorgente `e9a7712da95c227a86e5d613409e2c3dda2a7949`, ha superato
-[tutti e tre i job CI 42514188143](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143)
-senza ripetizioni; il pacchetto Windows è stato riscaricato e verificato, inclusi
-710 file, eseguibili x64, versione/sorgente incorporati e SHA256. I pacchetti
-Android firmati 33 sono ora disponibili in [candidate.3](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b): firma,
-architetture, versione/sorgente e hash dei file riscaricati verificati. I pacchetti
-precedenti restano conservati; l'APK grezzo della CI 33 è non firmato e non è
-il pacchetto di aggiornamento. L'accettazione dell'installazione sui dispositivi
-resta aperta.
+Le evidenze correnti sono in [VALIDATION.md](VALIDATION.md). La build 34,
+sorgente `2ebd0d9426e0f05e7e9011bb8ddfc70ffb0f10e1`, ha superato
+[tutti e tre i job CI 43507849435](https://github.com/LeValue/KMReader-Porting/actions/runs/43507849435).
+[Candidate.4](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a) contiene APK Android universale firmato e Windows:
+firma, architetture, versione/sorgente, allineamento e hash verificati; download
+APK identico al file firmato locale e tutti i 710 file Windows identici alla CI.
+Le nuove regressioni coprono il trascinamento touch fra capitoli e la resa del
+curl quasi steso a densità 3×. Il confronto fisico sulle pagine Hyperion segnalate,
+compresa la rara variazione di spaziatura, resta in AT-07. I pacchetti precedenti
+rimangono conservati. Per il servizio Kindle rimane valida la prova della build 33:
 La prova reale EPUB ha confermato metadati/copertina, ripristino di progresso e
 segnalibri, ritiro dell'originale e riapertura senza nuove scritture. Restano
 copertura residua del servizio, accettazione installata e gli altri requisiti
