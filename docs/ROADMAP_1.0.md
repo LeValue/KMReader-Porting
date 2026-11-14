@@ -53,7 +53,7 @@ remain excluded.
 | Data and upgrades | Account-scoped persistence, durable outbox, download resume, cache protection and versioned document tests exist | Verify an in-place upgrade from the signed 0.9.1 build without losing accounts, downloads, progress, bookmarks or preferences; test removing/reconnecting one account while another remains usable |
 | Device behavior | Hosted emulator/WebView2 checks and earlier named-device measurements are retained | Validate secure storage/app lock, background downloads, resume, rotation/fullscreen, long-book memory and responsive navigation on actual target hardware; record source and device with results |
 | Kindle | Synthetic protocol/conversion tests and earlier account-specific evidence exist; annotation import is one-way | Confirm the supported sign-in/download/offline/resume flow for the 1.0 candidate; describe annotation and first-download limitations accurately |
-| Distribution | [Build 34 candidate.4](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a): universal signed Android APK for all three ABIs and matching Windows; downloaded APK hash and all 710 Windows files verified. Previous builds retained | Confirm target-device install/upgrade compatibility and account acceptance before stable promotion; preserve all earlier drafts/assets |
+| Distribution | [Public build 35 candidate.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5): signed universal Android APK, complete matching Windows and public in-app update manifest; all hashes and 711 Windows files verified. Previous builds retained | Accept the bootstrap upgrade, Android system installer and Windows restart/state retention on target devices; stable promotion remains gated |
 
 These are readiness requirements, not a claim that a 1.0 candidate has already
 passed them. Automated checks do not replace target-device acceptance or prove
@@ -101,8 +101,8 @@ does not belong in logs, fixtures, source archives or CI artifacts.
 
 ## Version and publication
 
-Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+31 for this candidate,
-strictly above the retained build 30 candidate. Passing the readiness checks is still
+Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+35 for this candidate,
+strictly above the retained build 34 candidate. Passing the readiness checks is still
 required before stable publication. Preserve the
 existing Preview application ID and signing certificate for upgrade continuity.
 Add accurate 1.0 release notes and embed the exact source in each final build.

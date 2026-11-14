@@ -21,13 +21,25 @@ See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.
 
-[Download Android / Windows build 34](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a).
+Build 35 adds in-app updates under **Settings → About → App updates**, compositor-based automatic slide turns, backward curl preparation and fractional-density pixel alignment. All source CI and delivery checks passed; see [validation](docs/VALIDATION.md).
+
+[Download Android / Windows build 35](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5) — public development prerelease.
+Install the universal APK over **KMReader Preview**, without uninstalling;
+Windows users extract the whole ZIP and run `KMReader/kmreader.exe`.
+This is the one bootstrap installation needed for **Settings → About → App updates**.
+Later public builds download and install from inside the app. Android requires
+system installer approval; Windows closes, backs up/replaces the app files and
+reopens. Accounts, books and reading progress remain in their existing storage.
+[Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43588228905), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43590146370), downloaded hashes and all 711 Windows
+files were verified. The original Android certificate/package are retained;
+`SHA256SUMS.txt` and `kmreader-update.json` accompany the packages.
+Physical-device upgrade/Hyperion acceptance remains open; stable 1.0 is not published.
+
+[Retained Android / Windows build 34](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a).
 Android: install `android-universal-preview.apk` over **KMReader Preview** without
 uninstalling. This single APK includes ARM64, ARMv7 and x86_64, retains the
 original certificate/package, and has versionCode **34**. Windows: extract the
 complete ZIP and run `KMReader/kmreader.exe`.
-
-Build 35 adds in-app updates under **Settings → About → App updates**, compositor-based automatic slide turns, backward curl preparation and fractional-density pixel alignment. Verification and delivery are recorded below when complete.
 
 Build 34 fixes tracked EPUB drags across chapter boundaries and improves curl
 text consistency and native-density rendering. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43507849435)
@@ -47,7 +59,7 @@ and downloaded hashes passed; all 710 Windows files match the CI bundle.
 The [previous build 30](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55)
 is retained. Device/account acceptance and full Kindle state migration remain open.
 
-The latest **published** development preview is
+The retained legacy development preview is
 [0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1).
 The repository and public previews are accessible without signing in; historical drafts still require repository write access.
 Choose one complete APK for your architecture (`android-arm64`, `android-armv7`
@@ -66,6 +78,7 @@ Visual Studio's C++ desktop tools and the separately built Kindle worker.
 ```sh
 flutter pub get --enforce-lockfile
 python3 tool/preview_metadata.py
+python3 tool/prepare_build_metadata.py
 flutter analyze
 flutter test
 flutter run -d <android-device-id>

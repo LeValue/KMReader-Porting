@@ -1,5 +1,75 @@
 # Development validation
 
+## 1.0.0+35 animation fixes and public in-app updates — 2026-11-14
+
+[Public candidate.5 Android/Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5). Exact build source:
+`69a127d50354aed80983d72988cde186d611c8b2`. [Complete CI 43588228905](https://github.com/LeValue/KMReader-Porting/actions/runs/43588228905)
+passed Android, Android native display and Windows. [Delivery 43590146370](https://github.com/LeValue/KMReader-Porting/actions/runs/43590146370)
+rechecked source, signing, architecture, alignment and uploaded digests.
+
+- Automatic slide turns use decoded image layers and compositor transforms,
+  avoiding per-frame filter/shadow work. Curl prepares both directions within a
+  bounded 64 MiB texture cache, preferring the last direction when only two fit.
+  Adjacent preview chapters use independent parsed state and release their DOM.
+- Fractional DPR rounding keeps SVG viewBox, texture and displayed CSS dimensions
+  on the same pixel grid. The regression reproduced a +1 pixel glyph shift on
+  DPR 2.625 with a 0.375 CSS-pixel origin; both directions now select zero shift.
+  Backward DPR 3 gestures reuse decoded text without foreground serialization.
+  The complete local browser suite passed **35 tests** on the final runtime.
+  An additional real-animation stress run completed all **48 automatic slide
+  turns at DPR 3** in 4.89 s (median command 98.7 ms, maximum 267.3 ms), retaining
+  at most one active animation and no final overlay. These are browser command
+  timings, not physical-device FPS.
+- CI: host suites **446 passed / 42 skipped** on Linux and Windows; tools **17**;
+  shared Python **82**; prepared import/browser **36**; ONNX **7**; Komga **1**.
+  Android native tests passed **2 + 32**; native Windows **32 passed / 1 skipped**,
+  followed by real application startup. Skips are not counted as acceptance.
+  The native automatic-slide probe now exercises the same image compositor as
+  production and still requires an actually delivered intermediate frame; it
+  no longer measures the legacy pseudo-element fallback. All 48 stress turns
+  cross the native bridge individually before GPU readbacks. The later
+  `bfb7396` commit hardens only the cold-recovery test's idle chrome handling;
+  all application/runtime paths remain identical to this verified build.
+  Its additional [complete CI 43588681714](https://github.com/LeValue/KMReader-Porting/actions/runs/43588681714)
+  also passed on `bfb7396`; the packages delivered here remain the exact
+  source-matched binaries from CI 43588228905.
+- App update model/stream/widget tests passed **5**: public feed/tag/version,
+  bounded streaming, SHA256 failures, archive provenance/traversal, explicit
+  install and platform restart. Windows PowerShell checks passed real file
+  replacement, user-file retention, backups, integrity/source rejection and
+  rollback after a locked-file failure. Android compiles signer/package/version
+  and provenance checks and grants a private APK URI to the system installer.
+- Downloaded all **4 assets**, checked every GitHub size/digest plus SHA256SUMS,
+  verified the public manifest's exact source/build/platform URLs, streamed the
+  APK download and confirmed byte equality with the locally signed APK. All
+  **711 Windows files** match the complete CI artifact, including x64 app/worker
+  executables and the shipped reader/updater assets.
+- APK: package `dev.levalue.kmreader.preview`, versionName `1.0.0`, versionCode
+  **35**, non-debuggable, ARM64/ARMv7/x86_64, v2/v3 signatures and 16 KiB alignment.
+  Certificate SHA256 remains
+  `d95f940bec20cec8563c946df8c62de1922852b9b5d3bf3a7765e9dc1b10322e`.
+  Keystore/properties guards still match build 31; no private key was uploaded.
+- The maintainer authorized **public update files**. Only this verified new
+  candidate was published as a prerelease, with stable promotion disabled.
+  Anonymous public-feed checks passed: the parser accepts build 35 when given
+  a simulated previous build 34, and the build 35 client reports no newer update.
+  This does not add an updater to the old build 34 binary. The shipped
+  `AppUpdates` client also downloaded the complete public Windows package
+  without credentials, verified SHA256/size and validated its archive/source
+  through the real isolate path (20 s in this environment). This does not claim
+  an operating-system installation or restart. All **46 previous releases / 184 assets** remain
+  unchanged; the inventory is now **47 releases / 188 assets**. Older drafts,
+  branches, tags and working builds were not deleted or republished.
+- **Still open:** physical Hyperion comparison (including rare spacing changes),
+  actual Android install approval, Windows restart/upgrade and state retention
+  on the user's devices (AT-01/AT-07). Build 35 needs one bootstrap installation;
+  later builds can use in-app updates. This is not stable 1.0 or parity closure.
+
+| Package | Bytes | SHA256 |
+|---|---:|---|
+| `KMReader-1.0.0-android-universal-preview.apk` | 260,386,953 | `fb535deb039d31ceba83c5a5814b9ed5aea086a894039170e0a0b08f56a0709e` |
+| `KMReader-1.0.0-windows-x64-preview.zip` | 104,802,656 | `dc5403ee62654456dc6fb1abef2da084fd4e04455e9357e8ebf30bae7b1fbf98` |
+
 ## 1.0.0+34 reader fixes and delivery — 2026-11-13
 
 [Candidate.4 Android/Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a). Runtime source:

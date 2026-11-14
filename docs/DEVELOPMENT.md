@@ -1,6 +1,6 @@
 # Development
 
-The current source is the **1.0.0+32 candidate** in both `pubspec.yaml` and
+The current source is the **1.0.0+35 candidate** in both `pubspec.yaml` and
 `lib/core/app_version.dart`, based on the working 0.9.1 baseline. See the
 [release notes](releases/v1.0.0.md) and [readiness work](ROADMAP_1.0.md).
 
@@ -24,10 +24,17 @@ From the repository root:
 flutter --version
 flutter pub get --enforce-lockfile
 python3 tool/preview_metadata.py
+python3 tool/prepare_build_metadata.py
 flutter analyze
 flutter test
 flutter run -d <android-device-id>
 ```
+
+Regenerate `assets/build/source.json` with `prepare_build_metadata.py` before
+building a new checkout; this generated file embeds the exact source/version.
+Distributed builds must pass the clean-source CI/signing gates in
+[releasing](RELEASING.md). Build 35 is the first public in-app update bootstrap;
+future distributed builds need a higher build number.
 
 On Windows, use `flutter run -d windows`. Kindle conversion also needs the
 separate worker: run `./tool/build_kindle_worker.ps1`, then copy
