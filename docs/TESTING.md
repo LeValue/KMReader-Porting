@@ -123,3 +123,24 @@ The full browser command above includes `epub_pixel_alignment_smoke.py`
 `epub_reverse_ready_smoke.py` (DPR 3, backward gesture without foreground text
 serialization/decoding), plus automatic/tracked slide and curl cleanup/progress.
 Do not treat a run without `KMREADER_BROWSER_TEST=1` as browser validation.
+
+
+## Remote Komga administration (build 36)
+
+Run `flutter test test/komga_library_admin_test.dart test/komga_admin_page_test.dart`
+and `python3 -m unittest discover -s tool/tests`. The companion tests require Linux,
+the deployment platform. They never access a personal Komga instance.
+
+The end-to-end smoke uses the pinned official Komga **1.30.1** JAR (SHA256
+`a443bc806800ccbecca84fa433bc8307230fc985984225fe00a85503077ed6d9`):
+
+```sh
+python3 -m tool.komga_admin.smoke --jar /path/to/komga-1.30.1.jar
+```
+
+It creates a temporary server, account, library, reverse proxy and synthetic CBZ,
+then runs `test/live_komga_admin_test.dart` with temporary credentials. Upload,
+indexing, metadata, cover, duplicate rejection and deletion are verified. The
+live test is skipped in ordinary host tests. CI runs the smoke explicitly.
+The helper shuts down the processes and removes temporary data afterward.
+See [Debian setup](KOMGA_LIBRARY_MANAGEMENT.md) for personal VM acceptance.

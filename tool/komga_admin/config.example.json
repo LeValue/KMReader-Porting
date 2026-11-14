@@ -1,0 +1,11 @@
+{
+  "komga_url": "http://127.0.0.1:25600",
+  "state_directory": "/var/lib/kmreader-admin",
+  "max_upload_bytes": 2147483648,
+  "libraries": {
+    "REPLACE_WITH_KOMGA_LIBRARY_ID": {
+      "path": "/srv/komga/books",
+      "komga_root": "/srv/komga/books"
+    }
+  }
+}

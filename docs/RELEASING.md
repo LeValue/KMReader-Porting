@@ -4,7 +4,7 @@ The stable publication target is **1.0.0**. Existing drafts are retained.
 Public candidate files are authorized for in-app updates; candidates remain
 prereleases until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
-Current source: **1.0.0+35 development candidate**. Existing 0.9.x releases remain in draft;
+Current source: **1.0.0+36 development candidate**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.
 
@@ -117,7 +117,7 @@ First close the scope audits, functional gaps and target acceptance in the
 The seven candidate changes and successful package delivery do not establish
 complete functional parity. Keep unresolved requirements visible.
 
-The source version is now 1.0.0+35; the preview tool remains useful for identity,
+The source version is now 1.0.0+36; the preview tool remains useful for identity,
 ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
 [the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to
 represent a stable 1.0 release: it deliberately generates a preview tag/prerelease.

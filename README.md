@@ -9,14 +9,16 @@ achieved**; see the [porting closure matrix](docs/PARITY.md) and
 
 ## Current version and downloads
 
-The current source is the **1.0.0+35 development candidate**, built on working 0.9.1.
+The current source is the **1.0.0+36 development candidate**, built on working 0.9.1.
 [1.0 changes](docs/releases/v1.0.0.md) include single-page comic gestures/curl,
 local-file Send to Kindle, dictionary filtering, responsive Kindle indexing and
 separate recently added books/comics on the dashboard.
 Build 31 additionally fixes tilted spread curl layers, adds dedicated Kindle send authorization, personal-document management with recovery records, and improves live/offline metadata.
 Build 32 fixes real-account Send to Kindle registration (XML/media type) and the relative upload URL lifetime. A generated EPUB was accepted and found in the real catalog; a second process reused credentials without another login or upload. See [live evidence](docs/KINDLE_IMPORT.md).
 Build 33 separates cloud-library upload from device-only delivery, retrieves the existing document for editing, and restores verified EPUB reading position, bookmarks and local completion before retiring the old edition. Interruption recovery verifies the journal without repeating submissions. [Management coverage and limits](docs/KINDLE_LIBRARY_MANAGEMENT.md) remain explicit; final build/account checks are recorded in validation.
-AI/model/translation extensions and Komga server upload are future work.
+AI/model/translation extensions remain future work.
+
+Build 36 adds administrator-only [remote Komga management](docs/KOMGA_LIBRARY_MANAGEMENT.md): new EPUB/PDF/CBZ/CBR files, metadata, covers and confirmed deletion. New-file upload requires a small Python service on the Debian VM and a same-origin reverse proxy; metadata, covers and deletion use native Komga APIs. Existing files are never replaced. Local tests against disposable Komga 1.30.1 passed; personal VM setup and acceptance remain open.
 See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION.md)
 for completed checks and target-device acceptance still needed before stable
 publication. The existing 0.9.x drafts and all earlier release assets are retained.

@@ -1,6 +1,6 @@
 # Development
 
-The current source is the **1.0.0+35 candidate** in both `pubspec.yaml` and
+The current source is the **1.0.0+36 candidate** in both `pubspec.yaml` and
 `lib/core/app_version.dart`, based on the working 0.9.1 baseline. See the
 [release notes](releases/v1.0.0.md) and [readiness work](ROADMAP_1.0.md).
 
