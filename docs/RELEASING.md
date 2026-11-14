@@ -183,3 +183,8 @@ Run `flutter test test/app_updates_test.dart test/app_update_page_test.dart` and
 (on Windows) `powershell -NoProfile -File tool/test_windows_updater.ps1`; complete
 CI runs both plus the platform builds. Physical Android install approval and
 Windows restart/upgrade acceptance remain AT-01; automation does not close them.
+
+Build 35 is delivered and public at [candidate.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5), from verified source
+`69a127d50354aed80983d72988cde186d611c8b2`. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43588228905) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43590146370) passed; all four downloaded assets
+and 711 Windows files were verified. Original Android signing identity and
+all older drafts/assets are retained. Physical upgrade acceptance remains open.
