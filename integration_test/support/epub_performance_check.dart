@@ -478,6 +478,31 @@ void verifyNativeEpubPerformance() {
         await visibleText();
         expect(await js('return reader.position().start.cfi;'), readingAnchor);
       }
+      // Measure command delivery before synchronous software-GPU readbacks
+      // below saturate the emulator render queue. This is debug command
+      // latency, not a physical-display FPS benchmark.
+      // Real app inputs cross the native bridge once per command. A single
+      // long JavaScript batch can monopolize that bridge while waiting for
+      // presentation. Preserve all 48 turns and verify each CFI independently.
+      final commandTimes = <num>[];
+      for (var index = 0; index < 48; index++) {
+        final elapsed = await jsWhilePresenting(
+          '''const old=reader.position().start.cfi,at=performance.now();
+          await reader.turn({delta:1,style:'slide'});
+          if(reader.position().start.cfi===old)throw new Error('Page did not advance $index');
+          return performance.now()-at;''',
+        );
+        commandTimes.add(elapsed as num);
+        if ((index + 1) % 12 == 0) {
+          debugPrint('Native slide commands completed: ${index + 1}/48');
+        }
+      }
+      commandTimes.sort();
+      final result = {'median': commandTimes[24], 'max': commandTimes[47]};
+      debugPrint(
+        'Native EPUB command latency (debug engine, not device FPS): $result',
+      );
+      await visibleText();
       // Exercise the real WebView GPU/texture path, not only headless Chrome.
       expect(
         await js("""
@@ -533,31 +558,6 @@ void verifyNativeEpubPerformance() {
           await reader.previous();return {initialCompositor,deliveries};
       """);
       debugPrint('Native automatic slide delivery: $automaticDelivery');
-      // Measure command delivery before synchronous software-GPU readbacks
-      // below saturate the emulator render queue. This is debug command
-      // latency, not a physical-display FPS benchmark.
-      // Real app inputs cross the native bridge once per command. A single
-      // long JavaScript batch can monopolize that bridge while waiting for
-      // presentation. Preserve all 48 turns and verify each CFI independently.
-      final commandTimes = <num>[];
-      for (var index = 0; index < 48; index++) {
-        final elapsed = await jsWhilePresenting(
-          '''const old=reader.position().start.cfi,at=performance.now();
-          await reader.turn({delta:1,style:'slide'});
-          if(reader.position().start.cfi===old)throw new Error('Page did not advance $index');
-          return performance.now()-at;''',
-        );
-        commandTimes.add(elapsed as num);
-        if ((index + 1) % 12 == 0) {
-          debugPrint('Native slide commands completed: ${index + 1}/48');
-        }
-      }
-      commandTimes.sort();
-      final result = {'median': commandTimes[24], 'max': commandTimes[47]};
-      debugPrint(
-        'Native EPUB command latency (debug engine, not device FPS): $result',
-      );
-      await visibleText();
       await js("""
           // Check both receiving planes on actual native GPU pixels. Removing
           // the flat front's receiver in the control must recreate the seam.
