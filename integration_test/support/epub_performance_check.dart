@@ -661,7 +661,10 @@ void verifyNativeEpubPerformance() {
       await tester.pumpAndSettle();
       await visibleText();
       final result = object(
-        await js('''const times=[];
+        // Preview-based turns settle real presentation frames behind their
+        // image layers. Keep consuming the native texture during this bulk
+        // command probe, exactly as during interactive playback above.
+        await jsWhilePresenting('''const times=[];
         for(let i=0;i<48;i++) { const old=reader.position().start.cfi, at=performance.now();
           await reader.turn({delta:1,style:'slide'}); times.push(performance.now()-at);
           if(reader.position().start.cfi===old) throw new Error('Page did not advance '+i);
