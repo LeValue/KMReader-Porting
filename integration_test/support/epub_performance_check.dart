@@ -490,12 +490,20 @@ void verifyNativeEpubPerformance() {
       final automaticDelivery = await jsWhilePresenting("""
           nativeCurl.stop();KMReaderSheetEffect.prototype.start=nativeStart;
           KMReaderSheetEffect.prototype.animateTo=nativeAnimate;
+          // Production automatic turns now use decoded preview images. Probe
+          // that same element compositor rather than the legacy pseudo-element
+          // fallback, whose pending timeline is unreliable on native WebViews.
+          const image=await nativeCurl.capture();
           const automatic=new KMReaderSheetEffect('slide',1,{},.5,false,false);
-          if(!await automatic.start(async()=>{}))throw Error('Native automatic slide unavailable');
+          if(!await automatic.start(async()=>{},{before:image,after:image})||!automatic.previewLayer)throw Error('Native automatic slide unavailable');
+          // Actual navigation delivers layout frames behind the preview before
+          // starting playback. Let these real image layers paint here as well.
+          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
           // Use the supported maximum duration so the software renderer has
           // more than one frame to expose the compositor's intermediate state.
           const started=performance.now(),flight=automatic.animateTo(1,900,{automatic:true});
           const initialCompositor=!!automatic.compositor;
+          if(!initialCompositor)throw Error('Native slide did not use the element compositor');
           // Observe delivered render frames instead of assuming a 90ms wall
           // timer runs before a software-rendered emulator finishes the turn.
           const samples=[],deliveries=[];
