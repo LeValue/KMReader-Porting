@@ -110,18 +110,31 @@ void verifyNativeEpubPerformance() {
       binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
       try {
         var finished = false;
+        dynamic replyValue;
+        Object? replyError;
+        StackTrace? replyStack;
         final reply = controller()!
             .callAsyncJavaScript(functionBody: source)
             .timeout(const Duration(seconds: 60))
+            .then<void>(
+              (value) => replyValue = value,
+              onError: (Object error, StackTrace stack) {
+                replyError = error;
+                replyStack = stack;
+              },
+            )
             .whenComplete(() => finished = true);
         final deadline = Stopwatch()..start();
         while (!finished && deadline.elapsed < const Duration(seconds: 65)) {
           await tester.pump(const Duration(milliseconds: 16));
           await Future<void>.delayed(const Duration(milliseconds: 16));
         }
-        final result = await reply;
-        expect(result?.error, isNull);
-        return result?.value;
+        await reply;
+        if (replyError != null) {
+          Error.throwWithStackTrace(replyError!, replyStack!);
+        }
+        expect(replyValue?.error, isNull);
+        return replyValue?.value;
       } finally {
         binding.framePolicy = policy;
       }
@@ -520,6 +533,31 @@ void verifyNativeEpubPerformance() {
           await reader.previous();return {initialCompositor,deliveries};
       """);
       debugPrint('Native automatic slide delivery: $automaticDelivery');
+      // Measure command delivery before synchronous software-GPU readbacks
+      // below saturate the emulator render queue. This is debug command
+      // latency, not a physical-display FPS benchmark.
+      // Real app inputs cross the native bridge once per command. A single
+      // long JavaScript batch can monopolize that bridge while waiting for
+      // presentation. Preserve all 48 turns and verify each CFI independently.
+      final commandTimes = <num>[];
+      for (var index = 0; index < 48; index++) {
+        final elapsed = await jsWhilePresenting(
+          '''const old=reader.position().start.cfi,at=performance.now();
+          await reader.turn({delta:1,style:'slide'});
+          if(reader.position().start.cfi===old)throw new Error('Page did not advance $index');
+          return performance.now()-at;''',
+        );
+        commandTimes.add(elapsed as num);
+        if ((index + 1) % 12 == 0) {
+          debugPrint('Native slide commands completed: ${index + 1}/48');
+        }
+      }
+      commandTimes.sort();
+      final result = {'median': commandTimes[24], 'max': commandTimes[47]};
+      debugPrint(
+        'Native EPUB command latency (debug engine, not device FPS): $result',
+      );
+      await visibleText();
       await js("""
           // Check both receiving planes on actual native GPU pixels. Removing
           // the flat front's receiver in the control must recreate the seam.
@@ -659,20 +697,6 @@ void verifyNativeEpubPerformance() {
       expect(find.text(selected as String), findsOneWidget);
       await tester.tap(find.byType(BackButton).last);
       await tester.pumpAndSettle();
-      await visibleText();
-      final result = object(
-        // Preview-based turns settle real presentation frames behind their
-        // image layers. Keep consuming the native texture during this bulk
-        // command probe, exactly as during interactive playback above.
-        await jsWhilePresenting('''const times=[];
-        for(let i=0;i<48;i++) { const old=reader.position().start.cfi, at=performance.now();
-          await reader.turn({delta:1,style:'slide'}); times.push(performance.now()-at);
-          if(reader.position().start.cfi===old) throw new Error('Page did not advance '+i);
-        } times.sort((a,b)=>a-b); return {median:times[24],max:times[47]};'''),
-      );
-      debugPrint(
-        'Native EPUB command latency (debug engine, not device FPS): $result',
-      );
       await visibleText();
       {
         final channel = MethodChannel(
