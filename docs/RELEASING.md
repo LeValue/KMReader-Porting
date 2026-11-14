@@ -1,9 +1,10 @@
 # Build, sign and distribute verified previews
 
-The next publication target is **1.0.0**; keep existing 0.9.x candidates in draft
-until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
+The stable publication target is **1.0.0**. Existing drafts are retained.
+Public candidate files are authorized for in-app updates; candidates remain
+prereleases until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
-Current source: **1.0.0+34 development candidate**. Existing 0.9.x releases remain in draft;
+Current source: **1.0.0+35 development candidate**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.
 
@@ -116,7 +117,7 @@ First close the scope audits, functional gaps and target acceptance in the
 The seven candidate changes and successful package delivery do not establish
 complete functional parity. Keep unresolved requirements visible.
 
-The source version is now 1.0.0+34; the preview tool remains useful for identity,
+The source version is now 1.0.0+35; the preview tool remains useful for identity,
 ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
 [the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to
 represent a stable 1.0 release: it deliberately generates a preview tag/prerelease.
@@ -153,3 +154,32 @@ then pass the staged inputs to the same candidate workflow. It validates exactly
 ARM64/ARMv7/x86_64 together; default delivery still requires three separate APKs.
 No duplicate workflow or private-key upload is needed. Source, native CI,
 provenance, signatures, alignment and digest gates remain mandatory.
+
+## In-app update feed (build 35 onward)
+
+The maintainer chose public update files. Deliver a new empty candidate through
+all existing CI/signing/digest gates first, then publish that verified candidate
+with `gh release edit <candidate-tag> --draft=false --prerelease --latest=false`.
+Do not publish stable 1.0, modify older assets or change repository visibility.
+The delivery script adds `kmreader-update.json` (schema 1, source/version/build,
+package URL/bytes/SHA256) and includes it in SHA256SUMS. URLs use the final tag,
+not GitHub's temporary untagged draft URL. Keep the manifest and packages public;
+no account token is requested or stored by the updater.
+
+Users install build 35 manually once, then choose Settings → About → App updates.
+The app discovers newer public releases containing this manifest, including
+candidates; it rejects drafts, nonincreasing builds, version downgrades, unrelated
+hosts/tags, corrupt downloads and incompatible package provenance. Android also
+verifies the installed package's signer and uses the system installer; allow
+installation from KMReader once and confirm each update as Android requires.
+Windows validates the archive off the UI thread, starts the bundled PowerShell
+helper, closes normally and reopens in the original working directory. It keeps
+user files, backs up replaced files and restores them on replacement failure.
+A writable portable installation is required; protected directories report an
+error without closing the application. Backups remain under the app support
+`updates` directory. Windows packages are still not Authenticode signed.
+
+Run `flutter test test/app_updates_test.dart test/app_update_page_test.dart` and
+(on Windows) `powershell -NoProfile -File tool/test_windows_updater.ps1`; complete
+CI runs both plus the platform builds. Physical Android install approval and
+Windows restart/upgrade acceptance remain AT-01; automation does not close them.

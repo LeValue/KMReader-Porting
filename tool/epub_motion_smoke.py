@@ -119,7 +119,10 @@ with sync_playwright() as pw:
         pixels = image.getdata()
         assert sum(max(p) < 120 for p in pixels) > 150, (style, 'Blank page')
         if style != 'curl':
-            assert page.evaluate('effect.styles.every(s=>s.borderRadius === "") && effect.styles.some(s=>s.filter.startsWith("brightness(")) && effect.styles.some(s=>s.filter.startsWith("drop-shadow("))'), style
+            if style == 'slide':
+                assert page.evaluate('!!effect.previewLayer && effect.styles.every(s=>s.borderRadius === "" && s.filter === "none")'), style
+            else:
+                assert page.evaluate('effect.styles.every(s=>s.borderRadius === "") && effect.styles.some(s=>s.filter.startsWith("brightness(")) && effect.styles.some(s=>s.filter.startsWith("drop-shadow("))'), style
         if style == 'curl':
             assert page.evaluate('effect.surface.canvas.width') == width
             assert page.evaluate('effect.surface.canvas.height') == height
@@ -152,7 +155,7 @@ with sync_playwright() as pw:
             from PIL import ImageStat
             assert max(ImageStat.Stat(ImageChops.difference(end,live)).mean)<6, 'Curl endpoint changed the publication layout'
         if style != 'curl':
-            assert page.evaluate('document.querySelectorAll("style[data-page-motion]").length') == 1
+            assert page.evaluate('document.querySelectorAll("style[data-page-motion],[data-page-motion-preview]").length') == 1
             page.evaluate('effect.update(1)')
             endpoint = Image.open(io.BytesIO(page.screenshot())).convert('RGB')
             page.evaluate('effect.stop()')
@@ -334,17 +337,17 @@ with sync_playwright() as pw:
     # JS object after Chromium already removed its snapshot pseudo-elements.
     page.evaluate("reader.turn({delta:1,style:'slide'})")
     page.wait_for_timeout(100)
-    assert page.evaluate("document.getAnimations().some(a=>a.effect?.pseudoElement?.startsWith('::view-transition-'))"), 'Automatic effect vanished too early'
+    assert page.evaluate("document.getAnimations().some(a=>a.playState==='running'&&(a.effect?.pseudoElement?.startsWith('::view-transition-')||a.effect?.target?.tagName==='IMG'))"), 'Automatic effect vanished too early'
     assert page.evaluate('effect.progress') > 0
     assert page.evaluate('effect.compositor?.animations.length===2'), 'Slide is not animated by the snapshot compositor'
     page.mouse.click(width*.5, 2)
-    assert not page.evaluate('document.querySelector("style[data-page-motion]") || document.getElementById("page-curl-surface")'), 'Mouse input did not expose the live publication'
+    assert not page.evaluate('document.querySelector("style[data-page-motion],[data-page-motion-preview]") || document.getElementById("page-curl-surface")'), 'Mouse input did not expose the live publication'
     page.evaluate("reader.turn({delta:1,style:'slide'})")
     page.wait_for_timeout(100)
     page.evaluate('reader.suspendInput(true)')
-    assert not page.evaluate('document.querySelector("style[data-page-motion]") || document.getElementById("page-curl-surface")')
+    assert not page.evaluate('document.querySelector("style[data-page-motion],[data-page-motion-preview]") || document.getElementById("page-curl-surface")')
     page.evaluate('reader.suspendInput(false)')
-    page.wait_for_function('() => !document.querySelector("style[data-page-motion]")')
+    page.wait_for_function('() => !document.querySelector("style[data-page-motion],[data-page-motion-preview]")')
     page.evaluate('(p)=>reader.preferences({...p,transition:"curl"})', config['preferences'])
     # Use real pointer capture within the original iframe document.
     saved = page.evaluate('reader.position().start.cfi')
@@ -438,7 +441,7 @@ with sync_playwright() as pw:
     # Reduced motion / older WebViews preserve direct navigation.
     page.emulate_media(reduced_motion='reduce')
     page.evaluate("reader.turn({delta:1,style:'curl'})")
-    assert page.evaluate('document.querySelectorAll("style[data-page-motion]").length') == 0
+    assert page.evaluate('document.querySelectorAll("style[data-page-motion],[data-page-motion-preview]").length') == 0
     page.emulate_media(reduced_motion='no-preference')
     page.evaluate('document.startViewTransition=undefined')
     old = page.evaluate('reader.position().start.cfi')
@@ -488,6 +491,6 @@ with sync_playwright() as pw:
     print('GPU preparation', json.dumps(compilation))
     assert not errors, errors
     page.evaluate('reader.destroy()')
-    assert page.evaluate('document.querySelectorAll("style[data-page-motion],#page-gesture").length') == 0
+    assert page.evaluate('document.querySelectorAll("style[data-page-motion],[data-page-motion-preview],#page-gesture").length') == 0
     browser.close()
 print('Visible sheets, localized/bidirectional curl, atomic cancellation, tracked gestures and fallback passed', width)

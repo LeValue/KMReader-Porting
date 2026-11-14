@@ -26,6 +26,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var transferConditions: TransferConditions? = null
     private var ocr: ReaderOcr? = null
     private var exporter: FileExporter? = null
+    private var updater: AppUpdater? = null
     private var privacyChannel: MethodChannel? = null
     private var readerStatusBarVisible = false
     private var readerActive = false
@@ -47,6 +48,7 @@ class MainActivity : FlutterFragmentActivity() {
         transferConditions = TransferConditions(this, flutterEngine.dartExecutor.binaryMessenger)
         ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
         exporter = FileExporter(this, flutterEngine.dartExecutor.binaryMessenger)
+        updater = AppUpdater(this, flutterEngine.dartExecutor.binaryMessenger)
         privacyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.levalue.kmreader/privacy")
         privacyChannel!!.setMethodCallHandler { call, result ->
             if (call.method == "getAppIcons") {
@@ -301,6 +303,8 @@ class MainActivity : FlutterFragmentActivity() {
         privacyChannel = null
         ocr?.close()
         ocr = null
+        updater?.close()
+        updater = null
         exporter?.close()
         exporter = null
         window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(insetObserver)

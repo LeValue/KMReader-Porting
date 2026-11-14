@@ -1,10 +1,10 @@
 # Matrice di parità e chiusura del porting KMReader
 
 **Stato: porting ancora aperto; release stabile non pronta.**
-Aggiornamento del documento: 13 novembre 2026. Piattaforme: Android e Windows.
+Aggiornamento del documento: 14 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+34 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+35 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -13,6 +13,12 @@ Il riferimento rimane [kmworks/kmreader](https://github.com/kmworks/kmreader/tre
 al commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9`. Aggiornare il riferimento
 richiede un confronto esplicito delle differenze. La vecchia matrice e tutti i
 checkpoint sono [conservati nell'archivio](../archive/docs/parity-before-closure-plan-2026-11-07.md).
+
+La build 35 aggiunge il compositore per lo scorrimento automatico, il preriscaldamento
+del curl in entrambe le direzioni e la correzione della griglia pixel frazionaria.
+Aggiunge inoltre aggiornamenti in-app da file pubblici GitHub (Android con conferma
+del sistema; Windows con backup/ripristino). Queste implementazioni non chiudono
+AT-01/AT-07: installazione reale e confronto Hyperion restano da accettare.
 
 ## Come si dichiara concluso il lavoro
 

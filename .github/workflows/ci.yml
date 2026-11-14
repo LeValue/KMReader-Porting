@@ -129,6 +129,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify Windows in-app update replacement and recovery
+        shell: powershell
+        run: ./tool/test_windows_updater.ps1
       - name: Validate the deferred Android diagnostic launcher
         shell: powershell
         run: |

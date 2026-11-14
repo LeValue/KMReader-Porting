@@ -78,6 +78,20 @@ def validate_universal_badging(badging):
         raise ValueError('Universal APK must contain exactly all three supported ABIs')
 
 
+def update_manifest(repository, tag, source, version, build, files):
+    packages = {}
+    for file in files:
+        if file.suffix == '.apk':
+            label = file.name.split('-android-', 1)[1].split('-preview.apk', 1)[0]
+            platform = {'universal': 'android', 'arm64': 'android-arm64-v8a',
+                        'armv7': 'android-armeabi-v7a', 'x64': 'android-x86_64'}[label]
+        else:
+            platform = 'windows'
+        packages[platform] = {'url': f'https://github.com/{repository}/releases/download/{tag}/{file.name}',
+                              'sha256': hashlib.sha256(file.read_bytes()).hexdigest(), 'size': file.stat().st_size}
+    return {'schema': 1, 'version': version, 'build': int(build), 'source': source, 'packages': packages}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verify-only', action='store_true')
@@ -162,6 +176,9 @@ def main():
             if path.is_file():
                 archive.write(path, 'KMReader/' + path.relative_to(bundle).as_posix())
     files.append(windows)
+    manifest = output / 'kmreader-update.json'
+    manifest.write_text(json.dumps(update_manifest(repository, release['tag_name'], source, version, build, files), indent=2) + '\n')
+    files.append(manifest)
     sums = output / 'SHA256SUMS.txt'
     sums.write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.name + '\n' for p in files))
     files.append(sums)

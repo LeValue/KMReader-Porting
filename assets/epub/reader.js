@@ -171,8 +171,11 @@ class KMReaderCurlSurface {
   }
   upload(before,after,width,height) {
     if(this.disposed||this.gl.isContextLost())throw Error('Curl surface unavailable');
-    const gl=this.gl,dpr=KMReaderCurlSurface.rasterScale(width,height);this.width=width;this.height=height;
+    const gl=this.gl,dpr=KMReaderCurlSurface.rasterScale(width,height);
     const pixelWidth=Math.round(width*dpr),pixelHeight=Math.round(height*dpr);
+    // Rounded bitmap dimensions must not stretch CSS glyph coordinates.
+    this.width=pixelWidth/dpr;this.height=pixelHeight/dpr;
+    this.canvas.style.width=this.width+'px';this.canvas.style.height=this.height+'px';
     if(this.canvas.width!==pixelWidth)this.canvas.width=pixelWidth;
     if(this.canvas.height!==pixelHeight)this.canvas.height=pixelHeight;
     gl.viewport(0,0,pixelWidth,pixelHeight);
@@ -304,11 +307,12 @@ class KMReaderSheetEffect {
       try{
         const [before,after]=await this.wait(Promise.all([preview.before,preview.after]));
         if(this.stopped||!after)return false;
-        this.previewLayer=document.createElement('div');
+        this.previewLayer=document.createElement('div');this.previewLayer.dataset.pageMotionPreview=this.id;
         this.previewLayer.style.cssText='position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:2147483645';
         this.styles=[before,after].map(image=>{
           const clone=image.cloneNode();
-          clone.style.cssText='position:absolute;inset:0;width:100%;height:100%;will-change:transform';
+          const scale=KMReaderCurlSurface.rasterScale(this.width,this.height);
+          clone.style.cssText=`position:absolute;left:0;top:0;width:${Math.round(this.width*scale)/scale}px;height:${Math.round(this.height*scale)/scale}px;will-change:transform`;
           this.previewLayer.append(clone);return clone.style;
         });
         document.body.append(this.previewLayer);this.update(0);this.ready=true;return true;
@@ -352,7 +356,7 @@ class KMReaderSheetEffect {
       this.frames.textContent='::view-transition-old(km-reader-page){}::view-transition-new(km-reader-page){}';
       this.styles=[...this.frames.sheet.cssRules].map(rule=>rule.style);
     }
-    for(let i=0;i<2;i++)Object.assign(this.styles[i],frames[i]);
+    for(let i=0;i<2;i++)Object.assign(this.styles[i],this.previewLayer?{...frames[i],filter:'none'}:frames[i]);
   }
   sheetFrames(p){
     const upperOld=this.style==='slide'?!this.reverse:false;
@@ -410,17 +414,18 @@ class KMReaderSheetEffect {
     this.watchdog=setTimeout(()=>this.stop(),Math.max(1500,duration+1000));
     const from=this.progress,delta=target-from;
     const tangent=delta===0?0:Math.max(0,Math.min(3,velocity*duration/delta));
-    if(this.style!=='curl'&&this.transition&&typeof document.documentElement.animate==='function'){
+    if(this.style!=='curl'&&(this.transition||this.previewLayer)&&typeof document.documentElement.animate==='function'){
       const animations=[];
       try{
         for(const i of [0,1]){
           const pseudoElement=i===0?'::view-transition-old(km-reader-page)':'::view-transition-new(km-reader-page)';
-          const animation=document.documentElement.animate(
-          Array.from({length:17},(_,j)=>{const f=j/16,frame=this.sheetFrames(from+delta*f)[i];return {offset:f,transform:frame.transform,filter:frame.filter};}),
+          const element=this.previewLayer?this.previewLayer.children[i]:document.documentElement;
+          const animation=element.animate(
+          Array.from({length:17},(_,j)=>{const f=j/16,frame=this.sheetFrames(from+delta*f)[i];return this.previewLayer?{offset:f,transform:frame.transform}:{offset:f,transform:frame.transform,filter:frame.filter};}),
           {duration,easing:automatic?'cubic-bezier(.45,0,.25,1)':`cubic-bezier(.333333,${tangent/3},.666667,1)`,
-            fill:'both',pseudoElement});
+            fill:'both',...(this.previewLayer?{}:{pseudoElement})});
           animations.push(animation);
-          if(animation.effect.pseudoElement!==pseudoElement)throw Error('Snapshot compositor animation unavailable');
+          if(!this.previewLayer&&animation.effect.pseudoElement!==pseudoElement)throw Error('Snapshot compositor animation unavailable');
         }
         this.compositor={animations,from,target};
         return new Promise(resolve=>{
@@ -462,7 +467,7 @@ class KMReaderSheetEffect {
     cancelAnimationFrame(this.tracking);cancelAnimationFrame(this.frame);
     this.cancelWait();this.finishAnimation?.();this.finishAnimation=null;
     try{this.transition?.skipTransition();}catch(_){}
-    if(this.transition||this.surface?.canvas.isConnected)KMReaderSheetEffect.retireCapture(!!this.transition);
+    if(this.transition||this.previewLayer?.isConnected||this.surface?.canvas.isConnected)KMReaderSheetEffect.retireCapture(!!this.transition);
     this.previewLayer?.remove();this.sheet?.remove();this.frames?.remove();this.surface?.canvas.remove();
     if(this.surface?.effect===this)this.surface.effect=null;
   }
@@ -539,6 +544,7 @@ class KMReaderPageSnapshot {
     operationQueue = pending.catch(() => {});
     return pending;
   }
+  let lastTurnDelta = 1;
   let userMoveUntil = 0;
   let restoring = true, disposed = false, userMove = false, relocationTimer, resizeTimer = null, layoutJobs = 0;
   const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -1317,6 +1323,7 @@ class KMReaderPageSnapshot {
     if (!rendition || auxiliary) return;
     await waitForLayout();
     if (atReadingEnd()) { send('end'); return; }
+    lastTurnDelta=1;
     restoring = true;
     try { await advance(1); }
     finally { restoring = false; userMove = false; position(true); if(!interactiveNavigation)warmCurl(); }
@@ -1324,6 +1331,7 @@ class KMReaderPageSnapshot {
   async function previous() {
     if (!rendition || auxiliary) return;
     await waitForLayout();
+    lastTurnDelta=-1;
     restoring = true;
     try { await advance(-1); }
     finally { restoring = false; userMove = false; position(true); if(!interactiveNavigation)warmCurl(); }
@@ -1477,13 +1485,13 @@ class KMReaderPageSnapshot {
     if(capturePages.has(key)){const value=capturePages.get(key);capturePages.delete(key);capturePages.set(key,value);return value;}
     const task=(async()=>{
       const layers=await Promise.all(parts.map(async({box,markup,annotations})=>`<foreignObject x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}">${await markup.work}</foreignObject>${annotations}`));
-      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width*dpr)}" height="${Math.round(height*dpr)}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width*dpr)}" height="${Math.round(height*dpr)}" viewBox="0 0 ${Math.round(width*dpr)/dpr} ${Math.round(height*dpr)/dpr}"><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
       if(svg.length>8*1024*1024)throw Error('Page texture exceeds markup budget');
       const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await image.decode();
       if(disposed||revision!==captureRevision)throw Error('Stale page texture');return image;
     })();capturePages.set(key,task);task.catch(()=>capturePages.delete(key));
     // Four screen-sized textures at most; document markup is shared per chapter.
-    const limit=Math.max(2,Math.min(4,Math.floor(32*1024*1024/(width*height*dpr*dpr*4))));
+    const limit=Math.max(2,Math.min(4,Math.floor(64*1024*1024/(width*height*dpr*dpr*4))));
     while(capturePages.size>limit)capturePages.delete(capturePages.keys().next().value);
     return task;
   }
@@ -1527,7 +1535,10 @@ class KMReaderPageSnapshot {
       if(disposed||revision!==captureRevision||rendition?.manager!==manager)return null;
       const layout=Object.assign(Object.create(Object.getPrototypeOf(manager.layout)),manager.layout,
         {settings:{...manager.layout.settings},props:{...manager.layout.props}});
-      const view=new IframeView(section,{...manager.viewSettings,layout});
+      // Preview loading must not repopulate the spine's discarded DOM while
+      // a new live chapter is opening. Share hooks, not parsed chapter state.
+      const previewSection=new section.constructor({...section,linear:section.linear?'yes':'no'},section.hooks);
+      const view=new IframeView(previewSection,{...manager.viewSettings,layout});
       const holder=document.createElement('div');
       holder.style.cssText=`position:fixed;left:0;top:0;width:${innerWidth}px;height:${innerHeight}px;overflow:hidden;opacity:0;pointer-events:none;contain:strict;direction:${config.direction==='rtl'?'rtl':'ltr'}`;
       holder.setAttribute('aria-hidden','true');holder.append(view.element);document.body.append(holder);
@@ -1566,45 +1577,46 @@ class KMReaderPageSnapshot {
     // Direct navigation is also used inside an effect's capture callback.
     // Never dispose or replace its textures while that effect owns them.
     if(gesture||sheetEffect||KMReaderCurlSurface.shared?.effect)return;
-    if(!curlConfigured()){releaseCurl();return;}
-    if(!curlEligible())return;
+    const gpu=curlConfigured();
+    const slideConfigured=()=>preferences?.flow==='paged'&&preferences.transition==='slide'&&motionAllowed('slide')&&KMReaderSheetEffect.supported('slide');
+    if(!gpu&&!slideConfigured()){releaseCurl();return;}
+    const eligible=()=>!disposed&&!document.hidden&&!inputSuspended&&rendition?.manager?.settings.axis==='horizontal'&&(gpu?curlConfigured():slideConfigured());
+    if(!eligible())return;
     const revision=captureWarmRevision,publication=captureRevision;
-    const valid=()=>revision===captureWarmRevision&&publication===captureRevision&&curlEligible()&&!gesture&&!sheetEffect;
+    const valid=()=>revision===captureWarmRevision&&publication===captureRevision&&eligible()&&!gesture&&!sheetEffect;
     const prepare=async()=>{
       if(!valid())return;
       try {
-        prepareCurlPrograms();
-        if(!KMReaderSheetEffect.supported('curl'))return;
+        if(gpu){prepareCurlPrograms();if(!KMReaderSheetEffect.supported('curl'))return;}
         const idleImage=await captureSheet();
         if(!valid())return;
         // Compile the retained GPU programs while idle, rather than on the
         // first finger movement, including driver pipeline and framebuffer setup.
-        const surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
-        await surface.whenReady();
+        const surface=gpu?(KMReaderCurlSurface.shared??=new KMReaderCurlSurface()):null;
+        await surface?.whenReady();
         if(!valid())return;
         // Prepare the actual front texture on every idle page, not just the
         // first viewport. A null back preserves the other retained allocation.
         const origin=previewOrigin(),pages=new Map();
         curlPreview={origin,before:idleImage,pages};
-        surface.upload(idleImage,null,innerWidth,innerHeight);
+        surface?.upload(idleImage,null,innerWidth,innerHeight);
         // Cache both directions without moving the publication. Navigating
         // during a drag used to invalidate input routing and require rollback.
         const budget=innerWidth*innerHeight*KMReaderCurlSurface.rasterScale(innerWidth,innerHeight)**2*4;
-        for(const delta of budget*3<=32*1024*1024?[1,-1]:[1]){
+        const preferred=lastTurnDelta;
+        for(const delta of budget*3<=64*1024*1024?[preferred,-preferred]:[preferred]){
           const image=await previewImage(delta);
           if(!valid()||origin!==previewOrigin())return;
           if(!image)continue;
           pages.set(delta,image);
-          if(delta===1){
-            surface.upload(idleImage,image,innerWidth,innerHeight);
-            surface.render(.5,rendition.manager?.layout?.divisor===2,1,0,.5);surface.gl.flush();
-          }
+          if(surface){surface.upload(idleImage,image,innerWidth,innerHeight);
+          surface.render(.5,rendition.manager?.layout?.divisor===2,(delta>0)!==(config.direction==='rtl')?1:-1,0,.5);surface.gl.flush();}
         }
-        surface.upload(idleImage,pages.get(1)||idleImage,innerWidth,innerHeight);
+        if(surface){surface.upload(idleImage,pages.get(preferred)||idleImage,innerWidth,innerHeight);
         // Submit a real draw for each newly prepared pair. Decoding SVG alone
         // does not force its glyph rasterization/texture work onto the GPU.
         surface.render(.5,rendition.manager?.layout?.divisor===2,1,0,.5);
-        surface.render(0,false,1,0,.5);surface.gl.flush();
+        surface.render(0,false,1,0,.5);surface.gl.flush();}
       }catch(_){/* Unsupported artwork retains direct reading. */}
     };
     // Prefer idle time, with a deadline against indefinite starvation. Input,
@@ -1758,6 +1770,13 @@ class KMReaderPageSnapshot {
     // compositor snapshot to prepare or retire on its own.
     const effect = sheetEffect = new KMReaderSheetEffect(style,
       (delta > 0) !== (config.direction === 'rtl') ? 1 : -1, preferences, y, delta < 0, rendition.manager?.layout?.divisor === 2, captureSheet);
+    const preview=style==='slide'?await timeout(preparePreview(delta).catch(()=>null),2500):null;
+    if(preview){
+      if(await effect.start(()=>Promise.resolve(),preview)){
+        try{await move();return effect;}catch(error){effect.stop();throw error;}
+      }
+      await move();if(sheetEffect===effect)sheetEffect=undefined;return null;
+    }
     if (!await effect.start(() => capturedLayout(move))) { if (sheetEffect === effect) sheetEffect = undefined; return null; }
     return effect;
   }

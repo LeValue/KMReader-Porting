@@ -107,3 +107,19 @@ default. In the app, **Check** remains read-only and **Retry removal** is separa
 Record initial writes and subsequent zero-write readback as distinct evidence;
 the real lifecycle and remaining coverage are in
 [Kindle management](KINDLE_LIBRARY_MANAGEMENT.md).
+
+## Update packages and animation regressions (build 35)
+
+`flutter test test/app_updates_test.dart test/app_update_page_test.dart` covers
+public-feed selection, manifest/host/version validation, streaming hashes,
+Windows archive provenance/traversal and explicit install actions. Windows CI
+also executes `tool/test_windows_updater.ps1` for real replacement, retention of
+user files, source/digest rejection and recovery after a locked-file failure.
+Android CI compiles the signer/version/provenance checks and FileProvider flow;
+a physical Android upgrade still needs acceptance with the system installer.
+
+The full browser command above includes `epub_pixel_alignment_smoke.py`
+(DPR 2.625 and fractional viewer origins, both directions),
+`epub_reverse_ready_smoke.py` (DPR 3, backward gesture without foreground text
+serialization/decoding), plus automatic/tracked slide and curl cleanup/progress.
+Do not treat a run without `KMREADER_BROWSER_TEST=1` as browser validation.
