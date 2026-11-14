@@ -60,7 +60,7 @@ function Apply-KMReaderUpdate($job) {
                 [IO.File]::Copy((Join-Path $stage $relative),$incoming,$false)
                 for ($attempt = 0; ; $attempt++) {
                     try {
-                        if ($existed[$relative]) { [IO.File]::Replace($incoming,$target,$null) }
+                        if ($existed[$relative]) { [IO.File]::Replace($incoming,$target,[NullString]::Value) }
                         else { [IO.File]::Move($incoming,$target) }
                         break
                     } catch [IO.IOException] {
