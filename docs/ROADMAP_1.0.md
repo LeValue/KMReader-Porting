@@ -118,3 +118,9 @@ Add accurate 1.0 release notes and embed the exact source in each final build.
 The current publisher generates preview tags and marks releases as prereleases;
 the final stable 1.0 publication needs an explicit, verified stable-release path.
 Do not publish an older draft as a substitute for completing the 1.0 milestone.
+
+
+Build 36 packages are available as [public candidate.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6).
+[Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577) and downloaded-byte checks passed.
+The original Android identity and every previous release/asset are retained.
+This does not close personal VM setup, physical device acceptance or stable parity.

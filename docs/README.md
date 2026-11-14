@@ -1,7 +1,7 @@
 # Documentation
 
 Current source: **1.0.0+36 development candidate**, based on working 0.9.1.
-Latest public development package: [build 35](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5).
+Latest public development package: [build 36](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6).
 Stable 1.0 remains gated. See
 [1.0 changes](releases/v1.0.0.md), [readiness](ROADMAP_1.0.md) and
 [validation](VALIDATION.md). Historical inventory is in the

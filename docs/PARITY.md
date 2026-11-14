@@ -14,6 +14,12 @@ al commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9`. Aggiornare il riferimento
 richiede un confronto esplicito delle differenze. La vecchia matrice e tutti i
 checkpoint sono [conservati nell'archivio](../archive/docs/parity-before-closure-plan-2026-11-07.md).
 
+La build 36 implementa l’amministrazione Komga descritta in KGA-01–KGA-04.
+[CI completa](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777), [consegna](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577) e download della
+[candidate.6 pubblica](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6) sono verificati. Rimangono aperti setup della VM
+personale e accettazione sui dispositivi; non sono stati usati libri personali.
+Le 47 release e 188 risorse precedenti rimangono conservate.
+
 La build 35 aggiunge il compositore per lo scorrimento automatico, il preriscaldamento
 del curl in entrambe le direzioni e la correzione della griglia pixel frazionaria.
 Aggiunge inoltre aggiornamenti in-app da file pubblici GitHub (Android con conferma
@@ -51,7 +57,7 @@ non è stata dimostrata un'identità pixel per pixel con Apple.
 | Futuro / escluso | Fuori dal perimetro per una motivazione dichiarata; non viene conteggiato come parità implementata. |
 | Chiuso | Requisito, implementazione/adattamento ed evidenza soddisfano il criterio di accettazione. |
 
-Le evidenze correnti sono in [VALIDATION.md](VALIDATION.md). La build 35,
+Le evidenze correnti sono in [VALIDATION.md](VALIDATION.md). Il checkpoint della build 35,
 sorgente `69a127d50354aed80983d72988cde186d611c8b2`, supera [CI completa](https://github.com/LeValue/KMReader-Porting/actions/runs/43588228905),
 [consegna verificata](https://github.com/LeValue/KMReader-Porting/actions/runs/43590146370) e confronto dei download. La nuova
 [candidate.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5) è pubblica/prerelease per gli aggiornamenti in-app:
@@ -213,8 +219,8 @@ cambiata; le modifiche runtime richiedono nuove build e CI.
 | ID | Controllo finale | Stato attuale / criterio di chiusura |
 |---|---|---|
 | R-01 | Chiudere A, F e AT, poi fissare la sorgente finale | Aperto. Elenco delle differenze risolto, nessuna esclusione implicita, difetti residui dichiarati. Aggiornare matrice e note con le prove effettive; la sola chiusura dei sette interventi non basta. |
-| R-02 | Regressioni e backend sulla sorgente finale | Superato anche per la candidata 35 (`69a127d`, CI 43588228905); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
-| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+35 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
+| R-02 | Regressioni e backend sulla sorgente finale | Superato per la candidata 36 (`e186e60`, CI 43638043777); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
+| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+36 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
 | R-04 | Allegati e pubblicazione stabile | Consegna della candidata già verificata; la pubblicazione stabile resta aperta. Preparare/verificare i pacchetti della sorgente finale, riscaricarli e controllare checksum e contenuto. Seguire [RELEASING.md](RELEASING.md): il publisher preview non equivale alla promozione stabile di `v1.0.0`. |
 | R-05 | Conservazione e documentazione | Conservare cronologia, build precedenti, firma Android e sorgenti del runtime Kindle; non rimuovere script attivi. Prima di eventuali eliminazioni di rami/release presentare un nuovo inventario preciso. Aggiornare README, note, [audit repository](REPOSITORY_AUDIT.md) e [validazione](VALIDATION.md) senza modificare allegati storici. |
 

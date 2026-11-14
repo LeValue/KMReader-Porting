@@ -2,6 +2,8 @@
 
 ## 1.0.0+36 remote Komga administration — 2026-11-14
 
+Exact packaged source: `e186e60a6034027f8e95ba1100a75d1aa83b9fc2`.
+
 Local verification: clean Flutter analysis, **7 focused Dart tests**, and
 **26 Python tool tests** (including 9 companion cases). Tests cover permissions,
 revocation during transfer, duplicate rejection, checksum/content validation,
@@ -11,8 +13,29 @@ with a `/komga` prefix: nested-folder upload, catalog analysis, metadata locks,
 selected cover and cache notifications, duplicate rejection without changing
 bytes, and asynchronous deletion of the synthetic original file.
 No personal server library or account was used. Personal Debian VM installation
-and Android/Windows acceptance remain open. CI and packaged-build delivery for
-this source must pass before publication; build 35 remains the public package.
+and Android/Windows acceptance remain open. [Complete source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777) passed Android, Windows and native Android display.
+Each host suite passed **453 tests, with 43 explicit skips**. Dedicated checks
+passed: 26 Python tool tests, 82 Kindle tests on each host, 36 prepared/browser
+checks, 7 ONNX checks, and both real Komga smokes (1.29.1 and 1.30.1).
+Android native checks passed 2 display and 32 reader cases; Windows passed 32
+native cases with 1 platform skip, release startup and the updater checks for
+replacement, backup, data preservation and integrity/source rejection.
+[Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577) passed package identity, provenance, signing, architecture,
+alignment and asset checks. [Public candidate.6 downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6) are verified:
+APK matches the locally signed file and all **711 Windows files** match CI.
+The public update feed and full Windows package download/validation passed
+without account credentials. This update is selectable by installed build 35.
+Android code 36, Preview package and the original certificate
+`d95f940bec20cec8563c946df8c62de1922852b9b5d3bf3a7765e9dc1b10322e`
+are retained, with all three ABIs, v2/v3 signing and 16 KiB alignment.
+Keystore/properties guards match the retained build 31 baseline.
+All **47 previous releases and 188 previous assets** are unchanged; totals are
+48 releases / 192 assets. No branch or previous package was deleted.
+
+| Package | Bytes | SHA256 |
+|---|---:|---|
+| `KMReader-1.0.0-android-universal-preview.apk` | 260,718,729 | `498317f382a488c043c485dcd9b8c92bf832637f403f14742473aeb38fc8665b` |
+| `KMReader-1.0.0-windows-x64-preview.zip` | 104,835,039 | `4d07feb4761e10df7faff4d5b3666824a1d7e47675d22ad8640d7f9b6a0838bd` |
 
 
 ## 1.0.0+35 animation fixes and public in-app updates — 2026-11-14

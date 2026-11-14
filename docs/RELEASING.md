@@ -188,3 +188,11 @@ Build 35 is delivered and public at [candidate.5](https://github.com/LeValue/KMR
 `69a127d50354aed80983d72988cde186d611c8b2`. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43588228905) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43590146370) passed; all four downloaded assets
 and 711 Windows files were verified. Original Android signing identity and
 all older drafts/assets are retained. Physical upgrade acceptance remains open.
+
+
+Build 36 is public at [candidate.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6) from source `e186e60a6034027f8e95ba1100a75d1aa83b9fc2`.
+[Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577) passed; all four assets,
+all 711 Windows payload files and the public update feed were verified.
+The Komga companion is versioned under `tool/komga_admin` in that same source tag;
+it is installed once on the Debian server, separately from client packages.
+[Setup and acceptance](KOMGA_LIBRARY_MANAGEMENT.md) remain explicit.
