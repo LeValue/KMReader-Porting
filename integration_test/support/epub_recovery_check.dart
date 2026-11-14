@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -219,7 +220,36 @@ void verifyNativeEpubRecovery() {
         await mount();
         await readable('cold-open');
         final beforeSettings = await js('return reader.position().start.cfi;');
-        await tester.tap(find.byType(PopupMenuButton<String>).first);
+        // Pixel delivery can outlast the reader's idle chrome timer on a
+        // software-rendered emulator. Reveal the same top-edge controls as a
+        // real pointer before opening settings; keep the saved CFI assertion.
+        final pointer = TestGesture(
+          dispatcher: tester.sendEventToBinding,
+          pointer: 424245,
+          device: 424245,
+          kind: PointerDeviceKind.mouse,
+        );
+        try {
+          await pointer.addPointer();
+          await pointer.moveTo(
+            tester.getTopLeft(find.byType(BrowserEpubReader)) +
+                const Offset(8, 8),
+          );
+          for (var attempt = 0; attempt < 60; attempt++) {
+            await tester.pump(const Duration(milliseconds: 50));
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+            if (find.byType(PopupMenuButton<String>).evaluate().isNotEmpty) {
+              break;
+            }
+          }
+          expect(find.byType(PopupMenuButton<String>), findsWidgets);
+          await pointer.down(
+            tester.getCenter(find.byType(PopupMenuButton<String>).first),
+          );
+          await pointer.up();
+        } finally {
+          await pointer.removePointer();
+        }
         await tester.pumpAndSettle();
         await tester.tap(find.text('Text Settings').last);
         await tester.pumpAndSettle();
