@@ -52,7 +52,7 @@ Nessuna installazione è stata eseguita automaticamente sul server personale.
 
 1. Copia `tool/komga_admin/server.py` in `/opt/kmreader-admin/server.py`.
    I file della candidata sono anche disponibili dal tag versionato
-   `v1.0.0-candidate.6` del repository (dopo la sua pubblicazione), senza dipendenze pip:
+   `v1.0.0-candidate.6` del repository, senza dipendenze pip:
 
    ```sh
    sudo install -d -m 0755 /opt/kmreader-admin /etc/kmreader-admin
@@ -74,7 +74,7 @@ Nessuna installazione è stata eseguita automaticamente sul server personale.
      essere diverso da `path`, che è il corrispondente percorso nella VM;
    - `max_upload_bytes`: limite per singolo file, predefinito 2 GiB.
 4. Concedi all'utente di servizio accesso in scrittura **solo** alle cartelle
-   abilitate. I file nuovi hanno permessi `0640`, le cartelle nuove `2770`:
+   abilitate. I file nuovi hanno permessi `0640`; il servizio con UMask `0027` crea cartelle `2750`:
    il gruppo configurato deve consentire a Komga di leggerli. Se servono ACL,
    applicale alle cartelle delle librerie, senza rendere scrivibile il sistema.
 5. Copia `debian/kmreader-admin.service` in `/etc/systemd/system/` e adatta

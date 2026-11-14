@@ -25,7 +25,16 @@ publication. The existing 0.9.x drafts and all earlier release assets are retain
 
 Build 35 adds in-app updates under **Settings → About → App updates**, compositor-based automatic slide turns, backward curl preparation and fractional-density pixel alignment. All source CI and delivery checks passed; see [validation](docs/VALIDATION.md).
 
-[Download Android / Windows build 35](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5) — public development prerelease.
+[Download Android / Windows build 36](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6) — public development prerelease.
+Build 35 users can install this update from **Settings → About → App updates**.
+For earlier versions, install over KMReader Preview without uninstalling; on
+Windows extract the complete ZIP. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577),
+downloaded hashes and all 711 Windows files were verified. Android keeps the
+original signing identity. [One-time Debian upload setup](docs/KOMGA_LIBRARY_MANAGEMENT.md)
+is required only for adding new files; metadata, covers and deletion use Komga directly.
+Personal VM/device acceptance remains open.
+
+[Retained Android / Windows build 35](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5) — public development prerelease.
 Install the universal APK over **KMReader Preview**, without uninstalling;
 Windows users extract the whole ZIP and run `KMReader/kmreader.exe`.
 This is the one bootstrap installation needed for **Settings → About → App updates**.
