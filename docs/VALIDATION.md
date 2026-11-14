@@ -1,5 +1,20 @@
 # Development validation
 
+## 1.0.0+36 remote Komga administration — 2026-11-14
+
+Local verification: clean Flutter analysis, **7 focused Dart tests**, and
+**26 Python tool tests** (including 9 companion cases). Tests cover permissions,
+revocation during transfer, duplicate rejection, checksum/content validation,
+symlink traversal, receipt ownership and recovery after publication/interruption.
+A real disposable **Komga 1.30.1** lifecycle passed through a same-origin proxy
+with a `/komga` prefix: nested-folder upload, catalog analysis, metadata locks,
+selected cover and cache notifications, duplicate rejection without changing
+bytes, and asynchronous deletion of the synthetic original file.
+No personal server library or account was used. Personal Debian VM installation
+and Android/Windows acceptance remain open. CI and packaged-build delivery for
+this source must pass before publication; build 35 remains the public package.
+
+
 ## 1.0.0+35 animation fixes and public in-app updates — 2026-11-14
 
 [Public candidate.5 Android/Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5). Exact build source:

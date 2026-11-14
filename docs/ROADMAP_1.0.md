@@ -2,7 +2,7 @@
 
 The next publication target is **1.0.0**. Existing 0.9.x candidates stay in draft
 while work continues; previous builds and releases remain available for recovery.
-Current source is **1.0.0+35 development candidate**; stable publication remains gated by the checks below.
+Current source is **1.0.0+36 development candidate**; stable publication remains gated by the checks below.
 Changing the version number alone does not complete this milestone.
 
 ## Working scope
@@ -18,14 +18,22 @@ downloads/offline use and progress, plus these requested changes:
   older books or documents without a publication date.
 
 [1.0 release notes](releases/v1.0.0.md) and [Kindle import](KINDLE_IMPORT.md)
-describe behavior and limits. AI/model/translation extensions and upload to a
-Komga server are **future features**, excluded from 1.0 acceptance. Existing
+describe behavior and limits. AI/model/translation extensions are **future features**, excluded from 1.0 acceptance. Existing
 experimental settings remain labeled and their persisted configuration is kept.
 The [porting closure matrix](PARITY.md) is the actionable checklist for finishing
 Android/Windows porting. The seven changes above describe this candidate; the
 remaining applicable functionality, scope audits and target-device acceptance
 must be resolved before calling the port finished or proceeding to stable
 release. The matrix records future work and platform exclusions explicitly.
+
+## Additional requested Komga administration
+
+Build 36 adds new-file upload, metadata/cover editing and confirmed deletion for
+Komga administrators. File replacement is explicitly excluded. Metadata, covers
+and deletion use native Komga APIs. Upload requires the documented
+[Debian companion and proxy setup](KOMGA_LIBRARY_MANAGEMENT.md).
+Disposable Komga 1.30.1 end-to-end checks passed; installation and acceptance on
+the personal Debian/Proxmox VM remain open.
 
 ## Additional requested Kindle service
 
@@ -101,8 +109,8 @@ does not belong in logs, fixtures, source archives or CI artifacts.
 
 ## Version and publication
 
-Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+35 for this candidate,
-strictly above the retained build 34 candidate. Passing the readiness checks is still
+Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+36 for this candidate,
+strictly above the retained build 35 candidate. Passing the readiness checks is still
 required before stable publication. Preserve the
 existing Preview application ID and signing certificate for upgrade continuity.
 Add accurate 1.0 release notes and embed the exact source in each final build.

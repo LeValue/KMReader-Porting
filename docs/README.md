@@ -1,14 +1,15 @@
 # Documentation
 
-Current source: **1.0.0+31 development candidate**, based on working 0.9.1. Existing 0.9.x
-binaries remain in draft; the latest published preview remains 0.8.12.
-See the [verified candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8),
+Current source: **1.0.0+36 development candidate**, based on working 0.9.1.
+Latest public development package: [build 35](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5).
+Stable 1.0 remains gated. See
 [1.0 changes](releases/v1.0.0.md), [readiness](ROADMAP_1.0.md) and
 [validation](VALIDATION.md). Historical inventory is in the
 [repository audit](REPOSITORY_AUDIT.md).
 
 | Task | Document |
 |---|---|
+| Manage a Komga library remotely | [Debian setup and supported operations](KOMGA_LIBRARY_MANAGEMENT.md) |
 | Track the next publication target | [Road to 1.0](ROADMAP_1.0.md) |
 | Set up and understand the source tree | [Development](DEVELOPMENT.md) |
 | Run checks and understand skipped tests | [Testing](TESTING.md) |

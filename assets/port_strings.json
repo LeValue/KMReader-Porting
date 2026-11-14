@@ -1908,5 +1908,161 @@
   "This EPUB uses a cover format that cannot be replaced safely. Use an EPUB with a JPG or PNG cover.": {
     "en": "This EPUB uses a cover format that cannot be replaced safely. Use an EPUB with a JPG or PNG cover.",
     "it": "Questo EPUB usa un formato di copertina che non può essere sostituito in modo sicuro. Usa un EPUB con copertina JPG o PNG."
+  },
+  "Add to Komga": {
+    "en": "Add to Komga",
+    "it": "Aggiungi a Komga"
+  },
+  "Manage on Komga": {
+    "en": "Manage on Komga",
+    "it": "Gestisci su Komga"
+  },
+  "Edit information": {
+    "en": "Edit information",
+    "it": "Modifica informazioni"
+  },
+  "Change cover": {
+    "en": "Change cover",
+    "it": "Cambia copertina"
+  },
+  "Delete from Komga": {
+    "en": "Delete from Komga",
+    "it": "Elimina da Komga"
+  },
+  "This deletes the original file on the Komga server for every user. This cannot be undone.": {
+    "en": "This deletes the original file on the Komga server for every user. This cannot be undone.",
+    "it": "Il file originale verrà eliminato dal server Komga per tutti gli utenti. Questa operazione non può essere annullata."
+  },
+  "Cover updated on Komga.": {
+    "en": "Cover updated on Komga.",
+    "it": "Copertina aggiornata su Komga."
+  },
+  "Deletion requested. Komga will update the library after processing.": {
+    "en": "Deletion requested. Komga will update the library after processing.",
+    "it": "Eliminazione richiesta. Komga aggiornerà la libreria al termine dell’elaborazione."
+  },
+  "Upload a new EPUB, PDF, CBZ or CBR to your Komga library. Existing files are never replaced.": {
+    "en": "Upload a new EPUB, PDF, CBZ or CBR to your Komga library. Existing files are never replaced.",
+    "it": "Carica un nuovo EPUB, PDF, CBZ o CBR nella libreria Komga. I file esistenti non vengono sostituiti."
+  },
+  "Remote upload is not configured on this server.": {
+    "en": "Remote upload is not configured on this server.",
+    "it": "Il caricamento remoto non è configurato su questo server."
+  },
+  "Server setup instructions": {
+    "en": "Server setup instructions",
+    "it": "Istruzioni per configurare il server"
+  },
+  "Series folder": {
+    "en": "Series folder",
+    "it": "Cartella della serie"
+  },
+  "Filename": {
+    "en": "Filename",
+    "it": "Nome del file"
+  },
+  "maximum": {
+    "en": "maximum",
+    "it": "massimo"
+  },
+  "Upload to Komga": {
+    "en": "Upload to Komga",
+    "it": "Carica su Komga"
+  },
+  "Retry upload": {
+    "en": "Retry upload",
+    "it": "Riprova caricamento"
+  },
+  "Check upload status": {
+    "en": "Check upload status",
+    "it": "Verifica esito caricamento"
+  },
+  "New upload": {
+    "en": "New upload",
+    "it": "Nuovo caricamento"
+  },
+  "Cancel upload": {
+    "en": "Cancel upload",
+    "it": "Annulla caricamento"
+  },
+  "File uploaded. Komga is scanning the library; new content may take a moment to appear.": {
+    "en": "File uploaded. Komga is scanning the library; new content may take a moment to appear.",
+    "it": "File caricato. Komga sta scansionando la libreria; il nuovo contenuto potrebbe comparire tra qualche istante."
+  },
+  "File uploaded. Request a scan to add it to the catalog.": {
+    "en": "File uploaded. Request a scan to add it to the catalog.",
+    "it": "File caricato. Richiedi una scansione per aggiungerlo al catalogo."
+  },
+  "The previous upload may still be running. Check its status before starting another file.": {
+    "en": "The previous upload may still be running. Check its status before starting another file.",
+    "it": "Il precedente caricamento potrebbe essere ancora in corso. Verifica il suo esito prima di iniziare con un altro file."
+  },
+  "The server has not recorded this upload. You can retry with the same file.": {
+    "en": "The server has not recorded this upload. You can retry with the same file.",
+    "it": "Il server non ha registrato questo caricamento. Puoi riprovare con lo stesso file."
+  },
+  "Choose a file within the server limit and enter a series folder and filename.": {
+    "en": "Choose a file within the server limit and enter a series folder and filename.",
+    "it": "Scegli un file entro il limite del server e indica la cartella della serie e il nome del file."
+  },
+  "Select the original file to retry this upload.": {
+    "en": "Select the original file to retry this upload.",
+    "it": "Seleziona il file originale per riprovare questo caricamento."
+  },
+  "Choose a cover smaller than 20 MB.": {
+    "en": "Choose a cover smaller than 20 MB.",
+    "it": "Scegli una copertina inferiore a 20 MB."
+  },
+  "Upload interrupted. Check its status before retrying.": {
+    "en": "Upload interrupted. Check its status before retrying.",
+    "it": "Caricamento interrotto. Verifica il suo esito prima di riprovare."
+  },
+  "A file with this name already exists; it was not overwritten": {
+    "en": "A file with this name already exists; it was not overwritten",
+    "it": "Esiste già un file con questo nome; non è stato sovrascritto"
+  },
+  "Upload checksum mismatch": {
+    "en": "Upload checksum mismatch",
+    "it": "Il controllo di integrità del caricamento non è riuscito"
+  },
+  "Enable this format in the Komga library settings": {
+    "en": "Enable this format in the Komga library settings",
+    "it": "Abilita questo formato nelle impostazioni della libreria Komga"
+  },
+  "Storage or connection unavailable; check upload status before retrying": {
+    "en": "Storage or connection unavailable; check upload status before retrying",
+    "it": "Archiviazione o connessione non disponibile; verifica l’esito prima di riprovare"
+  },
+  "Library is not enabled for uploads": {
+    "en": "Library is not enabled for uploads",
+    "it": "Questa libreria non è abilitata al caricamento remoto"
+  },
+  "Configured library root does not match Komga": {
+    "en": "Configured library root does not match Komga",
+    "it": "La cartella configurata per il caricamento non corrisponde a quella di Komga"
+  },
+  "Another upload is active; check its status before retrying": {
+    "en": "Another upload is active; check its status before retrying",
+    "it": "Un altro caricamento è in corso; verifica il suo esito prima di riprovare"
+  },
+  "Invalid folder or filename": {
+    "en": "Invalid folder or filename",
+    "it": "Cartella o nome del file non valido"
+  },
+  "Upload not confirmed. Retry with the original file to recover its result.": {
+    "en": "Upload not confirmed. Retry with the original file to recover its result.",
+    "it": "Caricamento non confermato. Riprova con il file originale per recuperarne l’esito."
+  },
+  "Use CBZ, CBR, EPUB or PDF": {
+    "en": "Use CBZ, CBR, EPUB or PDF",
+    "it": "Scegli un file CBZ, CBR, EPUB o PDF"
+  },
+  "The file exceeds the server upload limit.": {
+    "en": "The file exceeds the server upload limit.",
+    "it": "Il file supera il limite di caricamento del server."
+  },
+  "Example: Marvel/X-Men": {
+    "en": "Example: Marvel/X-Men",
+    "it": "Esempio: Marvel/X-Men"
   }
 }

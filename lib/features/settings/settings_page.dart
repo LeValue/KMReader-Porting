@@ -34,6 +34,7 @@ import 'password_page.dart';
 import 'library_editor.dart';
 import 'translation_settings.dart';
 import 'server_management_page.dart';
+import 'komga_upload_page.dart';
 import 'kindle_services_page.dart';
 import '../catalog/catalog_page.dart';
 import '../../ui/wheel_scroll.dart';
@@ -575,6 +576,19 @@ class _SettingsSection extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (repository.profile.admin &&
+                      repository.profile.source == 'komga')
+                    ListTile(
+                      leading: const Icon(Icons.upload_file),
+                      title: Text(tr(context, 'Add to Komga')),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              KomgaUploadPage(repository: repository),
+                        ),
+                      ),
+                    ),
                   if (repository.profile.admin) ...[
                     ListTile(
                       leading: const Icon(Icons.admin_panel_settings_outlined),

@@ -169,6 +169,105 @@ class KomgaApi {
     }
   }
 
+  /// Streams administrator files to this configured server only. Mutations are
+  /// never retried automatically, including redirects and lost responses.
+  Future<Json> uploadFile(
+    String path, {
+    required Stream<List<int>> bytes,
+    required int length,
+    required void Function(int) progress,
+    Map<String, dynamic>? query,
+    Map<String, String>? extra,
+    Future<void>? abortTrigger,
+    String? multipartFilename,
+  }) async {
+    if (_closed) throw const ApiFailure('The server connection was closed.');
+    var sent = 0;
+    final source = bytes.map((block) {
+      sent += block.length;
+      progress(sent);
+      return block;
+    });
+    final http.BaseRequest request;
+    if (multipartFilename != null) {
+      request = _MultipartUpload(uri(path, query), abortTrigger)
+        ..files.add(
+          http.MultipartFile(
+            'file',
+            source,
+            length,
+            filename: multipartFilename,
+          ),
+        );
+    } else {
+      request = _StreamUpload(uri(path, query), source, abortTrigger)
+        ..contentLength = length
+        ..headers['Content-Type'] = 'application/octet-stream';
+    }
+    request.followRedirects = false;
+    request.headers.addAll({...headers, ...?extra});
+    try {
+      final response = await _client
+          .send(request)
+          .timeout(const Duration(minutes: 30));
+      final output = <int>[];
+      await for (final block in response.stream.timeout(
+        Duration(seconds: network.request),
+      )) {
+        if (output.length + block.length > 1024 * 1024) {
+          throw const ApiFailure('The server returned an unexpected response.');
+        }
+        output.addAll(block);
+      }
+      Json value = {};
+      if (output.isNotEmpty) {
+        try {
+          value = object(jsonDecode(utf8.decode(output)));
+        } on FormatException {
+          if (response.statusCode < 400) {
+            throw const ApiFailure(
+              'The server returned an unexpected response.',
+            );
+          }
+        }
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiFailure(
+          response.statusCode == 401
+              ? 'Authentication failed. Check your credentials.'
+              : response.statusCode == 403
+              ? 'Admin access required.'
+              : response.statusCode == 413
+              ? 'The file exceeds the server upload limit.'
+              : response.statusCode == 404
+              ? 'Remote upload is not configured on this server.'
+              : text(value['error']).isNotEmpty
+              ? text(value['error'])
+              : 'The server rejected the upload.',
+          status: response.statusCode,
+          path: path,
+        );
+      }
+      return value;
+    } on http.RequestAbortedException {
+      throw const ApiFailure(
+        'Upload interrupted. Check its status before retrying.',
+      );
+    } on TimeoutException {
+      throw const ApiFailure(
+        'Upload interrupted. Check its status before retrying.',
+      );
+    } on IOException {
+      throw const ApiFailure(
+        'Upload interrupted. Check its status before retrying.',
+      );
+    } on http.ClientException {
+      throw const ApiFailure(
+        'Upload interrupted. Check its status before retrying.',
+      );
+    }
+  }
+
   Future<dynamic> request(
     String path, {
     String method = 'GET',
@@ -646,3 +745,21 @@ class KomgaApi {
 }
 
 dynamic _decodeJson(Uint8List bytes) => jsonDecode(utf8.decode(bytes));
+
+class _StreamUpload extends http.BaseRequest with http.Abortable {
+  _StreamUpload(Uri url, this.source, this.abortTrigger) : super('PUT', url);
+  final Stream<List<int>> source;
+  @override
+  final Future<void>? abortTrigger;
+  @override
+  http.ByteStream finalize() {
+    super.finalize();
+    return http.ByteStream(source);
+  }
+}
+
+class _MultipartUpload extends http.MultipartRequest with http.Abortable {
+  _MultipartUpload(Uri url, this.abortTrigger) : super('POST', url);
+  @override
+  final Future<void>? abortTrigger;
+}

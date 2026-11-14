@@ -14,6 +14,7 @@ import 'catalog_page.dart';
 import 'list_actions.dart';
 import 'list_editor.dart';
 import 'metadata_editor.dart';
+import 'komga_book_management_page.dart';
 import 'komf_page.dart';
 import '../../core/catalog_tools.dart';
 import '../../ui/wheel_scroll.dart';
@@ -61,6 +62,27 @@ class _DetailContent extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        if (repository.profile.admin &&
+            repository.profile.source == 'komga' &&
+            ['books', 'series'].contains(item.kind))
+          IconButton(
+            tooltip: tr(context, 'Manage on Komga'),
+            icon: const Icon(Icons.manage_accounts),
+            onPressed: () async {
+              final result = await Navigator.push<String>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => KomgaBookManagementPage(
+                    repository: repository,
+                    item: item,
+                  ),
+                ),
+              );
+              if (result == 'delete-requested' && context.mounted) {
+                Navigator.pop(context);
+              }
+            },
           ),
         if (repository.profile.admin && ['books', 'series'].contains(item.kind))
           KomfButton(repository: repository, item: item),

@@ -1,0 +1,22 @@
+[Unit]
+Description=KMReader upload companion for Komga
+After=network.target
+RequiresMountsFor=/srv/komga/books
+
+[Service]
+Type=simple
+User=kmreader-admin
+Group=komga
+ExecStart=/usr/bin/python3 /opt/kmreader-admin/server.py --config /etc/kmreader-admin/config.json
+Restart=on-failure
+UMask=0027
+StateDirectory=kmreader-admin
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/srv/komga/books
+
+[Install]
+WantedBy=multi-user.target

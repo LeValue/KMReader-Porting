@@ -4,7 +4,7 @@
 Aggiornamento del documento: 14 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+35 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+36 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -179,12 +179,24 @@ essere isolati; non eseguire prove distruttive su un server personale.
 | AT-07 | Prestazioni, memoria e blocco Kindle sul Windows segnalato | Misurare apertura iniziale e successiva, catalogo grande/copertine, libri lunghi, animazioni e navigazione durante il caricamento. Su Hyperion confrontare anche tap/swipe rapidi di Scorri, curl avanti/indietro e testo del fronte/sotto la piega agli estremi su densità frazionarie. Registrare tempi, memoria e comportamento con condizioni riproducibili; definire il criterio di accettazione prima della misura. Navigazione e annullamento devono restare utilizzabili durante il caricamento, senza stato «Non risponde» o crash. Confermare sul PC interessato che il blocco non si riproduca. |
 | AT-08 | Accessibilità e integrazioni native | Schermi piccoli/grandi, chiaro/scuro, testo ingrandito, contrasto, focus/ordine tastiera, TalkBack/Narrator, fullscreen/cutout e privacy cattura. Validare anche share/export, icone, keep-awake e ritorno dal background. |
 
+## Estensione richiesta — amministrazione Komga (build 36)
+
+| ID | Funzione | Stato e criterio residuo |
+|---|---|---|
+| KGA-01 | Aggiungere EPUB/PDF/CBZ/CBR da PC/telefono | Implementato con servizio Python sulla VM, ricevute persistenti, verifica hash e rifiuto dei duplicati. Prova reale su Komga 1.30.1 temporaneo superata. Installare servizio e proxy sulla VM personale, quindi verificare un caricamento da Android e Windows. |
+| KGA-02 | Modificare informazioni dei volumi/serie | Editor esistente accessibile dalla gestione amministrativa, con lock e controllo concorrenza. API native verificate. Confermare sul server personale. |
+| KGA-03 | Modificare copertine | Caricamento nativo e invalidazione cache libro/serie. Verificato su catalogo temporaneo. Confermare aggiornamento visivo sui due dispositivi. |
+| KGA-04 | Eliminare un volume | Conferma con titolo e avviso di eliminazione del file originale per tutti gli utenti; richiesta nativa asincrona verificata. Confermare soltanto con un volume di prova. |
+
+La sostituzione del file di un volume esistente è esclusa su richiesta esplicita.
+Queste estensioni non chiudono automaticamente le altre voci di parità.
+[Procedura Debian e limiti](KOMGA_LIBRARY_MANAGEMENT.md).
+
 ## Funzionalità future ed esclusioni dichiarate
 
 | ID | Voce | Effetto sulla chiusura |
 |---|---|---|
 | FUT-01 | Nuovi modelli AI, cataloghi/download/ruoli dei modelli, estensioni OCR/vision, traduzione e typesetting tradotto | Rinviati su richiesta. I controlli sperimentali e le impostazioni già presenti restano conservati e descritti correttamente. Le componenti già usate dall'app devono continuare a superare le regressioni. |
-| FUT-02 | Importazione/caricamento di file verso un server Komga | Funzionalità futura richiesta separatamente. L'invio di file locali alla libreria Kindle è invece già nel perimetro della candidata e richiede AT-06. |
 | PLAT-01 | Handoff, Spotlight, Live Activities e servizi Apple StoreKit/App Store/EULA Apple | Le API Apple non sono implementazioni Android/Windows. Documentare le differenze senza interruttori finti o vincoli commerciali Apple. Gli eventuali equivalenti nativi di ricerca/notifiche/widget restano nell'audit A-03: non sono esclusi automaticamente. |
 
 Nessun'altra voce aperta viene rinviata implicitamente da questa tabella. In
