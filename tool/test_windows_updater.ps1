@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/../assets/update/windows-update.ps1"
+Add-Type -AssemblyName System.IO.Compression
 # Windows PowerShell's .NET ZIP helper can emit backslashes. Match the public
 # delivery script's forward-slash ZIP entries explicitly, without relaxing the
 # production updater's traversal/path checks.
