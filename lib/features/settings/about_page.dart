@@ -1,4 +1,5 @@
 import 'settings_style.dart';
+import 'app_update_page.dart';
 
 import 'package:flutter/material.dart';
 
@@ -32,6 +33,15 @@ class AboutPage extends StatelessWidget {
                   trailing: const Icon(Icons.open_in_new),
                   onTap: () => openExternalWebLink(Uri.parse(entry.value)),
                 ),
+              ListTile(
+                title: Text(tr(context, 'App updates')),
+                trailing: const Icon(Icons.system_update),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AppUpdatePage(),
+                  ),
+                ),
+              ),
               ListTile(
                 title: Text(tr(context, 'Open Source Licenses')),
                 trailing: const Icon(Icons.chevron_right),

@@ -9,7 +9,7 @@ achieved**; see the [porting closure matrix](docs/PARITY.md) and
 
 ## Current version and downloads
 
-The current source is the **1.0.0+34 development candidate**, built on working 0.9.1.
+The current source is the **1.0.0+35 development candidate**, built on working 0.9.1.
 [1.0 changes](docs/releases/v1.0.0.md) include single-page comic gestures/curl,
 local-file Send to Kindle, dictionary filtering, responsive Kindle indexing and
 separate recently added books/comics on the dashboard.
@@ -26,6 +26,8 @@ Android: install `android-universal-preview.apk` over **KMReader Preview** witho
 uninstalling. This single APK includes ARM64, ARMv7 and x86_64, retains the
 original certificate/package, and has versionCode **34**. Windows: extract the
 complete ZIP and run `KMReader/kmreader.exe`.
+
+Build 35 adds in-app updates under **Settings → About → App updates**, compositor-based automatic slide turns, backward curl preparation and fractional-density pixel alignment. Verification and delivery are recorded below when complete.
 
 Build 34 fixes tracked EPUB drags across chapter boundaries and improves curl
 text consistency and native-density rendering. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43507849435)
@@ -47,7 +49,7 @@ is retained. Device/account acceptance and full Kindle state migration remain op
 
 The latest **published** development preview is
 [0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1).
-Sign into GitHub with access to this private repository to download it.
+The repository and public previews are accessible without signing in; historical drafts still require repository write access.
 Choose one complete APK for your architecture (`android-arm64`, `android-armv7`
 or `android-x64`). The optimized app installs as **KMReader Preview** and
 retains earlier Preview data when updated with the same signing certificate.

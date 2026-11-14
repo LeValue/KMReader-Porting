@@ -351,6 +351,68 @@ void main() {
     );
   }
   test(
+    'backward native-density curl reuses prepared text',
+    () async {
+      final file = fixture(directory);
+      final document = EpubDocument.open(file.path);
+      final host = await EpubHost.open(document, filePath: file.path);
+      try {
+        final result = await Process.run('python3', [
+          'tool/epub_reverse_ready_smoke.py',
+          host.reader.toString(),
+          jsonEncode({
+            'url': host.publication.toString(),
+            'preferences': const EpubPreferences().toJson(),
+            'nonce': 'reverse',
+            'direction': 'ltr',
+            'href': 'one.xhtml',
+          }),
+        ]);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+      } finally {
+        await host.close();
+        document.close();
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+    skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+  );
+  test(
+    'fractional Android pixel grids preserve front and underlying glyph alignment',
+    () async {
+      final file = fixture(directory);
+      final document = EpubDocument.open(file.path);
+      final host = await EpubHost.open(document, filePath: file.path);
+      try {
+        final result = await Process.run('python3', [
+          'tool/epub_pixel_alignment_smoke.py',
+          host.reader.toString(),
+          jsonEncode({
+            'url': host.publication.toString(),
+            'preferences': const EpubPreferences().toJson(),
+            'nonce': 'fractional',
+            'direction': 'ltr',
+            'href': 'one.xhtml',
+          }),
+        ]);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+      } finally {
+        await host.close();
+        document.close();
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+    skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1',
+  );
+  test(
     'chapter touch drags preserve the input iframe and subsequent navigation',
     () async {
       final file = fixture(directory);
