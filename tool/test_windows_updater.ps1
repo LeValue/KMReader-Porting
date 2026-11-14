@@ -1,5 +1,17 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/../assets/update/windows-update.ps1"
+# Windows PowerShell's .NET ZIP helper can emit backslashes. Match the public
+# delivery script's forward-slash ZIP entries explicitly, without relaxing the
+# production updater's traversal/path checks.
+function New-TestPackage($directory, $destination) {
+    $archive = [IO.Compression.ZipFile]::Open($destination,[IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($file in Get-ChildItem -LiteralPath $directory -Recurse -File) {
+            $relative = $file.FullName.Substring($directory.Length).TrimStart([char[]]'\/').Replace('\','/')
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,$file.FullName,$relative) | Out-Null
+        }
+    } finally { $archive.Dispose() }
+}
 $root = Join-Path $env:RUNNER_TEMP ('kmreader-update-test-' + [guid]::NewGuid().ToString('N'))
 try {
     $install = Join-Path $root 'installed'
@@ -12,7 +24,7 @@ try {
     [IO.File]::WriteAllText((Join-Path $payload 'kindle/KMReader-Kindle.exe'),'worker')
     @{source=('a'*40);version='1.0.0';build=99} | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $payload 'data/flutter_assets/assets/build/source.json')
     $zip = Join-Path $root 'update.zip'
-    [IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $root 'payload'),$zip)
+    New-TestPackage (Join-Path $root 'payload') $zip
     $job = @{archive=$zip;sha256=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant();install=$install;source=('a'*40);version='1.0.0';build=99}
     $backup = Apply-KMReaderUpdate $job
     if ((Get-Content (Join-Path $install 'kmreader.exe') -Raw) -ne 'new-app' -or
@@ -32,7 +44,7 @@ try {
     [IO.File]::WriteAllText((Join-Path $payload 'data/locked.bin'),'new-locked')
     [IO.File]::WriteAllText((Join-Path $install 'data/locked.bin'),'old-locked')
     Remove-Item -LiteralPath $zip
-    [IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $root 'payload'),$zip)
+    New-TestPackage (Join-Path $root 'payload') $zip
     $job.source = 'a'*40
     $job.sha256 = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
     $locked = [IO.File]::Open((Join-Path $install 'data/locked.bin'),[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
