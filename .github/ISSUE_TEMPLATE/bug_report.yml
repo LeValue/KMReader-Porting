@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem in KMReader for Android or Windows.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. This is a public repository: remove passwords, tokens, account details and private server URLs from all text and attachments. Share only files you have permission to redistribute.
+  - type: input
+    id: build
+    attributes:
+      label: App version and build
+      description: Find these in Settings → About. Mention whether this is a project preview or your own build.
+      placeholder: 1.0.0 candidate 6, build 36
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and OS version
+      placeholder: Android 14, or Windows 11 x64; include device model if relevant
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Content source and format
+      description: Komga (include server version), Kindle, or local files. Include EPUB/PDF/CBZ/etc., without private URLs or account identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: For animation problems include mode, turn direction, input method and whether the turn crosses a chapter boundary.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots or a shareable sample
+      description: Optional. Remove personal data before uploading; synthetic samples are preferred.

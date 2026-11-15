@@ -1,5 +1,11 @@
 # Development validation
 
+Versioned technical evidence for maintainers and contributors. Results apply to
+the source/device named in each entry. Older drafts may require maintainer access
+and CI artifacts can expire; use [the public installation guide](GETTING_STARTED.md)
+for current downloads. Historical references to private repository access describe
+the visibility at the time; the repository and current previews are public.
+
 ## 1.0.0+36 remote Komga administration — 2026-11-14
 
 Exact packaged source: `e186e60a6034027f8e95ba1100a75d1aa83b9fc2`.

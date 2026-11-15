@@ -1,6 +1,9 @@
 # Repository audit — 2026-11-07
 
-## Current branch state after the verified merge
+This is a dated maintenance record, not a current installation or download guide.
+See the [public README](../README.md) and [documentation index](README.md).
+
+## Branch state recorded after the verified merge
 
 The working 0.9.1 history and repository organization were merged into main at
 `79cf68d4f338145732a18751b69352c69ab27a65`. Only **main** remains as a local and

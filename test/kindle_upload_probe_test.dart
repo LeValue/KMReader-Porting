@@ -71,8 +71,13 @@ void main() {
         final importer = KindleImporter(client);
         final destinations = await importer.devices(KindleImportCancellation());
         report['device_count'] = destinations.length;
+        final selectedDevice =
+            Platform.environment['KMREADER_KINDLE_PROBE_DEVICE_NAME'] ?? '';
+        if (!archiveToLibrary && selectedDevice.trim().isEmpty) {
+          throw const KindleFailure('probe_selected_device_not_configured');
+        }
         final target = destinations
-            .where((d) => d.name == "kiritovex's 4th Android Device")
+            .where((d) => d.name == selectedDevice)
             .firstOrNull;
         if (!archiveToLibrary && target == null) {
           throw const KindleFailure('probe_selected_device_missing');

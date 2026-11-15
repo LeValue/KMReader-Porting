@@ -87,6 +87,7 @@ jobs:
         env:
           KMREADER_KINDLE_PROBE_UPLOAD_FIXTURE: ${{ inputs.upload_fixture }}
           KMREADER_KINDLE_PROBE_DELIVERY_MODE: ${{ inputs.delivery_mode }}
+          KMREADER_KINDLE_PROBE_DEVICE_NAME: ${{ secrets.KMREADER_KINDLE_PROBE_DEVICE_NAME }}
           PROBE_APP_IMPORT: ${{ inputs.app_import }}
           KMREADER_KINDLE_MANAGEMENT_FIXTURE: ${{ inputs.management_fixture }}
           PROBE_REPLACEMENT: ${{ inputs.replacement_probe }}

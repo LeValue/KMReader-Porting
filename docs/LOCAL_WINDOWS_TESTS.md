@@ -1,14 +1,20 @@
 # Tests on an interactive Windows PC
 
+**Maintainer diagnostics.** Ordinary installation and contribution do not require
+a self-hosted runner or a personal Kindle session. See [getting started](GETTING_STARTED.md)
+or [development](DEVELOPMENT.md) instead. Run these workflows only on a runner
+and account you control or have been explicitly authorized to use.
+
 [Local Windows diagnostics](https://github.com/LeValue/KMReader-Porting/actions/workflows/local-windows.yml)
 is a manual workflow for a registered self-hosted Windows x64 runner. Start the
 runner with `run.cmd` in the signed-in desktop session, rather than installing it
 as a service. Keep the desktop unlocked and the test application visible. The
 workflow uses the runner's default `self-hosted`, `Windows`, `X64` labels plus
-the selected `runner_label`. For the laptop, register the additional label
-`kmreader-laptop` and select it when starting the workflow. Select `self-hosted`
-only to use the original unrestricted Windows runner selection. The laptop
-label keeps jobs off the desktop when both machines are connected.
+the selected `runner_label`. Choose the label registered for your machine.
+The workflow's `kmreader-laptop` and `kmreader-android-desktop` labels describe
+maintainer infrastructure; they are not public test machines. In a fork, adapt
+runner routing to your own infrastructure. `self-hosted` allows any matching
+Windows x64 runner, so use a specific label when multiple runners are connected.
 
 Choose **Run workflow** and one of these modes:
 
@@ -23,8 +29,7 @@ Choose **Run workflow** and one of these modes:
 
 ## Real-account Send to Kindle checks
 
-Use the existing personal desktop runner label `kmreader-android-desktop`
-(or `kmreader-laptop` on the laptop). Start `run.cmd` under the Windows user
+Choose your authorized Windows runner label. Start `run.cmd` under the Windows user
 who connected the personal Kindle prototype and wait for `Listening for Jobs`.
 Keep the PC connected; leave it unlocked when an interactive login is needed.
 Passwords, OTPs, callback URLs, session files and DPAPI blobs must remain local.
@@ -55,6 +60,9 @@ The title, response and returned ID stay on the PC. Ordinary import checks keep
 deletion and annotation writes blocked. Use `delivery_mode: library` for cloud
 archiving without a target or `delivery_mode: device` for delivery only to the
 explicitly selected device; each has a separate private fixture journal.
+For device mode, configure the repository secret `KMREADER_KINDLE_PROBE_DEVICE_NAME`
+with the exact destination name. Local execution can use the environment variable
+of the same name. There is no account-specific destination in source control.
 
 The opt-in `replacement_probe` checks the generated cloud fixture's update,
 reading-position/bookmark restoration, metadata/cover and verified retirement.

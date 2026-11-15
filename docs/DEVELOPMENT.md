@@ -42,15 +42,10 @@ separate worker: run `./tool/build_kindle_worker.ps1`, then copy
 Ordinary Flutter compilation alone does not bundle this executable. CI performs
 the copy and includes the matching source archive and notice.
 
-For the prepared cloud workspace only, each shell can start with:
-
-```sh
-source /workspace/shared/kmreader-setup/activate.sh
-python3 /workspace/shared/kmreader-setup/configure-java-network.py
-```
-
-These external setup helpers are conveniences, not requirements for a normal
-clone. Never copy signing files or local application data into the repository.
+A normal clone uses the prerequisites above; no private workspace setup scripts
+are required. Local debug builds use a debug identity and do not need the
+project's release signing key. They cannot update the signed public Preview app.
+Never copy signing material or local account data into Git.
 
 ## Source layout
 
@@ -67,8 +62,7 @@ clone. Never copy signing files or local application data into the repository.
 | `docs/` | [Current guides and versioned evidence](README.md) |
 | `archive/` | Superseded standalone workflow, research and browser experiments |
 
-The app source boundaries already reflect features and services; this cleanup
-keeps their import paths stable. Before moving Python files, read the
+Before moving Python files, read the
 [Kindle dependency map](KINDLE_RUNTIME.md). Keep generated output in ignored
 `build/`, `artifacts/` and `.dart_tool/`; retain useful builds locally.
 

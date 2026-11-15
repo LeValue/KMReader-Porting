@@ -87,7 +87,7 @@
           "imageHeight": 2340
         }
       ],
-      "apkSha256": "Algorithm : SHA256\r\nHash      : 98A049EB9F81242DD0403D79BC212C34AF8E38BE261DBE41493F02DCF0BC4341\r\nPath      : C:\\Users\\gaeta\\actions-runner\\_work\\_tool\\kmreader-android-apks\\41690247315\\app-debug.apk",
+      "apkSha256": "98a049eb9f81242dd0403d79bc212c34af8e38be261dbe41493f02dcf0bc4341",
       "normalCurl": {
         "configuredDurationMs": 900,
         "readyMs": 87.79999999701977,
@@ -110,7 +110,7 @@
           "imageHeight": 2340
         }
       ],
-      "apkSha256": "Algorithm : SHA256\r\nHash      : 98A049EB9F81242DD0403D79BC212C34AF8E38BE261DBE41493F02DCF0BC4341\r\nPath      : C:\\Users\\gaeta\\actions-runner\\_work\\_tool\\kmreader-android-apks\\41690247315\\app-debug.apk"
+      "apkSha256": "98a049eb9f81242dd0403d79bc212c34af8e38be261dbe41493f02dcf0bc4341"
     }
   ],
   "excludedComparisons": "Launches requesting Skia or texture before 1340ddc discarded launcher extras; they are not renderer/composition comparisons."

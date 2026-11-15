@@ -1,5 +1,10 @@
 # Android EPUB recovery regression
 
+**Technical validation and maintainer diagnostics.** Device-specific results below
+apply to the named test environment. For installation use [getting started](GETTING_STARTED.md);
+contributors can use the [hosted test procedures](TESTING.md) without access to
+maintainer hardware.
+
 On the physical Huawei Mate 20 Pro (LYA-L09, Android 10/API 29, WebView 156),
 texture composition displayed a blank book in the controlled-frame native test
 despite valid DOM pagination and CFIs. It logged offscreen buffer errors with
@@ -41,20 +46,20 @@ the physical-device checks below.
 ## Test on the Mate 20 Pro through a Windows runner
 
 The manual **Android EPUB recovery diagnostics** workflow builds the diagnostic
-APK on GitHub, then runs it through the selected Windows runner. The fixed PC
-can use `kmreader-android-desktop`; MATEBOOK uses `kmreader-laptop`. If custom
-label routing does not assign the fixed PC, select `self-hosted` and set
-`expected_runner: GAETANO-FISSO`. The first job step checks that exact name
-before setup or device access. The candidate history was merged into `main`; the retired `fix/android-epub-recovery` branch is recorded in [the branch cleanup inventory](inventory/branch-cleanup-2026-11-07.json).
-Until the new workflow reaches the default branch, start the existing **Local
-Windows diagnostics** workflow on that candidate branch with mode
-`android-epub-recovery` and the chosen `runner_label`. It calls the Android
-workflow from the same commit and skips the Windows tests.
+APK on GitHub, then runs it through an authorized self-hosted Windows runner
+with a USB-connected Android device. Choose a registered `runner_label`;
+the supplied desktop/laptop labels refer to maintainer infrastructure. In a fork,
+adapt them to your own runners. Optionally set `expected_runner` to the exact
+runner name to reject accidental routing to another PC before setup/device access.
+
+Start **Local Windows diagnostics** on `main` with mode `android-epub-recovery`
+and your selected runner label/name. It calls the Android workflow from the same
+commit and skips the Windows tests. Do not target someone else's runner/device.
 
 1. Keep the selected Windows PC signed in with its runner on `Listening for Jobs`.
 2. Connect the Mate 20 Pro by USB, enable USB debugging, authorize this PC and
    leave the phone unlocked. Disconnect other Android devices/emulators.
-3. Run **Local Windows diagnostics** on the candidate branch with mode
+3. Run **Local Windows diagnostics** on `main` with mode
    `android-epub-recovery`, the selected label/name and `android_composition: auto`.
    The first run installs the pinned Flutter driver, Java and Android driver SDK
    in runner caches; no local app compilation is required. The SDK bootstrap

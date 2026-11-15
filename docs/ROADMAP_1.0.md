@@ -7,8 +7,8 @@ Changing the version number alone does not complete this milestone.
 
 ## Working scope
 
-The agreed scope consolidates Android/Windows Komga, Kindle, local reading,
-downloads/offline use and progress, plus these requested changes:
+The 1.0 scope consolidates Android/Windows Komga, Kindle, local reading,
+downloads/offline use and progress, including:
 
 - single comic pages: fading departing curl, paper-relative mouse edges/drags;
 - import local PC/phone files into the Kindle cloud library;
@@ -21,21 +21,21 @@ downloads/offline use and progress, plus these requested changes:
 describe behavior and limits. AI/model/translation extensions are **future features**, excluded from 1.0 acceptance. Existing
 experimental settings remain labeled and their persisted configuration is kept.
 The [porting closure matrix](PARITY.md) is the actionable checklist for finishing
-Android/Windows porting. The seven changes above describe this candidate; the
+Android/Windows porting. These features describe the candidate; the
 remaining applicable functionality, scope audits and target-device acceptance
 must be resolved before calling the port finished or proceeding to stable
 release. The matrix records future work and platform exclusions explicitly.
 
-## Additional requested Komga administration
+## Komga administration
 
 Build 36 adds new-file upload, metadata/cover editing and confirmed deletion for
 Komga administrators. File replacement is explicitly excluded. Metadata, covers
 and deletion use native Komga APIs. Upload requires the documented
 [Debian companion and proxy setup](KOMGA_LIBRARY_MANAGEMENT.md).
-Disposable Komga 1.30.1 end-to-end checks passed; installation and acceptance on
-the personal Debian/Proxmox VM remain open.
+Disposable Komga 1.30.1 end-to-end checks passed. Each administrator must install
+and validate the companion on their own server.
 
-## Additional requested Kindle service
+## Kindle document management
 
 Build 31 introduces remote PDOC deletion with backup/journal/catalog verification,
 and EPUB title/author/language/description/cover editing followed by sending an
@@ -56,12 +56,12 @@ remain excluded.
 
 | Area | Existing evidence | Work required before calling 1.0 ready |
 |---|---|---|
-| Continuous verification | [Build 33 CI 42514188143](https://github.com/LeValue/KMReader-Porting/actions/runs/42514188143) passed all three jobs for `e9a7712` without retries; historical failures/retries remain recorded | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
+| Continuous verification | [Build 36 CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777) passed all three jobs for `e186e60`; historical failures/retries remain recorded | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
 | Reading and offline use | Host, Chromium and native tests cover EPUB, PDF, comic motion, prepared Kindle conversion, local import and offline progress | Check the complete login → browse → download → read → close/reopen journey on target Android and Windows, including interrupted transfer and network loss |
 | Data and upgrades | Account-scoped persistence, durable outbox, download resume, cache protection and versioned document tests exist | Verify an in-place upgrade from the signed 0.9.1 build without losing accounts, downloads, progress, bookmarks or preferences; test removing/reconnecting one account while another remains usable |
 | Device behavior | Hosted emulator/WebView2 checks and earlier named-device measurements are retained | Validate secure storage/app lock, background downloads, resume, rotation/fullscreen, long-book memory and responsive navigation on actual target hardware; record source and device with results |
 | Kindle | Synthetic protocol/conversion tests and earlier account-specific evidence exist; annotation import is one-way | Confirm the supported sign-in/download/offline/resume flow for the 1.0 candidate; describe annotation and first-download limitations accurately |
-| Distribution | [Public build 35 candidate.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5): signed universal Android APK, complete matching Windows and public in-app update manifest; all hashes and 711 Windows files verified. Previous builds retained | Accept the bootstrap upgrade, Android system installer and Windows restart/state retention on target devices; stable promotion remains gated |
+| Distribution | [Public build 36 candidate.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6): signed universal Android APK, complete matching Windows and public in-app update manifest; all hashes and 711 Windows files verified. Previous builds retained | Accept the bootstrap upgrade, Android system installer and Windows restart/state retention on target devices; stable promotion remains gated |
 
 These are readiness requirements, not a claim that a 1.0 candidate has already
 passed them. Automated checks do not replace target-device acceptance or prove
@@ -123,4 +123,4 @@ Do not publish an older draft as a substitute for completing the 1.0 milestone.
 Build 36 packages are available as [public candidate.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6).
 [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577) and downloaded-byte checks passed.
 The original Android identity and every previous release/asset are retained.
-This does not close personal VM setup, physical device acceptance or stable parity.
+This does not close server-specific setup, physical-device acceptance or stable parity.

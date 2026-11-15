@@ -12,7 +12,8 @@ Run commands from the repository root. Install the pinned prerequisites in
 | Reader checks | `epub_*_smoke.py`, `kindle_reader_smoke.py`, `android_native_smoke.sh` | Browser/native regression tests |
 | Device diagnostics | `windows_*.ps1`, `android_epub_recovery.ps1`, `find_cached_alice.ps1`, `epub_responsiveness.dart` | Manual diagnostics on an explicitly selected PC/device |
 | Toolchain | `setup_local_flutter.ps1`, `setup_local_android.ps1`, `install_android_ndk.sh` | Hosted/local diagnostic builds |
-| Backend | `komga_smoke.py` | Isolated real Komga test |
+| Komga administration | `komga_admin/server.py`, `komga_admin/debian/` | Optional Debian upload companion; [setup](../docs/KOMGA_LIBRARY_MANAGEMENT.md) |
+| Backend tests | `komga_smoke.py`, `komga_admin/smoke.py` | Isolated real Komga tests |
 | Assets/reference | `convert_bubble_detector.py`, `convert_waifu2x.py`, `extract_upstream_settings.py` | Reproduction and settings audit; not startup dependencies |
 | Tests | `tests/`, `kindle_personal/tests/` | Packaging, release gates, protocol and conversion regression tests |
 
