@@ -1,6 +1,6 @@
 # Gestione remota Komga da KMReader
 
-Ambito richiesto: **aggiungere nuovi contenuti, modificare informazioni e
+Disponibile dalla build 36: **aggiungere nuovi contenuti, modificare informazioni e
 copertine, eliminare volumi**. La sostituzione di un file esistente è esclusa.
 Le funzioni richiedono un account amministratore Komga e una connessione attiva.
 I metadati utilizzano l'editor già presente, compresi i blocchi dei campi e il
@@ -27,7 +27,7 @@ non riscrivono il contenuto dei file EPUB/PDF/archivio originali.
   contenuto compaia nel catalogo. Se la richiesta di scansione fallisce,
   **Scansiona libreria** la ripete senza reinviare il file.
 
-## Perché serve un componente sulla VM
+## Perché serve un componente sul server
 
 Le API verificate di Komga **1.29.1 e 1.30.1** consentono di modificare metadati,
 caricare copertine e cancellare file. L'importazione dei libri di Komga usa
@@ -46,9 +46,10 @@ l'analisi completa resta responsabilità di Komga.
 
 ## Installazione una tantum su Debian
 
-Questi passi si eseguono **nella VM**, non nell'host Proxmox. Richiedono Python
-3.11 o successivo. Non è necessario cambiare database o versione di Komga.
-Nessuna installazione è stata eseguita automaticamente sul server personale.
+Questi passi si eseguono **sul server Debian che ospita i file Komga**. Se usi
+una VM, opera nella VM e non nell’host dell’hypervisor. Richiedono Python 3.11
+o successivo. Non è necessario cambiare il database Komga. L’installazione
+dell’app Android/Windows non installa automaticamente questo servizio.
 
 1. Copia `tool/komga_admin/server.py` in `/opt/kmreader-admin/server.py`.
    I file della candidata sono anche disponibili dal tag versionato
@@ -117,7 +118,7 @@ I test automatici usano librerie temporanee e utenti sintetici: permessi,
 proprietà delle ricevute, hash, symlink, duplicati, ripresa dopo pubblicazione,
 richiesta di scansione e trasferimento HTTP. Non cancellano libri personali.
 
-La VM personale deve ancora ricevere il servizio/configurazione. Dopo il setup
-verificare con un file di prova: comparsa nel catalogo, modifica informazioni,
+Ogni amministratore deve installare e configurare il servizio sul proprio server.
+Dopo il setup verificare con un file di prova: comparsa nel catalogo, modifica informazioni,
 nuova copertina, eliminazione confermata. Conservare librerie e credenziali
 esistenti; non pubblicare API key, password o percorsi privati nei log del progetto.

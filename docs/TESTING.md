@@ -143,4 +143,4 @@ then runs `test/live_komga_admin_test.dart` with temporary credentials. Upload,
 indexing, metadata, cover, duplicate rejection and deletion are verified. The
 live test is skipped in ordinary host tests. CI runs the smoke explicitly.
 The helper shuts down the processes and removes temporary data afterward.
-See [Debian setup](KOMGA_LIBRARY_MANAGEMENT.md) for personal VM acceptance.
+See [Debian setup](KOMGA_LIBRARY_MANAGEMENT.md) to validate your own server installation.

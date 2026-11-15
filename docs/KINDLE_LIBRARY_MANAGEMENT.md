@@ -1,6 +1,6 @@
 # Gestione remota dei documenti personali Kindle
 
-Sorgente **1.0.0+33**, candidata di sviluppo. La gestione riguarda i documenti
+Disponibile dalla **build 33**, inclusa nella candidata corrente. La gestione riguarda i documenti
 personali **PDOC**; gli acquisti Amazon (`EBOK`) non possono raggiungere le
 mutazioni. La voce **F-13** della [matrice](PARITY.md) resta aperta per la copertura
 residua e l'accettazione finale sulle app installate. Build e release precedenti,

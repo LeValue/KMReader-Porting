@@ -1,141 +1,111 @@
 # KMReader for Android and Windows
 
-A Flutter implementation of the [KMReader](https://github.com/kmworks/kmreader)
-Komga client, based on upstream commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9`.
-Browsing, reading, local books, downloads, progress and the Amazon.it Kindle
-adapter are implemented. **Full functional and visual parity is not yet
-achieved**; see the [porting closure matrix](docs/PARITY.md) and
-[settings audit](docs/SETTINGS_AUDIT.md).
+[![Build and test](https://github.com/LeValue/KMReader-Porting/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LeValue/KMReader-Porting/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Current version and downloads
+Read comics and ebooks from **Komga**, your **Kindle account**, or local files
+on Android and Windows. This community Flutter port is based on
+[KMReader](https://github.com/kmworks/kmreader).
 
-The current source is the **1.0.0+36 development candidate**, built on working 0.9.1.
-[1.0 changes](docs/releases/v1.0.0.md) include single-page comic gestures/curl,
-local-file Send to Kindle, dictionary filtering, responsive Kindle indexing and
-separate recently added books/comics on the dashboard.
-Build 31 additionally fixes tilted spread curl layers, adds dedicated Kindle send authorization, personal-document management with recovery records, and improves live/offline metadata.
-Build 32 fixes real-account Send to Kindle registration (XML/media type) and the relative upload URL lifetime. A generated EPUB was accepted and found in the real catalog; a second process reused credentials without another login or upload. See [live evidence](docs/KINDLE_IMPORT.md).
-Build 33 separates cloud-library upload from device-only delivery, retrieves the existing document for editing, and restores verified EPUB reading position, bookmarks and local completion before retiring the old edition. Interruption recovery verifies the journal without repeating submissions. [Management coverage and limits](docs/KINDLE_LIBRARY_MANAGEMENT.md) remain explicit; final build/account checks are recorded in validation.
-AI/model/translation extensions remain future work.
+**Development preview:** the current release is **1.0.0 candidate 6, build 36**.
+Stable 1.0 and full upstream parity are still in progress. See the
+[roadmap](docs/ROADMAP_1.0.md) and [porting checklist](docs/PARITY.md).
 
-Build 36 adds administrator-only [remote Komga management](docs/KOMGA_LIBRARY_MANAGEMENT.md): new EPUB/PDF/CBZ/CBR files, metadata, covers and confirmed deletion. New-file upload requires a small Python service on the Debian VM and a same-origin reverse proxy; metadata, covers and deletion use native Komga APIs. Existing files are never replaced. Local tests against disposable Komga 1.30.1 passed; personal VM setup and acceptance remain open.
-See the [readiness record](docs/ROADMAP_1.0.md) and [validation](docs/VALIDATION.md)
-for completed checks and target-device acceptance still needed before stable
-publication. The existing 0.9.x drafts and all earlier release assets are retained.
+## Download and install
 
-Build 35 adds in-app updates under **Settings → About → App updates**, compositor-based automatic slide turns, backward curl preparation and fractional-density pixel alignment. All source CI and delivery checks passed; see [validation](docs/VALIDATION.md).
+**[Download the current Android and Windows preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6)**
 
-[Download Android / Windows build 36](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6) — public development prerelease.
-Build 35 users can install this update from **Settings → About → App updates**.
-For earlier versions, install over KMReader Preview without uninstalling; on
-Windows extract the complete ZIP. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577),
-downloaded hashes and all 711 Windows files were verified. Android keeps the
-original signing identity. [One-time Debian upload setup](docs/KOMGA_LIBRARY_MANAGEMENT.md)
-is required only for adding new files; metadata, covers and deletion use Komga directly.
-Personal VM/device acceptance remains open.
+| Platform | Requirements | Installation |
+|---|---|---|
+| Android | Android 7.0 / API 24 or later; ARM64, ARMv7 or x86_64 | Download `KMReader-1.0.0-android-universal-preview.apk` and open it. Allow installation from the app you used to download it when Android asks. |
+| Windows | Windows 10/11 x64, Microsoft Edge WebView2 Runtime for the ebook reader | Download `KMReader-1.0.0-windows-x64-preview.zip`, extract the **entire** archive and run `KMReader/kmreader.exe`. |
 
-[Retained Android / Windows build 35](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5) — public development prerelease.
-Install the universal APK over **KMReader Preview**, without uninstalling;
-Windows users extract the whole ZIP and run `KMReader/kmreader.exe`.
-This is the one bootstrap installation needed for **Settings → About → App updates**.
-Later public builds download and install from inside the app. Android requires
-system installer approval; Windows closes, backs up/replaces the app files and
-reopens. Accounts, books and reading progress remain in their existing storage.
-[Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43588228905), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43590146370), downloaded hashes and all 711 Windows
-files were verified. The original Android certificate/package are retained;
-`SHA256SUMS.txt` and `kmreader-update.json` accompany the packages.
-Physical-device upgrade/sample EPUB acceptance remains open; stable 1.0 is not published.
+The app installs as **KMReader Preview**. Update the existing installation without
+uninstalling to retain its data. The Android APK uses the existing Preview
+signing certificate; the Windows bundle includes the MSVC runtime and is not
+Authenticode signed. Each release includes `SHA256SUMS.txt` for checking downloads.
 
-[Retained Android / Windows build 34](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a).
-Android: install `android-universal-preview.apk` over **KMReader Preview** without
-uninstalling. This single APK includes ARM64, ARMv7 and x86_64, retains the
-original certificate/package, and has versionCode **34**. Windows: extract the
-complete ZIP and run `KMReader/kmreader.exe`.
+From build 35 onward, use **Settings → About → App updates** to get newer public
+builds. Android still asks for system installer confirmation. Windows closes the
+app, replaces its files with a backup and reopens it. See
+[installation and first use](docs/GETTING_STARTED.md) for details.
 
-Build 34 fixes tracked EPUB drags across chapter boundaries and improves curl
-text consistency and native-density rendering. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43507849435)
-and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43511674638)
-passed. The APK download matches the locally signed bytes; all 710 Windows files
-match CI. `SHA256SUMS.txt` accompanies the downloads. This remains a candidate
-draft requiring repository write access; [device acceptance remains open](docs/VALIDATION.md).
+## Features
 
-[Retained optimized Android / Windows build 33](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b)
-and [Windows build 32](https://github.com/LeValue/KMReader-Porting/actions/runs/42483122851/artifacts/13619305441)
-remain available.
+| Source | Available features |
+|---|---|
+| Komga | Browse and search libraries, read comics and ebooks, download for offline use, synchronize reading progress, and manage multiple accounts. |
+| Local files | Import EPUB, PDF and CBZ/ZIP without an account; read offline and keep progress on the device. |
+| Kindle | Connect an Amazon.it account, browse and prepare books for reading, send local documents to the cloud library or selected devices, and manage personal documents. |
+| Komga administration | Administrators can edit metadata and covers, delete volumes with confirmation, and upload new EPUB/PDF/CBZ/CBR files after server setup. |
 
-[Retained Android / Windows candidate build 31](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8).
-It remains a draft requiring repository write access. [Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/42413142048),
-[delivery checks](https://github.com/LeValue/KMReader-Porting/actions/runs/42415254325)
-and downloaded hashes passed; all 710 Windows files match the CI bundle.
-The [previous build 30](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-2331050a86fdd8512d55)
-is retained. Device/account acceptance and full Kindle state migration remain open.
+Readers include slide and page-curl animations, reading preferences and
+bookmarks. The dashboard separates recently added books and comics.
 
-The retained legacy development preview is
-[0.8.12](https://github.com/LeValue/KMReader-Porting/releases/tag/v0.8.12-preview.1).
-The repository and public previews are accessible without signing in; historical drafts still require repository write access.
-Choose one complete APK for your architecture (`android-arm64`, `android-armv7`
-or `android-x64`). The optimized app installs as **KMReader Preview** and
-retains earlier Preview data when updated with the same signing certificate.
-For Windows, extract the complete `windows-x64-preview.zip` and run
-`KMReader/kmreader.exe`. The MSVC runtime is bundled; Windows is not Authenticode
-signed. Published 0.8.12 does not include the later Kindle integration.
+**Komga uploads require the optional [server companion](docs/KOMGA_LIBRARY_MANAGEMENT.md)**
+on the server and a reverse proxy under the same Komga address. Metadata,
+covers and deletion use Komga's native APIs without the companion. Existing
+volume files are never replaced. The upload lifecycle is tested with Komga 1.30.1.
+
+**Kindle support is unofficial** and currently targets Amazon.it. It is not an
+Amazon service or an official Kindle client. Amazon-side changes can affect
+compatibility. Editing and deletion apply to personal documents, not purchased
+books. EPUB replacement can restore verified reading position and bookmarks;
+PDFs, notes/highlights and editions that cannot be mapped have additional limits.
+Read the [Kindle guide](docs/KINDLE_IMPORT.md) and
+[document-management limits](docs/KINDLE_LIBRARY_MANAGEMENT.md) before use.
+
+Local RAR/CBR reading is not implemented; uploading CBR to Komga is a separate
+server operation. AI/model-management and translation extensions are future work.
+Automated checks do not establish complete upstream parity or performance on
+every device; [validation records](docs/VALIDATION.md) list tested behavior and
+remaining acceptance checks.
+
+## Documentation and support
+
+- [Install, connect accounts and start reading](docs/GETTING_STARTED.md)
+- [Manage a Komga library remotely — Debian setup (Italian)](docs/KOMGA_LIBRARY_MANAGEMENT.md)
+- [Send documents to Kindle](docs/KINDLE_IMPORT.md)
+- [Documentation index](docs/README.md), [release notes](docs/releases/v1.0.0.md) and [roadmap](docs/ROADMAP_1.0.md)
+- [Report a bug or request a feature](https://github.com/LeValue/KMReader-Porting/issues)
+
+Include your app build, operating system, content format and reproduction steps
+when reporting a problem. Remove credentials, account details and private server
+addresses from logs and screenshots. Use a small, shareable sample when possible;
+do not upload copyrighted books without permission.
 
 ## Development
 
-Use Flutter **3.47.8** / Dart **3.13.7**. Android needs Java 21, SDK/Build Tools 36,
-NDK 28.2.13676358 and Python 3.11 for Chaquopy; minimum API is 24. Windows needs
-Visual Studio's C++ desktop tools and the separately built Kindle worker.
+Use Flutter **3.47.8** / Dart **3.13.7** and the committed dependency lockfile.
+Android builds require Java 21, SDK/Build Tools 36, NDK 28.2.13676358 and Python
+3.11. Windows builds require a Windows host with Visual Studio C++ desktop tools.
 
 ```sh
+git clone https://github.com/LeValue/KMReader-Porting.git
+cd KMReader-Porting
 flutter pub get --enforce-lockfile
 python3 tool/preview_metadata.py
 python3 tool/prepare_build_metadata.py
 flutter analyze
 flutter test
-flutter run -d <android-device-id>
 ```
 
-Start with [development](docs/DEVELOPMENT.md), [testing](docs/TESTING.md) and
-[build/sign/distribution](docs/RELEASING.md). The
-[documentation index](docs/README.md) distinguishes current procedures from
-historical measurements and [archived experiments](archive/README.md).
-`ci.yml` owns automatic PR/main builds; device and account diagnostics remain
-manual. Dependency versions and local plugin patches are pinned.
+Follow [development setup](docs/DEVELOPMENT.md) to run the app, including the
+separate Windows Kindle worker. See [testing](docs/TESTING.md),
+[contributing](CONTRIBUTING.md) and [build/sign/distribution](docs/RELEASING.md)
+for the relevant checks and packaging requirements. Public preview signing keys
+are not required for contributions or local debug builds.
 
-## Local books and accounts
+## Credits and licenses
 
-Open **Local Books / Libri locali**, then **Import Files**. EPUB, PDF and CBZ/ZIP
-files are copied into the app and work offline without an account. Progress
-stays on the device; removing an imported copy preserves the original file.
-RAR/CBR is not supported yet.
+Based on [kmworks/kmreader](https://github.com/kmworks/kmreader), using upstream
+commit `e2b35f8796cc830fc6e7464e161b2172d8f916e9` as the porting reference.
+Application source is distributed under the [MIT license](LICENSE). Third-party
+components retain their own licenses; see [upstream notices](assets/upstream-licenses.json),
+[Kindle worker notices](assets/kindle/NOTICE.md) and each patched dependency under
+[`third_party/`](third_party/). Native distributions include the Kindle worker's
+GPL notices and corresponding source.
 
-Komga credentials use OS secure storage. Metadata, files, queries and progress
-are partitioned by server/account. Progress edits coalesce by book and revision;
-new remote conflicts require explicit resolution. TLS verification stays enabled
-and redirects do not automatically receive credentials. No production credentials
-or demo account are bundled.
-
-Kindle services are managed through Settings / Servers. Kindle conversion uses
-shared Python modules and an on-demand native worker; the historical
-`tool/kindle_personal/` name does **not** mean those scripts are disposable.
-Read the [runtime dependency map](docs/KINDLE_RUNTIME.md) before moving them.
-Normal cloud annotation import is one-way. Document replacement separately
-restores verified reading position and bookmarks on the new edition; unsupported
-annotations preserve the original. See [management limits](docs/KINDLE_LIBRARY_MANAGEMENT.md).
-
-## Repository layout
-
-- `lib/core`, `lib/features`, `lib/ui`: service/persistence logic, app features and
-  adaptive controls.
-- `android`, `windows`, `assets`, `third_party`: native hosts, shipped resources
-  and patched dependencies.
-- `test`, `integration_test`, `test_driver`: host, browser and native checks.
-- `tool`: [active tools and shared runtimes](tool/README.md).
-- `docs`: current guides, release notes and versioned validation evidence.
-- `archive`: superseded research and standalone workflow, preserved for reference.
-
-MIT; see [LICENSE](LICENSE). Original artwork/copyright attribution and
-`assets/upstream-licenses.json` are retained. Kindle worker GPL notices and
-corresponding source accompany native distributions. See
-[releasing](docs/RELEASING.md). For an isolated test profile, set
-`KMREADER_DATA_DIR` to a writable directory before launching.
+This project is not affiliated with Amazon or the Komga project. Earlier build
+records and experiments remain in the [validation history](docs/VALIDATION.md)
+and [archive](archive/README.md).

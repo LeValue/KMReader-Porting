@@ -1,8 +1,7 @@
 # Build, sign and distribute verified previews
 
 The stable publication target is **1.0.0**. Existing drafts are retained.
-Public candidate files are authorized for in-app updates; candidates remain
-prereleases until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
+Public candidates supply the in-app update feed and remain prereleases until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
 Current source: **1.0.0+36 development candidate**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
@@ -15,6 +14,10 @@ run `./tool/build_kindle_worker.ps1`, then `flutter build windows --release`; co
 the matching `artifacts/kindle-delivery/*-source.zip` beside the executable, and
 `assets/kindle/NOTICE.md` as `Kindle-NOTICE.md`. Distribute the entire Release
 directory, including native DLLs, data and the MSVC runtime. CI does all of this.
+
+This is a **maintainer procedure**. Contributors can use local debug builds
+without access to the project’s signing key or release permissions. See
+[development](DEVELOPMENT.md) and [contributing](../CONTRIBUTING.md).
 
 ## Retain the Android signing identity
 

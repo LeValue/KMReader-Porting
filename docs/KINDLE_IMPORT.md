@@ -1,26 +1,5 @@
 # Local files to Kindle
 
-**Build 32:** Firs registration preserves the reference XML declaration and exact
-`Content-Type: text/xml`. `Request.bodyBytes` prevents the charset parameter
-introduced by `Request.body`; the former request returned HTTP 200 XML errors
-on the real account. The corrected registration and persisted-session reuse passed
-on `kmreader-android-desktop` without a new login. Reading-device credentials and
-the separate optional OAuth fallback remain unchanged.
-
-The upload URL's `expiryTime` is a **relative millisecond lifetime** (3600000 in
-the live response), not an epoch date. A fresh positive lifetime is accepted;
-the URL is never cached or replayed. Network/device failures no longer display a
-new authorization action; that fallback is limited to registration HTTP 401/403.
-
-**Build 31 changes:** valid saved send credentials no longer depend on renewing
-an unrelated reading bearer. Device-loading errors retain a sanitized stage and
-HTTP status, including after choosing a file. If automatic registration is denied,
-**Authorize Send to Kindle** uses a separate desktop OAuth/PKCE flow and verifies
-that the result belongs to the connected Kindle account before saving its keys.
-These build 31 changes addressed client gaps; the real registration/upload
-corrections and acceptance are recorded for build 32 above and below. Reading
-credentials are preserved.
-
 In a Kindle account, choose **Send to Kindle / Invia a Kindle** in the Windows
 sidebar or the mobile app bar, choose a local file and edit its title/author.
 Build 33 provides two distinct modes:
@@ -39,7 +18,7 @@ Device-list failures do not block cloud-library uploads.
 Supported inputs: EPUB, PDF, DOC/DOCX, TXT, RTF, HTM/HTML, JPG/JPEG, PNG, GIF and
 BMP, up to 200 MiB per file. PDF layout is preserved. CBZ/ZIP and purchased Kindle
 containers are not supported inputs. Local reading remains available separately.
-Uploading to a Komga server is future work.
+Komga uploads are a separate feature with [server-side setup](KOMGA_LIBRARY_MANAGEMENT.md).
 
 The account shown on the import screen is the destination. Nothing is sent until
 the Send button is pressed, except the account's device-list request and, on
@@ -166,3 +145,26 @@ requests redirected to Amazon sign-in. It is archived under
 by the application. No response body, token, title or document identifier enters
 the diagnostic reports. The opt-in upload probe retains its synthetic-document
 journal only in the personal PC's DPAPI vault and never replays a pending send.
+
+## Registration implementation history
+
+**Build 32:** Firs registration preserves the reference XML declaration and exact
+`Content-Type: text/xml`. `Request.bodyBytes` prevents the charset parameter
+introduced by `Request.body`; the former request returned HTTP 200 XML errors
+on the real account. The corrected registration and persisted-session reuse passed
+on a Windows validation runner without a new login. Reading-device credentials and
+the separate optional OAuth fallback remain unchanged.
+
+The upload URL's `expiryTime` is a **relative millisecond lifetime** (3600000 in
+the live response), not an epoch date. A fresh positive lifetime is accepted;
+the URL is never cached or replayed. Network/device failures no longer display a
+new authorization action; that fallback is limited to registration HTTP 401/403.
+
+**Build 31 changes:** valid saved send credentials no longer depend on renewing
+an unrelated reading bearer. Device-loading errors retain a sanitized stage and
+HTTP status, including after choosing a file. If automatic registration is denied,
+**Authorize Send to Kindle** uses a separate desktop OAuth/PKCE flow and verifies
+that the result belongs to the connected Kindle account before saving its keys.
+These build 31 changes addressed client gaps; the real registration/upload
+corrections and acceptance are recorded in this guide. Reading
+credentials are preserved.
