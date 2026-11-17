@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -8,6 +9,122 @@ import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/network_preferences.dart';
 
 void main() {
+  test('body timeout closes a real loopback HTTP socket', () async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final peers = <Socket>[];
+    final disconnected = Completer<void>();
+    final subscription = server.listen((socket) {
+      peers.add(socket);
+      var sent = false;
+      socket.listen(
+        (_) {
+          if (sent) return;
+          sent = true;
+          socket.write(
+            'HTTP/1.1 200 OK\r\nContent-Length: 9999\r\nContent-Type: application/json\r\n\r\n{',
+          );
+        },
+        onDone: () {
+          if (!disconnected.isCompleted) disconnected.complete();
+        },
+        onError: (Object _) {
+          if (!disconnected.isCompleted) disconnected.complete();
+        },
+      );
+    });
+    final api = KomgaApi(
+      Uri.parse('http://127.0.0.1:${server.port}'),
+      authentication: Authentication.apiKey,
+      credential: '',
+    );
+    api.readNetworkPreferences = () =>
+        const NetworkPreferences(request: 1, retries: 0);
+    try {
+      await expectLater(api.request('/slow'), throwsA(isA<ApiFailure>()));
+      await disconnected.future.timeout(const Duration(seconds: 5));
+    } finally {
+      api.close();
+      for (final peer in peers) {
+        peer.destroy();
+      }
+      await subscription.cancel();
+      await server.close();
+    }
+  });
+
+  for (final mode in ['json-read', 'json-write', 'media']) {
+    test(
+      'a stalled $mode body closes its underlying request on timeout',
+      () async {
+        var calls = 0;
+        final aborted = Completer<void>();
+        final api = KomgaApi(
+          Uri.parse('https://example.invalid'),
+          authentication: Authentication.apiKey,
+          credential: '',
+          client: MockClient.streaming((request, _) async {
+            calls++;
+            final body = StreamController<List<int>>();
+            unawaited(
+              (request as http.Abortable).abortTrigger!.then((_) async {
+                if (!aborted.isCompleted) aborted.complete();
+                await body.close();
+              }),
+            );
+            return http.StreamedResponse(body.stream, 200);
+          }),
+        );
+        api.readNetworkPreferences = () =>
+            const NetworkPreferences(request: 1, download: 1, retries: 0);
+        try {
+          if (mode == 'media') {
+            await expectLater(
+              api.mediaBytes('/image'),
+              throwsA(isA<TimeoutException>()),
+            );
+          } else {
+            await expectLater(
+              api.request(
+                '/slow',
+                method: mode == 'json-write' ? 'POST' : 'GET',
+              ),
+              throwsA(isA<ApiFailure>()),
+            );
+          }
+          await aborted.future.timeout(const Duration(seconds: 2));
+          expect(calls, 1);
+        } finally {
+          api.close();
+        }
+      },
+    );
+  }
+  test('authentication errors cancel an unfinished body without waiting or retrying', () async {
+    var cancelled = false, calls = 0;
+    final api = KomgaApi(
+      Uri.parse('https://example.invalid'),
+      authentication: Authentication.apiKey,
+      credential: '',
+      client: MockClient.streaming((_, _) async {
+        calls++;
+        final body = StreamController<List<int>>(
+          onCancel: () => cancelled = true,
+        );
+        return http.StreamedResponse(body.stream, 401);
+      }),
+    );
+    try {
+      await expectLater(
+        api.request('/private'),
+        throwsA(isA<ApiFailure>().having((e) => e.status, 'status', 401)),
+      );
+      expect(cancelled, true);
+      expect(calls, 1);
+    } finally {
+      api.close();
+    }
+  });
+
   for (final retries in [0, 1, 2]) {
     test('HEAD respects the configured limit of $retries retries', () async {
       var count = 0;

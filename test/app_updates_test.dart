@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,6 +108,138 @@ void main() {
       expect(requests, 2);
     },
   );
+  test('interrupted downloads retain their prefix and resume through a safe redirect', () async {
+    final root = Directory.systemTemp.createTempSync('update-resume-');
+    final bytes = List<int>.generate(4096, (i) => i % 251);
+    final update = AppUpdate.parse(manifest(bytes), 'android');
+    var calls = 0;
+    final service = AppUpdates(
+      client: MockClient.streaming((request, _) async {
+        calls++;
+        if (calls == 1) {
+          final stream = Stream<List<int>>.multi((sink) {
+            sink.add(bytes.sublist(0, 512));
+            sink.addError(http.ClientException('Synthetic interruption'));
+            sink.close();
+          });
+          return http.StreamedResponse(
+            stream,
+            200,
+            contentLength: bytes.length,
+          );
+        }
+        expect(request.headers['Range'], 'bytes=512-');
+        expect(
+          request.headers.keys.where((k) => k.toLowerCase() == 'authorization'),
+          isEmpty,
+        );
+        if (calls == 2) {
+          return http.StreamedResponse(
+            const Stream.empty(),
+            302,
+            headers: {
+              'location':
+                  'https://release-assets.githubusercontent.com/synthetic.apk',
+            },
+          );
+        }
+        return http.StreamedResponse(
+          Stream.value(bytes.sublist(512)),
+          206,
+          contentLength: bytes.length - 512,
+          headers: {'content-range': 'bytes 512-4095/4096'},
+        );
+      }),
+    );
+    try {
+      await expectLater(
+        service.download(update, root, (_, _) {}),
+        throwsA(isA<http.ClientException>()),
+      );
+      expect(
+        await File('${root.path}/${update.sha256}.apk.part').length(),
+        512,
+      );
+      final file = await service.download(update, root, (_, _) {});
+      expect(await file.readAsBytes(), bytes);
+      expect(calls, 3);
+      expect(root.listSync().where((e) => e.path.endsWith('.part')), isEmpty);
+    } finally {
+      service.close();
+      root.deleteSync(recursive: true);
+    }
+  });
+  for (final invalidRange in [false, true]) {
+    test(
+      'resuming ${invalidRange ? 'rejects wrong range metadata' : 'restarts safely if Range is ignored'}',
+      () async {
+        final root = Directory.systemTemp.createTempSync('update-range-');
+        final bytes = List<int>.generate(4096, (i) => i % 251);
+        final update = AppUpdate.parse(manifest(bytes), 'android');
+        final part = File('${root.path}/${update.sha256}.apk.part')
+          ..writeAsBytesSync(bytes.sublist(0, 512));
+        final service = AppUpdates(
+          client: MockClient.streaming((request, _) async {
+            expect(request.headers['Range'], 'bytes=512-');
+            return http.StreamedResponse(
+              Stream.value(bytes),
+              invalidRange ? 206 : 200,
+              contentLength: bytes.length,
+              headers: invalidRange
+                  ? {'content-range': 'bytes 0-4095/4096'}
+                  : {},
+            );
+          }),
+        );
+        try {
+          if (invalidRange) {
+            await expectLater(
+              service.download(update, root, (_, _) {}),
+              throwsFormatException,
+            );
+            expect(await part.exists(), false);
+          } else {
+            expect(
+              await (await service.download(
+                update,
+                root,
+                (_, _) {},
+              )).readAsBytes(),
+              bytes,
+            );
+          }
+        } finally {
+          service.close();
+          root.deleteSync(recursive: true);
+        }
+      },
+    );
+  }
+  test('failure messages distinguish stages without exposing private exception details', () {
+    const privateText = 'synthetic-private-value';
+    final cases = <Object, String>{
+      FileSystemException(
+        privateText,
+        privateText,
+        const OSError(privateText, 28),
+      ): 'Not enough free storage',
+      const FormatException(privateText): 'failed verification',
+      PlatformException(
+        code: 'update_signature',
+        message: privateText,
+        details: privateText,
+      ): 'same signing certificate',
+      PlatformException(code: 'update_location', message: privateText):
+          'file is unavailable',
+      TimeoutException(privateText): 'resume',
+      const HandshakeException(privateText): 'Secure connection',
+    };
+    for (final entry in cases.entries) {
+      final message = updateFailureMessage(entry.key, stage: 'download');
+      expect(message, contains(entry.value));
+      expect(message, isNot(contains(privateText)));
+    }
+  });
   test(
     'Windows updates reject traversal, links and mismatched embedded sources',
     () {

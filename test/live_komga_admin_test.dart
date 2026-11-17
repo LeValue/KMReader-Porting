@@ -165,6 +165,79 @@ void main() {
           ),
           true,
         );
+        // Restore document art without deleting it, then remove only the
+        // synthetic uploaded images. A series without an override inherits art.
+        for (final (kind, id) in [
+          ('books', selected.id),
+          ('series', seriesId),
+        ]) {
+          final available = await admin.covers(kind, id);
+          final uploaded = available.singleWhere(
+            (row) => row['type'] == 'USER_UPLOADED',
+          );
+          final originals = available.where(
+            (row) => row['type'] != 'USER_UPLOADED',
+          );
+          if (originals.isNotEmpty) {
+            final original = originals.first;
+            await admin.selectCover(kind, id, text(original['id']));
+            expect(
+              (await admin.covers(
+                kind,
+                id,
+              )).singleWhere((row) => row['id'] == original['id'])['selected'],
+              true,
+            );
+            await expectLater(
+              admin.removeCover(kind, id, text(original['id'])),
+              throwsA(isA<ApiFailure>()),
+            );
+          }
+          await admin.removeCover(kind, id, text(uploaded['id']));
+          expect(
+            (await admin.covers(
+              kind,
+              id,
+            )).where((row) => row['type'] == 'USER_UPLOADED'),
+            isEmpty,
+          );
+          final current = await api.send(
+            '/api/v1/$kind/$id/thumbnail',
+            extra: {'Accept': 'image/*'},
+          );
+          final restored = image.decodeImage(await current.stream.toBytes())!;
+          final restoredPixel = restored.getPixel(
+            restored.width ~/ 2,
+            restored.height ~/ 2,
+          );
+          expect(restoredPixel.r, greaterThan(200));
+          expect(restoredPixel.b, lessThan(50));
+          expect(await target.readAsBytes(), await file.readAsBytes());
+        }
+        for (final kind in ['collections', 'readlists']) {
+          final entry = object(
+            await api.request(
+              '/api/v1/$kind',
+              method: 'POST',
+              body: {
+                'name': 'Synthetic cover group',
+                'ordered': true,
+                if (kind == 'collections')
+                  'seriesIds': [seriesId]
+                else
+                  'bookIds': [selected.id],
+              },
+            ),
+          );
+          final item = CatalogItem(kind, entry);
+          await repo.refreshCover(item);
+          expect(repo.imageChanges.value, {item.thumbnail});
+          expect(
+            image.decodeImage(await repo.image(item.thumbnail)),
+            isNotNull,
+          );
+          expect(await target.readAsBytes(), await file.readAsBytes());
+        }
         final duplicate = {
           ...operation,
           'id': 'c1f965d9-388e-44ed-b49f-5dbac75c6469',

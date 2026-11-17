@@ -26,6 +26,7 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
   }
 
   Future<void> check() async {
+    if (busy || restarting) return;
     setState(() {
       busy = true;
       message = null;
@@ -57,7 +58,7 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
         setState(
           () => message = tr(
             context,
-            'Unable to update. Check your connection and available storage, then retry.',
+            updateFailureMessage(error, stage: 'check'),
           ),
         );
       }
@@ -68,21 +69,34 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
 
   Future<void> install() async {
     final release = update;
-    if (release == null) return;
+    if (release == null || busy || restarting) return;
     setState(() {
       busy = true;
       message = null;
       progress = null;
     });
+    var stage = 'download';
     try {
-      package = await service.download(
+      package ??= await service.download(
         release,
         await service.storageDirectory(),
         (done, total) {
-          if (mounted) setState(() => progress = done / total);
+          if (mounted) {
+            setState(() {
+              progress = done / total;
+              if (done == total) {
+                message = tr(context, 'Verifying downloaded update...');
+              }
+            });
+          }
         },
       );
       if (!mounted) return;
+      stage = 'install';
+      setState(() {
+        progress = null;
+        message = tr(context, 'Opening system installer...');
+      });
       final launched = await service.install(release, package!);
       if (!mounted) return;
       if (Platform.isWindows && launched) {
@@ -97,14 +111,12 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
         );
       }
     } catch (error) {
+      if (stage == 'install' && error is FormatException) package = null;
       if (mounted) {
         setState(
           () => message = Platform.isWindows && restarting
               ? tr(context, 'Close the app to finish the update.')
-              : tr(
-                  context,
-                  'Unable to update. Check your connection and available storage, then retry.',
-                ),
+              : tr(context, updateFailureMessage(error, stage: stage)),
         );
       }
     } finally {

@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,7 +50,135 @@ class FakeUpdates extends AppUpdates {
   }
 }
 
+class PermissionUpdates extends FakeUpdates {
+  @override
+  Future<bool> install(AppUpdate update, File file) async => ++installs > 1;
+}
+
+class FailedUpdates extends FakeUpdates {
+  FailedUpdates(this.failure, {this.duringInstall = false});
+  final Object failure;
+  final bool duringInstall;
+  @override
+  Future<File> download(
+    AppUpdate update,
+    Directory directory,
+    void Function(int, int) progress,
+  ) async {
+    if (!duringInstall) throw failure;
+    return super.download(update, directory, progress);
+  }
+
+  @override
+  Future<bool> install(AppUpdate update, File file) async => throw failure;
+}
+
+class DeferredUpdates extends FakeUpdates {
+  final pending = Completer<File>();
+  @override
+  Future<File> download(
+    AppUpdate update,
+    Directory directory,
+    void Function(int, int) progress,
+  ) {
+    downloads++;
+    return pending.future;
+  }
+}
+
 void main() {
+  testWidgets('two taps before rebuilding start only one update transfer', (
+    tester,
+  ) async {
+    final updates = DeferredUpdates();
+    await tester.pumpWidget(MaterialApp(home: AppUpdatePage(updates: updates)));
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+    final button = find.text(
+      Platform.isWindows ? 'Restart and update' : 'Install update',
+    );
+    await tester.tap(button);
+    await tester.tap(button);
+    await tester.pump();
+    expect(updates.downloads, 1);
+    updates.pending.complete(File('synthetic-update.apk'));
+    await tester.pumpAndSettle();
+    expect(updates.installs, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'permission retry reuses the downloaded package without downloading again',
+    (tester) async {
+      final updates = PermissionUpdates();
+      await tester.pumpWidget(
+        MaterialApp(home: AppUpdatePage(updates: updates)),
+      );
+      await tester.tap(find.text('Check for updates'));
+      await tester.pumpAndSettle();
+      final label = Platform.isWindows
+          ? 'Restart and update'
+          : 'Install update';
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      expect(updates.downloads, 1);
+      expect(updates.installs, 1);
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      expect(updates.downloads, 1);
+      expect(updates.installs, 2);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  for (final (failure, install) in <(Object, bool)>[
+    (TimeoutException('synthetic-private-value'), false),
+    (
+      FileSystemException(
+        'synthetic-private-value',
+        'synthetic-private-value',
+        const OSError('full', 28),
+      ),
+      false,
+    ),
+    (const FormatException('synthetic-private-value'), false),
+    (
+      PlatformException(
+        code: 'update_signature',
+        message: 'synthetic-private-value',
+      ),
+      true,
+    ),
+  ]) {
+    testWidgets(
+      'update page displays a safe ${failure.runtimeType} stage message',
+      (tester) async {
+        final updates = FailedUpdates(failure, duringInstall: install);
+        await tester.pumpWidget(
+          MaterialApp(home: AppUpdatePage(updates: updates)),
+        );
+        await tester.tap(find.text('Check for updates'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text(
+            Platform.isWindows ? 'Restart and update' : 'Install update',
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            updateFailureMessage(
+              failure,
+              stage: install ? 'install' : 'download',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('synthetic-private-value'), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets(
     'checking never installs; download and installer require an explicit action',
     (tester) async {

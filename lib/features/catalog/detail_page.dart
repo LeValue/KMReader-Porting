@@ -16,6 +16,7 @@ import 'list_editor.dart';
 import 'metadata_editor.dart';
 import 'komga_book_management_page.dart';
 import 'komf_page.dart';
+import 'refresh_cover_button.dart';
 import '../../core/catalog_tools.dart';
 import '../../ui/wheel_scroll.dart';
 
@@ -48,6 +49,8 @@ class _DetailContent extends StatelessWidget {
     appBar: AppBar(
       title: Text(item.title),
       actions: [
+        if (repository.profile.source == 'komga')
+          RefreshCoverButton(repository: repository, item: item),
         if (repository is KindleRepository &&
             item.kind == 'books' &&
             item.book.libraryId == 'kindle-documents')

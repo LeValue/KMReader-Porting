@@ -81,6 +81,15 @@ state is restored only when it can be verified against the new edition. Purchase
 books cannot be edited this way. Read the documented limits before replacing a
 document with notes/highlights or a format other than EPUB.
 
+## Build 37 updater changes (development)
+
+Build 37 adds recovery of interrupted update downloads, explicit failure stages
+and hashing outside the UI isolate. The public build 36 does not gain these
+changes retroactively. If an older updater cannot complete its download, install
+the new verified public APK manually over KMReader Preview once it is available,
+without uninstalling. Subsequent transfers can use the corrected updater.
+The app never bypasses Android signing/version checks to force an installation.
+
 ## Updates and troubleshooting
 
 From build 35 onward, open **Settings → About → App updates**. Update files are

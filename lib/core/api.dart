@@ -130,7 +130,11 @@ class KomgaApi {
       );
       if ((response.statusCode < 200 || response.statusCode >= 300) &&
           !acceptedStatuses.contains(response.statusCode)) {
-        await response.stream.drain<void>();
+        // Error payloads are not used; do not keep reading an unbounded body.
+        await response.stream
+            .listen((_) {})
+            .cancel()
+            .timeout(responseTimeout ?? Duration(seconds: network.request));
         final status = response.statusCode;
         throw ApiFailure(
           switch (status) {
@@ -186,6 +190,10 @@ class KomgaApi {
     String? multipartFilename,
   }) async {
     if (_closed) throw const ApiFailure('The server connection was closed.');
+    final abort = Completer<void>();
+    final cancellation = abortTrigger == null
+        ? abort.future
+        : Future.any([abortTrigger, abort.future]);
     var sent = 0;
     final source = bytes.map((block) {
       sent += block.length;
@@ -194,7 +202,7 @@ class KomgaApi {
     });
     final http.BaseRequest request;
     if (multipartFilename != null) {
-      request = _MultipartUpload(uri(path, query), abortTrigger)
+      request = _MultipartUpload(uri(path, query), cancellation)
         ..files.add(
           http.MultipartFile(
             'file',
@@ -204,7 +212,7 @@ class KomgaApi {
           ),
         );
     } else {
-      request = _StreamUpload(uri(path, query), source, abortTrigger)
+      request = _StreamUpload(uri(path, query), source, cancellation)
         ..contentLength = length
         ..headers['Content-Type'] = 'application/octet-stream';
     }
@@ -269,6 +277,8 @@ class KomgaApi {
       throw const ApiFailure(
         'Upload interrupted. Check its status before retrying.',
       );
+    } finally {
+      if (!abort.isCompleted) abort.complete();
     }
   }
 
@@ -325,6 +335,7 @@ class KomgaApi {
         method == 'POST' &&
             RegExp(r'^/api/v1/(books|series)/list$').hasMatch(path);
     for (var attempt = 0; ; attempt++) {
+      final abort = Completer<void>();
       try {
         final response = await send(
           path,
@@ -333,6 +344,7 @@ class KomgaApi {
           query: query,
           extra: extra,
           acceptedStatuses: acceptedStatuses,
+          abortTrigger: abort.future,
         );
         return await http.Response.fromStream(response).timeout(
           Duration(
@@ -374,6 +386,8 @@ class KomgaApi {
           offline: true,
           path: path,
         );
+      } finally {
+        if (!abort.isCompleted) abort.complete();
       }
     }
   }
@@ -389,11 +403,13 @@ class KomgaApi {
   Future<({Uint8List? bytes, String? etag, String? modified, bool notModified})>
   mediaBytes(String path, {String? etag, String? modified}) async {
     for (var attempt = 0; ; attempt++) {
+      final abort = Completer<void>();
       try {
         final response = await send(
           path,
           acceptedStatuses: const {304},
           responseTimeout: Duration(seconds: network.download),
+          abortTrigger: abort.future,
           extra: {
             'Accept': '*/*',
             if (etag != null && etag.isNotEmpty)
@@ -433,6 +449,8 @@ class KomgaApi {
                     (error.status ?? 0) >= 500));
         if (attempt >= network.retries || _closed || !transient) rethrow;
         await Future<void>.delayed(const Duration(milliseconds: 150));
+      } finally {
+        if (!abort.isCompleted) abort.complete();
       }
     }
   }
