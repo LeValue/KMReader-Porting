@@ -249,10 +249,28 @@ class Komf extends ChangeNotifier {
         if (old == null) break;
         _jobs.remove(old);
       }
-      _timer ??= Timer.periodic(pollInterval, (_) => unawaited(pollJobs()));
+      _startPolling();
       notifyListeners();
     }
     return id;
+  }
+
+  void _startPolling() {
+    if (_active &&
+        repository.foreground &&
+        _jobs.values.any((job) => job['status'] == 'RUNNING')) {
+      _timer ??= Timer.periodic(pollInterval, (_) => unawaited(pollJobs()));
+    }
+  }
+
+  void setForeground(bool value) {
+    if (!value) {
+      _timer?.cancel();
+      _timer = null;
+    } else {
+      _startPolling();
+      if (_timer != null) unawaited(pollJobs());
+    }
   }
 
   Future<void> _refreshSeries(String seriesId) async {
@@ -279,14 +297,16 @@ class Komf extends ChangeNotifier {
 
   /// One non-overlapping polling pass, also used by the visible refresh action.
   Future<void> pollJobs() async {
-    if (!_active || repository.offline || _polling) return;
+    if (!_active || !repository.foreground || repository.offline || _polling) {
+      return;
+    }
     _polling = true;
     try {
       final running = _jobs.entries
           .where((e) => e.value['status'] == 'RUNNING')
           .toList();
       for (final entry in running) {
-        if (!_active || repository.offline) return;
+        if (!_active || !repository.foreground || repository.offline) return;
         final job = {...entry.value};
         job['attempts'] = integer(job['attempts']) + 1;
         try {
@@ -295,7 +315,7 @@ class Komf extends ChangeNotifier {
               '/api/v1/komf/jobs/${Uri.encodeComponent(entry.key)}',
             ),
           );
-          if (!_active || repository.offline) return;
+          if (!_active || !repository.foreground || repository.offline) return;
           if (response['seriesId'] != job['seriesId'] ||
               response['id'] != entry.key ||
               ![
@@ -313,7 +333,7 @@ class Komf extends ChangeNotifier {
             'errors': 0,
           });
         } catch (error) {
-          if (!_active || repository.offline) return;
+          if (!_active || !repository.foreground || repository.offline) return;
           job['errors'] = integer(job['errors']) + 1;
           job['message'] = error.toString();
           if (error is ApiFailure && error.status == 404) {

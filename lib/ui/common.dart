@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../core/repository.dart';
+import '../core/media_cache.dart';
 import 'strings.dart';
 import 'choice_menu.dart';
 import 'wheel_scroll.dart';
@@ -236,7 +237,11 @@ class Cover extends StatefulWidget {
 class _CoverState extends State<Cover> {
   late Future<Uint8List> _image;
   void _changed() {
-    if (mounted && widget.repository.imageChanges.value.contains(widget.path)) {
+    final changes = widget.repository.imageChanges.value;
+    if (mounted &&
+        (changes.contains(widget.path) ||
+            (changes.contains(Repository.resumedCovers) &&
+                MediaCache.kind(widget.path) == MediaCacheKind.covers))) {
       setState(() => _image = widget.repository.image(widget.path));
     }
   }

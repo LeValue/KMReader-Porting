@@ -99,6 +99,9 @@ class Repository extends ChangeNotifier {
   Komf get komf => _komf ??= Komf(this);
   bool _syncing = false;
   bool _disposed = false;
+  bool _foreground = true;
+  int _coverResumeEpoch = 0;
+  static const resumedCovers = '*resumed-covers*';
   StreamSubscription<ServerEvent>? _events;
   String? _lastEventId;
   bool _hadEventConnection = false, _eventsSessionExpired = false;
@@ -275,6 +278,7 @@ class Repository extends ChangeNotifier {
           ].contains(store.download(profile.id, id)?['status']);
   int get pendingCount => store.pendingCount(profile.id);
   bool get closed => _disposed;
+  bool get foreground => _foreground;
   void _cancelEvents() {
     final subscription = _events;
     _events = null;
@@ -793,19 +797,25 @@ class Repository extends ChangeNotifier {
   }
 
   void _revalidateImage(String path, Json state) {
+    final cover = MediaCache.kind(path) == MediaCacheKind.covers;
+    final validated = integer(state['validated']);
+    final expiration = cover
+        ? Duration(
+            days: (store.setting<int>('coverCacheExpirationDays') ?? 7).clamp(
+              1,
+              90,
+            ),
+          )
+        : const Duration(minutes: 30);
+    final fresh =
+        (!cover || validated >= _coverResumeEpoch) &&
+        DateTime.now().millisecondsSinceEpoch - validated <
+            expiration.inMilliseconds;
     if (_disposed ||
+        !_foreground ||
         offline ||
         _imageRevalidations.containsKey(path) ||
-        DateTime.now().millisecondsSinceEpoch - integer(state['validated']) <
-            (MediaCache.kind(path) == MediaCacheKind.covers
-                    ? Duration(
-                        days:
-                            (store.setting<int>('coverCacheExpirationDays') ??
-                                    7)
-                                .clamp(1, 90),
-                      )
-                    : const Duration(minutes: 30))
-                .inMilliseconds) {
+        fresh) {
       return;
     }
     final version = integer(state['generation']);
@@ -813,6 +823,7 @@ class Repository extends ChangeNotifier {
     final future = _imageRequests
         .run('validate:$version:$path', () async {
           if (_disposed ||
+              !_foreground ||
               offline ||
               store.imageVersion(profile.id, path) != version) {
             return;
@@ -1264,8 +1275,33 @@ class Repository extends ChangeNotifier {
     }
   }
 
+  /// Suspend live catalog traffic, leaving explicit transfers and outbox intact.
+  void setForeground(bool value) {
+    if (_disposed || value == _foreground) return;
+    _foreground = value;
+    _komf?.setForeground(value);
+    if (profile.isKindle) return;
+    if (!value) {
+      _eventReconnect?.cancel();
+      _refreshTimer?.cancel();
+      _cancelEvents();
+    } else {
+      if (!offline &&
+          !_eventsSessionExpired &&
+          store.setting<bool>('enableSSE') != false &&
+          store.setting<bool>('enableSSEAutoRefresh') != false) {
+        _coverResumeEpoch = DateTime.now().millisecondsSinceEpoch;
+        imageChanges.value = const {resumedCovers};
+        refreshContent();
+        _hadEventConnection = false;
+      }
+      listen();
+    }
+  }
+
   void listen() {
-    if (_disposed ||
+    if (!_foreground ||
+        _disposed ||
         offline ||
         _events != null ||
         _eventsSessionExpired ||
@@ -1277,6 +1313,7 @@ class Repository extends ChangeNotifier {
         .serverEvents(lastEventId: _lastEventId)
         .listen(
           (event) {
+            if (!_foreground || _disposed) return;
             if (!connectedNotice) {
               connectedNotice = true;
               if (_hadEventConnection &&
@@ -1386,7 +1423,8 @@ class Repository extends ChangeNotifier {
           },
           onError: (Object error) {
             _events = null;
-            if (_disposed ||
+            if (!_foreground ||
+                _disposed ||
                 offline ||
                 _eventsSessionExpired ||
                 store.setting<bool>('enableSSE') == false) {
@@ -1400,7 +1438,8 @@ class Repository extends ChangeNotifier {
           },
           onDone: () {
             _events = null;
-            if (_disposed ||
+            if (!_foreground ||
+                _disposed ||
                 offline ||
                 _eventsSessionExpired ||
                 store.setting<bool>('enableSSE') == false) {

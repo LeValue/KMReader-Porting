@@ -61,6 +61,8 @@ class BackgroundDownloads with WidgetsBindingObserver {
   TransferConditions _conditions = const TransferConditions();
   Timer? _debounce;
   Timer? _poll;
+  Duration? _pollInterval;
+  bool _foreground = true;
   Future<void> _serial = Future.value();
   bool _disposed = false;
   bool _initialized = false;
@@ -77,7 +79,10 @@ class BackgroundDownloads with WidgetsBindingObserver {
 
   Future<void> initialize() async {
     if (!supported) return;
+    if (_initialized || _disposed) return;
     _initialized = true;
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
     WidgetsBinding.instance.addObserver(this);
     if (Platform.isAndroid) {
       await Workmanager().initialize(downloadCallbackDispatcher);
@@ -91,25 +96,47 @@ class BackgroundDownloads with WidgetsBindingObserver {
     await _readConditions();
     // Also notices another engine's persisted fractions/completion/cancellation.
     _externalRevision = store.externalRevision;
-    _poll = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (timer.tick % 5 == 0) unawaited(_readConditions());
-      final revision = store.externalRevision;
-      if (revision != _externalRevision) {
-        _externalRevision = revision;
-        _repository?.changed();
-        refresh();
-      }
-    });
+    _configurePoll();
     refresh();
+  }
+
+  void _checkRevision() {
+    final revision = store.externalRevision;
+    if (revision != _externalRevision) {
+      _externalRevision = revision;
+      _repository?.changed();
+      refresh();
+    }
+  }
+
+  void _configurePoll() {
+    final interval = _foreground && !_disposed
+        ? Duration(
+            seconds: _known.isNotEmpty || _windowsProfiles.isNotEmpty ? 1 : 15,
+          )
+        : null;
+    if (interval == _pollInterval) return;
+    _poll?.cancel();
+    _poll = null;
+    _pollInterval = interval;
+    if (interval == null) return;
+    _poll = Timer.periodic(interval, (timer) {
+      if (interval.inSeconds == 15 || timer.tick % 5 == 0) {
+        unawaited(_readConditions());
+      }
+      _checkRevision();
+    });
   }
 
   void attach(Repository? repository) {
     _repository?.onDownloadQueueChanged = null;
     _repository?.canTransfer = null;
     _repository = repository;
+    repository?.setForeground(_foreground);
     if (repository != null) {
       repository.onDownloadQueueChanged = refresh;
-      repository.canTransfer = () => policy.permits(_conditions);
+      repository.canTransfer = () =>
+          (_foreground || policy.background) && policy.permits(_conditions);
       _applyConditions();
     }
     refresh();
@@ -123,9 +150,12 @@ class BackgroundDownloads with WidgetsBindingObserver {
   }
 
   void _applyConditions() {
+    if (_disposed) return;
     final repository = _repository;
     if (repository == null) return;
-    if (policy.permits(_conditions) && !repository.offline) {
+    if ((_foreground || policy.background) &&
+        policy.permits(_conditions) &&
+        !repository.offline) {
       repository.resumeDownloads();
     } else {
       repository.pauseDownloads();
@@ -247,6 +277,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
     _windowsProfiles
       ..clear()
       ..addAll(windowsWanted);
+    _configurePoll();
     failure = null;
   }
 
@@ -264,7 +295,14 @@ class BackgroundDownloads with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    // Inactive is transient (notifications, picker, system prompts).
+    if (state == AppLifecycleState.inactive) return;
+    _foreground = state == AppLifecycleState.resumed;
+    _repository?.setForeground(_foreground);
+    _configurePoll();
+    _applyConditions();
+    if (_foreground) {
+      _checkRevision();
       unawaited(_readConditions());
       refresh();
     }
@@ -279,6 +317,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
       channel.setMethodCallHandler(null);
     }
     _repository?.onDownloadQueueChanged = null;
+    _repository?.canTransfer = null;
   }
 }
 

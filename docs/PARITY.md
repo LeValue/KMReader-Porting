@@ -167,6 +167,22 @@ Questi interventi completano sottorequisiti concreti. Nessuna riga è dichiarata
 «Chiusa» soltanto perché il relativo test host passa; l'accettazione residua resta
 esplicita. I pacchetti della build 30 non contengono gli interventi della build 31.
 
+## Interventi successivi a candidate 6 — energia e sospensione
+
+Sono modifiche di sviluppo: i pacchetti pubblici della build 36 non le contengono.
+I seguenti sottorequisiti sono chiusi a livello di codice/test host; l'accettazione
+nativa e le righe complete rimangono aperte.
+
+| ID | Sottorequisito verificato | Evidenza | Residuo |
+|---|---|---|---|
+| F-07.b | La preferenza download in background governa anche i trasferimenti foreground quando l’app viene nascosta | `energy_lifecycle_test.dart`: background vietato/consentito e ripresa; regressioni worker | AT-03 con process death e vincoli OS. |
+| F-08.b | Sospendere SSE e riconnessioni mentre l’app è nascosta e riprendere conservando Last-Event-ID | `energy_lifecycle_test.dart`, `server_event_test.dart`: cancellazione, ID conservato, refresh al rientro, rivalidazione condizionale delle copertine e auto-refresh disabilitato | Confronto UI/backend reale dopo sospensione. |
+| AT-07.pre | Eliminare polling foreground continuo a coda vuota e polling Komf nascosto | Idle a 15 secondi, nessun timer di osservazione in background; test lifecycle e Komf | Non chiude AT-07: mancano misure sul telefono e confronto sample EPUB. |
+
+L'[analisi del codice](CODE_AUDIT.md) documenta copertura, difetti e priorità residue.
+Il [protocollo batteria](BATTERY_PROFILING.md) distingue consumo misurato da ipotesi;
+non è ancora dimostrata una riduzione in mAh o un aumento degli FPS fisici.
+
 ## AT — Accettazione su piattaforme e backend reali
 
 Registrare per ogni prova commit, piattaforma/dispositivo, OS/runtime, dati di
