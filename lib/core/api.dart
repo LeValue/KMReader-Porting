@@ -95,10 +95,13 @@ class KomgaApi {
     Duration? responseTimeout,
   }) async {
     if (_closed) throw const ApiFailure('The server connection was closed.');
+    final timeoutAbort = Completer<void>();
     final request = http.AbortableRequest(
       method,
       uri(path, query),
-      abortTrigger: abortTrigger,
+      abortTrigger: abortTrigger == null
+          ? timeoutAbort.future
+          : Future.any([abortTrigger, timeoutAbort.future]),
     )..followRedirects = false;
     request.headers.addAll({...headers, ...?extra});
     if (body != null) {
@@ -147,6 +150,7 @@ class KomgaApi {
     } on http.RequestAbortedException {
       throw const ApiFailure('Download cancelled.');
     } on TimeoutException {
+      if (!timeoutAbort.isCompleted) timeoutAbort.complete();
       ClientLog.instance.add('warning', 'network', 'Request timed out');
       throw ApiFailure(
         'The server took too long to respond.',

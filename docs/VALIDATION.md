@@ -6,6 +6,32 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Development follow-up: lifecycle, networking and energy
+
+These changes follow candidate 6 and are **not included in public build 36**.
+See the [code audit](CODE_AUDIT.md), [battery protocol](BATTERY_PROFILING.md) and
+[parity checklist](PARITY.md). No personal account or server was used.
+
+- `flutter analyze --no-pub`: no issues.
+- Whole-tree Dart formatting: 255 files, no changes required.
+- `flutter test --no-pub` on the final source: **459 passed, 43 skipped**.
+- Focused lifecycle/network/Komf/SSE/worker suite: **35 passed**.
+- `python3 -m unittest discover -s tool/tests`: **26 passed**.
+- Version/provenance validation and local documentation links passed.
+
+Regressions verify hidden-app timer suspension, idle cadence, idempotent setup,
+background-download preferences, HTTP abort on header timeout, retained SSE ID,
+resume reconciliation and conditional cached-cover validation. Komf job polling
+stops in background without issuing another administrative job.
+
+Earlier local attempts caught an incomplete edit and new-test assertion/compile
+mismatches while code was being changed; the clean final full-source run passed.
+Native Android/Windows lifecycle acceptance, actual energy measurements and
+physical reader frame-time traces were not executed in this environment. No
+authorized phone was attached. Timer counts are not battery savings or FPS data.
+The existing public APK/Windows packages, signing material and historical releases
+remain unchanged. A new binary needs a higher build number and full delivery gates.
+
 ## 1.0.0+36 remote Komga administration — 2026-11-14
 
 Exact packaged source: `e186e60a6034027f8e95ba1100a75d1aa83b9fc2`.

@@ -75,6 +75,26 @@ void main() {
     directory.deleteSync(recursive: true);
   });
 
+  test(
+    'background job tracking makes no HTTP requests and resumes explicitly',
+    () async {
+      await komf.match(libraryId: 'lib', seriesId: 'series', title: 'Fixture');
+      repository.setForeground(false);
+      komf.setForeground(false);
+      final before = requests.length;
+      await komf.pollJobs();
+      expect(requests.length, before);
+      store.setSetting('enableSSE', false);
+      repository.setForeground(true);
+      komf.setForeground(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        requests.where((r) => r.url.path.contains('/jobs/')),
+        hasLength(1),
+      );
+    },
+  );
+
   test('provider links preserve identifiers and order, deduplicate and match real hosts', () {
     final links = komfProviderLinks([
       for (final url in [
