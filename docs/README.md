@@ -35,6 +35,7 @@ guides and porting checklist are currently in Italian.
 |---|---|
 | Release checks and known validation limits | [Validation history](VALIDATION.md) |
 | Cover actions, upstream mapping and verification | [Cover parity](COVER_PARITY.md) |
+| PDF offline strategy, cache ownership and restart evidence | [PDF offline parity](PDF_OFFLINE_PARITY.md) |
 | Current code review and Android battery measurements | [Code audit](CODE_AUDIT.md), [battery profiling](BATTERY_PROFILING.md) |
 | Reader rendering and performance | [Performance](PERFORMANCE.md), [EPUB audit](EPUB_RENDERING_AUDIT.md), [comic curl](COMIC_CURL_RENDERING.md) |
 | Upstream scope and platform adaptations | [Settings audit](SETTINGS_AUDIT.md), [iPad reference](IPAD_REFERENCE.md) |

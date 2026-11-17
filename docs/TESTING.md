@@ -18,6 +18,12 @@ The ordinary Flutter suite deliberately skips live Komga, Chromium, real ONNX
 and personal Kindle account checks unless their environment variables are set.
 Skipped checks must not be reported as executed.
 
+The [PDF offline parity checks](PDF_OFFLINE_PARITY.md) use real host PDFium,
+file-backed SQLite, recreated repositories and pixel checks for every fixture
+page in both reader paths. Run `flutter test test/pdf_reader_test.dart
+test/document_cache_test.dart` for that scope. These are persistence/renderer
+checks, not physical-device process-death or battery measurements.
+
 ## Shared Kindle runtime and real Chromium
 
 Use Python 3.11 in an isolated environment (Windows: `.venv/Scripts/Activate.ps1`):
