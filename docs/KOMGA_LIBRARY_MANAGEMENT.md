@@ -27,9 +27,9 @@ non riscrivono il contenuto dei file EPUB/PDF/archivio originali.
   contenuto compaia nel catalogo. Se la richiesta di scansione fallisce,
   **Scansiona libreria** la ripete senza reinviare il file.
 
-## Copertine nella sorgente di sviluppo
+## Copertine dalla build 37
 
-Le seguenti aggiunte sono successive al pacchetto pubblico candidate 6/build 36:
+Le seguenti aggiunte sono disponibili dalla candidata pubblica 7/build 37:
 
 - **Gestisci su Komga → Copertine disponibili**: anteprime, selezione della
   copertina attuale e ripristino di un'immagine già presente.

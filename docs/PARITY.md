@@ -1,10 +1,10 @@
 # Matrice di parità e chiusura del porting KMReader
 
 **Stato: porting ancora aperto; release stabile non pronta.**
-Aggiornamento del documento: 14 novembre 2026. Piattaforme: Android e Windows.
+Aggiornamento del documento: 17 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+37 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+37, candidata pubblica 7**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -25,6 +25,11 @@ del curl in entrambe le direzioni e la correzione della griglia pixel frazionari
 Aggiunge inoltre aggiornamenti in-app da file pubblici GitHub (Android con conferma
 del sistema; Windows con backup/ripristino). Queste implementazioni non chiudono
 AT-01/AT-07: installazione reale e confronto sample EPUB restano da accettare.
+
+La candidata pubblica 7/build 37 include copertine, ripresa aggiornamenti e
+correzioni energetiche: [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435), [consegna](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009) e
+[download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7) verificati. L'accettazione dell'installatore sul telefono,
+le misure energetiche e gli altri requisiti aperti rimangono distinti.
 
 ## Come si dichiara concluso il lavoro
 
@@ -169,7 +174,7 @@ esplicita. I pacchetti della build 30 non contengono gli interventi della build 
 
 ## Interventi successivi a candidate 6 — energia e sospensione
 
-Sono modifiche di sviluppo: i pacchetti pubblici della build 36 non le contengono.
+Sono disponibili nella candidata pubblica 7/build 37; i pacchetti conservati della build 36 non le contengono.
 I seguenti sottorequisiti sono chiusi a livello di codice/test host; l'accettazione
 nativa e le righe complete rimangono aperte.
 
@@ -187,8 +192,9 @@ non è ancora dimostrata una riduzione in mAh o un aumento degli FPS fisici.
 
 La [CI completa 44090954246](https://github.com/LeValue/KMReader-Porting/actions/runs/44090954246)
 ha superato Android, Windows e integrazioni native per le correzioni energetiche
-precedenti (`89859ea`). Questo nuovo intervento richiede verifiche proprie e non
-modifica i pacchetti pubblici già distribuiti.
+precedenti (`89859ea`). Le aggiunte di copertine/rete e aggiornamenti sono
+verificate dalla [CI della build 37](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435) e incluse nella candidata 7.
+I pacchetti precedenti rimangono conservati.
 
 | ID | Implementazione e verifica | Residuo |
 |---|---|---|
@@ -252,8 +258,8 @@ cambiata; le modifiche runtime richiedono nuove build e CI.
 | ID | Controllo finale | Stato attuale / criterio di chiusura |
 |---|---|---|
 | R-01 | Chiudere A, F e AT, poi fissare la sorgente finale | Aperto. Elenco delle differenze risolto, nessuna esclusione implicita, difetti residui dichiarati. Aggiornare matrice e note con le prove effettive; la sola chiusura dei sette interventi non basta. |
-| R-02 | Regressioni e backend sulla sorgente finale | Superato per la candidata 36 (`e186e60`, CI 43638043777); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
-| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+36 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
+| R-02 | Regressioni e backend sulla sorgente finale | Superato per la candidata 37 (`9b03716`, CI 44108656435); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
+| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+37 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
 | R-04 | Allegati e pubblicazione stabile | Consegna della candidata già verificata; la pubblicazione stabile resta aperta. Preparare/verificare i pacchetti della sorgente finale, riscaricarli e controllare checksum e contenuto. Seguire [RELEASING.md](RELEASING.md): il publisher preview non equivale alla promozione stabile di `v1.0.0`. |
 | R-05 | Conservazione e documentazione | Conservare cronologia, build precedenti, firma Android e sorgenti del runtime Kindle; non rimuovere script attivi. Prima di eventuali eliminazioni di rami/release presentare un nuovo inventario preciso. Aggiornare README, note, [audit repository](REPOSITORY_AUDIT.md) e [validazione](VALIDATION.md) senza modificare allegati storici. |
 

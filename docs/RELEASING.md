@@ -199,3 +199,9 @@ all 711 Windows payload files and the public update feed were verified.
 The Komga companion is versioned under `tool/komga_admin` in that same source tag;
 it is installed once on the Debian server, separately from client packages.
 [Setup and acceptance](KOMGA_LIBRARY_MANAGEMENT.md) remain explicit.
+
+
+Build 37 is public at [candidate.7](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7), source `9b03716a6204a8696b861531791150e48e5b5eef`.
+[Source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009), all four assets and all 711 Windows
+files were verified. Older Android updater failures can bootstrap with the direct
+signed APK without uninstalling; installed-device approval remains AT-01.
