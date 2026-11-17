@@ -23,6 +23,7 @@ class ServerSmartListsPage extends StatefulWidget {
 class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
   late Future<List<Json>?> _future;
   String? _account;
+  final _refreshingCovers = <String>{};
   SmartLists get _service => SmartLists(widget.repository);
   @override
   void initState() {
@@ -39,6 +40,22 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
   Future<void> _refresh() async {
     setState(() => _future = _load());
     await _future;
+  }
+
+  Future<void> _refreshCover(Json item) async {
+    final id = text(item['id']);
+    if (!mounted || widget.repository.offline || !_refreshingCovers.add(id)) {
+      return;
+    }
+    setState(() {});
+    try {
+      await widget.repository.refreshCover(CatalogItem('smart-lists', item));
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      _refreshingCovers.remove(id);
+      if (mounted) setState(() {});
+    }
   }
 
   Future<void> _edit([Json? item]) async {
@@ -156,6 +173,10 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
                         onTap: () => _open(item),
                         trailing: PopupMenuButton<String>(
                           onSelected: (action) async {
+                            if (action == 'cover') {
+                              await _refreshCover(item);
+                              return;
+                            }
                             if (action == 'pin') {
                               tools.pin('smart-lists', id);
                               return;
@@ -179,6 +200,13 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
                             }
                           },
                           itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: 'cover',
+                              enabled:
+                                  !widget.repository.offline &&
+                                  !_refreshingCovers.contains(id),
+                              child: Text(tr(context, 'Refresh cover')),
+                            ),
                             PopupMenuItem(
                               value: 'pin',
                               child: Text(

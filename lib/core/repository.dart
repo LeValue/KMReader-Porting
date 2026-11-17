@@ -774,6 +774,24 @@ class Repository extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshCover(CatalogItem item) async {
+    if (_disposed || offline) {
+      throw const ApiFailure('Reconnect to refresh covers.', offline: true);
+    }
+    if (profile.source != 'komga' ||
+        ![
+          'books',
+          'series',
+          'collections',
+          'readlists',
+          'smart-lists',
+        ].contains(item.kind)) {
+      throw const ApiFailure('This content does not support cover refresh.');
+    }
+    await image(item.thumbnail, refresh: true);
+    if (!_disposed) imageChanges.value = {item.thumbnail};
+  }
+
   Future<void> invalidateImage(String path) async {
     if (_disposed) return;
     store.advanceImageVersion(profile.id, path);

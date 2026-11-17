@@ -90,6 +90,73 @@ class KomgaLibraryAdmin {
       multipartFilename: file.name,
       abortTrigger: abort,
     );
+    await _coverChanged(kind, id);
+  }
+
+  String _coverPath(String kind, String id) {
+    requireAdmin();
+    if (!['books', 'series'].contains(kind) || id.isEmpty) {
+      throw ArgumentError('Unsupported cover');
+    }
+    return '/api/v1/$kind/${Uri.encodeComponent(id)}/thumbnails';
+  }
+
+  Future<List<Json>> covers(String kind, String id) async {
+    final value = await repository.api.request(_coverPath(kind, id));
+    if (value is! List) {
+      throw const ApiFailure('The server returned an unexpected response.');
+    }
+    final owner = kind == 'books' ? 'bookId' : 'seriesId';
+    final seen = <String>{};
+    return value.map((entry) {
+      final row = object(entry);
+      if (row[owner] != id ||
+          row['id'] is! String ||
+          text(row['id']).isEmpty ||
+          !seen.add(text(row['id'])) ||
+          row['selected'] is! bool) {
+        throw const ApiFailure('The server returned an unexpected response.');
+      }
+      return row;
+    }).toList();
+  }
+
+  Future<void> selectCover(String kind, String id, String coverId) async {
+    final rows = await covers(kind, id);
+    final row = rows.where((row) => row['id'] == coverId).firstOrNull;
+    if (row == null) {
+      throw const ApiFailure('This cover is no longer available.');
+    }
+    if (row['selected'] == true) {
+      await _coverChanged(kind, id);
+      return;
+    }
+    await repository.api.request(
+      '${_coverPath(kind, id)}/${Uri.encodeComponent(coverId)}/selected',
+      method: 'PUT',
+    );
+    await _coverChanged(kind, id);
+  }
+
+  Future<void> removeCover(String kind, String id, String coverId) async {
+    final rows = await covers(kind, id);
+    final row = rows.where((row) => row['id'] == coverId).firstOrNull;
+    // A lost DELETE response is reconciled by this read; never replay it.
+    if (row == null) {
+      await _coverChanged(kind, id);
+      return;
+    }
+    if (row['type'] != 'USER_UPLOADED') {
+      throw const ApiFailure('Only uploaded covers can be removed.');
+    }
+    await repository.api.request(
+      '${_coverPath(kind, id)}/${Uri.encodeComponent(coverId)}',
+      method: 'DELETE',
+    );
+    await _coverChanged(kind, id);
+  }
+
+  Future<void> _coverChanged(String kind, String id) async {
     // A successful mutation stays successful if cache maintenance fails.
     final changed = {'/api/v1/$kind/${Uri.encodeComponent(id)}/thumbnail'};
     try {

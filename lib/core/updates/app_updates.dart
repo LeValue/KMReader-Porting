@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:ui' show AppExitType;
@@ -6,7 +7,7 @@ import 'dart:ui' show AppExitType;
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart'
-    show MethodChannel, rootBundle, ServicesBinding;
+    show MethodChannel, PlatformException, rootBundle, ServicesBinding;
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -15,6 +16,46 @@ import '../app_version.dart';
 
 const updateRepository = 'LeValue/KMReader-Porting';
 const updateOrigin = 'https://github.com/$updateRepository/releases/download/';
+
+// Hashing large packages must not run on the UI isolate.
+Future<String> _fileDigest(String path) => Isolate.run(
+  () async => (await sha256.bind(File(path).openRead()).first).toString(),
+);
+
+/// Safe product messages: never display signed URLs, file paths or native details.
+String updateFailureMessage(Object error, {required String stage}) {
+  if (error is PlatformException) {
+    return switch (error.code) {
+      'update_signature' || 'update_invalid' => 'Android could not verify this update for the installed app. Use a project release with the same signing certificate.',
+      'update_version' => 'The update version does not match this installation. Check for updates again.',
+      'update_source' || 'update_package' =>
+        'The downloaded package failed verification. Download it again.',
+      'update_location' =>
+        'The downloaded update file is unavailable. Download it again.',
+      _ => 'Unable to open the system installer. Check installation permissions and retry.',
+    };
+  }
+  if (error is HandshakeException) {
+    return 'Secure connection to the update server failed. Check the device date and system updates.';
+  }
+  if (error is FileSystemException) {
+    return [28, 112, 122].contains(error.osError?.errorCode)
+        ? 'Not enough free storage for the update. Free some space and retry.'
+        : 'Unable to save the update. Check storage and file permissions, then retry.';
+  }
+  if (error is FormatException) {
+    return stage == 'check'
+        ? 'Update information could not be verified. Retry later.'
+        : 'The downloaded package failed verification. Download it again.';
+  }
+  if (stage == 'check') {
+    return 'Unable to check updates. Check your connection and retry.';
+  }
+  if (stage == 'install') {
+    return 'Unable to open the system installer. Check installation permissions and retry.';
+  }
+  return 'Download interrupted. Tap Install update to resume.';
+}
 
 class AppUpdate {
   AppUpdate(
@@ -90,7 +131,11 @@ class AppUpdates {
     client.close();
   }
 
-  Future<http.StreamedResponse> _get(Uri uri) async {
+  Future<http.StreamedResponse> _get(
+    Uri uri, {
+    Map<String, String> headers = const {},
+    Set<int> accepted = const {200},
+  }) async {
     for (var redirects = 0; redirects < 6; redirects++) {
       if (_closed) throw const HttpException('Download annullato');
       if (uri.scheme != 'https' ||
@@ -101,22 +146,34 @@ class AppUpdates {
               uri.host.endsWith('.githubusercontent.com'))) {
         throw const HttpException('Destinazione aggiornamento non valida');
       }
-      final request = http.Request('GET', uri)..followRedirects = false;
+      final abort = Completer<void>();
+      final request = http.AbortableRequest(
+        'GET',
+        uri,
+        abortTrigger: abort.future,
+      )..followRedirects = false;
+      request.headers.addAll(headers);
       request.headers['User-Agent'] = 'KMReader/$appVersion';
       final response = await client
           .send(request)
-          .timeout(const Duration(seconds: 30));
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              if (!abort.isCompleted) abort.complete();
+              throw TimeoutException('Update request timed out');
+            },
+          );
       if ([301, 302, 303, 307, 308].contains(response.statusCode)) {
         final location = response.headers['location'];
-        await response.stream.drain<void>();
+        await response.stream.listen((_) {}, onError: (Object _) {}).cancel();
         if (location == null) {
           throw const HttpException('Reindirizzamento non valido');
         }
         uri = uri.resolve(location);
         continue;
       }
-      if (response.statusCode != 200) {
-        await response.stream.drain<void>();
+      if (!accepted.contains(response.statusCode)) {
+        await response.stream.listen((_) {}, onError: (Object _) {}).cancel();
         throw HttpException(
           'Download non disponibile (${response.statusCode})',
         );
@@ -210,52 +267,98 @@ class AppUpdates {
         '${update.sha256}${update.url.path.endsWith('.apk') ? '.apk' : '.zip'}',
       ),
     );
-    if (await target.exists() &&
-        await target.length() == update.size &&
-        (await sha256.bind(target.openRead()).first).toString() ==
-            update.sha256) {
-      return target;
+    if (await target.exists()) {
+      if (await target.length() == update.size &&
+          await _fileDigest(target.path) == update.sha256) {
+        return target;
+      }
+      await target.delete(); // Invalid updater cache, never installed app data.
     }
     final partial = File('${target.path}.part');
-    IOSink? sink;
+    var offset = await partial.exists() ? await partial.length() : 0;
+    if (offset == update.size &&
+        await _fileDigest(partial.path) == update.sha256) {
+      return partial.rename(target.path);
+    }
+    if (offset >= update.size) {
+      await partial.delete();
+      offset = 0;
+    }
+    RandomAccessFile? output;
+    var discard = false;
     try {
-      final response = await _get(update.url);
+      final response = await _get(
+        update.url,
+        headers: {if (offset > 0) 'Range': 'bytes=$offset-'},
+        accepted: const {200, 206},
+      );
+      if (response.statusCode == 206) {
+        final range = RegExp(r'^bytes (\d+)-(\d+)/(\d+)$')
+            .firstMatch(response.headers['content-range'] ?? '');
+        if (range == null ||
+            int.parse(range[1]!) != offset ||
+            int.parse(range[2]!) != update.size - 1 ||
+            int.parse(range[3]!) != update.size) {
+          await response.stream.listen((_) {}, onError: (Object _) {}).cancel();
+          throw const FormatException('Intervallo aggiornamento non valido');
+        }
+      } else {
+        offset = 0;
+      } // Server ignored Range: replace, never append.
       if (response.contentLength != null &&
-          response.contentLength != update.size) {
+          response.contentLength != update.size - offset) {
+        await response.stream.listen((_) {}, onError: (Object _) {}).cancel();
         throw const FormatException('Dimensione aggiornamento errata');
       }
-      sink = partial.openWrite();
-      var received = 0;
-      await sink.addStream(
-        response.stream.timeout(const Duration(seconds: 45)).map((bytes) {
-          if (_closed) throw const HttpException('Download annullato');
-          received += bytes.length;
-          if (received > update.size) {
-            throw const FormatException('Dimensione aggiornamento errata');
-          }
-          progress(received, update.size);
-          return bytes;
-        }),
+      output = await partial.open(
+        mode: offset > 0 ? FileMode.append : FileMode.write,
       );
-      await sink.flush();
-      await sink.close();
-      sink = null;
-      if (received != update.size ||
-          (await sha256.bind(partial.openRead()).first).toString() !=
-              update.sha256) {
+      var received = offset;
+      final repaint = Stopwatch()..start();
+      var lastRepaint = -100;
+      progress(received, update.size);
+      await for (final bytes in response.stream.timeout(
+        const Duration(seconds: 45),
+      )) {
+        if (_closed) throw const HttpException('Download annullato');
+        if (received + bytes.length > update.size) {
+          throw const FormatException('Dimensione aggiornamento errata');
+        }
+        await output.writeFrom(bytes);
+        received += bytes.length;
+        if (received == update.size ||
+            repaint.elapsedMilliseconds - lastRepaint >= 100) {
+          lastRepaint = repaint.elapsedMilliseconds;
+          progress(received, update.size);
+        }
+      }
+      await output.flush();
+      await output.close();
+      output = null;
+      if (received != update.size) {
+        throw const HttpException('Download interrotto');
+      }
+      if (await _fileDigest(partial.path) != update.sha256) {
         throw const FormatException('Verifica aggiornamento non riuscita');
       }
       return await partial.rename(target.path);
+    } on FormatException {
+      discard = true;
+      rethrow;
     } finally {
-      await sink?.close();
-      if (await partial.exists()) await partial.delete();
+      try {
+        await output?.close();
+      } finally {
+        // A transport interruption retains the prefix for an explicit retry.
+        // Invalid metadata/checksums must never be resumed or installed.
+        if (discard && await partial.exists()) await partial.delete();
+      }
     }
   }
 
   Future<bool> install(AppUpdate update, File file) async {
     if (await file.length() != update.size ||
-        (await sha256.bind(file.openRead()).first).toString() !=
-            update.sha256) {
+        await _fileDigest(file.path) != update.sha256) {
       throw const FormatException('Pacchetto modificato');
     }
     if (Platform.isAndroid) {

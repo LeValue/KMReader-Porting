@@ -6,6 +6,30 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 37 candidate: covers, network cancellation and updater recovery
+
+Source is being prepared for candidate 7. Public build 36 remains unchanged
+until complete native CI, signing and delivery checks pass.
+
+- Cover UI variants: **4 passed** across book/series and Android/Windows layouts.
+- Real disposable Komga **1.30.1** lifecycle passed: upload, original-cover
+  selection, uploaded-image removal, series fallback, collection/read-list
+  refresh and unchanged original CBZ bytes.
+- Network tests include a real loopback socket whose peer observes closure on
+  body timeout. Error bodies are canceled and mutations are never retried.
+- Before the updater follow-up, the full host suite passed **477 tests with 43 skips**.
+- Updater follow-up tests pass interrupted-prefix resume, safe redirects, ignored
+  Range responses, invalid-range rejection, checksums, stage-specific sanitized
+  errors, permission retries and duplicate-tap suppression. Final-source counts
+  and native CI/delivery will be recorded after completion.
+
+The reported phone updater error was shown during/after downloading. A local
+regression reproduced the interrupted-download cleanup masking the transport
+error with a file-closed error. The new implementation writes a recoverable
+prefix, hashes off the UI isolate and retains signing/version/source checks.
+This does not prove the exact phone cause or physical installation acceptance.
+No private account, library, device ID or signed download URL is published.
+
 ## Development follow-up: lifecycle, networking and energy
 
 These changes follow candidate 6 and are **not included in public build 36**.

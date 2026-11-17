@@ -27,6 +27,22 @@ non riscrivono il contenuto dei file EPUB/PDF/archivio originali.
   contenuto compaia nel catalogo. Se la richiesta di scansione fallisce,
   **Scansiona libreria** la ripete senza reinviare il file.
 
+## Copertine nella sorgente di sviluppo
+
+Le seguenti aggiunte sono successive al pacchetto pubblico candidate 6/build 36:
+
+- **Gestisci su Komga → Copertine disponibili**: anteprime, selezione della
+  copertina attuale e ripristino di un'immagine già presente.
+- La rimozione è disponibile soltanto per immagini caricate, con conferma;
+  non elimina il volume, le immagini originali o le copertine affiancate ai file.
+- Il comando **Aggiorna copertina** nei dettagli o nel menu smart-list rinnova la
+  cache con una lettura. Non richiede privilegi amministrativi né il companion.
+- Se rimuovi un'immagine personalizzata di serie, Komga decide la copertina
+  alternativa, eventualmente ereditandola dai volumi. Nessun'altra copertina viene
+  eliminata automaticamente per forzare il ripristino.
+
+[Inventario dei percorsi e verifiche](COVER_PARITY.md).
+
 ## Perché serve un componente sul server
 
 Le API verificate di Komga **1.29.1 e 1.30.1** consentono di modificare metadati,

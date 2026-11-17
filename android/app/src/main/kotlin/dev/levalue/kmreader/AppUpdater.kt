@@ -29,16 +29,21 @@ class AppUpdater(private val activity: FlutterFragmentActivity, messenger: Binar
             val expectedVersion = call.argument<String>("version")
             val expectedSource = call.argument<String>("source")
             executor.execute {
+                var stage = "update_location"
                 try {
                     val file = File(path).canonicalFile
                     require(file.parentFile == File(activity.filesDir, "updates").canonicalFile && file.extension == "apk")
+                    require(file.isFile)
+                    stage = "update_package"
                     val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
                     val update = activity.packageManager.getPackageArchiveInfo(file.path, flags) ?: error("Invalid APK")
                     val installed = activity.packageManager.getPackageInfo(activity.packageName, flags)
                     require(update.packageName == activity.packageName)
+                    stage = "update_version"
                     val newCode = if (Build.VERSION.SDK_INT >= 28) update.longVersionCode else update.versionCode.toLong()
                     val oldCode = if (Build.VERSION.SDK_INT >= 28) installed.longVersionCode else installed.versionCode.toLong()
                     require(newCode > oldCode && newCode == expectedCode && update.versionName == expectedVersion)
+                    stage = "update_source"
                     java.util.zip.ZipFile(file).use { zip ->
                         val entry = zip.getEntry("assets/flutter_assets/assets/build/source.json") ?: error("Missing source")
                         require(entry.size in 0L..65536L)
@@ -59,6 +64,7 @@ class AppUpdater(private val activity: FlutterFragmentActivity, messenger: Binar
                         val signatures = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else info.signatures
                         return signatures?.map { signature -> MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it.toInt() and 255) } }?.sorted() ?: emptyList()
                     }
+                    stage = "update_signature"
                     require(signers(installed).size == 1 && signers(update) == signers(installed))
                     main.post {
                         if (!closed) {
@@ -75,7 +81,7 @@ class AppUpdater(private val activity: FlutterFragmentActivity, messenger: Binar
                         }
                     }
                 } catch (_: Exception) {
-                    main.post { if (!closed) result.error("update_invalid", "Il pacchetto non corrisponde a questa app o alla sua firma", null) }
+                    main.post { if (!closed) result.error(stage, "Verifica aggiornamento non riuscita", null) }
                 }
             }
         }

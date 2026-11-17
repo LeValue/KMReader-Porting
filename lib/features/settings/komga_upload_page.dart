@@ -180,8 +180,14 @@ class _State extends State<KomgaUploadPage> {
         };
         widget.repository.store.setSetting(journalKey, operation);
       }
+      final updates = Stopwatch()..start();
+      var lastUpdate = -100;
       final value = await admin.upload(selected, operation!, (sent) {
-        if (mounted) setState(() => progress = sent / size);
+        if (mounted &&
+            (sent == size || updates.elapsedMilliseconds - lastUpdate >= 100)) {
+          lastUpdate = updates.elapsedMilliseconds;
+          setState(() => progress = sent / size);
+        }
       }, cancel!.future);
       if (mounted) {
         setState(() {

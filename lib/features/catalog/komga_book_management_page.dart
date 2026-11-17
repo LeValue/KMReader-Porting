@@ -9,6 +9,7 @@ import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import 'metadata_editor.dart';
+import 'komga_covers_page.dart';
 
 class KomgaBookManagementPage extends StatefulWidget {
   const KomgaBookManagementPage({
@@ -118,6 +119,20 @@ class _State extends State<KomgaBookManagementPage> {
           title: Text(tr(context, 'Change cover')),
           enabled: !busy && !widget.repository.offline,
           onTap: cover,
+        ),
+        ListTile(
+          leading: const Icon(Icons.collections),
+          title: Text(tr(context, 'Available covers')),
+          enabled: !busy && !widget.repository.offline,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => KomgaCoversPage(
+                repository: widget.repository,
+                item: widget.item,
+              ),
+            ),
+          ),
         ),
         if (widget.item.kind == 'books')
           ListTile(

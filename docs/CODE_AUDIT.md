@@ -47,18 +47,32 @@ allowed transfers can still perform work.
 | PDF: `pdf_reader.dart`, `document_cache.dart` | Original documents are retained and derived resources have separate policies | F-05 still requires restart-offline and derivative-quota acceptance for both reader paths. |
 | Display power: `reader_display.dart`, Android `MainActivity.kt`, Windows `flutter_window.cpp` | Keep-awake ownership is tied to reader visibility/lifecycle and the native integration uses screen-awake flags, not an app-wide Android partial wake lock | Screen brightness and a deliberately enabled keep-awake setting may dominate reading consumption. Verify route transitions and backgrounding on the affected phone. |
 | Catalog, persistence and metadata: `store.dart`, `offline_catalog.dart`, `catalog_tools.dart` | Account scopes, query invalidation and external SQLite revision handling are present; image-cache trimming is already debounced and limited to once per minute | Finish A-01/A-02 field/action inventory and F-01/F-02/F-09 on controlled equivalent data, including extended endpoints. |
-| Administration: `komga_library_admin.dart`, `tool/komga_admin` | Upload, metadata, cover change and confirmed deletion have dedicated tests | F-03 is still partial: selecting/removing/restoring existing thumbnails is not yet a complete user flow. Confirm server permissions and cache behavior on both clients. |
+| Administration: `komga_library_admin.dart`, `tool/komga_admin` | Upload, metadata, cover change and confirmed deletion have dedicated tests | The follow-up implements selection/removal/restoration and manual refresh; see [cover parity](COVER_PARITY.md). Installed-device and extension-server acceptance remain open. |
 | Settings, localization and accessibility | Existing settings audit distinguishes supported, adapted, partial and unavailable options | F-11/F-12 and AT-08 remain open. Do not label an English fallback as a completed translation. |
 | Packaging and privacy | Runtime paths, existing public signing identity and source-bound delivery remain intact | A new binary requires a higher build number and full release/native checks. Keep profiling captures private and publish only sanitized aggregates. |
+
+## Follow-up fixes
+
+The previous lifecycle changes passed all native/source CI jobs in
+[run 44090954246](https://github.com/LeValue/KMReader-Porting/actions/runs/44090954246).
+A subsequent source change extends HTTP cancellation to JSON/image response-body
+consumption and uploads. Error response bodies are canceled rather than consumed
+without a bound; a real loopback socket test verifies disconnection on timeout.
+Read retries remain bounded, while mutation requests are not replayed.
+
+Cover-version management, original artwork restoration and explicit list/volume
+cover refresh now have [documented paths and backend evidence](COVER_PARITY.md).
+Komga upload progress repainting is limited to roughly 10 updates/second plus
+completion; this is a bound on UI updates, not a physical FPS/energy measurement.
 
 ## Next priorities
 
 1. Run the controlled [battery protocol](BATTERY_PROFILING.md) on the affected
    Android device; compare identical conditions and distinguish idle, reading,
    sync and conversion. Fix demonstrated hotspots before adding quality tradeoffs.
-2. Complete custom-thumbnail selection/removal/restoration (F-03), and the
-   upstream action/field inventory (A-01/A-02). Current upload support alone does
-   not close the thumbnail requirement.
+2. Validate the completed [cover flows](COVER_PARITY.md) on installed clients and
+   a real smart-list extension server; continue the broader upstream action/field
+   inventory (A-01/A-02).
 3. Capture native reader traces for the reported slide/curl transitions (AT-07),
    including cold/warm pages, both directions and chapter boundaries.
 4. Continue offline PDF/cache and localization acceptance with controlled fixtures.

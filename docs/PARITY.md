@@ -4,7 +4,7 @@
 Aggiornamento del documento: 14 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+36 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+37 in sviluppo**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -135,7 +135,7 @@ richiede implementazione e verifica del comportamento.
 |---|---|---|
 | F-01 | Inventario e completamento di ordinamenti, filtri e azioni del catalogo applicabili | Stessi risultati su dati equivalenti, inclusi filtri annidati, scope librerie, ricerca e seleziona tutto oltre la prima pagina; controlli e persistenza coerenti con il riferimento. |
 | F-02 | Parità delle liste speciali e di On Deck offline | Confrontare elenco/ordine/stato con il riferimento; dopo preparazione e riavvio offline, nessuna lista incompleta presentata come completa, nessun contenuto di un altro account e nessuna richiesta di rete. |
-| F-03 | Copertine/miniature personalizzate nei dettagli e nelle liste | Verificare i percorsi previsti dal riferimento; completare caricamento/sostituzione/ripristino e invalidazione della cache ove applicabili, con permessi ed errori corretti. La sola visualizzazione delle copertine non chiude questa voce. |
+| F-03 | Copertine/miniature nei dettagli e nelle liste: implementazione completata per i percorsi documentati | Aggiornamento manuale di volumi/serie/raccolte/liste, selezione/ripristino e rimozione delle sole immagini caricate. [Inventario upstream, estensione amministrativa e prove](COVER_PARITY.md). Restano accettazione UI installata AT-04/AT-08 e server reale con estensione smart-list. |
 | F-04 | Condivisione/esportazione tramite il sistema | Provare l'operazione su Android e Windows, anche per ciascuna pagina di uno spread; annullamento e file temporanei corretti, originali/progresso preservati. Documentare l'equivalente nativo quando differisce dalla share sheet Apple. |
 | F-05 | Strategia PDF offline e quota dei derivati | Confrontare la preparazione raster con il riferimento e chiudere la lacuna di preparazione massiva/quota persistente, oppure dimostrare l'equivalenza della strategia con originale locale. Entrambi i lettori devono aprire tutte le pagine dopo riavvio offline, con cache limitata e originali protetti. |
 | F-06 | EPUB misti/CJK, resa tipografica e strumenti testuali applicabili | Fixture per scritture/layout misti, colonne, font e reflow: destinazioni/CFI corretti e nessun salto o falso completamento. Delimitare lookup/dizionario nel lettore separatamente dai dizionari Kindle nascosti in libreria; le estensioni AI/traduzione restano FUT-01. |
@@ -182,6 +182,23 @@ nativa e le righe complete rimangono aperte.
 L'[analisi del codice](CODE_AUDIT.md) documenta copertura, difetti e priorità residue.
 Il [protocollo batteria](BATTERY_PROFILING.md) distingue consumo misurato da ipotesi;
 non è ancora dimostrata una riduzione in mAh o un aumento degli FPS fisici.
+
+## Progresso successivo — copertine e risposte HTTP
+
+La [CI completa 44090954246](https://github.com/LeValue/KMReader-Porting/actions/runs/44090954246)
+ha superato Android, Windows e integrazioni native per le correzioni energetiche
+precedenti (`89859ea`). Questo nuovo intervento richiede verifiche proprie e non
+modifica i pacchetti pubblici già distribuiti.
+
+| ID | Implementazione e verifica | Residuo |
+|---|---|---|
+| F-03.a | Versioni delle copertine book/series: caricamento, selezione, ripristino di immagini esistenti, rimozione confermata delle sole immagini caricate e invalidazione libro/serie. API reali Komga 1.30.1; prove UI host Android/Windows. | AT-04/AT-08 sulle app installate. |
+| F-03.b | Aggiorna copertina per libri, serie, raccolte, read-list e smart-list. Azioni corrispondenti inventariate nel riferimento; richieste di sola lettura senza privilegi amministrativi. | Smart-list richiede un server con estensione: prova reale ancora aperta. |
+| F-07.c | Timeout del corpo JSON/immagini e chiusura del trasferimento sottostante; risposta HTTP di errore non letta senza limite. Test con stream sospesi e socket HTTP locale reale; nessuna ripetizione delle mutazioni. | Accettazione rete lenta/interruzioni sui client nativi. |
+
+L'interfaccia del caricamento Komga limita gli aggiornamenti del progresso a circa
+10 al secondo, mantenendo l'aggiornamento finale. Non sono misure di FPS o mAh.
+[Copertura e dettagli delle prove](COVER_PARITY.md).
 
 ## AT — Accettazione su piattaforme e backend reali
 
