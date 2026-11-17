@@ -16,13 +16,17 @@ every mixed-size fixture page through the native document path and the comic
 raster path; decoded colors, zero HTTP requests, original bytes, ready download
 and reading progress are checked. The PDF reader suite passed **14 tests**.
 
-This follow-up adds tests/documentation only: distributed application/runtime
-files remain byte-identical to packaged source
+This follow-up adds tests/documentation only: tracked application/runtime
+source is unchanged from packaged commit
 `9b03716a6204a8696b861531791150e48e5b5eef`. Candidate.7 and all previous packages
 remain unchanged. Static analysis/formatting and **26 release-tool tests** passed.
 The complete local host suite passed **489 tests, with 43 explicit skips**.
-Hosted follow-up verification is recorded separately from the distributed
-build 37 CI below.
+[Hosted follow-up CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44166996722) passed all three required jobs for test/documentation
+commit `d644053c503422887e2886ec06d9ebebe3e6e4f5`. Both Linux and Windows passed
+**489 host tests / 43 explicit skips**, including both PDF restart cases.
+Native Android passed **2 display + 32 reader tests**; Windows native reader
+checks and release startup also passed. This is separate from the packaged
+build 37 source/delivery record below.
 
 The restart regression covers fresh application objects and a freshly opened
 database/PDF document on a host. It does not kill a process or establish native

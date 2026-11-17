@@ -17,6 +17,16 @@ Upstream paths below are relative to `KMReader/`.
 | Retain prepared images | `PdfOfflinePreparationService.swift` writes page PNGs via `OfflineManager` and records a quality stamp | Encoded derivatives are memory-only, limited to 32 MiB and 16 entries per open `PdfRasterPages`. Closing it clears them. There is no persistent PNG set or preparation stamp to migrate or evict. |
 | Clean disposable originals | Separate from a retained offline download | `DocumentCache.trim()` uses an LRU quota and active leases. Pinned downloads are in a separate directory and are retained. |
 
+The preparation and scheduler sources are
+`Features/Reader/Services/PdfOfflinePreparationService.swift` and
+`Features/Reader/Services/ReaderPageLoadScheduler.swift`. Port implementations:
+[repository](../lib/core/repository.dart),
+[document cache](../lib/core/document_cache.dart),
+[reader selection](../lib/features/reader/document_readers.dart),
+[dedicated PDF reader](../lib/features/reader/pdf_reader.dart),
+[comic PDF reader](../lib/features/reader/pdf_raster_reader.dart) and
+[raster source](../lib/features/reader/pdf_raster_pages.dart).
+
 The port preserves the offline-reading operation through the downloaded original,
 including pages never previously rendered. It does not implement the reference's
 bulk persistent-PNG preparation. Regeneration can cost CPU/time on a cold open;
@@ -65,6 +75,12 @@ comic/native navigation, continuation, settings and incognito progress behavior.
 Document-cache tests exercise LRU quota eviction and active-source protection.
 The new restart cases test persistence and real PDFium rendering; they do not
 simulate Android process death or Windows file locking with a killed process.
+
+The full PDF reader suite passed **14 tests** locally. [Hosted CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44166996722)
+passed for `d644053`, with **489 host tests / 43 explicit skips** on both Linux
+and Windows, including both restart cases. Native Android/Windows reader checks,
+release compilation and Windows startup also passed. These additions change only
+tests/documentation; public candidate.7 remains packaged from `9b03716`.
 
 ## Remaining acceptance
 
