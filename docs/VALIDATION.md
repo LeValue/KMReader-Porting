@@ -6,29 +6,58 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
-## Build 37 candidate: covers, network cancellation and updater recovery
+## Build 37 / public candidate 7 — cover parity and update recovery
 
-Source is being prepared for candidate 7. Public build 36 remains unchanged
-until complete native CI, signing and delivery checks pass.
+[Public Android / Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7). Exact packaged source:
+`9b03716a6204a8696b861531791150e48e5b5eef`. [Full source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009) passed.
 
-- Cover UI variants: **4 passed** across book/series and Android/Windows layouts.
-- Real disposable Komga **1.30.1** lifecycle passed: upload, original-cover
-  selection, uploaded-image removal, series fallback, collection/read-list
-  refresh and unchanged original CBZ bytes.
-- Network tests include a real loopback socket whose peer observes closure on
-  body timeout. Error bodies are canceled and mutations are never retried.
-- Before the updater follow-up, the full host suite passed **477 tests with 43 skips**.
-- Updater follow-up tests pass interrupted-prefix resume, safe redirects, ignored
-  Range responses, invalid-range rejection, checksums, stage-specific sanitized
-  errors, permission retries and duplicate-tap suppression. Final-source counts
-  and native CI/delivery will be recorded after completion.
+- Local and hosted host suites passed **487 tests, with 43 explicit skips**.
+  Static analysis/formatting passed; local Python tool suite passed **26** tests.
+- Native CI passed **2 Android display tests and 32 Android reader tests**;
+  Windows passed **32 native reader tests, with 1 explicit skip**, and the
+  release startup smoke. These are separate from the host-suite counts.
+- Cover gallery UI: **4** host cases across book/series and Android/Windows layouts.
+  Dedicated updater tests: **15**, covering prefix recovery, redirects, invalid
+  ranges, hashes, stage-specific messages, permission retry and duplicate taps.
+- Real disposable Komga **1.30.1** passed upload, selecting/restoring covers,
+  deleting only uploaded art, inherited series cover and collection/read-list
+  refresh. Original CBZ bytes were checked unchanged. No personal account used.
+- Response-body timeout tests include a real loopback socket observing disconnect;
+  read retries stay bounded and mutation requests are never automatically replayed.
+- An anonymous real CDN probe resumed a pinned package with **302 → 206**, then
+  verified the complete hash/archive. The final public update manifest and native
+  packages were downloaded and checked; all **711 Windows files** match CI and
+  the APK is byte-identical to the locally signed output.
+- **3 anonymous public updater tests** passed against candidate.7: complete APK
+  download/hash, complete Windows download/archive validation, and manifest/
+  update selection. No GitHub credentials were supplied to those HTTP clients.
+- Original Android certificate/package, versionCode **37**, all three ABIs,
+  v2/v3 signing and 16 KiB alignment passed. Signing file guards match build 31.
+- First source CI [44107165760](https://github.com/LeValue/KMReader-Porting/actions/runs/44107165760)
+  failed downloading the Google emulator system image (corrupt SDK archive),
+  before Android app tests. The unchanged-source clean rerun above passed.
+  Failed attempts remain recorded; no test was skipped to hide the failure.
+- All **48 previous releases / 192 previous assets** are unchanged. Totals:
+  **49 releases / 196 assets**. No old build, branch or signing identity removed.
 
-The reported phone updater error was shown during/after downloading. A local
-regression reproduced the interrupted-download cleanup masking the transport
-error with a file-closed error. The new implementation writes a recoverable
-prefix, hashes off the UI isolate and retains signing/version/source checks.
-This does not prove the exact phone cause or physical installation acceptance.
-No private account, library, device ID or signed download URL is published.
+The phone update failure was reported during/after download. A regression
+reproduced cleanup masking a transport failure with a file-closed error. Recovery
+now retains a prefix and checks Range/final SHA256; hashing runs off the UI isolate.
+Native errors distinguish location/package/version/source/signature checks while
+retaining the protections. This does not establish the phone's exact cause or
+physical installer acceptance. Older clients need one direct APK bootstrap if
+their existing download path fails. Do not uninstall Preview.
+
+Native CI validates builds/readers, not user approval in the physical Android
+installer. Battery savings/FPS remain unmeasured on the phone, and extension-server
+smart-list acceptance remains open. See [cover parity](COVER_PARITY.md) and
+[battery protocol](BATTERY_PROFILING.md). Private paths, credentials, device IDs
+and signed download URLs are not included in public diagnostic messages.
+
+| Package | Bytes | SHA256 |
+|---|---:|---|
+| `KMReader-1.0.0-android-universal-preview.apk` | 260,751,497 | `b3bb3be64bdd400e93dbfe2ba74a4bbc1ca5421ea89a0d6318b3874d32d4f2bb` |
+| `KMReader-1.0.0-windows-x64-preview.zip` | 104,851,189 | `8f7c759c0f55eb08be190a21052c68a9bfe88178cdfabb24513da5ebf8449a87` |
 
 ## Development follow-up: lifecycle, networking and energy
 

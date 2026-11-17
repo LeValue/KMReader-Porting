@@ -7,13 +7,13 @@ Read comics and ebooks from **Komga**, your **Kindle account**, or local files
 on Android and Windows. This community Flutter port is based on
 [KMReader](https://github.com/kmworks/kmreader).
 
-**Development preview:** the current release is **1.0.0 candidate 6, build 36**.
+**Development preview:** the current release is **1.0.0 candidate 7, build 37**.
 Stable 1.0 and full upstream parity are still in progress. See the
 [roadmap](docs/ROADMAP_1.0.md) and [porting checklist](docs/PARITY.md).
 
 ## Download and install
 
-**[Download the current Android and Windows preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6)**
+**[Download the current Android and Windows preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7)**
 
 | Platform | Requirements | Installation |
 |---|---|---|
@@ -30,6 +30,13 @@ builds. Android still asks for system installer confirmation. Windows closes the
 app, replaces its files with a backup and reopens it. See
 [installation and first use](docs/GETTING_STARTED.md) for details.
 
+Build 37 adds recoverable update downloads, clearer failure messages, background
+polling fixes and complete Komga cover actions. If an older in-app updater cannot
+finish downloading, install this APK over Preview once, without uninstalling;
+the corrected updater is available after that installation. [Verification](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435)
+and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009) passed. Physical phone installation/energy acceptance
+remains open.
+
 ## Features
 
 | Source | Available features |
@@ -37,7 +44,7 @@ app, replaces its files with a backup and reopens it. See
 | Komga | Browse and search libraries, read comics and ebooks, download for offline use, synchronize reading progress, and manage multiple accounts. |
 | Local files | Import EPUB, PDF and CBZ/ZIP without an account; read offline and keep progress on the device. |
 | Kindle | Connect an Amazon.it account, browse and prepare books for reading, send local documents to the cloud library or selected devices, and manage personal documents. |
-| Komga administration | Administrators can edit metadata and covers, delete volumes with confirmation, and upload new EPUB/PDF/CBZ/CBR files after server setup. |
+| Komga administration | Administrators can edit metadata, select/restore covers, remove uploaded artwork, delete volumes with confirmation, and upload new EPUB/PDF/CBZ/CBR files after server setup. |
 
 Readers include slide and page-curl animations, reading preferences and
 bookmarks. The dashboard separates recently added books and comics.

@@ -1,7 +1,7 @@
 # Cover actions and parity evidence
 
-Development follow-up after source `89859ea`. These actions are not all present
-in the public candidate 6/build 36 package. Stable 1.0 acceptance remains open.
+Available in [public candidate 7/build 37](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7), source `9b03716a6204a8696b861531791150e48e5b5eef`.
+Stable 1.0 acceptance remains open.
 
 ## Reference and scope
 

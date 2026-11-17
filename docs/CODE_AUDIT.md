@@ -65,6 +65,10 @@ cover refresh now have [documented paths and backend evidence](COVER_PARITY.md).
 Komga upload progress repainting is limited to roughly 10 updates/second plus
 completion; this is a bound on UI updates, not a physical FPS/energy measurement.
 
+The fixes above and update recovery are distributed in [candidate 7/build 37](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7)
+at source `9b03716a6204a8696b861531791150e48e5b5eef`; [full source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435) passed.
+This does not establish physical-device battery savings or reader acceptance.
+
 ## Next priorities
 
 1. Run the controlled [battery protocol](BATTERY_PROFILING.md) on the affected

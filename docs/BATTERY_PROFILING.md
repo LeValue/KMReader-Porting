@@ -8,8 +8,9 @@ a battery saving in mAh or a physical-device frame-rate improvement.
 ## Compare equivalent builds and conditions
 
 Use a profile/release build, not a debug session, for performance comparisons.
-The public build 36 predates the lifecycle fixes on `main`; a new distributed
-build needs its own higher build number, signing and native verification.
+The lifecycle fixes are included in [public build 37/candidate.7](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7),
+with signing and native/source CI verified. Build 36 remains available as the
+pre-fix comparison; no physical-device energy saving has yet been measured.
 Contributors can use `flutter run --profile -d <device-id>` with the pinned SDK.
 A locally signed/debug application cannot replace the signed project Preview.
 
