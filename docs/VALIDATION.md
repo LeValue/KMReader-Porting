@@ -6,6 +6,30 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## PDF offline follow-up on the build 37 runtime
+
+The [PDF offline comparison](PDF_OFFLINE_PARITY.md) maps the pinned upstream
+original/download, native-reader, preparation and on-demand-render paths.
+Two new regressions recreate file-backed SQLite and the repository twice after
+an actual repository download and disposable-cache cleanup. Real PDFium renders
+every mixed-size fixture page through the native document path and the comic
+raster path; decoded colors, zero HTTP requests, original bytes, ready download
+and reading progress are checked. The PDF reader suite passed **14 tests**.
+
+This follow-up adds tests/documentation only: distributed application/runtime
+files remain byte-identical to packaged source
+`9b03716a6204a8696b861531791150e48e5b5eef`. Candidate.7 and all previous packages
+remain unchanged. Static analysis/formatting and **26 release-tool tests** passed.
+The complete local host suite passed **489 tests, with 43 explicit skips**.
+Hosted follow-up verification is recorded separately from the distributed
+build 37 CI below.
+
+The restart regression covers fresh application objects and a freshly opened
+database/PDF document on a host. It does not kill a process or establish native
+hardware memory/energy results. Existing widget cases cover actual reader
+selection/navigation and incognito behavior; F-05 and AT-02/AT-03/AT-07 retain
+their installed-device and stress acceptance requirements.
+
 ## Build 37 / public candidate 7 — cover parity and update recovery
 
 [Public Android / Windows downloads](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7). Exact packaged source:

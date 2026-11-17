@@ -61,6 +61,170 @@ void main() {
   });
   tearDownAll(() => directory.deleteSync(recursive: true));
 
+  for (final native in [true, false]) {
+    test(
+      'persisted PDF download survives cache cleanup and SQLite/repository restart; native=$native',
+      () async {
+        final home = directory.createTempSync('offline-restart-');
+        final database = '${home.path}/state.sqlite';
+        const profile = ServerProfile(
+          id: 'pdf-restart',
+          name: 'Offline fixture',
+          url: 'https://example.invalid',
+          email: '',
+          authentication: Authentication.apiKey,
+        );
+        final bytes = rasterPdfFixture();
+        final book = Book({
+          'id': 'downloaded-pdf',
+          'name': 'Offline PDF fixture',
+          'media': {'mediaType': 'application/pdf', 'pagesCount': 2},
+        });
+        var fileTransfers = 0, offlineRequests = 0;
+        var store = LocalStore(sqlite3.open(database));
+        store.setSetting('useNativePdfReader', native);
+        store.setSetting('pdfOfflineRenderQuality', 'compact');
+        var repo = Repository(
+          profile: profile,
+          store: store,
+          directory: home,
+          api: KomgaApi(
+            Uri.parse(profile.url),
+            authentication: Authentication.apiKey,
+            credential: 'synthetic',
+            client: MockClient((request) async {
+              if (request.url.path.endsWith('/file')) {
+                fileTransfers++;
+                return http.Response.bytes(
+                  bytes,
+                  200,
+                  headers: {'content-type': 'application/pdf'},
+                );
+              }
+              return http.Response('', 404);
+            }),
+          ),
+        );
+        addTearDown(() async {
+          await repo.stopDownloadWork();
+          store.close();
+        });
+        final original = repo.bookFile(book);
+        await repo.download(book);
+        expect(fileTransfers, 1);
+        expect(store.download(profile.id, book.id)?['status'], 'ready');
+        repo.setOffline(true);
+        store.recordProgress(profile.id, book.id, {
+          'page': 2,
+          'completed': false,
+        });
+
+        for (var session = 0; session < 2; session++) {
+          await repo.documents.directory.create(recursive: true);
+          await File('${repo.documents.directory.path}/disposable.pdf')
+              .writeAsBytes(bytes);
+          await repo.documents.trim(clear: true);
+          expect(
+            repo.documents.directory.listSync().whereType<File>(),
+            isEmpty,
+          );
+          await repo.stopDownloadWork();
+          store.close();
+          store = LocalStore(sqlite3.open(database));
+          repo = Repository(
+            profile: profile,
+            store: store,
+            directory: home,
+            api: KomgaApi(
+              Uri.parse(profile.url),
+              authentication: Authentication.apiKey,
+              credential: 'synthetic',
+              client: MockClient((_) async {
+                offlineRequests++;
+                throw StateError('Offline reader attempted a network request');
+              }),
+            ),
+          );
+          // Match the persisted-offline startup path in AppController.
+          repo.offline = store.setting<bool>('offline:${profile.id}') == true;
+          expect(repo.offline, isTrue);
+          expect(store.setting<bool>('useNativePdfReader'), native);
+          expect(store.progress(profile.id, book.id)?['page'], 2);
+          expect(await original.readAsBytes(), bytes);
+          expect(store.download(profile.id, book.id)?['status'], 'ready');
+          final lease = await repo.documents.open(
+            book,
+            pinned: repo.bookFile(book),
+            offline: repo.offline,
+          );
+          final document = await PdfDocument.openFile(lease.file.path);
+          final raster = native
+              ? null
+              : PdfRasterPages(document, quality: PdfRasterQuality.compact);
+          try {
+            expect(document.pages, hasLength(2));
+            for (var page = 1; page <= document.pages.length; page++) {
+              ui.Image image;
+              if (raster != null) {
+                final codec = await ui.instantiateImageCodec(
+                  await raster.page(page),
+                );
+                try {
+                  image = (await codec.getNextFrame()).image;
+                } finally {
+                  codec.dispose();
+                }
+              } else {
+                final rendered = await document.pages[page - 1].render(
+                  fullWidth: 60,
+                  fullHeight: 60,
+                );
+                expect(rendered, isNotNull);
+                try {
+                  image = await rendered!.createImage();
+                } finally {
+                  rendered!.dispose();
+                }
+              }
+              try {
+                final pixels = await image.toByteData(
+                  format: ui.ImageByteFormat.rawRgba,
+                );
+                final center =
+                    (image.height ~/ 2 * image.width + image.width ~/ 2) * 4;
+                expect(
+                  pixels!.buffer.asUint8List().sublist(center, center + 4),
+                  page == 1 ? [255, 0, 0, 255] : [0, 0, 255, 255],
+                );
+              } finally {
+                image.dispose();
+              }
+            }
+          } finally {
+            if (raster == null) {
+              await document.dispose();
+            } else {
+              await raster.close();
+            }
+            lease.close();
+          }
+          expect(store.progress(profile.id, book.id)?['page'], 2);
+          expect(store.progress(profile.id, book.id)?['completed'], false);
+          expect(await original.readAsBytes(), bytes);
+          expect(
+            repo
+                .bookDirectory(book.id)
+                .listSync()
+                .whereType<File>()
+                .map((file) => file.uri.pathSegments.last),
+            ['source.pdf'],
+          );
+          expect(offlineRequests, 0);
+        }
+      },
+    );
+  }
+
   test(
     'portable PDF fixture renders mixed-size pages with correct colors',
     () async {
