@@ -6,6 +6,41 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 39 / public candidate 9 — installer handoff
+
+[Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.9). Packaged source `ae79d75cd166a3b11972126eea6fd78ff48acf66`.
+[Source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44391792290) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44395601567) passed.
+
+- Android framework versions which gate archive certificate collection on
+  `GET_SIGNATURES` can return empty signing info when only
+  `GET_SIGNING_CERTIFICATES` is requested. Request both flags and compare the
+  exact current signers. The retained public APKs from builds 35–38 and the new
+  APK use the same Preview package and certificate.
+- The Android emulator exercised the native install channel with two synthetic
+  APKs signed with v2/v3. The different signer was refused and the matching
+  signer opened the system installer. All 33 reader and three display/installer
+  tests passed. The installer fixture used disposable keys.
+- On Windows the Dart launcher and the PowerShell helper agreed on the job
+  before the parent exited. An uncommitted job preserved the installed files.
+  A committed job backed up and replaced the synthetic application and started
+  the replacement from a path containing spaces and an accented character.
+  Rollback and wrong-hash/source checks also passed. The WebView2 suite passed
+  33 tests with one explicit skip.
+- The separately verified Windows release bundle contains
+  **711 files** matching CI. The signed APK matches the published bytes.
+  The updater downloaded both packages anonymously, verified their integrity
+  and selected build 39 from build 38. The **50 earlier releases and 200 assets**
+  are retained.
+
+[The preceding CI run](https://github.com/LeValue/KMReader-Porting/actions/runs/44387890192)
+passed both package jobs. The emulator's inactive state prevented the Kindle
+resume prompt from opening. The final run kept the emulator awake and
+reapplied the fixture's foreground state when the WebView changed focus.
+
+The Windows release bundle passed a separate startup check. Installation and
+restart on the target phone and PC remain open under AT-01. Install build 39
+over the existing Android Preview or extract the complete Windows ZIP to
+obtain the corrected updater.
 
 ## Build 38 / public candidate 8 — Kindle reading position
 
