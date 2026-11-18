@@ -249,14 +249,17 @@ jobs:
           flutter build apk --debug --target=integration_test/reader_display_test.dart --no-pub \
             --dart-define=KMREADER_UPDATE_SAME="$(base64 -w0 "$fixtures/same.apk")" \
             --dart-define=KMREADER_UPDATE_OTHER="$(base64 -w0 "$fixtures/other.apk")"
-          # Only the display test and its matching synthetic update share this
-          # disposable certificate. The actual release is signed separately.
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
-            --ks "$fixtures/same.keystore" --ks-key-alias fixture --ks-pass pass:android --key-pass pass:android \
-            --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
-            --out .dart_tool/native-test-apks/display.apk build/app/outputs/flutter-apk/app-debug.apk
+          # Both debug apps use one disposable signing identity so the reader
+          # suite can follow the installer check without an uninstall race.
+          sign_test_apk() {
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+              --ks "$fixtures/same.keystore" --ks-key-alias fixture --ks-pass pass:android --key-pass pass:android \
+              --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
+              --out ".dart_tool/native-test-apks/$1.apk" build/app/outputs/flutter-apk/app-debug.apk
+          }
+          sign_test_apk display
           flutter build apk --debug --target=integration_test/epub_reader_test.dart --no-pub
-          cp build/app/outputs/flutter-apk/app-debug.apk .dart_tool/native-test-apks/reader.apk
+          sign_test_apk reader
           android/gradlew -p android --stop
           free -m
         env:
