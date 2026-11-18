@@ -6,6 +6,34 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+
+## Build 38 / public candidate 8 — Kindle reading position
+
+[Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.8). Packaged source `694975befc76fec3e4a7635ace6da09e390c466d`.
+[Source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44320891587) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44324495987) passed.
+
+- The local host suite passed **491 tests**, with **43 explicit skips**.
+  The focused Kindle repository/client/replacement run passed **39** tests.
+- An already downloaded EPUB with a local CFI receives the changed Kindle
+  position using the record's modification time. Opening leaves the CFI
+  in place until consent. Confirming persists the new CFI and local progress
+  without creating an outbox entry. A local turn during the arrival check
+  preserves its original conflict baseline.
+- The shipped JavaScript restore was exercised in Chromium across chapters,
+  including Unicode offsets, stale offers, and rollback on an unknown target.
+  Native Android and Windows checks exercised **Stay here**, **Go to position**
+  and automatic resume using a generated publication and a fixture repository.
+- The signed universal APK uses the retained Preview package and original
+  certificate. Its downloaded bytes matched the signed output. All
+  **711 Windows files** matched the verified CI
+  artifact. Three anonymous update checks passed for Android, Windows and
+  manifest selection. The previous release inventory was checked unchanged.
+
+The confirmation shows the chapters and the date when Kindle supplies it.
+Acceptance with a real Kindle account and two installed KMReader readers remains
+open. The tests used generated text and synthetic account data.
+
+
 ## PDF offline follow-up on the build 37 runtime
 
 The [PDF offline comparison](PDF_OFFLINE_PARITY.md) maps the pinned upstream
