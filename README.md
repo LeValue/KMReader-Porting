@@ -7,13 +7,13 @@ Read comics and ebooks from **Komga**, your **Kindle account**, or local files
 on Android and Windows. This community Flutter port is based on
 [KMReader](https://github.com/kmworks/kmreader).
 
-**Development preview:** the current release is **1.0.0 candidate 8, build 38**.
+**Development preview:** the current release is **1.0.0 candidate 9, build 39**.
 Stable 1.0 and full upstream parity are still in progress. See the
 [roadmap](docs/ROADMAP_1.0.md) and [porting checklist](docs/PARITY.md).
 
 ## Download and install
 
-**[Download the current Android and Windows preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.8)**
+**[Download the current Android and Windows preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.9)**
 
 | Platform | Requirements | Installation |
 |---|---|---|
@@ -39,6 +39,10 @@ remains open.
 
 Build 38 offers newer reading positions from Kindle. Automatic resume is off
 by default and available in the server settings.
+
+Build 39 fixes the Android certificate check and waits for the Windows update
+helper before closing the app. If an earlier build's updater fails, install
+this candidate manually once using the instructions above.
 
 ## Features
 
