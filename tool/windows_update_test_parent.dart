@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../lib/core/updates/windows_update_handoff.dart';
+import 'package:kmreader/core/updates/windows_update_handoff.dart';
 
 // The updater must survive this process exiting, just as it does in the app.
 Future<void> main(List<String> args) async {
