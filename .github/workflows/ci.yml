@@ -108,7 +108,8 @@ jobs:
       - &ndk_install
         name: Install and verify the pinned Android NDK
         run: bash tool/install_android_ndk.sh
-      - run: flutter build apk --release --no-pub
+      - name: Build the release APK with the production plugin registrant
+        run: flutter build apk --release
         env:
           ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
       - uses: actions/upload-artifact@v4
@@ -187,7 +188,8 @@ jobs:
       - &windows_desktop
         run: flutter config --enable-windows-desktop
       - *pub
-      - run: flutter build windows --release --no-pub
+      - name: Build the release bundle with the production plugin registrant
+        run: flutter build windows --release
       - name: Include the on-demand Kindle converter
         shell: pwsh
         run: |
