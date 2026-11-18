@@ -4,7 +4,7 @@
 Aggiornamento del documento: 18 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+39, candidata pubblica 9**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+40, candidata pubblica 10**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -31,11 +31,12 @@ correzioni energetiche: [CI](https://github.com/LeValue/KMReader-Porting/actions
 [download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7) verificati. L'accettazione dell'installatore sul telefono,
 le misure energetiche e gli altri requisiti aperti rimangono distinti.
 
-La [build 38 pubblica](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.8) corregge la ricezione della posizione Kindle per ebook già
-scaricati. Il lettore confronta l'ultimo aggiornamento del record, ripete il
-controllo in primo piano e chiede conferma prima di spostarsi. La ripresa
-automatica è una scelta per account. AT-05 resta aperta per la prova con Kindle
-e due dispositivi KMReader installati.
+La build 40 confronta le posizioni Kindle dell'account e dell'edizione scaricata.
+Per gli EPUB già aperti verifica anche come cambia la posizione nel cloud,
+così il confronto tiene conto di orologi diversi. Il lettore chiede conferma
+prima di spostarsi e la ripresa automatica si può attivare per account. AT-05
+resta aperta per la prova con Kindle e due dispositivi KMReader installati.
+[Validazione](VALIDATION.md#build-40--public-candidate-10--kindle-position-and-ci)
 
 ## Come si dichiara concluso il lavoro
 
@@ -226,7 +227,7 @@ essere isolati; non eseguire prove distruttive su un server personale.
 | AT-02 | Percorso accesso → catalogo → lettura → chiusura/riapertura nei tre lettori | Su Android touch e Windows mouse/tastiera: singole/doppie pagine, LTR/RTL, crop/zoom/rotazione, Webtoon, PDF e EPUB reflow/fixed/CJK; margini e inset corretti, curl/tocchi coerenti e posizione conservata. Confrontare anche ritmo e resa con il riferimento. |
 | AT-03 | Download e lettura offline in condizioni avverse | Su entrambi i sistemi: coda ampia, rete persa/cambiata, chiusura/ripresa, storage pieno, worker in background e regole rete/alimentazione. Provare anche restrizioni OEM Android e Task Scheduler Windows; nessuna perdita o duplicazione di dati. |
 | AT-04 | Funzioni di liste/admin/statistiche su backend supportati | Oltre a stock Komga, verificare kmrs smart list/condivisione, Komf e statistiche estese dove dichiarati supportati. Confrontare utenti admin/non admin e server privi della capacità: stato corretto, nessun falso successo. |
-| AT-05 | Progresso, conflitti e continuazione tra sessioni/dispositivi | EPUB/PDF/fumetti e liste: due client, aggiornamenti offline concorrenti, orologi diversi, perdita della risposta e riconnessione. Posizione coerente, conflitto risolvibile e nessuna mutazione ripetuta alla cieca. Per Kindle verificare edizione e limiti delle annotazioni. |
+| AT-05 | Progresso, conflitti e continuazione tra sessioni/dispositivi | EPUB/PDF/fumetti e liste: due client, aggiornamenti offline concorrenti, orologi diversi, perdita della risposta e riconnessione. Posizione coerente, conflitto risolvibile e nessuna mutazione ripetuta alla cieca. Per Kindle verificare Kindle → KMReader e KMReader → KMReader con EPUB già aperto o scaricato, conferma e ripresa automatica. Verificare edizione e limiti delle annotazioni. |
 | AT-06 | File picker/provider esterni e Kindle reale | Importare da PC/telefono/provider un file supportato; verificare in un account di prova l'accettazione Amazon, conversione, comparsa in libreria e lettura dopo aggiornamento. Provare annullamento/esito incerto senza duplicati e cataloghi vecchi con dizionari. Le prove sintetiche già passate non chiudono questa voce. Per F-13 verificare anche eliminazione, metadati/copertina e risincronizzazione dello stato sul documento sostitutivo. |
 | AT-07 | Prestazioni, memoria e blocco Kindle sul Windows segnalato | Misurare apertura iniziale e successiva, catalogo grande/copertine, libri lunghi, animazioni e navigazione durante il caricamento. Su sample EPUB confrontare anche tap/swipe rapidi di Scorri, curl avanti/indietro e testo del fronte/sotto la piega agli estremi su densità frazionarie. Registrare tempi, memoria e comportamento con condizioni riproducibili; definire il criterio di accettazione prima della misura. Navigazione e annullamento devono restare utilizzabili durante il caricamento, senza stato «Non risponde» o crash. Confermare sul PC interessato che il blocco non si riproduca. |
 | AT-08 | Accessibilità e integrazioni native | Schermi piccoli/grandi, chiaro/scuro, testo ingrandito, contrasto, focus/ordine tastiera, TalkBack/Narrator, fullscreen/cutout e privacy cattura. Validare anche share/export, icone, keep-awake e ritorno dal background. |
@@ -265,8 +266,8 @@ cambiata; le modifiche runtime richiedono nuove build e CI.
 | ID | Controllo finale | Stato attuale / criterio di chiusura |
 |---|---|---|
 | R-01 | Chiudere A, F e AT, poi fissare la sorgente finale | Aperto. Elenco delle differenze risolto, nessuna esclusione implicita, difetti residui dichiarati. Aggiornare matrice e note con le prove effettive; la sola chiusura dei sette interventi non basta. |
-| R-02 | Regressioni e backend sulla sorgente finale | Superato per la candidata 39 (`ae79d75`, [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44391792290)); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
-| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+39 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
+| R-02 | Regressioni e backend sulla sorgente finale | Superato per la candidata 40 (`edac973`, [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44407855885)); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i [otto job](TESTING.md#ci-and-devices) devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
+| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+40 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
 | R-04 | Allegati e pubblicazione stabile | Consegna della candidata già verificata; la pubblicazione stabile resta aperta. Preparare/verificare i pacchetti della sorgente finale, riscaricarli e controllare checksum e contenuto. Seguire [RELEASING.md](RELEASING.md): il publisher preview non equivale alla promozione stabile di `v1.0.0`. |
 | R-05 | Conservazione e documentazione | Conservare cronologia, build precedenti, firma Android e sorgenti del runtime Kindle; non rimuovere script attivi. Prima di eventuali eliminazioni di rami/release presentare un nuovo inventario preciso. Aggiornare README, note, [audit repository](REPOSITORY_AUDIT.md) e [validazione](VALIDATION.md) senza modificare allegati storici. |
 
