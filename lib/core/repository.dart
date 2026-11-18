@@ -51,6 +51,7 @@ class Repository extends ChangeNotifier {
   Future<Json?> externalDocumentPosition(Book book, File file) async => null;
   Future<Json?> refreshDocumentPosition(Book book) async => null;
   bool canApplyDocumentPosition(Book book) => false;
+  void externalDocumentPositionApplied(Book book, Json locator) {}
   void documentPosition(Book book, Json event) {}
   List<Json> documentAnnotations(Book book) => const [];
   final documentAnnotationChanges = ValueNotifier(0);

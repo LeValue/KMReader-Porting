@@ -470,27 +470,30 @@ class EpubSession extends ChangeNotifier {
     _externalPosition = null;
     _pending = null;
     _saveTimer?.cancel();
-    final old = object(repository.store.cached(repository.profile.id, key))
-      ..remove('kindleResume');
-    repository.store.cache(repository.profile.id, key, {
-      ...old,
-      ...preferences.toJson(),
-      'chapter': chapter,
-      'progress': progression,
-      'cfi': cfi,
-      'modified':
-          locator['modified'] ?? DateTime.now().toUtc().toIso8601String(),
+    repository.store.transaction(() {
+      final old = object(repository.store.cached(repository.profile.id, key))
+        ..remove('kindleResume');
+      repository.store.cache(repository.profile.id, key, {
+        ...old,
+        ...preferences.toJson(),
+        'chapter': chapter,
+        'progress': progression,
+        'cfi': cfi,
+        'modified':
+            locator['modified'] ?? DateTime.now().toUtc().toIso8601String(),
+      });
+      if (fromCloud) {
+        repository.externalDocumentPositionApplied(book, locator);
+        repository.setEpubProgress(
+          book,
+          href,
+          progression,
+          bookProgress,
+          cfi: cfi,
+          fromServer: true,
+        );
+      }
     });
-    if (fromCloud) {
-      repository.setEpubProgress(
-        book,
-        href,
-        progression,
-        bookProgress,
-        cfi: cfi,
-        fromServer: true,
-      );
-    }
   }
 
   void receive(Json event) {

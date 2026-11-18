@@ -11,6 +11,7 @@ import 'package:xml/xml.dart';
 
 import '../models.dart';
 import 'catalog_filter.dart';
+import 'positions.dart';
 
 const kindleDeviceType = 'AGZZ1ST63LKBW';
 const kindleAppVersion = '6.38.0.100';
@@ -573,12 +574,23 @@ class KindleClient {
         'key': text(item['id']),
         if (guid != null && guid.isNotEmpty) 'guid': guid,
       }),
+      headers: const {'Cache-Control': 'no-cache'},
     );
     if (bytes.isEmpty) return null;
     try {
       return await compute(_readSidecar, (bytes, annotations));
     } catch (_) {
       throw const KindleFailure('sidecar_shape');
+    }
+  }
+
+  Future<Json?> accountPositionSidecar(Json item) async {
+    try {
+      return await sidecar(item).timeout(const Duration(seconds: 4));
+    } on KindleFailure {
+      return null;
+    } on TimeoutException {
+      return null;
     }
   }
 
@@ -706,17 +718,20 @@ class KindleClient {
       headers: {'Content-Type': 'application/xml'},
     );
     await _bounded(response);
-    final after = await sidecar(item, guid: guid, annotations: annotations);
-    final records = (after?['records'] as List? ?? []).map(object);
-    final confirmed = records
-        .where((record) => record['type'] == 'kindle.most_recent_read')
-        .firstOrNull;
-    if (after == null ||
-        num.tryParse('${confirmed?['location']}') != position ||
-        after['guid'] != guid) {
-      throw const KindleFailure('position_not_confirmed');
+    final after = await sidecar(
+      item,
+      guid: guid,
+      annotations: annotations,
+    ).onError<KindleFailure>((_, _) => null);
+    bool confirmed(Json? sidecar) =>
+        sidecar?['guid'] == guid &&
+        kindleLastRead(sidecar, allowLegacy: false)?['position'] == position;
+    if (confirmed(after)) return after!;
+    final account = await accountPositionSidecar(item);
+    if (confirmed(account)) {
+      return account!;
     }
-    return after;
+    throw const KindleFailure('position_not_confirmed');
   }
 }
 
