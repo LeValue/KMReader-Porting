@@ -77,6 +77,11 @@ void main() {
       // A busy emulator can miss the immediate check and be served by the
       // existing 30-second foreground refresh. Exercise the visible result.
       while (deadline.elapsed < const Duration(seconds: 45)) {
+        // This fixture drives lifecycle transitions itself. Native focus
+        // events during WebView attachment can replace the simulated state.
+        if (binding.lifecycleState != AppLifecycleState.resumed) {
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        }
         await tester.pump(const Duration(milliseconds: 100));
         if (ready()) return;
         await Future<void>.delayed(const Duration(milliseconds: 50));
