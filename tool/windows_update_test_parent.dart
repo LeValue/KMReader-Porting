@@ -10,6 +10,6 @@ Future<void> main(List<String> args) async {
   final data = jsonDecode(await job.readAsString()) as Map<String, dynamic>;
   await job.writeAsString(jsonEncode({...data, 'pid': pid}), flush: true);
   await prepareWindowsUpdate(script, job);
-  if (args.contains('--cancel')) return;
-  await commitWindowsUpdate(job);
+  if (!args.contains('--cancel')) await commitWindowsUpdate(job);
+  exit(0);
 }

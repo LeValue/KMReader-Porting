@@ -79,12 +79,20 @@ public static class Replacement {
         [IO.File]::WriteAllText($jobFile, ($job | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
         $cancelJob = Join-Path $root 'cancelled job.json'
         Copy-Item -LiteralPath $jobFile -Destination $cancelJob
-        & dart "$PSScriptRoot/windows_update_test_parent.dart" $script $cancelJob --cancel
-        if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath ($cancelJob + '.ready'))) { throw 'Helper was not ready before cancellation' }
+        $parent = Join-Path $root 'test parent.exe'
+        & dart compile exe "$PSScriptRoot/windows_update_test_parent.dart" -o $parent
+        if ($LASTEXITCODE -ne 0) { throw 'Update fixture parent did not compile' }
+        & $parent $script $cancelJob --cancel
+        if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath ($cancelJob + '.ready'))) {
+            if (Test-Path -LiteralPath ($cancelJob + '.result')) {
+                Get-Content -LiteralPath ($cancelJob + '.result') -Raw | Write-Output
+            }
+            throw 'Helper was not ready before cancellation'
+        }
         Start-Sleep -Milliseconds 500
         if ((Get-Content (Join-Path $install 'kmreader.exe') -Raw) -ne 'rollback-app') { throw 'Uncommitted update changed the install' }
 
-        & dart "$PSScriptRoot/windows_update_test_parent.dart" $script $jobFile
+        & $parent $script $jobFile
         if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath ($jobFile + '.commit'))) { throw 'Update launch did not complete handoff' }
         $marker = Join-Path $install 'restart.marker'
         $result = $jobFile + '.result'
