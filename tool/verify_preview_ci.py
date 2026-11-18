@@ -8,7 +8,7 @@ import subprocess
 
 REQUIRED = {
     'android', 'android_reader_display', 'linux_host', 'linux_services',
-    'windows', 'windows_host', 'windows_reader',
+    'windows', 'windows_host', 'windows_reader', 'windows_worker',
 }
 
 

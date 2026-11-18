@@ -166,16 +166,17 @@ jobs:
           python3 tool/komga_smoke.py --jar /tmp/komga.jar
           curl --fail --location https://github.com/gotson/komga/releases/download/1.30.1/komga-1.30.1.jar --output /tmp/komga-admin.jar
           python3 -m tool.komga_admin.smoke --jar /tmp/komga-admin.jar
-  windows:
+  windows_worker:
     if: *run_verification
     runs-on: windows-latest
     steps:
       - *checkout
       - *python
-      - *provenance
       - name: Build and verify the separate Kindle converter
         shell: pwsh
-        run: ./tool/build_kindle_worker.ps1
+        run: |
+          ./tool/build_kindle_worker.ps1
+          Copy-Item artifacts/kindle-executable-check.json artifacts/kindle-delivery/
       - name: Retain the companion bundle for source-verified read-only probes
         uses: actions/upload-artifact@v4
         with:
@@ -183,7 +184,43 @@ jobs:
           path: |
             artifacts/kindle-delivery/*.zip
             artifacts/kindle-delivery/SHA256SUMS.txt
-            artifacts/kindle-executable-check.json
+            artifacts/kindle-delivery/kindle-executable-check.json
+  windows:
+    needs: windows_worker
+    if: *run_verification
+    runs-on: windows-latest
+    steps:
+      - *checkout
+      - *python
+      - *provenance
+      - &download_kindle_worker
+        uses: actions/download-artifact@v4
+        with:
+          name: KMReader-Kindle-windows-x64
+          path: artifacts/kindle-delivery
+      - &extract_kindle_worker
+        name: Reuse the verified Kindle converter from this run
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $delivery = 'artifacts/kindle-delivery'
+          foreach ($line in Get-Content (Join-Path $delivery 'SHA256SUMS.txt')) {
+            if ($line -notmatch '^([a-f0-9]{64})  ([A-Za-z0-9._-]+\.zip)$') {
+              throw 'Invalid Kindle converter checksum entry'
+            }
+            $hash = $Matches[1]
+            $archive = Join-Path $delivery $Matches[2]
+            if ((Get-FileHash -Algorithm SHA256 $archive).Hash -ne $hash) {
+              throw 'Kindle converter archive checksum mismatch'
+            }
+          }
+          $bundle = @(Get-ChildItem $delivery/KMReader-Kindle-*-windows-x64.zip)
+          if ($bundle.Count -ne 1) { throw 'Expected one Windows converter bundle' }
+          Expand-Archive -Path $bundle[0].FullName -DestinationPath artifacts/kindle-dist -Force
+          $metadata = Get-Content artifacts/kindle-dist/build.json -Raw | ConvertFrom-Json
+          if ($metadata.source -ne $env:GITHUB_SHA -or !(Test-Path artifacts/kindle-dist/KMReader-Kindle/KMReader-Kindle.exe)) {
+            throw 'Kindle converter source or executable mismatch'
+          }
       - *flutter
       - &windows_desktop
         run: flutter config --enable-windows-desktop
@@ -231,11 +268,14 @@ jobs:
       - run: flutter test --no-pub
   windows_reader:
     if: *run_verification
+    needs: windows_worker
     runs-on: windows-latest
     steps:
       - *checkout
       - *python
       - *provenance
+      - *download_kindle_worker
+      - *extract_kindle_worker
       - *flutter
       - *windows_desktop
       - *pub
@@ -342,7 +382,7 @@ jobs:
             ${{ runner.temp }}/reader-logcat.txt
   publish_android_preview:
     if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && !inputs.deliver_draft && github.ref == 'refs/heads/main'
-    needs: [android, linux_host, linux_services, windows, windows_host, windows_reader, android_reader_display]
+    needs: [android, linux_host, linux_services, windows, windows_host, windows_reader, windows_worker, android_reader_display]
     runs-on: ubuntu-latest
     permissions:
       actions: read

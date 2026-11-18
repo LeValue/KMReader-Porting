@@ -69,7 +69,7 @@ again against the source-matched CI revision. The tool rejects a payload over it
 request budget. Do not commit APKs or split one APK into upload fragments.
 
 Create an empty draft for the versioned tag, targeting the exact source commit.
-Run the ordinary build/test workflow on that source. The [seven CI jobs](TESTING.md#ci-and-devices)
+Run the ordinary build/test workflow on that source. The [eight CI jobs](TESTING.md#ci-and-devices)
 must pass, including both release builds, host tests, native integrations and
 service tests. Each independent job can be retried after a runner or transport failure.
 
@@ -78,7 +78,7 @@ pairs, and optionally `verified_run` for that completed CI run. When reusing a
 run, duplicate build jobs are skipped and `tool/verify_preview_ci.py` requires
 the exact commit, repository, main branch, expected workflow, successful run and
 all required job names. Artifacts come from that verified run. Without reuse,
-the dispatch runs all seven jobs.
+the dispatch runs all eight jobs.
 
 The publisher repeats APK integrity checks, packages the matching Windows
 artifact with its native engines and MSVC runtime, verifies uploaded asset
