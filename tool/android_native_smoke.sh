@@ -24,6 +24,13 @@ done
 
 adb shell cmd overlay enable --user 0 com.android.internal.display.cutout.emulation.tall
 
+# Run the readers with the normal activity lifecycle. The installer test
+# opens a separate Android activity and belongs at the end of the job.
+timeout --signal=TERM --kill-after=20s 8m flutter drive \
+  --driver=test_driver/native_reader_driver.dart \
+  --target=integration_test/epub_reader_test.dart \
+  --use-application-binary="$km_binary_directory/reader.apk" -d emulator-5554 --no-pub --no-dds
+
 # The display fixture installs only on this disposable job emulator.
 km_test_package=dev.levalue.kmreader.preview
 adb install -r -t "$km_binary_directory/display.apk"
@@ -35,9 +42,3 @@ timeout --signal=TERM --kill-after=20s 8m flutter drive \
   --driver=test_driver/reader_display_driver.dart \
   --target=integration_test/reader_display_test.dart \
   --use-application-binary="$km_binary_directory/display.apk" -d emulator-5554 --no-pub --no-dds
-# Close the system installer without accepting the synthetic APK.
-adb shell input keyevent KEYCODE_BACK
-timeout --signal=TERM --kill-after=20s 8m flutter drive \
-  --driver=test_driver/native_reader_driver.dart \
-  --target=integration_test/epub_reader_test.dart \
-  --use-application-binary="$km_binary_directory/reader.apk" -d emulator-5554 --no-pub --no-dds
