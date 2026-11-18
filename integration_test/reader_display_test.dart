@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:kmreader/core/background_downloads.dart';
@@ -199,20 +200,27 @@ void main() {
       await SystemChrome.setPreferredOrientations([]);
     },
   );
+  const sameApk = String.fromEnvironment('KMREADER_UPDATE_SAME');
+  const otherApk = String.fromEnvironment('KMREADER_UPDATE_OTHER');
   testWidgets(
     'native APK update rejects a different signer and opens the system installer for a matching signer',
     (tester) async {
       const updates = MethodChannel('dev.levalue.kmreader/updates');
       final storage = await getApplicationSupportDirectory();
-      Future<bool?> install(String name) =>
-          updates.invokeMethod<bool>('install', {
-            'path': '${storage.path}/updates/$name.apk',
-            'build': 999,
-            'version': '1.0.0',
-            'source': 'a' * 40,
-          });
+      Future<bool?> install(String name, String data) async {
+        final file = File('${storage.path}/updates/$name.apk');
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(base64Decode(data), flush: true);
+        return updates.invokeMethod<bool>('install', {
+          'path': file.path,
+          'build': 999,
+          'version': '1.0.0',
+          'source': 'a' * 40,
+        });
+      }
+
       await expectLater(
-        install('other'),
+        install('other', otherApk),
         throwsA(
           isA<PlatformException>().having(
             (e) => e.code,
@@ -221,11 +229,9 @@ void main() {
           ),
         ),
       );
-      expect(await install('same'), isTrue);
+      expect(await install('same', sameApk), isTrue);
     },
-    skip:
-        !Platform.isAndroid ||
-        !const bool.fromEnvironment('KMREADER_UPDATE_FIXTURES'),
+    skip: !Platform.isAndroid || sameApk.isEmpty || otherApk.isEmpty,
   );
 }
 
