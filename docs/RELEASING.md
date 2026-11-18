@@ -3,7 +3,7 @@
 The stable publication target is **1.0.0**. Existing drafts are retained.
 Public candidates supply the in-app update feed and remain prereleases until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
-Current source is **1.0.0+40**. The [public candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.9) is **1.0.0+39**. Existing 0.9.x releases remain in draft;
+Current source and [public candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.10) are **1.0.0+40**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.
 

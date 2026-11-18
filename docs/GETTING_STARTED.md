@@ -1,7 +1,7 @@
 # Installation and first use
 
 KMReader Preview is a community reader for Android and Windows. Current public
-release: [1.0.0 candidate 9, build 39](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.9).
+release: [1.0.0 candidate 10, build 40](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.10).
 It is a development prerelease; stable 1.0 and full upstream parity are not complete.
 
 ## Install
@@ -27,7 +27,7 @@ It is a development prerelease; stable 1.0 and full upstream parity are not comp
 Each release includes `SHA256SUMS.txt`. Compare the downloaded file's SHA256 with
 its entry using `Get-FileHash` on Windows or `sha256sum` on Linux.
 
-If the in-app updater in build 38 or earlier fails, use the public build 39
+If the in-app updater in build 38 or earlier fails, use the current public
 packages to upgrade once. On Android install the official APK over Preview.
 On Windows close the old app, extract the full ZIP and start the executable
 from the extracted folder. The default storage in the Windows profile is

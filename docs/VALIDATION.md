@@ -6,6 +6,33 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 40 / public candidate 10 — Kindle position and CI
+
+Packaged source `edac973549b6780a06cc3fc062e3aeefbf6eec0c`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.10).
+[Source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44407855885) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44411335275) passed.
+
+- Two KMReader repositories sharing a synthetic Kindle service exercised a
+  position sent by one reader and received by an already-open second reader.
+  Other fixtures covered a changed account record despite an existing local
+  bookmark and an ahead-of-server clock, stale editions, conflicts and the
+  in-place switches. Native tests covered the reader's confirmation flow.
+- The first parallel run exposed a production plugin registrant generated in
+  test mode by the release shortcut. The following run used the standard
+  Flutter release commands. Windows packaging and WebView2 also share the
+  verified Kindle converter produced by one job. [First parallel run](https://github.com/LeValue/KMReader-Porting/actions/runs/44404371315) · [Worker dependency](https://github.com/LeValue/KMReader-Porting/actions/runs/44405412832)
+- The eight-job first pass finished in **12m 26s**.
+  The last successful run before the split took **20m 59s**.
+  One Chromium curl assertion failed intermittently. The focused local test
+  passed and only `linux_services` was repeated in CI. Including that retry,
+  all checks took **20m 03s**. Timings exclude publication.
+  [Baseline](https://github.com/LeValue/KMReader-Porting/actions/runs/44391792290)
+- The public updater selected build 40 over 39 and downloaded both packages
+  anonymously. The original Android signing identity and all previous releases
+  were verified. The Windows release matched all **711**
+  files in its CI artifact.
+
+Cross-device confirmation on a live Kindle account remains open under AT-05.
+
 ## Build 39 / public candidate 9 — installer handoff
 
 [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.9). Packaged source `ae79d75cd166a3b11972126eea6fd78ff48acf66`.
