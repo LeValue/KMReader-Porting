@@ -23,13 +23,19 @@ DateTime? kindleTimestamp(dynamic value) {
   return null;
 }
 
-Json? kindleLastRead(Json sidecar) {
-  final raw = sidecar['records'];
-  if (raw is! List) return null;
-  for (final type in ['kindle.most_recent_read', 'kindle.lpr']) {
+Json? kindleLastRead(Json? sidecar, {Json? account, bool allowLegacy = true}) {
+  final records = [
+    // The account-wide record wins only when the service timestamps tie.
+    for (final snapshot in [account, sidecar])
+      if (snapshot?['records'] case final List records) ...records.map(object),
+  ];
+  for (final type in [
+    'kindle.most_recent_read',
+    if (allowLegacy) 'kindle.lpr',
+  ]) {
     Json? latest;
     DateTime? latestTime;
-    for (final record in raw.map(object).where((r) => r['type'] == type)) {
+    for (final record in records.where((r) => r['type'] == type)) {
       final position = num.tryParse('${record['location']}');
       if (position == null ||
           !position.isFinite ||

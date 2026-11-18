@@ -27,13 +27,17 @@ void main() {
   late Directory root;
   late LocalStore store;
   late KindleRepository repo;
+  late KindleClient Function() makeClient;
   late Book book;
   late File publication;
   var position = 12;
   var time = '2020-01-01T00:00:00Z';
   String? lastModification;
+  int? accountPosition;
+  String? accountModification, accountEdition;
   var writes = 0;
   var confirm = true;
+  var accountReadback = false;
   var networkUnavailable = false;
   var expiredCdn = false, expiredRequests = 0;
   var edition = 'SYNTHETIC-ACR';
@@ -68,9 +72,13 @@ void main() {
     sidecarStarted = null;
     writes = 0;
     confirm = true;
+    accountReadback = false;
     edition = 'SYNTHETIC-ACR';
     time = '2020-01-01T00:00:00Z';
     lastModification = null;
+    accountPosition = null;
+    accountModification = null;
+    accountEdition = null;
     publication = fixture(
       root,
       resources: {
@@ -116,7 +124,7 @@ void main() {
         },
       ],
     });
-    final client = KindleClient(
+    makeClient = () => KindleClient(
       session: session,
       client: MockClient((request) async {
         if (request.url.path.endsWith('syncMetaData')) {
@@ -130,10 +138,14 @@ void main() {
         }
         if (request.url.path.endsWith('/sidecar')) {
           if (networkUnavailable) return http.Response('', 503);
+          final account =
+              request.method == 'GET' &&
+              !request.url.queryParameters.containsKey('guid');
           if (request.method == 'GET') {
-            expect(request.url.queryParameters['guid'], isNotEmpty);
+            expect(request.headers['cache-control'], 'no-cache');
           }
           if (request.method == 'GET' &&
+              !account &&
               request.url.queryParameters['key'] == 'opaque+/id' &&
               delayedSidecar != null) {
             sidecarStarted?.complete();
@@ -146,23 +158,32 @@ void main() {
             expect(request.body, isNot(contains('<lpr')));
             expect(request.body, contains('key="opaque+/id"'));
             if (confirm) {
-              position = int.parse(
+              final sent = int.parse(
                 RegExp('begin="(\\d+)"').firstMatch(request.body)![1]!,
               );
+              if (accountReadback) {
+                accountPosition = sent;
+              } else {
+                position = sent;
+              }
             }
           }
           return http.Response(
             jsonEncode({
               'payload': {
-                'acr': edition,
+                'acr': account ? accountEdition ?? edition : edition,
                 'guid': 'SYNTHETIC-GUID',
                 'records': [
                   ...annotations,
                   {
                     'type': 'kindle.most_recent_read',
-                    'location': position,
+                    'location': account
+                        ? accountPosition ?? position
+                        : position,
                     'creationTime': time,
-                    'lastModificationTime': lastModification,
+                    'lastModificationTime': account
+                        ? accountModification ?? lastModification
+                        : lastModification,
                   },
                   {
                     'type': 'kindle.highlight',
@@ -209,7 +230,7 @@ void main() {
       profile: profile,
       store: store,
       directory: root,
-      client: client,
+      client: makeClient(),
       preparation: preparation,
     );
     book = await repo.book(repo.library.idFor(repo.library.items.first));
@@ -351,6 +372,114 @@ void main() {
     expect(object(outbox[book.id]), containsPair('base_position', 12));
     expect(writes, 0);
   });
+
+  test(
+    'a cached EPUB detects later account positions with a faster local clock',
+    () async {
+      final key = 'epub:${book.id}';
+      const localCfi = 'epubcfi(/6/2!/4/2:1)';
+      store.setSetting('kindleMapped:${repo.profile.id}:${book.id}', false);
+      store.cache(repo.profile.id, key, {
+        'chapter': 0,
+        'cfi': localCfi,
+        'modified': '2099-01-01T00:00:00Z',
+      });
+      expect(await repo.externalDocumentPosition(book, publication), isNull);
+
+      // The edition endpoint still returns the old value. The account endpoint
+      // reflects a turn on another reader, even with its timestamp rounded.
+      accountPosition = 80;
+      final incoming = await repo.refreshDocumentPosition(book);
+      expect(incoming?['offset'], 70);
+      expect(object(store.cached(repo.profile.id, key))['cfi'], localCfi);
+      final reopened = await EpubSession.open(repo, book, publication);
+      try {
+        expect(reopened.initialKindleOffer, incoming);
+        reopened.receive({
+          'type': 'position',
+          'href': 'one.xhtml',
+          'cfi': 'epubcfi(/6/2!/4/2:70)',
+          'progression': .5,
+          'kindlePosition': 80,
+        });
+        reopened.rememberKindleResume(incoming!);
+        expect(await repo.refreshDocumentPosition(book), isNull);
+
+        // The next remote reader can move back as well as forward.
+        accountPosition = 40;
+        accountModification = '2020-01-01T01:00:00Z';
+        expect((await repo.refreshDocumentPosition(book))?['offset'], 30);
+        accountEdition = 'OTHER-EDITION';
+        expect(await repo.refreshDocumentPosition(book), isNull);
+        expect(repo.pendingCount, 0);
+        expect(writes, 0);
+      } finally {
+        await reopened.close();
+      }
+    },
+  );
+
+  test('a new KMReader position reaches an already-open second reader through account readback', () async {
+    final secondStore = LocalStore(sqlite3.openInMemory());
+    final id = repo.profile.id;
+    secondStore.cache(id, 'kindle:catalog', store.cached(id, 'kindle:catalog'));
+    secondStore.cache(id, 'epub:${book.id}', {
+      'chapter': 0,
+      'cfi': 'epubcfi(/6/2!/4/2:1)',
+      'modified': '2099-01-01T00:00:00Z',
+    });
+    final second = KindleRepository(
+      profile: repo.profile,
+      store: secondStore,
+      directory: Directory('${root.path}/second'),
+      client: makeClient(),
+    );
+    addTearDown(() {
+      second.dispose();
+      secondStore.close();
+    });
+    await second.library.initialize();
+    expect(await second.externalDocumentPosition(book, publication), isNull);
+    await repo.externalDocumentPosition(book, publication);
+    repo.documentPosition(book, {'kindlePosition': 42});
+    accountReadback = true;
+    await repo.sync(force: true);
+    expect(position, 12);
+    expect(accountPosition, 42);
+    expect(writes, 1);
+    expect(repo.pendingCount, 0);
+    expect(repo.syncFailure, isNull);
+    expect((await second.refreshDocumentPosition(book))?['offset'], 32);
+    expect(second.pendingCount, 0);
+    expect(writes, 1);
+  });
+
+  test(
+    'accepting a detected cloud conflict clears only its pending position',
+    () async {
+      await repo.externalDocumentPosition(book, publication);
+      repo.documentPosition(book, {'kindlePosition': 42});
+      final key = 'kindle:outbox';
+      final pending = object(store.cached(repo.profile.id, key));
+      pending[book.id] = {...object(pending[book.id]), 'not_before': 0}
+        ..remove('base_time');
+      pending['other'] = {'not_before': 4102444800000};
+      store.cache(repo.profile.id, key, pending);
+      accountPosition = 80;
+      accountModification = '2020-01-01T02:00:00Z';
+      await repo.sync();
+      expect(repo.conflicts, contains(book.id));
+      final remote = await repo.refreshDocumentPosition(book);
+      expect(remote?['offset'], 70);
+      expect(repo.pendingCount, 2);
+      expect(writes, 0);
+
+      repo.externalDocumentPositionApplied(book, remote!);
+      expect(object(store.cached(repo.profile.id, key)).keys, ['other']);
+      expect(repo.conflicts, isEmpty);
+      expect(repo.syncFailure, isNull);
+    },
+  );
 
   test('position outbox survives offline restart and verifies the write by reading back', () async {
     repo.setOffline(true);

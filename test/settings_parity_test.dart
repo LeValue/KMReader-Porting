@@ -11,6 +11,8 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:kmreader/core/api.dart';
 import 'package:kmreader/core/app_controller.dart';
 import 'package:kmreader/core/client_log.dart';
+import 'package:kmreader/core/kindle/client.dart';
+import 'package:kmreader/core/kindle/repository.dart';
 import 'package:kmreader/core/media_cache.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
@@ -19,6 +21,7 @@ import 'package:kmreader/features/reader/progress_gate.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
 import 'package:kmreader/features/reader/reading_session.dart';
 import 'package:kmreader/features/settings/reader_settings.dart';
+import 'package:kmreader/features/settings/settings_page.dart';
 import 'package:kmreader/ui/strings.dart';
 
 import 'widget_test.dart' show MemoryVault;
@@ -467,6 +470,73 @@ void main() {
       expect(store.setting<String>('appIcon'), 'classic');
     },
   );
+
+  testWidgets('Kindle switches update in the open Servers screen', (
+    tester,
+  ) async {
+    const account = ServerProfile(
+      id: 'kindle-settings',
+      name: 'Kindle',
+      url: 'https://example.invalid',
+      email: '',
+      authentication: Authentication.apiKey,
+      source: 'kindle',
+    );
+    store.saveServer(account);
+    final app = AppController(
+      store: store,
+      directory: directory,
+      vault: MemoryVault(),
+    );
+    addTearDown(app.dispose);
+    final repository = KindleRepository(
+      store: store,
+      directory: directory,
+      profile: account,
+      client: KindleClient(),
+    );
+    repositories.add(repository);
+    await tester.runAsync(repository.library.initialize);
+    await tester.binding.setSurfaceSize(const Size(900, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final key = GlobalKey<SettingsPageState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(key: key, app: app, repository: repository),
+      ),
+    );
+    key.currentState!.openServers();
+    await tester.pumpAndSettle();
+    final sync = find.widgetWithText(
+      SwitchListTile,
+      'Sync reading position with Kindle',
+    );
+    final resume = find.widgetWithText(
+      SwitchListTile,
+      'Automatically resume from Kindle',
+    );
+    SwitchListTile tile(Finder finder) => tester.widget<SwitchListTile>(finder);
+    expect(tile(sync).value, true);
+    expect(tile(resume).value, false);
+
+    await tester.tap(resume);
+    await tester.pumpAndSettle();
+    expect(tile(resume).value, true);
+    expect(store.setting<bool>('kindleAutoResume:${account.id}'), true);
+
+    await tester.tap(sync);
+    await tester.pumpAndSettle();
+    expect(tile(sync).value, false);
+    expect(tile(resume).onChanged, isNull);
+    expect(store.setting<bool>('kindleSync:${account.id}'), false);
+
+    await tester.tap(sync);
+    await tester.pumpAndSettle();
+    expect(tile(sync).value, true);
+    expect(tile(resume).onChanged, isNotNull);
+    expect(tile(resume).value, true);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets(
     'automatic deletion requires explicit confirmation before enabling',

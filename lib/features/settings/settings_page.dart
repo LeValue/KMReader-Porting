@@ -335,7 +335,7 @@ class _SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) => SettingsScaffold(
     title: title,
     body: ListenableBuilder(
-      listenable: repository,
+      listenable: Listenable.merge([repository, app]),
       builder: (context, _) => SectionScrollView(
         padding: const EdgeInsets.all(22),
         children: switch (section) {
