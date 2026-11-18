@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../core/external_links.dart';
 import '../../core/updates/app_updates.dart';
 import '../../ui/strings.dart';
 
@@ -46,7 +47,7 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
           message = previousFailure
               ? tr(
                   context,
-                  'The previous update failed. Your application files were restored; you can retry.',
+                  'The previous update did not finish. You can retry or update manually.',
                 )
               : null;
           checked = true;
@@ -95,7 +96,12 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
       stage = 'install';
       setState(() {
         progress = null;
-        message = tr(context, 'Opening system installer...');
+        message = tr(
+          context,
+          Platform.isWindows
+              ? 'Preparing the Windows update...'
+              : 'Opening system installer...',
+        );
       });
       final launched = await service.install(release, package!);
       if (!mounted) return;
@@ -121,6 +127,27 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
       }
     } finally {
       if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> openRelease(AppUpdate release) async {
+    final uri = Uri(
+      scheme: 'https',
+      host: 'github.com',
+      pathSegments: [
+        ...updateRepository.split('/'),
+        'releases',
+        'tag',
+        release.url.pathSegments[4],
+      ],
+    );
+    try {
+      if (await openExternalWebLink(uri)) return;
+    } catch (_) {
+      // Keep the update on screen if the browser is unavailable.
+    }
+    if (mounted) {
+      setState(() => message = tr(context, 'Unable to open the release page.'));
     }
   }
 
@@ -175,6 +202,10 @@ class _AppUpdatePageState extends State<AppUpdatePage> {
                 Platform.isWindows ? 'Restart and update' : 'Install update',
               ),
             ),
+          ),
+          TextButton(
+            onPressed: busy || restarting ? null : () => openRelease(release),
+            child: Text(tr(context, 'Open release page')),
           ),
         ],
         if (busy)

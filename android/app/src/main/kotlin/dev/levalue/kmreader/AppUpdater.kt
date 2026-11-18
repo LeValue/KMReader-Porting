@@ -35,9 +35,12 @@ class AppUpdater(private val activity: FlutterFragmentActivity, messenger: Binar
                     require(file.parentFile == File(activity.filesDir, "updates").canonicalFile && file.extension == "apk")
                     require(file.isFile)
                     stage = "update_package"
-                    val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
-                    val update = activity.packageManager.getPackageArchiveInfo(file.path, flags) ?: error("Invalid APK")
-                    val installed = activity.packageManager.getPackageInfo(activity.packageName, flags)
+                    val modernFlags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+                    // Some framework versions collect archive certificates only
+                    // when GET_SIGNATURES is set, even when returning SigningInfo.
+                    val archiveFlags = modernFlags or PackageManager.GET_SIGNATURES
+                    val update = activity.packageManager.getPackageArchiveInfo(file.path, archiveFlags) ?: error("Invalid APK")
+                    val installed = activity.packageManager.getPackageInfo(activity.packageName, modernFlags)
                     require(update.packageName == activity.packageName)
                     stage = "update_version"
                     val newCode = if (Build.VERSION.SDK_INT >= 28) update.longVersionCode else update.versionCode.toLong()
@@ -64,8 +67,12 @@ class AppUpdater(private val activity: FlutterFragmentActivity, messenger: Binar
                         val signatures = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else info.signatures
                         return signatures?.map { signature -> MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it.toInt() and 255) } }?.sorted() ?: emptyList()
                     }
+                    stage = "update_signers_unavailable"
+                    val installedSigners = signers(installed)
+                    val updateSigners = signers(update)
+                    require(installedSigners.isNotEmpty() && updateSigners.isNotEmpty())
                     stage = "update_signature"
-                    require(signers(installed).size == 1 && signers(update) == signers(installed))
+                    require(installedSigners.size == 1 && updateSigners == installedSigners)
                     main.post {
                         if (!closed) {
                             try {

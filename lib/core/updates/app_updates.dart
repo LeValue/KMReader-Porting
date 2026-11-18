@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../app_version.dart';
+import 'windows_update_handoff.dart';
 
 const updateRepository = 'LeValue/KMReader-Porting';
 const updateOrigin = 'https://github.com/$updateRepository/releases/download/';
@@ -27,6 +28,7 @@ String updateFailureMessage(Object error, {required String stage}) {
   if (error is PlatformException) {
     return switch (error.code) {
       'update_signature' || 'update_invalid' => 'Android could not verify this update for the installed app. Use a project release with the same signing certificate.',
+      'update_signers_unavailable' => 'Android could not read the update certificates. Try installing the official APK from the release page.',
       'update_version' => 'The update version does not match this installation. Check for updates again.',
       'update_source' || 'update_package' =>
         'The downloaded package failed verification. Download it again.',
@@ -50,6 +52,9 @@ String updateFailureMessage(Object error, {required String stage}) {
   }
   if (stage == 'check') {
     return 'Unable to check updates. Check your connection and retry.';
+  }
+  if (stage == 'install' && error is ProcessException) {
+    return 'Windows could not start the update helper. Open the release page to update manually.';
   }
   if (stage == 'install') {
     return 'Unable to open the system installer. Check installation permissions and retry.';
@@ -126,8 +131,13 @@ class AppUpdates {
   final http.Client client;
   bool _closed = false;
   static bool _windowsInstallStarted = false;
+  File? _windowsJob;
   void close() {
     _closed = true;
+    if (_windowsJob != null) {
+      _windowsJob = null;
+      _windowsInstallStarted = false;
+    }
     client.close();
   }
 
@@ -380,21 +390,23 @@ class AppUpdates {
     }
     _windowsInstallStarted = true;
     try {
-      final script = File(p.join(file.parent.path, 'windows-update.ps1'));
+      final install = p.dirname(
+        await File(Platform.resolvedExecutable).resolveSymbolicLinks(),
+      );
+      final id =
+          '${update.build}-${DateTime.now().microsecondsSinceEpoch}-$pid';
+      final script = File(p.join(file.parent.path, 'windows-update-$id.ps1'));
       await script.writeAsString(
         await rootBundle.loadString('assets/update/windows-update.ps1'),
         flush: true,
       );
-      final job = File(p.join(file.parent.path, 'job-${update.build}.json'));
+      final job = File(p.join(file.parent.path, 'job-$id.json'));
       await job.writeAsString(
         jsonEncode({
           'pid': pid,
-          'workingDirectory': Directory.current.path,
           'archive': file.path,
           'sha256': update.sha256,
-          'install': p.dirname(
-            await File(Platform.resolvedExecutable).resolveSymbolicLinks(),
-          ),
+          'install': install,
           'build': update.build,
           'version': update.version,
           'source': update.source,
@@ -402,33 +414,19 @@ class AppUpdates {
         flush: true,
       );
       // Check write access without overwriting an existing user file.
-      final probe = await Directory(p.dirname(Platform.resolvedExecutable))
+      final probe = await Directory(install)
           .createTemp('.kmreader-update-check-');
       try {
         await File(p.join(probe.path, 'write')).writeAsString('');
       } finally {
         await probe.delete(recursive: true);
       }
-      await Process.start(
-        p.join(
-          Platform.environment['SystemRoot'] ?? r'C:\Windows',
-          'System32',
-          'WindowsPowerShell',
-          'v1.0',
-          'powershell.exe',
-        ),
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-ExecutionPolicy',
-          'Bypass',
-          '-File',
-          script.path,
-          '-JobFile',
-          job.path,
-        ],
-        mode: ProcessStartMode.detached,
-      );
+      await prepareWindowsUpdate(script, job);
+      if (_closed) {
+        _windowsInstallStarted = false;
+        return false;
+      }
+      _windowsJob = job;
       return true;
     } catch (_) {
       _windowsInstallStarted = false;
@@ -445,7 +443,8 @@ class AppUpdates {
         .where(
           (f) =>
               f is File &&
-              RegExp(r'job-[0-9]+\.json\.result$').hasMatch(f.path),
+              RegExp(r'job-[0-9]+(?:-[0-9]+-[0-9]+)?\.json\.result$')
+                  .hasMatch(f.path),
         )
         .cast<File>()
         .toList();
@@ -455,16 +454,28 @@ class AppUpdates {
       final result = jsonDecode(
         (await files.first.readAsString()).replaceFirst('\uFEFF', ''),
       );
-      return result is Map &&
-          result['state'] == 'failed' &&
-          result['build'] is int &&
-          result['build'] > appBuildNumber;
+      if (result is! Map || result['build'] is! int) return false;
+      return switch (result['state']) {
+        'failed' => result['build'] > appBuildNumber,
+        'restart_failed' => result['build'] >= appBuildNumber,
+        _ => false,
+      };
     } catch (_) {
       return false;
     }
   }
 
   Future<void> requestRestart() async {
+    final job = _windowsJob;
+    if (job != null) {
+      _windowsJob = null;
+      try {
+        await commitWindowsUpdate(job);
+      } catch (_) {
+        _windowsInstallStarted = false;
+        rethrow;
+      }
+    }
     await ServicesBinding.instance.exitApplication(AppExitType.required);
   }
 

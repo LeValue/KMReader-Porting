@@ -1,8 +1,8 @@
 param([string]$JobFile)
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 function Apply-KMReaderUpdate($job) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
     if ((Get-FileHash -LiteralPath $job.archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $job.sha256) { throw 'Package digest mismatch' }
     $install = [IO.Path]::GetFullPath($job.install)
     if ((Get-Item -LiteralPath $install).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked install directory' }
@@ -82,18 +82,45 @@ function Apply-KMReaderUpdate($job) {
     return $backup
 }
 
-if ($MyInvocation.InvocationName -ne '.') {
-    $job = Get-Content -Encoding UTF8 -LiteralPath $JobFile -Raw | ConvertFrom-Json
+function Write-KMReaderUpdateResult($state, $build, $backup = $null) {
+    @{state=$state;build=$build;backup=$backup} | ConvertTo-Json |
+        Set-Content -Encoding UTF8 -LiteralPath ($JobFile + '.result')
+}
+
+if ($JobFile -and $MyInvocation.InvocationName -ne '.') {
+    $job = $null
+    $parentExited = $false
     try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $job = Get-Content -Encoding UTF8 -LiteralPath $JobFile -Raw | ConvertFrom-Json
+        $install = [IO.Path]::GetFullPath($job.install)
+        $executable = Join-Path $install 'kmreader.exe'
+        if (!(Test-Path -LiteralPath $executable -PathType Leaf) -or
+            !(Test-Path -LiteralPath $job.archive -PathType Leaf)) { throw 'Update files unavailable' }
+        $process = Get-Process -Id $job.pid -ErrorAction Stop
+        # Open the process handle before the app exits, so a recycled PID
+        # cannot be mistaken for the application that started this job.
+        $null = $process.Handle
+        [IO.File]::WriteAllText(($JobFile + '.ready'),'')
+        $deadline = [DateTime]::UtcNow.AddSeconds(45)
+        while (!(Test-Path -LiteralPath ($JobFile + '.commit'))) {
+            if ($process.HasExited -or [DateTime]::UtcNow -ge $deadline) { exit 1 }
+            Start-Sleep -Milliseconds 100
+        }
         # The helper never terminates the app: normal app shutdown saves its state.
-        $process = Get-Process -Id $job.pid -ErrorAction SilentlyContinue
-        if ($process -and !$process.WaitForExit(120000)) { throw 'Application did not close' }
+        if (!$process.WaitForExit(120000)) { throw 'Application did not close' }
+        $parentExited = $true
         $saved = Apply-KMReaderUpdate $job
-        @{state='installed';build=$job.build;backup=$saved} | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath ($JobFile + '.result')
-        Start-Process -FilePath (Join-Path $job.install 'kmreader.exe') -WorkingDirectory $(if ($job.workingDirectory) { $job.workingDirectory } else { $job.install })
     } catch {
-        @{state='failed';build=$job.build;message=$_.Exception.Message} | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath ($JobFile + '.result')
-        Start-Process -FilePath (Join-Path $job.install 'kmreader.exe') -WorkingDirectory $(if ($job.workingDirectory) { $job.workingDirectory } else { $job.install })
+        if ($job) { Write-KMReaderUpdateResult 'failed' $job.build }
+        if ($parentExited) { Start-Process -FilePath $executable -WorkingDirectory $install }
         exit 1
     }
+    try {
+        Start-Process -FilePath $executable -WorkingDirectory $install
+    } catch {
+        Write-KMReaderUpdateResult 'restart_failed' $job.build $saved
+        exit 1
+    }
+    Write-KMReaderUpdateResult 'installed' $job.build $saved
 }

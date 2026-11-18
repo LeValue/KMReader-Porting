@@ -1,3 +1,4 @@
+param([switch]$TestHandoff)
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/../assets/update/windows-update.ps1"
 Add-Type -AssemblyName System.IO.Compression
@@ -15,7 +16,7 @@ function New-TestPackage($directory, $destination) {
 }
 $root = Join-Path $env:RUNNER_TEMP ('kmreader-update-test-' + [guid]::NewGuid().ToString('N'))
 try {
-    $install = Join-Path $root 'installed'
+    $install = Join-Path $root ('installed with space ' + [char]0x00E8)
     $payload = Join-Path $root 'payload/KMReader'
     foreach ($folder in @($install,$payload,(Join-Path $payload 'data/flutter_assets/assets/build'),(Join-Path $payload 'kindle'))) { [IO.Directory]::CreateDirectory($folder) | Out-Null }
     [IO.File]::WriteAllText((Join-Path $install 'kmreader.exe'),'old-app')
@@ -55,4 +56,47 @@ try {
         if (!$rejected -or (Get-Content (Join-Path $install 'kmreader.exe') -Raw) -ne 'rollback-app') { throw 'Partial replacement did not roll back' }
     } finally { $locked.Dispose() }
     Write-Output 'Windows updater: replacement, backup, user-data preservation and integrity/source rejection passed.'
+
+    if ($TestHandoff) {
+        $jobFile = Join-Path $root 'handoff job.json'
+        $script = Join-Path $root 'update helper.ps1'
+        Copy-Item -LiteralPath "$PSScriptRoot/../assets/update/windows-update.ps1" -Destination $script
+        $program = @'
+using System;
+using System.IO;
+public static class Replacement {
+    public static void Main() {
+        File.WriteAllText(Path.Combine(Environment.CurrentDirectory, "restart.marker"), "updated");
+    }
+}
+'@
+        Remove-Item -LiteralPath (Join-Path $payload 'kmreader.exe'),$zip
+        Add-Type -TypeDefinition $program -OutputAssembly (Join-Path $payload 'kmreader.exe') -OutputType ConsoleApplication
+        New-TestPackage (Join-Path $root 'payload') $zip
+        $job.sha256 = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+        # Emit Unicode paths as UTF-8 without a BOM for the Dart test parent.
+        [IO.File]::WriteAllText($jobFile, ($job | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+        $cancelJob = Join-Path $root 'cancelled job.json'
+        Copy-Item -LiteralPath $jobFile -Destination $cancelJob
+        & dart "$PSScriptRoot/windows_update_test_parent.dart" $script $cancelJob --cancel
+        if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath ($cancelJob + '.ready'))) { throw 'Helper was not ready before cancellation' }
+        Start-Sleep -Milliseconds 500
+        if ((Get-Content (Join-Path $install 'kmreader.exe') -Raw) -ne 'rollback-app') { throw 'Uncommitted update changed the install' }
+
+        & dart "$PSScriptRoot/windows_update_test_parent.dart" $script $jobFile
+        if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath ($jobFile + '.commit'))) { throw 'Update launch did not complete handoff' }
+        $marker = Join-Path $install 'restart.marker'
+        $result = $jobFile + '.result'
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        while (!(Test-Path -LiteralPath $marker) -or !(Test-Path -LiteralPath $result)) {
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'Replacement did not restart in its installation directory' }
+            Start-Sleep -Milliseconds 100
+        }
+        $report = Get-Content -LiteralPath $result -Encoding UTF8 -Raw | ConvertFrom-Json
+        if ($report.state -ne 'installed' -or
+            (Get-Content -LiteralPath $marker -Raw) -ne 'updated' -or
+            (Get-Content (Join-Path $install 'user-data.txt') -Raw) -ne 'keep-me' -or
+            (Get-Content (Join-Path $report.backup 'kmreader.exe') -Raw) -ne 'rollback-app') { throw 'Handoff did not retain app backup or user data' }
+        Write-Output 'Windows updater: Dart launched the helper, the parent exited and the replacement process started.'
+    }
 } finally { if (Test-Path $root) { Remove-Item $root -Recurse -Force } }

@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:kmreader/core/background_downloads.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -195,6 +198,34 @@ void main() {
       expect(tester.takeException(), isNull);
       await SystemChrome.setPreferredOrientations([]);
     },
+  );
+  testWidgets(
+    'native APK update rejects a different signer and opens the system installer for a matching signer',
+    (tester) async {
+      const updates = MethodChannel('dev.levalue.kmreader/updates');
+      final storage = await getApplicationSupportDirectory();
+      Future<bool?> install(String name) =>
+          updates.invokeMethod<bool>('install', {
+            'path': '${storage.path}/updates/$name.apk',
+            'build': 999,
+            'version': '1.0.0',
+            'source': 'a' * 40,
+          });
+      await expectLater(
+        install('other'),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'update_signature',
+          ),
+        ),
+      );
+      expect(await install('same'), isTrue);
+    },
+    skip:
+        !Platform.isAndroid ||
+        !const bool.fromEnvironment('KMREADER_UPDATE_FIXTURES'),
   );
 }
 
