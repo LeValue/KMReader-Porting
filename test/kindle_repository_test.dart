@@ -12,11 +12,13 @@ import 'package:kmreader/core/kindle/positions.dart';
 import 'package:kmreader/core/kindle/repository.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/store.dart';
+import 'package:kmreader/features/reader/epub_session.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'support/epub_fixture.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final protocol = object(
     jsonDecode(
       File('test/support/kindle_protocol_fixture.json').readAsStringSync(),
@@ -29,6 +31,7 @@ void main() {
   late File publication;
   var position = 12;
   var time = '2020-01-01T00:00:00Z';
+  String? lastModification;
   var writes = 0;
   var confirm = true;
   var networkUnavailable = false;
@@ -67,6 +70,7 @@ void main() {
     confirm = true;
     edition = 'SYNTHETIC-ACR';
     time = '2020-01-01T00:00:00Z';
+    lastModification = null;
     publication = fixture(
       root,
       resources: {
@@ -158,6 +162,7 @@ void main() {
                     'type': 'kindle.most_recent_read',
                     'location': position,
                     'creationTime': time,
+                    'lastModificationTime': lastModification,
                   },
                   {
                     'type': 'kindle.highlight',
@@ -276,6 +281,77 @@ void main() {
       expect(await repo.externalDocumentPosition(book, publication), isNull);
     },
   );
+  test('a downloaded book offers the newer cloud position without jumping or writing', () async {
+    final key = 'epub:${book.id}';
+    const localCfi = 'epubcfi(/6/2!/4/2:1)';
+    store.cache(repo.profile.id, key, {
+      'chapter': 0,
+      'cfi': localCfi,
+      'modified': '2026-01-01T11:30:00Z',
+    });
+    position = 42;
+    lastModification = '2026-01-01T12:00:00Z';
+    final session = await EpubSession.open(repo, book, publication);
+    try {
+      expect(session.configuration('test')['cfi'], localCfi);
+      expect(session.configuration('test'), isNot(contains('kindleResume')));
+      expect(session.initialKindleOffer?['offset'], 32);
+      expect(object(store.cached(repo.profile.id, key))['cfi'], localCfi);
+
+      position = 80;
+      lastModification = '2026-01-01T13:00:00Z';
+      final remote = await repo.refreshDocumentPosition(book);
+      expect(remote?['offset'], 70);
+      const appliedCfi = 'epubcfi(/6/2!/4/2:70)';
+      session.receive({
+        'type': 'position',
+        'href': 'one.xhtml',
+        'cfi': appliedCfi,
+        'progression': .5,
+        'kindlePosition': 80,
+        'changed': false,
+      });
+      session.rememberKindleResume(remote!);
+      expect(
+        object(store.cached(repo.profile.id, key)),
+        containsPair('cfi', appliedCfi),
+      );
+      expect(await repo.refreshDocumentPosition(book), isNull);
+      expect(store.progress(repo.profile.id, book.id)?['kind'], 'epub');
+      expect(repo.pendingCount, 0);
+      await repo.sync(force: true);
+      expect(writes, 0);
+    } finally {
+      await session.close();
+    }
+    final reopened = await EpubSession.open(repo, book, publication);
+    try {
+      expect(reopened.initialKindleOffer, isNull);
+      expect(reopened.configuration('test')['cfi'], 'epubcfi(/6/2!/4/2:70)');
+    } finally {
+      await reopened.close();
+    }
+  });
+
+  test('a cloud position fetched during a local turn leaves the durable outbox in control', () async {
+    await repo.externalDocumentPosition(book, publication);
+    delayedSidecar = Completer<void>();
+    sidecarStarted = Completer<void>();
+    final refresh = repo.refreshDocumentPosition(book);
+    await sidecarStarted!.future;
+    position = 80;
+    lastModification = '2099-01-01T12:00:00Z';
+    repo.documentPosition(book, {'kindlePosition': 42});
+    delayedSidecar!.complete();
+    delayedSidecar = null;
+    expect(await refresh, isNull);
+    expect(repo.canApplyDocumentPosition(book), isFalse);
+    repo.documentPosition(book, {'kindlePosition': 43});
+    final outbox = object(store.cached(repo.profile.id, 'kindle:outbox'));
+    expect(object(outbox[book.id]), containsPair('base_position', 12));
+    expect(writes, 0);
+  });
+
   test('position outbox survives offline restart and verifies the write by reading back', () async {
     repo.setOffline(true);
     await repo.externalDocumentPosition(book, publication);

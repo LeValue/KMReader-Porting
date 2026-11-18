@@ -4,7 +4,7 @@
 Aggiornamento del documento: 17 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+37, candidata pubblica 7**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+38**. La candidata pubblica 7 distribuisce la build 37. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -30,6 +30,12 @@ La candidata pubblica 7/build 37 include copertine, ripresa aggiornamenti e
 correzioni energetiche: [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435), [consegna](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009) e
 [download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7) verificati. L'accettazione dell'installatore sul telefono,
 le misure energetiche e gli altri requisiti aperti rimangono distinti.
+
+La build 38 corregge la ricezione della posizione Kindle per ebook già
+scaricati. Il lettore confronta l'ultimo aggiornamento del record, ripete il
+controllo in primo piano e chiede conferma prima di spostarsi. La ripresa
+automatica è una scelta per account. AT-05 resta aperta per la prova con Kindle
+e due dispositivi KMReader installati.
 
 ## Come si dichiara concluso il lavoro
 

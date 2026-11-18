@@ -1,4 +1,12 @@
 {
+  "Resume reading from Kindle?": {"en": "Resume reading from Kindle?", "it": "Riprendere dalla posizione Kindle?"},
+  "Current chapter": {"en": "Current chapter", "it": "Capitolo attuale"},
+  "Kindle chapter": {"en": "Kindle chapter", "it": "Capitolo su Kindle"},
+  "Last updated": {"en": "Last updated", "it": "Ultimo aggiornamento"},
+  "Stay here": {"en": "Stay here", "it": "Resta qui"},
+  "Go to position": {"en": "Go to position", "it": "Vai alla posizione"},
+  "Automatically resume from Kindle": {"en": "Automatically resume from Kindle", "it": "Riprendi automaticamente da Kindle"},
+  "Go to a newer Kindle position without asking.": {"en": "Go to a newer Kindle position without asking.", "it": "Vai alla posizione Kindle più recente senza chiedere conferma."},
   "Secure connection to the update server failed. Check the device date and system updates.": {"en":"Secure connection to the update server failed. Check the device date and system updates.","it":"Connessione sicura al server degli aggiornamenti non riuscita. Controlla data del dispositivo e aggiornamenti di sistema."},
   "Android could not verify this update for the installed app. Use a project release with the same signing certificate.": {"en": "Android could not verify this update for the installed app. Use a project release with the same signing certificate.", "it": "Android non riesce a verificare questo aggiornamento per l’app installata. Usa una release del progetto con la stessa firma."},
   "The update version does not match this installation. Check for updates again.": {"en": "The update version does not match this installation. Check for updates again.", "it": "La versione dell’aggiornamento non corrisponde a questa installazione. Controlla di nuovo gli aggiornamenti."},

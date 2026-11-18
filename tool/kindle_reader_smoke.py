@@ -31,6 +31,24 @@ with sync_playwright() as p:
     page.evaluate('reader.whenIdle()')
     reflow = page.evaluate("events.filter(e=>e.type==='position').at(-1)")
     assert reflow['kindlePosition'] == 102 and not reflow['changed'], reflow
+    remote = {'href': 'one.xhtml', 'id': 'mapped', 'position': 100, 'offset': 6,
+              'expectedCfi': reflow['cfi']}
+    assert page.evaluate('(value)=>reader.resumeKindle(value)', remote)
+    page.wait_for_timeout(250)
+    latest = page.evaluate("events.filter(e=>e.type==='position').at(-1)")
+    assert latest['kindlePosition'] == 106 and not latest['changed'], latest
+    assert page.evaluate('(value)=>reader.resumeKindle(value)', remote) is None, 'Stale offer moved the reader'
+    invalid = {**remote, 'href': 'two.xhtml', 'expectedCfi': latest['cfi']}
+    assert page.evaluate('(value)=>reader.resumeKindle(value)', invalid) is None
+    restored = page.evaluate("events.filter(e=>e.type==='position').at(-1)")
+    assert restored['cfi'] == latest['cfi'] and not restored['changed'], restored
+    across = {'href': 'two.xhtml', 'id': 'mapped-next', 'position': 20000,
+              'offset': 4, 'expectedCfi': restored['cfi']}
+    moved = page.evaluate('(value)=>reader.resumeKindle(value)', across)
+    assert moved['kindlePosition'] == 20004 and not moved['changed'], moved
+    assert page.evaluate("reader.position().start.index") == 1
+    assert page.evaluate('(value)=>reader.resumeKindle(value)',
+                         {**remote, 'expectedCfi': moved['cfi']})
     page.evaluate('reader.next()')
     page.evaluate('reader.whenIdle()')
     next_page = page.evaluate("events.filter(e=>e.type==='position'&&e.changed).at(-1)")

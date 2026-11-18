@@ -256,7 +256,12 @@ class LocalStore {
     'SELECT 1 FROM progress WHERE server=? AND book=? AND pending=1',
     [server, book],
   ).isNotEmpty;
-  void recordProgress(String server, String book, Json value) {
+  void recordProgress(
+    String server,
+    String book,
+    Json value, {
+    bool pending = true,
+  }) {
     _progress['$server:$book'] = value;
     final previous = db.select(
       'SELECT revision FROM progress WHERE server=? AND book=?',
@@ -266,8 +271,8 @@ class LocalStore {
         ? 1
         : integer(previous.first['revision']) + 1;
     db.execute(
-      'INSERT OR REPLACE INTO progress(server,book,value,revision,pending) VALUES(?,?,?,?,1)',
-      [server, book, jsonEncode(value), revision],
+      'INSERT OR REPLACE INTO progress(server,book,value,revision,pending) VALUES(?,?,?,?,?)',
+      [server, book, jsonEncode(value), revision, pending ? 1 : 0],
     );
   }
 

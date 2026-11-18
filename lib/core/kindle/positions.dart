@@ -26,22 +26,28 @@ DateTime? kindleTimestamp(dynamic value) {
 Json? kindleLastRead(Json sidecar) {
   final raw = sidecar['records'];
   if (raw is! List) return null;
-  final records = raw.map(object).toList();
   for (final type in ['kindle.most_recent_read', 'kindle.lpr']) {
-    final found = records.where((record) => record['type'] == type).firstOrNull;
-    final position = num.tryParse('${found?['location']}');
-    if (found != null &&
-        position != null &&
-        position.isFinite &&
-        position >= 0 &&
-        position == position.roundToDouble()) {
-      return {
-        'position': position.toInt(),
-        'time': kindleTimestamp(
-          found['creationTime'] ?? found['lastModificationTime'],
-        )?.toIso8601String(),
-      };
+    Json? latest;
+    DateTime? latestTime;
+    for (final record in raw.map(object).where((r) => r['type'] == type)) {
+      final position = num.tryParse('${record['location']}');
+      if (position == null ||
+          !position.isFinite ||
+          position < 0 ||
+          position != position.roundToDouble()) {
+        continue;
+      }
+      final time =
+          kindleTimestamp(record['lastModificationTime']) ??
+          kindleTimestamp(record['creationTime']);
+      if (latest != null &&
+          (time == null || latestTime != null && !time.isAfter(latestTime))) {
+        continue;
+      }
+      latestTime = time;
+      latest = {'position': position.toInt(), 'time': time?.toIso8601String()};
     }
+    if (latest != null) return latest;
   }
   return null;
 }

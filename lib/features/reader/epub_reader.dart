@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
@@ -59,6 +60,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   bool _androidHybridComposition = false;
   bool _initialized = false, _controls = true, _fullscreen = false;
   Timer? _chromeTimer;
+  AppLifecycleListener? _kindleLifecycle;
+  Timer? _kindlePositionTimer;
+  bool _checkingKindlePosition = false;
+  Json? _dismissedKindlePosition;
   void _scheduleControlsHide() {
     _chromeTimer?.cancel();
     if (!_controls || _settingsOpen || _session?.ready != true) return;
@@ -118,6 +123,172 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     _fullscreen =
         widget.repository.store.setting<bool>('autoFullscreenOnOpen') == true;
     _future = _open();
+    if (widget.repository.profile.isKindle && !widget.incognito) {
+      _kindleLifecycle = AppLifecycleListener(
+        onStateChange: (state) {
+          _kindlePositionTimer?.cancel();
+          if (state == AppLifecycleState.resumed) {
+            _scheduleKindlePositionCheck();
+            unawaited(_checkKindlePosition());
+          }
+        },
+      );
+      _scheduleKindlePositionCheck();
+    }
+  }
+
+  bool get _readerInForeground =>
+      mounted &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed);
+
+  void _scheduleKindlePositionCheck() {
+    _kindlePositionTimer?.cancel();
+    _kindlePositionTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_checkKindlePosition()),
+    );
+  }
+
+  bool _canCheckKindlePosition(EpubSession session) =>
+      _readerInForeground &&
+      session.ready &&
+      !session.auxiliary &&
+      !session.layoutBusy &&
+      !_turning &&
+      !_settingsOpen &&
+      widget.repository.canApplyDocumentPosition(widget.book);
+
+  Future<void> _checkKindlePosition() async {
+    final session = _session;
+    if (session == null ||
+        _checkingKindlePosition ||
+        !_canCheckKindlePosition(session)) {
+      return;
+    }
+    _checkingKindlePosition = true;
+    final currentCfi = session.cfi;
+    try {
+      final initial = session.initialKindleOffer;
+      session.initialKindleOffer = null;
+      final remote =
+          initial ??
+          await widget.repository.refreshDocumentPosition(widget.book);
+      if (remote == null ||
+          !_canCheckKindlePosition(session) ||
+          session.cfi != currentCfi ||
+          session.chapterFor(text(remote['href'])) < 0 ||
+          integer(remote['position']) + integer(remote['offset']) ==
+              session.kindlePosition ||
+          mapEquals(remote, _dismissedKindlePosition)) {
+        return;
+      }
+      final automatic =
+          widget.repository.store.setting<bool>(
+            'kindleAutoResume:${widget.repository.profile.id}',
+          ) ==
+          true;
+      if (!automatic && !await _confirmKindlePosition(session, remote)) {
+        _dismissedKindlePosition = remote;
+        return;
+      }
+      if (!_canCheckKindlePosition(session) || session.cfi != currentCfi) {
+        return;
+      }
+      final restored = await _call('resumeKindle', {
+        ...session.kindleTarget(remote),
+        'expectedCfi': currentCfi,
+      });
+      if (restored is Map &&
+          mounted &&
+          (session.cfi == currentCfi || session.cfi == restored['cfi']) &&
+          widget.repository.canApplyDocumentPosition(widget.book)) {
+        session.receive({...object(restored), 'type': 'position'});
+        session.rememberKindleResume(remote);
+      } else {
+        _dismissedKindlePosition = remote;
+      }
+    } catch (_) {
+      // A transient network failure leaves the current page readable.
+    } finally {
+      _checkingKindlePosition = false;
+    }
+  }
+
+  Future<bool> _confirmKindlePosition(EpubSession session, Json remote) async {
+    final chapter = session.chapterFor(text(remote['href']));
+    final updated = DateTime.tryParse(text(remote['modified']))?.toLocal();
+    final material = MaterialLocalizations.of(context);
+    final title = tr(context, 'Resume reading from Kindle?');
+    final details = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${tr(context, 'Current chapter')} · ${session.document.chapters[session.chapter].title}',
+        ),
+        Text(
+          '${tr(context, 'Kindle chapter')} · ${session.document.chapters[chapter].title}',
+        ),
+        if (updated != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${tr(context, 'Last updated')} · ${material.formatShortDate(updated)} ${material.formatTimeOfDay(TimeOfDay.fromDateTime(updated))}',
+          ),
+        ],
+      ],
+    );
+    List<Widget> actions(BuildContext dialog) => [
+      TextButton(
+        onPressed: () => Navigator.pop(dialog, false),
+        child: Text(tr(dialog, 'Stay here')),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(dialog, true),
+        child: Text(tr(dialog, 'Go to position')),
+      ),
+    ];
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return await showModalBottomSheet<bool>(
+            context: context,
+            useSafeArea: true,
+            isScrollControlled: true,
+            showDragHandle: true,
+            builder: (sheet) => SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(sheet).textTheme.titleLarge),
+                    const SizedBox(height: 16),
+                    details,
+                    const SizedBox(height: 16),
+                    OverflowBar(
+                      spacing: 8,
+                      alignment: MainAxisAlignment.end,
+                      children: actions(sheet),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ) ??
+          false;
+    }
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialog) => AlertDialog(
+            title: Text(title),
+            content: details,
+            scrollable: true,
+            actions: actions(dialog),
+          ),
+        ) ??
+        false;
   }
 
   void _annotationsChanged() {
@@ -355,9 +526,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     }());
     switch (event['type']) {
       case 'ready':
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _scheduleControlsHide(),
-        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scheduleControlsHide();
+          if (_session?.initialKindleOffer != null) {
+            unawaited(_checkKindlePosition());
+          }
+        });
         setState(() {
           _fixedLayout = event['layout'] == 'pre-paginated';
           _verticalWriting = text(event['writingMode']).startsWith('vertical');
@@ -1303,6 +1477,8 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   @override
   void dispose() {
+    _kindleLifecycle?.dispose();
+    _kindlePositionTimer?.cancel();
     widget.repository.documentAnnotationChanges.removeListener(
       _annotationsChanged,
     );

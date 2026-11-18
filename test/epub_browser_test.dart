@@ -31,6 +31,9 @@ void main() {
           'OPS/one.xhtml': utf8.encode(
             '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Positions</title></head><body><p id="mapped" data-kmreader-kindle-position="100" data-kmreader-kindle-length="${text.runes.length}">$text</p></body></html>',
           ),
+          'OPS/two.xhtml': utf8.encode(
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Second chapter</title></head><body><p id="mapped-next" data-kmreader-kindle-position="20000" data-kmreader-kindle-length="${text.runes.length}">$text</p></body></html>',
+          ),
         },
       ).path,
     );

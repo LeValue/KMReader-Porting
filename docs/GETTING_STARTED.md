@@ -69,6 +69,15 @@ Add a Kindle account under **Settings → Servers** and complete Amazon sign-in.
 The unofficial adapter currently targets Amazon.it. Reading may require document
 preparation; Windows distributions include its separate conversion worker.
 
+Starting with build 38, KMReader offers a newer Kindle reading position when you
+open a supported Kindle ebook or return to the foreground with the reader open.
+It also checks for new positions periodically while that reader is active.
+Choose **Go to position** to continue there or **Stay here** to keep reading.
+In **Settings → Servers**, turn on **Automatically resume from Kindle** to skip
+confirmation. **Sync reading position with Kindle** controls both sharing your
+reading position and checking for incoming positions. Automatic resume is off
+by default.
+
 For a local document, open **Send to Kindle**, choose a file and review its
 metadata. **Add to Kindle library** makes it available through the account's
 cloud library. Turn that switch off to deliver only to selected devices.
