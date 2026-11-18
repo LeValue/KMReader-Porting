@@ -11,7 +11,8 @@ class PreviewGateTest(unittest.TestCase):
                     'repository': {'full_name': 'LeValue/KMReader-Porting'}}
         self.jobs = [{'name': name, 'conclusion': 'success'} for name in
                      ['android', 'android_reader_display', 'linux_host',
-                      'linux_services', 'windows', 'windows_host', 'windows_reader']]
+                      'linux_services', 'windows', 'windows_host',
+                      'windows_reader', 'windows_worker']]
 
     def verify(self, run=None, jobs=None):
         validate_run(run or self.run, self.jobs if jobs is None else jobs,

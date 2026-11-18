@@ -68,19 +68,21 @@ modify an existing server.
 | `android` | Optimized release APK for all supported Android architectures |
 | `linux_host` | Format and version validation, release tool tests, Flutter analysis and host suite |
 | `linux_services` | Python protocol/browser tests, prepared-book import, reader in Chromium, ONNX and both Komga smoke tests |
-| `windows` | Worker tests, executable and source archive, release bundle and isolated startup |
+| `windows_worker` | Kindle converter tests and verified executable and source archive |
+| `windows` | Release bundle using the shared converter and isolated startup |
 | `windows_host` | Flutter analysis and host suite, updater handoff and diagnostic launcher validation |
 | `windows_reader` | Native WebView2 integration |
 | `android_reader_display` | One x64 test APK on the emulator exercises WebView, window insets, reader/comic motion and the Android system installer |
 
-The seven jobs run in parallel and the release tools require each to pass for
-the packaged source. The Android installer test runs last because it opens a
+Independent jobs run in parallel. Windows release and WebView2 both reuse the
+converter from `windows_worker`. The release tools require all eight jobs to
+pass for the packaged source. The Android installer test runs last because it opens a
 separate system activity. The release APK retains all supported architectures.
 New commits supersede older automatic runs on the same ref. Manual publication
 and delivery runs are independent.
 The old standalone prototype workflow is archived; its protocol/import checks
 now belong to CI and its duplicate executable recipe uses the shared build script.
-The Windows job also retains `KMReader-Kindle-windows-x64` for source-verified
+The converter job also retains `KMReader-Kindle-windows-x64` for source-verified
 read-only probes, using the same artifact name as the former workflow.
 
 `local-windows.yml` dispatches optional Windows/Android diagnostics and the two
