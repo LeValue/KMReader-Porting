@@ -1,4 +1,10 @@
 {
+  "Android could not read the update certificates. Try installing the official APK from the release page.": {"en": "Android could not read the update certificates. Try installing the official APK from the release page.", "it": "Android non riesce a leggere i certificati dell’aggiornamento. Prova a installare l’APK ufficiale dalla pagina della release."},
+  "Windows could not start the update helper. Open the release page to update manually.": {"en": "Windows could not start the update helper. Open the release page to update manually.", "it": "Windows non riesce ad avviare il programma di aggiornamento. Apri la pagina della release per aggiornare manualmente."},
+  "Preparing the Windows update...": {"en": "Preparing the Windows update...", "it": "Preparazione dell’aggiornamento Windows…"},
+  "The previous update did not finish. You can retry or update manually.": {"en": "The previous update did not finish. You can retry or update manually.", "it": "L’aggiornamento precedente non è stato completato. Puoi riprovare o aggiornare manualmente."},
+  "Open release page": {"en": "Open release page", "it": "Apri la pagina della release"},
+  "Unable to open the release page.": {"en": "Unable to open the release page.", "it": "Impossibile aprire la pagina della release."},
   "Resume reading from Kindle?": {"en": "Resume reading from Kindle?", "it": "Riprendere dalla posizione Kindle?"},
   "Current chapter": {"en": "Current chapter", "it": "Capitolo attuale"},
   "Kindle chapter": {"en": "Kindle chapter", "it": "Capitolo su Kindle"},

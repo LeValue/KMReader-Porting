@@ -131,9 +131,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify Windows in-app update replacement and recovery
-        shell: powershell
-        run: ./tool/test_windows_updater.ps1
       - name: Validate the deferred Android diagnostic launcher
         shell: powershell
         run: |
@@ -162,6 +159,9 @@ jobs:
           cache: true
       - run: flutter config --enable-windows-desktop
       - run: flutter pub get --enforce-lockfile
+      - name: Verify Windows updater handoff, replacement and recovery
+        shell: powershell
+        run: ./tool/test_windows_updater.ps1 -TestHandoff
       - run: flutter analyze
       - run: flutter test
       - name: Verify EPUB in native Windows WebView2
@@ -244,7 +244,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .dart_tool/native-test-apks
-          flutter build apk --debug --target=integration_test/reader_display_test.dart --no-pub
+          flutter build apk --debug --target=integration_test/reader_display_test.dart --dart-define=KMREADER_UPDATE_FIXTURES=true --no-pub
           cp build/app/outputs/flutter-apk/app-debug.apk .dart_tool/native-test-apks/display.apk
           flutter build apk --debug --target=integration_test/epub_reader_test.dart --no-pub
           cp build/app/outputs/flutter-apk/app-debug.apk .dart_tool/native-test-apks/reader.apk
