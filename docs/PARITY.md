@@ -1,10 +1,10 @@
 # Matrice di parità e chiusura del porting KMReader
 
 **Stato: porting ancora aperto; release stabile non pronta.**
-Aggiornamento del documento: 17 novembre 2026. Piattaforme: Android e Windows.
+Aggiornamento del documento: 18 novembre 2026. Piattaforme: Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+38**. La candidata pubblica 7 distribuisce la build 37. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+38, candidata pubblica 8**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -31,7 +31,7 @@ correzioni energetiche: [CI](https://github.com/LeValue/KMReader-Porting/actions
 [download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7) verificati. L'accettazione dell'installatore sul telefono,
 le misure energetiche e gli altri requisiti aperti rimangono distinti.
 
-La build 38 corregge la ricezione della posizione Kindle per ebook già
+La [build 38 pubblica](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.8) corregge la ricezione della posizione Kindle per ebook già
 scaricati. Il lettore confronta l'ultimo aggiornamento del record, ripete il
 controllo in primo piano e chiede conferma prima di spostarsi. La ripresa
 automatica è una scelta per account. AT-05 resta aperta per la prova con Kindle
@@ -265,8 +265,8 @@ cambiata; le modifiche runtime richiedono nuove build e CI.
 | ID | Controllo finale | Stato attuale / criterio di chiusura |
 |---|---|---|
 | R-01 | Chiudere A, F e AT, poi fissare la sorgente finale | Aperto. Elenco delle differenze risolto, nessuna esclusione implicita, difetti residui dichiarati. Aggiornare matrice e note con le prove effettive; la sola chiusura dei sette interventi non basta. |
-| R-02 | Regressioni e backend sulla sorgente finale | Superato per la candidata 37 (`9b03716`, CI 44108656435); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
-| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+37 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
+| R-02 | Regressioni e backend sulla sorgente finale | Superato per la candidata 38 (`694975b`, [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44320891587)); ripetere dopo nuove modifiche runtime e sulla sorgente scelta per la stabile. Tutti i job `android`, `windows`, `android_reader_display` devono riuscire; includere Komga reale, browser, worker e integrazioni native. Conservare fallimenti/ripetizioni e dichiarare skip/controlli non disponibili. |
+| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+38 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
 | R-04 | Allegati e pubblicazione stabile | Consegna della candidata già verificata; la pubblicazione stabile resta aperta. Preparare/verificare i pacchetti della sorgente finale, riscaricarli e controllare checksum e contenuto. Seguire [RELEASING.md](RELEASING.md): il publisher preview non equivale alla promozione stabile di `v1.0.0`. |
 | R-05 | Conservazione e documentazione | Conservare cronologia, build precedenti, firma Android e sorgenti del runtime Kindle; non rimuovere script attivi. Prima di eventuali eliminazioni di rami/release presentare un nuovo inventario preciso. Aggiornare README, note, [audit repository](REPOSITORY_AUDIT.md) e [validazione](VALIDATION.md) senza modificare allegati storici. |
 
