@@ -43,16 +43,17 @@ void main() {
   // that create/terminate WebView and background-engine graphics contexts.
   verifyNativeKindleWorker();
   verifyNativeComicSheets();
-  verifyNativeBackgroundDownloads();
-  verifyNativeScrolling(binding);
-  verifyNativeWindowsWheel();
-  verifyNativeEpubPerformance();
   testWidgets('Kindle offers a newer location and follows it only with consent', (
     tester,
   ) async {
     await Strings.initialize();
     final directory = await Directory.systemTemp.createTemp('kindle-resume-');
-    final store = LocalStore(sqlite3.openInMemory());
+    final store = LocalStore(sqlite3.openInMemory())
+      ..setSetting('epubDefault', {
+        'advancedLayout': false,
+        'animate': false,
+        'transition': 'none',
+      });
     final repository = _KindleResumeFixture(store, directory);
     final book = Book({
       'id': 'kindle-fixture',
@@ -62,6 +63,7 @@ void main() {
     final text = List.filled(100, 'Synthetic Kindle text. ').join();
     final file = fixture(
       directory,
+      paragraphCount: 8,
       resources: {
         'OPS/two.xhtml': utf8.encode(
           '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Second chapter</title></head><body><p id="mapped" data-kmreader-kindle-position="100" data-kmreader-kindle-length="${text.length}">$text</p></body></html>',
@@ -70,13 +72,23 @@ void main() {
     );
     Json? saved() =>
         store.cached(repository.profile.id, 'epub:${book.id}') as Json?;
-    Future<void> waitFor(bool Function() ready) async {
-      for (var i = 0; i < 160; i++) {
+    Future<void> waitFor(String stage, bool Function() ready) async {
+      final deadline = Stopwatch()..start();
+      // A busy emulator can miss the immediate check and be served by the
+      // existing 30-second foreground refresh. Exercise the visible result.
+      while (deadline.elapsed < const Duration(seconds: 45)) {
         await tester.pump(const Duration(milliseconds: 100));
         if (ready()) return;
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-      fail('Kindle position did not reach the expected state');
+      final labels = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((value) => value.data)
+          .whereType<String>()
+          .join(' | ');
+      fail(
+        'Kindle resume failed at $stage. App state: ${binding.lifecycleState}. UI: $labels',
+      );
     }
 
     void resumeApp() {
@@ -98,7 +110,7 @@ void main() {
         ),
       );
       final offer = find.text('Resume reading from Kindle?');
-      await waitFor(() => offer.evaluate().isNotEmpty);
+      await waitFor('initial offer', () => offer.evaluate().isNotEmpty);
       await tester.pumpAndSettle();
       expect(saved(), isNull);
       await tester.tap(find.text('Stay here'));
@@ -108,16 +120,16 @@ void main() {
 
       repository.offset = 300;
       resumeApp();
-      await waitFor(() => offer.evaluate().isNotEmpty);
+      await waitFor('offer after resume', () => offer.evaluate().isNotEmpty);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Go to position'));
-      await waitFor(() => saved()?['chapter'] == 1);
+      await waitFor('confirmed navigation', () => saved()?['chapter'] == 1);
       final confirmed = saved()!['cfi'];
 
       store.setSetting('kindleAutoResume:${repository.profile.id}', true);
       repository.offset = 800;
       resumeApp();
-      await waitFor(() => saved()?['cfi'] != confirmed);
+      await waitFor('automatic navigation', () => saved()?['cfi'] != confirmed);
       expect(offer, findsNothing);
       expect(repository.pendingCount, 0);
       expect(repository.writes, 0);
@@ -129,7 +141,10 @@ void main() {
       await directory.delete(recursive: true);
     }
   });
-  // Keep the resume prompt test ahead of the deliberate WebView crash.
+  verifyNativeBackgroundDownloads();
+  verifyNativeScrolling(binding);
+  verifyNativeWindowsWheel();
+  verifyNativeEpubPerformance();
   verifyNativeEpubRecovery();
   verifyNativeLocalLibrary();
   testWidgets('Android export rejects files outside app-private storage', (
