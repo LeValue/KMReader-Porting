@@ -37,7 +37,6 @@ timeout --signal=TERM --kill-after=20s 8m flutter drive \
   --use-application-binary="$km_binary_directory/display.apk" -d emulator-5554 --no-pub --no-dds
 # Close the system installer without accepting the synthetic APK.
 adb shell input keyevent KEYCODE_BACK
-adb uninstall "$km_test_package"
 timeout --signal=TERM --kill-after=20s 8m flutter drive \
   --driver=test_driver/native_reader_driver.dart \
   --target=integration_test/epub_reader_test.dart \
