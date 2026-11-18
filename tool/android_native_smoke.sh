@@ -33,7 +33,12 @@ timeout --signal=TERM --kill-after=20s 8m flutter drive \
 
 # The display fixture installs only on this disposable job emulator.
 km_test_package=dev.levalue.kmreader.preview
-adb install -r -t "$km_binary_directory/display.apk"
+for km_attempt in 1 2 3; do
+  if adb install --no-streaming -r -t "$km_binary_directory/display.apk"; then break; fi
+  if [[ "$km_attempt" == 3 ]]; then exit 1; fi
+  adb wait-for-device
+  sleep 2
+done
 adb shell appops set "$km_test_package" REQUEST_INSTALL_PACKAGES allow
 
 # The driver needs the authenticated VM connection directly. A stalled DDS
