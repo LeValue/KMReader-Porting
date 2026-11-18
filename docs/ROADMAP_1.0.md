@@ -2,7 +2,7 @@
 
 The next publication target is **1.0.0**. Existing 0.9.x candidates stay in draft
 while work continues; previous builds and releases remain available for recovery.
-Current source is **1.0.0+37, public candidate 7**; stable publication remains gated by the checks below.
+Current source is **1.0.0+38** and the current public candidate is build 37; stable publication remains gated by the checks below.
 Changing the version number alone does not complete this milestone.
 
 ## Working scope
@@ -114,8 +114,8 @@ does not belong in logs, fixtures, source archives or CI artifacts.
 
 ## Version and publication
 
-Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+37 for this candidate,
-strictly above the retained build 36 candidate. Passing the readiness checks is still
+Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+38 for the
+next candidate. The current public candidate is build 37. Passing the readiness checks is still
 required before stable publication. Preserve the
 existing Preview application ID and signing certificate for upgrade continuity.
 Add accurate 1.0 release notes and embed the exact source in each final build.

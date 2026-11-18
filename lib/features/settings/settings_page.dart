@@ -516,6 +516,32 @@ class _SettingsSection extends StatelessWidget {
                         app.settingsChanged();
                       },
                     ),
+                    SwitchListTile.adaptive(
+                      title: Text(
+                        tr(context, 'Automatically resume from Kindle'),
+                      ),
+                      subtitle: Text(
+                        tr(
+                          context,
+                          'Go to a newer Kindle position without asking.',
+                        ),
+                      ),
+                      value:
+                          repository.store.setting<bool>(
+                            'kindleAutoResume:${repository.profile.id}',
+                          ) ==
+                          true,
+                      onChanged:
+                          !(repository as KindleRepository).kindleSyncEnabled
+                          ? null
+                          : (value) {
+                              repository.store.setSetting(
+                                'kindleAutoResume:${repository.profile.id}',
+                                value,
+                              );
+                              app.settingsChanged();
+                            },
+                    ),
                     ListTile(
                       leading: const Icon(CupertinoIcons.book),
                       title: const Text('Servizi Kindle'),

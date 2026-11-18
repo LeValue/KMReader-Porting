@@ -49,6 +49,8 @@ class Repository extends ChangeNotifier {
   bool get supportsRemoteLists => true;
   Future<Book> resolveDocumentBook(Book book, File file) async => book;
   Future<Json?> externalDocumentPosition(Book book, File file) async => null;
+  Future<Json?> refreshDocumentPosition(Book book) async => null;
+  bool canApplyDocumentPosition(Book book) => false;
   void documentPosition(Book book, Json event) {}
   List<Json> documentAnnotations(Book book) => const [];
   final documentAnnotationChanges = ValueNotifier(0);
@@ -1055,6 +1057,7 @@ class Repository extends ChangeNotifier {
     double progression,
     double total, {
     String? cfi,
+    bool fromServer = false,
   }) {
     if (_disposed) return;
     var device = store.setting<String>('deviceId');
@@ -1084,11 +1087,11 @@ class Repository extends ChangeNotifier {
           },
         },
       },
-    });
+    }, pending: !fromServer);
     progressRevision++;
     catalogChanges.value++;
     changed();
-    unawaited(sync());
+    if (!fromServer) unawaited(sync());
   }
 
   Future<Json> _epubProgression(String book, Json value) async {

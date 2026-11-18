@@ -3,6 +3,7 @@ import 'support/local_library_check.dart';
 
 import 'package:kmreader/core/background_downloads.dart';
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -48,6 +49,88 @@ void main() {
   verifyNativeEpubPerformance();
   verifyNativeEpubRecovery();
   verifyNativeLocalLibrary();
+  testWidgets('Kindle offers a newer location and follows it only with consent', (
+    tester,
+  ) async {
+    await Strings.initialize();
+    final directory = await Directory.systemTemp.createTemp('kindle-resume-');
+    final store = LocalStore(sqlite3.openInMemory());
+    final repository = _KindleResumeFixture(store, directory);
+    final book = Book({
+      'id': 'kindle-fixture',
+      'name': 'Kindle position fixture',
+      'media': {'mediaProfile': 'EPUB'},
+    });
+    final text = List.filled(100, 'Synthetic Kindle text. ').join();
+    final file = fixture(
+      directory,
+      resources: {
+        'OPS/two.xhtml': utf8.encode(
+          '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Second chapter</title></head><body><p id="mapped" data-kmreader-kindle-position="100" data-kmreader-kindle-length="${text.length}">$text</p></body></html>',
+        ),
+      },
+    );
+    Json? saved() =>
+        store.cached(repository.profile.id, 'epub:${book.id}') as Json?;
+    Future<void> waitFor(bool Function() ready) async {
+      for (var i = 0; i < 160; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (ready()) return;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      fail('Kindle position did not reach the expected state');
+    }
+
+    void resumeApp() {
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    }
+
+    try {
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderDisplay(
+            child: BrowserEpubReader(
+              file: file,
+              repository: repository,
+              book: book,
+            ),
+          ),
+        ),
+      );
+      final offer = find.text('Resume reading from Kindle?');
+      await waitFor(() => offer.evaluate().isNotEmpty);
+      await tester.pumpAndSettle();
+      expect(saved(), isNull);
+      await tester.tap(find.text('Stay here'));
+      await tester.pumpAndSettle();
+      expect(saved(), isNull);
+      expect(offer, findsNothing);
+
+      repository.offset = 300;
+      resumeApp();
+      await waitFor(() => offer.evaluate().isNotEmpty);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Go to position'));
+      await waitFor(() => saved()?['chapter'] == 1);
+      final confirmed = saved()!['cfi'];
+
+      store.setSetting('kindleAutoResume:${repository.profile.id}', true);
+      repository.offset = 800;
+      resumeApp();
+      await waitFor(() => saved()?['cfi'] != confirmed);
+      expect(offer, findsNothing);
+      expect(repository.pendingCount, 0);
+      expect(repository.writes, 0);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      repository.dispose();
+      store.close();
+      await directory.delete(recursive: true);
+    }
+  });
   testWidgets('Android export rejects files outside app-private storage', (
     tester,
   ) async {
@@ -663,3 +746,44 @@ void main() {
 @pragma('vm:entry-point')
 Future<void> backgroundDownloadMain(List<String> arguments) =>
     runWindowsDownloadWorker(arguments);
+
+class _KindleResumeFixture extends Repository {
+  _KindleResumeFixture(LocalStore store, Directory directory)
+    : super(
+        profile: const ServerProfile(
+          id: 'kindle-resume-fixture',
+          name: 'Kindle fixture',
+          url: 'https://example.invalid',
+          email: '',
+          authentication: Authentication.apiKey,
+          source: 'kindle',
+        ),
+        store: store,
+        directory: directory,
+        api: KomgaApi(
+          Uri.parse('https://example.invalid'),
+          authentication: Authentication.apiKey,
+          credential: '',
+        ),
+      );
+
+  int offset = 12, writes = 0;
+
+  @override
+  Future<Json?> externalDocumentPosition(Book book, File file) =>
+      refreshDocumentPosition(book);
+
+  @override
+  Future<Json?> refreshDocumentPosition(Book book) async => {
+    'href': 'two.xhtml',
+    'id': 'mapped',
+    'position': 100,
+    'offset': offset,
+  };
+
+  @override
+  bool canApplyDocumentPosition(Book book) => !closed;
+
+  @override
+  void documentPosition(Book book, Json event) => writes++;
+}

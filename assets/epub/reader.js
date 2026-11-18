@@ -1020,11 +1020,13 @@ class KMReaderPageSnapshot {
       anchor = start.cfi;
       if (preferences.flow === 'scrolled') userMoveUntil = Date.now() + 2000;
     }
-    send('position', {cfi: start.cfi, href: start.href, page: displayed.page, pages: displayed.total,
+    const report = {cfi: start.cfi, href: start.href, page: displayed.page, pages: displayed.total,
       progression: progression(start, displayed),
       totalProgression: Number.isFinite(start.percentage) ? start.percentage : null,
       atStart: !!location.atStart, atEnd: atReadingEnd(), changed,
-      ...(config.kindlePositions ? {kindlePosition: kindleOriginalPosition(start)} : {})});
+      ...(config.kindlePositions ? {kindlePosition: kindleOriginalPosition(start)} : {})};
+    send('position', report);
+    return report;
   }
   function hook(contents) {
     adaptLocationMapping(rendition.manager);
@@ -1355,6 +1357,41 @@ class KMReaderPageSnapshot {
       refreshViewportLocation();
       if (target && location?.start) location.start.cfi = target;
     } finally { restoring = false; userMove = false; position(true); warmCurl(); }
+  }
+  async function resumeKindle(value) {
+    if (!config.kindlePositions || auxiliary || interactiveNavigation || disposed) return null;
+    await waitForLayout();
+    if (value.expectedCfi !== anchor || interactiveNavigation) return null;
+    const previous = anchor;
+    cancelCurlWarm();
+    cancelTurnAnimation();
+    restoring = true;
+    userMove = false;
+    userMoveUntil = 0;
+    let target;
+    let report;
+    try {
+      await displayStable(value.href);
+      target = await restoreKindlePosition(value);
+      if (!target) {
+        await displayStable(previous);
+        return null;
+      }
+      anchor = target;
+    } catch (_) {
+      if (previous && !disposed) await displayStable(previous);
+      return null;
+    } finally {
+      clearTimeout(relocationTimer);
+      await tick();
+      refreshViewportLocation();
+      userMove = false;
+      userMoveUntil = 0;
+      restoring = false;
+      report = position(false);
+      warmCurl();
+    }
+    return report?.cfi === target ? report : null;
   }
   async function displayStable(target) {
     await rendition.display(target);
@@ -1835,16 +1872,28 @@ class KMReaderPageSnapshot {
     await stable(rendition.getContents());
     if(collapsedPageView())await displayStable(restoredCfi?value.cfi:value.href||undefined);
     if (!restoredCfi && value.progression > 0) await legacyProgress(value.progression);
+    let kindleResumeApplied = false;
     if (value.kindleResume) {
-      const cfi = await restoreKindlePosition(value.kindleResume);
-      if (cfi) { value.cfi = cfi; restoredCfi = true; }
+      refreshViewportLocation();
+      const previous = restoredCfi ? value.cfi : location?.start?.cfi;
+      let cfi;
+      try {
+        if (value.kindleResume.href) await displayStable(value.kindleResume.href);
+        cfi = await restoreKindlePosition(value.kindleResume);
+      } catch (_) { /* Try the previous reading position below. */ }
+      if (cfi) {
+        value.cfi = cfi;
+        restoredCfi = kindleResumeApplied = true;
+      } else if (previous) {
+        await displayStable(previous);
+      }
     }
     await tick();
     // Ready must describe a real viewport, even if the initial relocated
     // callback is still queued by the renderer.
     refreshViewportLocation();
     restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
-    position(false); warmCurl(); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb'});
+    position(false); warmCurl(); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb', kindleResumeApplied});
     window.addEventListener('resize', onResize);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onVisibility);
@@ -1951,6 +2000,7 @@ class KMReaderPageSnapshot {
   }
   window.reader = {open: value => enqueue(() => open(value)), next: () => enqueue(next), previous: () => enqueue(previous),
     seek: value => enqueue(() => seek(value)),
+    resumeKindle: value => enqueue(() => resumeKindle(value)),
     annotations: updateKindleAnnotations,
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
     preferences: setPreferences, search: value => enqueue(() => search(value)),

@@ -161,6 +161,7 @@ class EpubSession extends ChangeNotifier {
   final Book book;
   final bool incognito;
   Json? _externalPosition;
+  Json? initialKindleOffer;
   final EpubHost host;
   EpubDocument get document => host.document;
   EpubPreferences preferences;
@@ -208,6 +209,7 @@ class EpubSession extends ChangeNotifier {
   }
 
   String cfi = '', href = '';
+  int? kindlePosition;
   int chapter = 0, page = 1, pages = 1;
   double progression = 0;
   EpubPageIndex? pageIndex;
@@ -313,9 +315,11 @@ class EpubSession extends ChangeNotifier {
               .externalDocumentPosition(book, file)
               .timeout(const Duration(seconds: 4))
               .then<Json?>((value) => value, onError: (Object _) => null);
-    final remoteProgress =
+    final fetchProgress =
+        !repository.profile.isKindle &&
         !repository.offline &&
-            !repository.store.isPending(repository.profile.id, book.id)
+        !repository.store.isPending(repository.profile.id, book.id);
+    final remoteProgress = fetchProgress
         ? repository.api
               .request(
                 '/api/v1/books/${Uri.encodeComponent(book.id)}/progression',
@@ -364,8 +368,7 @@ class EpubSession extends ChangeNotifier {
                   ? (saved['progress'] as num).toDouble()
                   : 0.0)
               .clamp(0, 1);
-      if (!repository.offline &&
-          !repository.store.isPending(repository.profile.id, book.id)) {
+      if (fetchProgress) {
         try {
           final remote = await remoteProgress ?? <String, dynamic>{};
           final modified = DateTime.tryParse(text(remote['modified']));
@@ -401,18 +404,16 @@ class EpubSession extends ChangeNotifier {
         session.cfi = '';
         session.progression = 0;
       }
-      final external =
-          await externalPosition ??
-          (saved['kindleResume'] is Map ? object(saved['kindleResume']) : null);
-      if (external != null) {
-        final chapter = session.chapterFor(text(external['href']));
-        if (chapter >= 0) {
-          session._externalPosition = external;
-          session.chapter = chapter;
-          session.href = doc.chapters[chapter].path;
-          session.cfi = '';
-          session.progression = 0;
-        }
+      final external = await externalPosition;
+      if (external != null && session.chapterFor(text(external['href'])) >= 0) {
+        session.initialKindleOffer = external;
+      }
+      // This locator belongs to a replacement whose reading state the user
+      // already opted to restore. It is the local bookmark for the new edition.
+      final migrated = object(saved['kindleResume']);
+      if (session.chapterFor(text(migrated['href'])) >= 0 &&
+          migrated.isNotEmpty) {
+        session._externalPosition = migrated;
       }
       await session.prepareFont();
       session._indexing = session._index(file);
@@ -452,9 +453,45 @@ class EpubSession extends ChangeNotifier {
     'href': relativeHref(href),
     'progression': progression,
     if (repository.profile.isKindle && !incognito) 'kindlePositions': true,
-    if (_externalPosition != null) 'kindleResume': _externalPosition,
+    if (_externalPosition case final locator?)
+      'kindleResume': kindleTarget(locator),
     'annotations': repository.documentAnnotations(book),
   };
+
+  Json kindleTarget(Json locator) => {
+    ...locator,
+    'href': relativeHref(
+      document.chapters[chapterFor(text(locator['href']))].path,
+    ),
+  };
+
+  void rememberKindleResume(Json locator, {bool fromCloud = true}) {
+    if (_closed || incognito || repository.closed || cfi.isEmpty) return;
+    _externalPosition = null;
+    _pending = null;
+    _saveTimer?.cancel();
+    final old = object(repository.store.cached(repository.profile.id, key))
+      ..remove('kindleResume');
+    repository.store.cache(repository.profile.id, key, {
+      ...old,
+      ...preferences.toJson(),
+      'chapter': chapter,
+      'progress': progression,
+      'cfi': cfi,
+      'modified':
+          locator['modified'] ?? DateTime.now().toUtc().toIso8601String(),
+    });
+    if (fromCloud) {
+      repository.setEpubProgress(
+        book,
+        href,
+        progression,
+        bookProgress,
+        cfi: cfi,
+        fromServer: true,
+      );
+    }
+  }
 
   void receive(Json event) {
     if (_closed) return;
@@ -476,6 +513,11 @@ class EpubSession extends ChangeNotifier {
         layoutBusy = event['active'] == true;
       case 'ready':
         ready = true;
+        final external = _externalPosition;
+        _externalPosition = null;
+        if (event['kindleResumeApplied'] == true && external != null) {
+          rememberKindleResume(external, fromCloud: false);
+        }
       case 'auxiliary':
         auxiliary = event['active'] == true;
       case 'position':
@@ -493,12 +535,20 @@ class EpubSession extends ChangeNotifier {
         chapter = index;
         href = document.chapters[index].path;
         cfi = text(event['cfi']);
+        final original = event['kindlePosition'];
+        kindlePosition =
+            original is num &&
+                original.isFinite &&
+                original == original.roundToDouble()
+            ? original.toInt()
+            : null;
         progression = value.toDouble().clamp(0, 1);
         page = integer(event['page'], 1).clamp(1, 1 << 20);
         pages = integer(event['pages'], 1).clamp(1, 1 << 20);
         atStart = event['atStart'] == true;
         atEnd = event['atEnd'] == true;
         if (event['changed'] == true) {
+          _externalPosition = null;
           if (!incognito) repository.documentPosition(book, event);
           _remember();
           _saveTimer?.cancel();
