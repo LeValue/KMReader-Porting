@@ -10,7 +10,8 @@ class PreviewGateTest(unittest.TestCase):
                     'head_branch': 'main', 'event': 'push', 'path': '.github/workflows/ci.yml',
                     'repository': {'full_name': 'LeValue/KMReader-Porting'}}
         self.jobs = [{'name': name, 'conclusion': 'success'} for name in
-                     ['android', 'windows', 'android_reader_display']]
+                     ['android', 'android_reader_display', 'linux_host',
+                      'linux_services', 'windows', 'windows_host', 'windows_reader']]
 
     def verify(self, run=None, jobs=None):
         validate_run(run or self.run, self.jobs if jobs is None else jobs,
@@ -29,7 +30,7 @@ class PreviewGateTest(unittest.TestCase):
                 self.verify(run={**self.run, key: value})
 
     def test_each_failed_skipped_cancelled_or_missing_required_job_is_rejected(self):
-        for index in range(3):
+        for index in range(len(self.jobs)):
             for conclusion in ['failure', 'skipped', 'cancelled', None]:
                 jobs = copy.deepcopy(self.jobs)
                 jobs[index]['conclusion'] = conclusion

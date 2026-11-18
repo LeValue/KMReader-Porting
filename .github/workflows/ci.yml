@@ -55,21 +55,29 @@ on:
         default: ''
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 jobs:
   android:
-    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
+    if: &run_verification (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - &checkout
+        uses: actions/checkout@v4
+      - &python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python3 tool/prepare_build_metadata.py
-      - name: Reserve space for the optimized Android build
+      - &provenance
+        run: python tool/prepare_build_metadata.py
+      - &android_space
+        name: Reserve space on the disposable Android runner
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/ghc /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
-      - uses: actions/setup-java@v4
+      - &android_java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
@@ -77,20 +85,65 @@ jobs:
           cache-dependency-path: |
             android/**/*.gradle.kts
             android/gradle/wrapper/gradle-wrapper.properties
-      - uses: android-actions/setup-android@v3
+      - &android_sdk
+        uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
-      - uses: subosito/flutter-action@v2
+      - &flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'
           cache: true
-      - run: sudo apt-get update && sudo apt-get install -y clang
-      - run: flutter pub get --enforce-lockfile
+      - &clang
+        name: Ensure Clang is available for native Dart packages
+        run: command -v clang >/dev/null || (sudo apt-get update && sudo apt-get install -y clang)
+      - &pub
+        run: flutter pub get --enforce-lockfile
+      - &ndk_cache
+        name: Restore the pinned Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+          key: kmreader-ndk-${{ runner.os }}-28.2.13676358
+      - &ndk_install
+        name: Install and verify the pinned Android NDK
+        run: bash tool/install_android_ndk.sh
+      - run: flutter build apk --release --no-pub
+        env:
+          ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release-unsigned
+          path: build/app/outputs/flutter-apk/app-release.apk
+  linux_host:
+    if: *run_verification
+    runs-on: ubuntu-latest
+    steps:
+      - *checkout
+      - *python
+      - *provenance
+      - *flutter
+      - *clang
+      - *pub
       - run: dart format --output=none --set-exit-if-changed lib test integration_test test_driver
       - run: python3 tool/preview_metadata.py
       - run: python3 -m unittest discover -s tool/tests
-      - run: flutter analyze
-      - run: flutter test
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+  linux_services:
+    if: *run_verification
+    runs-on: ubuntu-latest
+    steps:
+      - *checkout
+      - *python
+      - *provenance
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - *flutter
+      - *clang
+      - *pub
       - name: Verify shared Kindle runtime and real browser boundaries
         env:
           KMREADER_KINDLE_BROWSER_TEST: '1'
@@ -112,36 +165,13 @@ jobs:
           python3 tool/komga_smoke.py --jar /tmp/komga.jar
           curl --fail --location https://github.com/gotson/komga/releases/download/1.30.1/komga-1.30.1.jar --output /tmp/komga-admin.jar
           python3 -m tool.komga_admin.smoke --jar /tmp/komga-admin.jar
-      - name: Restore the pinned Android NDK
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
-          key: kmreader-ndk-${{ runner.os }}-28.2.13676358
-      - name: Install and verify the pinned Android NDK
-        run: bash tool/install_android_ndk.sh
-      - run: flutter build apk --release
-        env:
-          ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android-release-unsigned
-          path: build/app/outputs/flutter-apk/app-release.apk
   windows:
-    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
+    if: *run_verification
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate the deferred Android diagnostic launcher
-        shell: powershell
-        run: |
-          $parseErrors = $null
-          $tokens = $null
-          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tool/android_epub_recovery.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
-          if ($parseErrors) { throw ($parseErrors | Out-String) }
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python tool/prepare_build_metadata.py
+      - *checkout
+      - *python
+      - *provenance
       - name: Build and verify the separate Kindle converter
         shell: pwsh
         run: ./tool/build_kindle_worker.ps1
@@ -153,20 +183,11 @@ jobs:
             artifacts/kindle-delivery/*.zip
             artifacts/kindle-delivery/SHA256SUMS.txt
             artifacts/kindle-executable-check.json
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.8'
-          cache: true
-      - run: flutter config --enable-windows-desktop
-      - run: flutter pub get --enforce-lockfile
-      - name: Verify Windows updater handoff, replacement and recovery
-        shell: powershell
-        run: ./tool/test_windows_updater.ps1 -TestHandoff
-      - run: flutter analyze
-      - run: flutter test
-      - name: Verify EPUB in native Windows WebView2
-        run: flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub
-      - run: flutter build windows --release
+      - *flutter
+      - &windows_desktop
+        run: flutter config --enable-windows-desktop
+      - *pub
+      - run: flutter build windows --release --no-pub
       - name: Include the on-demand Kindle converter
         shell: pwsh
         run: |
@@ -185,46 +206,60 @@ jobs:
         with:
           name: windows
           path: build/windows/x64/runner/Release/
+  windows_host:
+    if: *run_verification
+    runs-on: windows-latest
+    steps:
+      - *checkout
+      - name: Validate the deferred Android diagnostic launcher
+        shell: powershell
+        run: |
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tool/android_epub_recovery.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors) { throw ($parseErrors | Out-String) }
+      - *python
+      - *provenance
+      - *flutter
+      - *pub
+      - name: Verify Windows updater handoff, replacement and recovery
+        shell: powershell
+        run: ./tool/test_windows_updater.ps1 -TestHandoff
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+  windows_reader:
+    if: *run_verification
+    runs-on: windows-latest
+    steps:
+      - *checkout
+      - *python
+      - *provenance
+      - *flutter
+      - *windows_desktop
+      - *pub
+      - name: Verify EPUB in native Windows WebView2
+        run: flutter drive --driver=test_driver/native_reader_driver.dart --target=integration_test/epub_reader_test.dart -d windows --no-pub
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-reader
+          path: artifacts/native-epub/*.png
   android_reader_display:
-    if: (github.event_name != 'workflow_dispatch' || !inputs.publish_preview || inputs.verified_run == '') && !inputs.deliver_draft
+    if: *run_verification
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python3 tool/prepare_build_metadata.py
-      - name: Reserve disk space for the emulator and Android build
-        run: |
-          # This job uses neither .NET, Haskell nor CodeQL. Only the disposable
-          # runner's preinstalled toolchains are removed; the checkout is kept.
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/ghc /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-          cache-dependency-path: |
-            android/**/*.gradle.kts
-            android/gradle/wrapper/gradle-wrapper.properties
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.8'
-          cache: true
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-      - run: sudo apt-get update && sudo apt-get install -y clang
-      - run: flutter pub get --enforce-lockfile
-      - name: Restore the pinned Android NDK
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
-          key: kmreader-ndk-${{ runner.os }}-28.2.13676358
-      - name: Install and verify the pinned Android NDK
-        run: bash tool/install_android_ndk.sh
+      - *checkout
+      - *python
+      - *provenance
+      - *android_space
+      - *android_java
+      - *flutter
+      - *android_sdk
+      - *clang
+      - *pub
+      - *ndk_cache
+      - *ndk_install
       - name: Enable KVM access on the isolated runner
         run: |
           printf '%s\n' 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -240,26 +275,19 @@ jobs:
           lines += ['org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m','org.gradle.workers.max=2','kotlin.compiler.execution.strategy=in-process']
           p.write_text('\n'.join(lines)+'\n')
           PYMEM
-      - name: Compile both native test applications before allocating emulator memory
+      - name: Build one x64 APK for reader, display and installer tests
         run: |
           set -euo pipefail
           mkdir -p .dart_tool/native-test-apks
           fixtures="$RUNNER_TEMP/updater-fixtures"
           bash tool/prepare_android_update_fixtures.sh "$fixtures"
-          flutter build apk --debug --target=integration_test/reader_display_test.dart --no-pub \
+          flutter build apk --debug --target-platform android-x64 --target=integration_test/android_native_test.dart --no-pub \
             --dart-define=KMREADER_UPDATE_SAME="$(base64 -w0 "$fixtures/same.apk")" \
             --dart-define=KMREADER_UPDATE_OTHER="$(base64 -w0 "$fixtures/other.apk")"
-          # Both debug apps use one disposable signing identity so the reader
-          # suite can follow the installer check without an uninstall race.
-          sign_test_apk() {
-            "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
-              --ks "$fixtures/same.keystore" --ks-key-alias fixture --ks-pass pass:android --key-pass pass:android \
-              --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
-              --out ".dart_tool/native-test-apks/$1.apk" build/app/outputs/flutter-apk/app-debug.apk
-          }
-          sign_test_apk display
-          flutter build apk --debug --target=integration_test/epub_reader_test.dart --no-pub
-          sign_test_apk reader
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$fixtures/same.keystore" --ks-key-alias fixture --ks-pass pass:android --key-pass pass:android \
+            --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
+            --out .dart_tool/native-test-apks/android-native.apk build/app/outputs/flutter-apk/app-debug.apk
           android/gradlew -p android --stop
           free -m
         env:
@@ -276,7 +304,7 @@ jobs:
           if (sdk/'system-images').exists(): shutil.rmtree(sdk/'system-images')
           PYDISK
           df -h .
-      - name: Exercise real Android WindowInsets with a simulated notch
+      - name: Verify Android reader, cutout and installer on one emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
           ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
@@ -308,12 +336,11 @@ jobs:
         with:
           name: android-reader-display
           path: |
-            artifacts/android-reader-display/*.png
             artifacts/native-epub/*.png
             ${{ runner.temp }}/reader-logcat.txt
   publish_android_preview:
     if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && !inputs.deliver_draft && github.ref == 'refs/heads/main'
-    needs: [android, windows, android_reader_display]
+    needs: [android, linux_host, linux_services, windows, windows_host, windows_reader, android_reader_display]
     runs-on: ubuntu-latest
     permissions:
       actions: read

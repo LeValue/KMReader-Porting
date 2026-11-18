@@ -6,7 +6,10 @@ from pathlib import Path
 import re
 import subprocess
 
-REQUIRED = {'android', 'windows', 'android_reader_display'}
+REQUIRED = {
+    'android', 'android_reader_display', 'linux_host', 'linux_services',
+    'windows', 'windows_host', 'windows_reader',
+}
 
 
 def validate_run(run, jobs, source, repository):
@@ -17,8 +20,9 @@ def validate_run(run, jobs, source, repository):
             run.get('repository', {}).get('full_name') != repository):
         raise ValueError('The referenced CI run is not a successful build of this source')
     passed = {job['name'] for job in jobs if job.get('conclusion') == 'success'}
-    if not REQUIRED <= passed:
-        raise ValueError('Android, Windows and native Android checks must all pass')
+    missing = REQUIRED - passed
+    if missing:
+        raise ValueError('Required CI jobs did not pass: ' + ', '.join(sorted(missing)))
 
 
 def main():
@@ -50,7 +54,7 @@ def main():
         artifact_run = os.environ['GITHUB_RUN_ID']
     with Path(os.environ['GITHUB_ENV']).open('a') as output:
         output.write(f'ARTIFACT_RUN={artifact_run}\n')
-    print('Verified Android, Windows and native integration artifacts from run ' + artifact_run)
+    print('Verified all build and test jobs from run ' + artifact_run)
 
 
 if __name__ == '__main__':

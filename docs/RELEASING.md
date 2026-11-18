@@ -3,7 +3,7 @@
 The stable publication target is **1.0.0**. Existing drafts are retained.
 Public candidates supply the in-app update feed and remain prereleases until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
 
-Current source and [public candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.9) are **1.0.0+39**. Existing 0.9.x releases remain in draft;
+Current source is **1.0.0+40**. The [public candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.9) is **1.0.0+39**. Existing 0.9.x releases remain in draft;
 this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
 for prerequisites and [testing](TESTING.md) for the required checks.
 
@@ -69,17 +69,16 @@ again against the source-matched CI revision. The tool rejects a payload over it
 request budget. Do not commit APKs or split one APK into upload fragments.
 
 Create an empty draft for the versioned tag, targeting the exact source commit.
-Run the ordinary build/test workflow on that source and wait for all three jobs
-to pass: Android release/host/backend checks, native Android integration, and
-Windows host/native/release/startup checks. A transport failure after tests must
-still be resolved; a partially successful job does not satisfy the gate.
+Run the ordinary build/test workflow on that source. The [seven CI jobs](TESTING.md#ci-and-devices)
+must pass, including both release builds, host tests, native integrations and
+service tests. Each independent job can be retried after a runner or transport failure.
 
 Dispatch `ci.yml` on `main` with `publish_preview=true`, the three staged blob/hash
 pairs, and optionally `verified_run` for that completed CI run. When reusing a
 run, duplicate build jobs are skipped and `tool/verify_preview_ci.py` requires
 the exact commit, repository, main branch, expected workflow, successful run and
 all required job names. Artifacts come from that verified run. Without reuse,
-all three jobs execute in the dispatch itself.
+the dispatch runs all seven jobs.
 
 The publisher repeats APK integrity checks, packages the matching Windows
 artifact with its native engines and MSVC runtime, verifies uploaded asset
@@ -120,7 +119,7 @@ First close the scope audits, functional gaps and target acceptance in the
 The seven candidate changes and successful package delivery do not establish
 complete functional parity. Keep unresolved requirements visible.
 
-The source version is now 1.0.0+39; the preview tool remains useful for identity,
+The source version is now 1.0.0+40. The preview tool remains useful for identity,
 ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
 [the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to
 represent a stable 1.0 release: it deliberately generates a preview tag/prerelease.
