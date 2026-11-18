@@ -13,9 +13,9 @@ import shutil
 import zipfile
 
 from preview_metadata import apk_provenance, read_version, validate_provenance
+from verify_preview_ci import REQUIRED
 
 ROOT = Path(__file__).resolve().parent.parent
-REQUIRED = {'android', 'windows', 'android_reader_display'}
 RUNTIME_PATHS = ['lib', 'assets', 'android', 'windows', 'third_party', 'pubspec.yaml',
                  'pubspec.lock', 'tool/prepare_build_metadata.py', 'tool/preview_metadata.py',
                  'tool/preview-certificate.sha256', 'tool/install_android_ndk.sh',

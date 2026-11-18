@@ -65,11 +65,19 @@ modify an existing server.
 
 | Job | Required evidence |
 |---|---|
-| `android` | Format/version, release tool tests, Flutter analyze/tests, Python protocol/browser tests, prepared-book import, shipped reader in Chromium, real ONNX, real Komga, optimized APK |
-| `windows` | Shared worker tests/build/self-check/source archive, Flutter host tests, native WebView2 integration, release bundle and isolated startup |
-| `android_reader_display` | Real emulator WebView, window insets, reader/comic motion, screenshots and native diagnostics |
+| `android` | Optimized release APK for all supported Android architectures |
+| `linux_host` | Format and version validation, release tool tests, Flutter analysis and host suite |
+| `linux_services` | Python protocol/browser tests, prepared-book import, reader in Chromium, ONNX and both Komga smoke tests |
+| `windows` | Worker tests, executable and source archive, release bundle and isolated startup |
+| `windows_host` | Flutter analysis and host suite, updater handoff and diagnostic launcher validation |
+| `windows_reader` | Native WebView2 integration |
+| `android_reader_display` | One x64 test APK on the emulator exercises WebView, window insets, reader/comic motion and the Android system installer |
 
-All three names are retained because release gates validate them explicitly.
+The seven jobs run in parallel and the release tools require each to pass for
+the packaged source. The Android installer test runs last because it opens a
+separate system activity. The release APK retains all supported architectures.
+New commits supersede older automatic runs on the same ref. Manual publication
+and delivery runs are independent.
 The old standalone prototype workflow is archived; its protocol/import checks
 now belong to CI and its duplicate executable recipe uses the shared build script.
 The Windows job also retains `KMReader-Kindle-windows-x64` for source-verified
