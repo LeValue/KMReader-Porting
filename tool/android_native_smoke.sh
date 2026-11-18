@@ -14,6 +14,11 @@ adb logcat -v threadtime > "${RUNNER_TEMP:-/tmp}/reader-logcat.txt" &
 km_log_pid=$!
 trap 'kill "$km_log_pid" 2>/dev/null || true' EXIT
 
+# A headless run has no physical input to keep the test activity visible.
+adb shell svc power stayon true
+adb shell input keyevent KEYCODE_WAKEUP
+adb shell wm dismiss-keyguard
+
 # This disposable emulator verifies actual animation playback. Record and
 # normalize the system clock rather than bypassing only its JS media query.
 for km_animation_setting in window_animation_scale transition_animation_scale animator_duration_scale; do
