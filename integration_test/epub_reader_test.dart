@@ -47,8 +47,6 @@ void main() {
   verifyNativeScrolling(binding);
   verifyNativeWindowsWheel();
   verifyNativeEpubPerformance();
-  verifyNativeEpubRecovery();
-  verifyNativeLocalLibrary();
   testWidgets('Kindle offers a newer location and follows it only with consent', (
     tester,
   ) async {
@@ -131,6 +129,9 @@ void main() {
       await directory.delete(recursive: true);
     }
   });
+  // Keep the resume prompt test ahead of the deliberate WebView crash.
+  verifyNativeEpubRecovery();
+  verifyNativeLocalLibrary();
   testWidgets('Android export rejects files outside app-private storage', (
     tester,
   ) async {
