@@ -82,14 +82,15 @@ function Apply-KMReaderUpdate($job) {
     return $backup
 }
 
-function Write-KMReaderUpdateResult($state, $build, $backup = $null) {
-    @{state=$state;build=$build;backup=$backup} | ConvertTo-Json |
+function Write-KMReaderUpdateResult($state, $build, $backup = $null, $phase = $null) {
+    @{state=$state;build=$build;backup=$backup;phase=$phase} | ConvertTo-Json |
         Set-Content -Encoding UTF8 -LiteralPath ($JobFile + '.result')
 }
 
 if ($JobFile -and $MyInvocation.InvocationName -ne '.') {
     $job = $null
     $parentExited = $false
+    $phase = 'read_job'
     try {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $job = Get-Content -Encoding UTF8 -LiteralPath $JobFile -Raw | ConvertFrom-Json
@@ -97,6 +98,7 @@ if ($JobFile -and $MyInvocation.InvocationName -ne '.') {
         $executable = Join-Path $install 'kmreader.exe'
         if (!(Test-Path -LiteralPath $executable -PathType Leaf) -or
             !(Test-Path -LiteralPath $job.archive -PathType Leaf)) { throw 'Update files unavailable' }
+        $phase = 'attach'
         $process = Get-Process -Id $job.pid -ErrorAction Stop
         # Open the process handle before the app exits, so a recycled PID
         # cannot be mistaken for the application that started this job.
@@ -108,12 +110,16 @@ if ($JobFile -and $MyInvocation.InvocationName -ne '.') {
             Start-Sleep -Milliseconds 100
         }
         # The helper never terminates the app: normal app shutdown saves its state.
+        $phase = 'wait_for_exit'
         if (!$process.WaitForExit(120000)) { throw 'Application did not close' }
         $parentExited = $true
+        $phase = 'replace_files'
         $saved = Apply-KMReaderUpdate $job
     } catch {
-        if ($job) { Write-KMReaderUpdateResult 'failed' $job.build }
-        if ($parentExited) { Start-Process -FilePath $executable -WorkingDirectory $install }
+        try { Write-KMReaderUpdateResult 'failed' $job.build $null $phase }
+        finally {
+            if ($parentExited) { Start-Process -FilePath $executable -WorkingDirectory $install }
+        }
         exit 1
     }
     try {

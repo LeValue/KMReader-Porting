@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -7,7 +8,9 @@ import 'package:path/path.dart' as p;
 Future<void> prepareWindowsUpdate(File script, File job) async {
   final ready = File('${job.path}.ready');
   final failed = File('${job.path}.result');
-  await Process.start(
+  // On Windows the normal launch supplies valid standard handles and creates
+  // no console window. It also lets us detect an early PowerShell exit.
+  final helper = await Process.start(
     p.join(
       Platform.environment['SystemRoot'] ?? r'C:\Windows',
       'System32',
@@ -18,8 +21,6 @@ Future<void> prepareWindowsUpdate(File script, File job) async {
     [
       '-NoProfile',
       '-NonInteractive',
-      '-WindowStyle',
-      'Hidden',
       '-ExecutionPolicy',
       'Bypass',
       '-File',
@@ -28,15 +29,24 @@ Future<void> prepareWindowsUpdate(File script, File job) async {
       job.path,
     ],
     workingDirectory: job.parent.path,
-    mode: ProcessStartMode.detached,
   );
+  unawaited(helper.stdin.close());
+  unawaited(helper.stdout.drain<void>());
+  unawaited(helper.stderr.drain<void>());
+  int? exitCode;
+  unawaited(helper.exitCode.then((code) => exitCode = code));
   final elapsed = Stopwatch()..start();
   while (elapsed.elapsed < const Duration(seconds: 15)) {
-    if (await failed.exists()) break;
+    if (exitCode != null || await failed.exists()) break;
     if (await ready.exists()) return;
     await Future<void>.delayed(const Duration(milliseconds: 100));
   }
-  throw const ProcessException('Windows update helper', [], 'Helper not ready');
+  throw ProcessException(
+    'Windows update helper',
+    const [],
+    'Helper not ready',
+    exitCode ?? 0,
+  );
 }
 
 Future<void> commitWindowsUpdate(File job) =>
