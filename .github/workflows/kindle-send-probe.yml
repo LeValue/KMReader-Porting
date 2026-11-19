@@ -18,12 +18,12 @@ on:
       delivery_mode:
         description: Delivery verification; new modes use separate private journals
         type: choice
-        options: [existing-library, library, device]
+        options: [existing-library, library, device, annotations]
         default: existing-library
       management_fixture:
         description: Exact generated fixture eligible for management checks
         type: choice
-        options: [original, library]
+        options: [original, library, annotations]
         default: original
       replacement_probe:
         description: Update only the generated cloud fixture and verify state restoration before retirement
@@ -38,7 +38,7 @@ on:
         type: boolean
         default: false
       bookmark_probe:
-        description: Verify one bookmark on the exact generated test document only
+        description: Verify one annotation on the exact generated test document only
         type: boolean
         default: false
       annotation_kind:

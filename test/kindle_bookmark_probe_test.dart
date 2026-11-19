@@ -42,13 +42,20 @@ void main() {
       try {
         final file = File(path!);
         final payload = object(jsonDecode(await file.readAsString()));
-        final libraryFixture =
-            Platform.environment['KMREADER_KINDLE_MANAGEMENT_FIXTURE'] ==
-            'library';
+        final fixtureName =
+            Platform.environment['KMREADER_KINDLE_MANAGEMENT_FIXTURE'] ??
+            'original';
+        if (!const {
+          'original',
+          'library',
+          'annotations',
+        }.contains(fixtureName)) {
+          throw const KindleFailure('bookmark_probe_fixture_type');
+        }
         final fixture = object(
-          libraryFixture
-              ? object(payload['delivery_probes'])['library']
-              : payload['probe_operation'],
+          fixtureName == 'original'
+              ? payload['probe_operation']
+              : object(payload['delivery_probes'])[fixtureName],
         );
         final id = text(fixture['catalog_id']);
         if (id.isEmpty ||
@@ -57,9 +64,9 @@ void main() {
         }
         final journal = object(payload['management_probe']);
         payload['management_probe'] = journal;
-        final bookmarkKey = libraryFixture
-            ? '${kind}_probe_library'
-            : '${kind}_probe';
+        final bookmarkKey = fixtureName == 'original'
+            ? '${kind}_probe'
+            : '${kind}_probe_$fixtureName';
         final bookmark = object(journal[bookmarkKey]);
         journal[bookmarkKey] = bookmark;
         Future<void> seal() async {

@@ -31,7 +31,12 @@ void main() {
         final mode =
             Platform.environment['KMREADER_KINDLE_PROBE_DELIVERY_MODE'] ??
             'existing-library';
-        if (!const {'existing-library', 'library', 'device'}.contains(mode)) {
+        if (!const {
+          'existing-library',
+          'library',
+          'device',
+          'annotations',
+        }.contains(mode)) {
           throw const KindleFailure('probe_delivery_mode');
         }
         final archiveToLibrary = mode != 'device';
