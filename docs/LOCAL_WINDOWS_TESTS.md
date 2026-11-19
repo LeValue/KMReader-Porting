@@ -80,6 +80,15 @@ fixture fails instead of selecting another book. The native worker and app-sourc
 checks remain required. A generated EPUB without a cover may report no cover;
 publication readiness and immutable prepared-cache reuse are still asserted.
 
+Set `installed_position: true` to diagnose the installed app on the authorized
+PC. This mode checks one prepared EPUB from the same Kindle account and gives
+priority to a book with pending progress. It opens the installed database in
+read-only mode, uses a scratch repository and blocks cloud position writes.
+`require_position_offer: true` verifies that the current Dart source offers the
+conflict and opens the chosen locator in that scratch repository. The verified
+release artifact supplies the unchanged Kindle worker. The report contains
+flags and diagnostic codes.
+
 Superseded web-session and XML-envelope comparisons are archived, with their
 source snapshots and evidence. They are no longer workflow options. The native
 Firs path is used by the app; active converter/prototype modules remain untouched.

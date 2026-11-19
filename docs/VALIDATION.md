@@ -6,6 +6,28 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 41 / public candidate 11 — Kindle conflicts
+
+Packaged source `2839df45b3b229eff3a795f19b0c687359bea9c0`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.11).
+
+- A read-only diagnostic on the authorized Windows runner used the installed
+  account and one prepared EPUB with pending progress. Build 40 detected the
+  conflict and located the Kindle position in that edition. The reader still
+  received no offer. [Reproduction](https://github.com/LeValue/KMReader-Porting/actions/runs/44434707061)
+- Repeating on the same installation with the corrected Dart source produced
+  the offer and reopened the selected locator in a scratch repository.
+  The report recorded zero Amazon annotation writes. [Verification](https://github.com/LeValue/KMReader-Porting/actions/runs/44435352761)
+- Tests cover a new local edit after a conflict, a single-book upload, resolving
+  via Kindle Services and preserving the local bookmark until a successful
+  restore. All eight CI jobs passed. The public feed selected build 41 over 40.
+  The Android signature matches the existing Preview package and the Windows
+  bundle matches all **711** files from CI.
+  [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44435671973) · [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44437356138)
+
+The live diagnostic verified repository and locator behavior. Interactive
+reading across two devices and the physical Android check remain open under
+AT-05.
+
 ## Build 40 / public candidate 10 — Kindle position and CI
 
 Packaged source `edac973549b6780a06cc3fc062e3aeefbf6eec0c`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.10).

@@ -2,7 +2,7 @@
 
 The next publication target is **1.0.0**. Existing 0.9.x candidates stay in draft
 while work continues; previous builds and releases remain available for recovery.
-Current source and public candidate are **1.0.0+40**; stable publication remains gated by the checks below.
+Current source and public candidate are **1.0.0+41**; stable publication remains gated by the checks below.
 Changing the version number alone does not complete this milestone.
 
 ## Working scope
@@ -61,12 +61,12 @@ remain excluded.
 
 | Area | Existing evidence | Work required before calling 1.0 ready |
 |---|---|---|
-| Continuous verification | [Build 40 CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44407855885) passed all eight required jobs for `edac973`; historical failures/retries remain recorded | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
+| Continuous verification | [Build 41 CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44435671973) passed all eight required jobs for `2839df4`; historical failures/retries remain recorded | Repeat complete CI if application/runtime source changes; retain the failed attempt and retry evidence |
 | Reading and offline use | Host, Chromium and native tests cover EPUB, PDF, comic motion, prepared Kindle conversion, local import and offline progress | Check the complete login → browse → download → read → close/reopen journey on target Android and Windows, including interrupted transfer and network loss |
 | Data and upgrades | Account-scoped persistence, durable outbox, download resume, cache protection and versioned document tests exist | Verify an in-place upgrade from the signed 0.9.1 build without losing accounts, downloads, progress, bookmarks or preferences; test removing/reconnecting one account while another remains usable |
 | Device behavior | Hosted emulator/WebView2 checks and earlier named-device measurements are retained | Validate secure storage/app lock, background downloads, resume, rotation/fullscreen, long-book memory and responsive navigation on actual target hardware; record source and device with results |
 | Kindle | Synthetic protocol/conversion tests and earlier account-specific evidence exist; annotation import is one-way | Confirm the supported sign-in/download/offline/resume flow for the 1.0 candidate; describe annotation and first-download limitations accurately |
-| Distribution | [Public build 40 candidate.10](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.10): signed universal Android APK, complete matching Windows and public in-app update manifest; all hashes and 711 Windows files verified. Previous builds retained | Accept the bootstrap upgrade, Android system installer and Windows restart/state retention on target devices; stable promotion remains gated |
+| Distribution | [Public build 41 candidate.11](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.11): signed universal Android APK, complete matching Windows and public in-app update manifest; all hashes and 711 Windows files verified. Previous builds retained | Accept the bootstrap upgrade, Android system installer and Windows restart/state retention on target devices; stable promotion remains gated |
 
 These are readiness requirements, not a claim that a 1.0 candidate has already
 passed them. Automated checks do not replace target-device acceptance or prove
@@ -114,7 +114,7 @@ does not belong in logs, fixtures, source archives or CI artifacts.
 
 ## Version and publication
 
-Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+40 for the
+Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+41 for the
 current public candidate. Passing the readiness checks is still
 required before stable publication. Preserve the
 existing Preview application ID and signing certificate for upgrade continuity.
