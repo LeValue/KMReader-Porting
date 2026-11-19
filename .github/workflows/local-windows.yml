@@ -26,6 +26,10 @@ on:
         description: Kindle runtime mode reads only the generated upload-test document
         type: boolean
         default: false
+      installed_position:
+        description: Kindle runtime mode diagnoses one cached reading position in the installed app
+        type: boolean
+        default: false
       expected_runner:
         description: Optional exact PC runner name for the Android USB test
         type: string
@@ -59,6 +63,7 @@ jobs:
       verified_run: ${{ inputs.prebuilt_run }}
       runner_label: ${{ inputs.runner_label }}
       fixture_only: ${{ inputs.fixture_only }}
+      installed_position: ${{ inputs.installed_position }}
   android_recovery:
     if: inputs.mode == 'android-epub-recovery'
     uses: ./.github/workflows/local-android.yml

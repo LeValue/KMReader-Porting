@@ -11,6 +11,9 @@ on:
       fixture_only:
         type: boolean
         default: false
+      installed_position:
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -40,12 +43,16 @@ jobs:
           $env:FLUTTER_ROOT = Split-Path (Split-Path (Get-Command flutter).Source)
           dart pub get --enforce-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve locked runtime probe dependencies' }
-      - name: Check covers and the real download queue without cloud annotation writes
+      - name: Check Kindle state without cloud annotation writes
         shell: powershell
         env:
           PROBE_FIXTURE_ONLY: ${{ inputs.fixture_only }}
+          PROBE_INSTALLED_POSITION: ${{ inputs.installed_position }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if ($env:PROBE_FIXTURE_ONLY -eq 'true' -and $env:PROBE_INSTALLED_POSITION -eq 'true') {
+            throw 'Choose either the generated fixture or the installed position probe'
+          }
           $binaryRoot = Join-Path $PWD 'artifacts/kindle-runtime-build'
           $build = Get-Content (Join-Path $binaryRoot 'data/flutter_assets/assets/build/source.json') -Raw | ConvertFrom-Json
           git fetch --no-tags origin $build.source
@@ -69,6 +76,14 @@ jobs:
             }
             $env:KMREADER_KINDLE_PRIVATE_SESSION = $session
             $env:KMREADER_KINDLE_WORKER = $worker
+            $env:KMREADER_KINDLE_PROBE_INSTALLED = $env:PROBE_INSTALLED_POSITION
+            if ($env:PROBE_INSTALLED_POSITION -eq 'true') {
+              $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
+              if ($adb) {
+                $devices = @(& $adb.Source devices 2>$null | Where-Object { $_ -match '\sdevice$' })
+                Write-Output "Authorized Android devices connected: $($devices.Count)"
+              }
+            }
             $env:KMREADER_KINDLE_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-runtime-report/report.json'
             flutter test test/kindle_runtime_probe_test.dart --no-pub
             if ($LASTEXITCODE -ne 0) { throw 'Kindle runtime check failed; only sanitized metrics will be uploaded' }
@@ -76,6 +91,7 @@ jobs:
             Remove-Item Env:KMREADER_KINDLE_PRIVATE_SESSION -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_RUNTIME_FIXTURE -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_WORKER -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_PROBE_INSTALLED -ErrorAction SilentlyContinue
             $response = $null
             Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
           }

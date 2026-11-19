@@ -5,16 +5,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kmreader/core/kindle/client.dart';
 import 'package:kmreader/core/kindle/conversion.dart';
+import 'package:kmreader/core/kindle/positions.dart';
 import 'package:kmreader/core/kindle/repository.dart';
 import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/store.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 /// Opt-in personal runner check. Only the fixed metrics below may be uploaded.
 void main() {
   final path = Platform.environment['KMREADER_KINDLE_PRIVATE_SESSION'];
+  final installed =
+      Platform.environment['KMREADER_KINDLE_PROBE_INSTALLED'] == 'true';
   test(
-    'personal Kindle runtime reads covers and completes the actual pinned download queue',
+    installed
+        ? 'personal Kindle runtime diagnoses the installed reader’s cached position'
+        : 'personal Kindle runtime reads covers and completes the actual pinned download queue',
     () async {
       final root = Directory.systemTemp.createTempSync(
         'kmreader-kindle-readonly-',
@@ -49,6 +55,11 @@ void main() {
           directory: root,
           client: KindleClient(session: session, client: transport),
         );
+        if (installed) {
+          await _installedPosition(repo, report);
+          report['passed'] = true;
+          return;
+        }
         final clock = Stopwatch()..start();
         await repo.library.refresh();
         report['catalog_ms'] = clock.elapsedMilliseconds;
@@ -157,6 +168,146 @@ void main() {
     skip: path == null || !Platform.isWindows,
     timeout: const Timeout(Duration(minutes: 10)),
   );
+}
+
+/// Read only the selected account and one already-prepared book from the
+/// installed app. The repository writes its probe state to the temporary
+/// database. Report fields below never include content, positions or IDs.
+Future<void> _installedPosition(KindleRepository repo, Json report) async {
+  report['installed_position'] = true;
+  final home =
+      Platform.environment['KMREADER_DATA_DIR'] ??
+      p.join(Platform.environment['APPDATA']!, 'dev.levalue', 'KMReader');
+  final dbPath = p.join(home, 'kmreader.sqlite');
+  if (!File(dbPath).existsSync()) {
+    throw const KindleFailure('probe_installed_database_missing');
+  }
+  final source = sqlite3.open(dbPath, mode: OpenMode.readOnly);
+  final id = repo.profile.id;
+  dynamic cache(String key) {
+    final rows = source.select(
+      'SELECT value FROM cache WHERE server=? AND key=?',
+      [id, key],
+    );
+    return rows.isEmpty ? null : jsonDecode(rows.single['value'] as String);
+  }
+
+  dynamic setting(String key) {
+    final rows = source.select('SELECT value FROM settings WHERE key=?', [key]);
+    return rows.isEmpty ? null : jsonDecode(rows.single['value'] as String);
+  }
+
+  late final Book book;
+  late final File file;
+  late final Json pending;
+  try {
+    if (source.select('SELECT 1 FROM servers WHERE id=?', [id]).isEmpty) {
+      throw const KindleFailure('probe_installed_account_mismatch');
+    }
+    report['installed_account_matches'] = true;
+    final outbox = object(cache('kindle:outbox'));
+    final latest = source.select(
+      "SELECT key FROM cache WHERE server=? AND key LIKE 'epub:%' "
+      "ORDER BY updated DESC LIMIT 20",
+      [id],
+    );
+    final bookId = [
+      ...outbox.keys,
+      for (final row in latest) (row['key'] as String).substring(5),
+    ].where((key) => RegExp(r'^[a-f0-9]{64}$').hasMatch(key)).firstOrNull;
+    if (bookId == null) {
+      throw const KindleFailure('probe_installed_book_missing');
+    }
+    report['installed_sync_enabled'] = setting('kindleSync:$id') != false;
+    report['installed_offline'] = setting('offline:$id') == true;
+    report['installed_auto_resume'] = setting('kindleAutoResume:$id') == true;
+    report['installed_native_epub'] =
+        setting('epubRenderingEngine') == 'native';
+    final saved = object(cache('epub:$bookId'));
+    report['installed_has_cfi'] = text(saved['cfi']).isNotEmpty;
+    pending = object(outbox[bookId]);
+    report['installed_has_pending'] = pending.isNotEmpty;
+    final pinned = File(
+      p.join(home, id, 'books', repo.fileKey(bookId), 'source.document'),
+    );
+    final cached = text(object(cache('documentCache:$bookId'))['file']);
+    file = pinned.existsSync()
+        ? pinned
+        : File(
+            p.join(
+              home,
+              id,
+              'documents',
+              RegExp(r'^[a-f0-9]{64}-[0-9]+\.epub$').hasMatch(cached)
+                  ? cached
+                  : 'missing',
+            ),
+          );
+    if (!file.existsSync()) {
+      throw const KindleFailure('probe_installed_publication_missing');
+    }
+    final metadata = cache('book:$bookId');
+    for (final key in [
+      'kindle:catalog',
+      'epub:$bookId',
+      'kindle:sidecar:$bookId',
+      'kindle:cloud-read:$bookId',
+    ]) {
+      final value = cache(key);
+      if (value != null) repo.store.cache(id, key, value);
+    }
+    if (metadata != null) repo.store.cache(id, 'book:$bookId', metadata);
+    await repo.library.initialize();
+    // Select the cached item without asking the remote catalog for other books.
+    repo.library.item(bookId);
+    book = await repo.book(bookId);
+  } finally {
+    source.close();
+  }
+
+  final mapping = await KindlePositionMap.open(file.path);
+  if (mapping == null || mapping.primary == null || mapping.entries.isEmpty) {
+    throw const KindleFailure('probe_installed_map_missing');
+  }
+  final item = repo.library.item(book.id);
+  final (edition, account) = await (
+    repo.library.client.sidecar(item, guid: mapping.primary),
+    repo.library.client.accountPositionSidecar(item),
+  ).wait;
+  final scopedMatch = edition != null && mapping.matches(edition);
+  final accountMatch = account != null && mapping.matches(account);
+  final remote = kindleLastRead(
+    scopedMatch ? edition : null,
+    account: accountMatch ? account : null,
+  );
+  report['edition_matches'] = scopedMatch;
+  report['account_edition_matches'] = accountMatch;
+  report['remote_location_available'] = remote != null;
+  report['remote_location_mapped'] =
+      remote != null && mapping.locator(integer(remote['position'])) != null;
+  report['account_and_edition_differ'] =
+      kindleLastRead(edition)?['position'] !=
+      kindleLastRead(account)?['position'];
+  report['remote_timestamp_available'] =
+      kindleTimestamp(remote?['time']) != null;
+  report['pending_differs_from_cloud'] =
+      pending.isNotEmpty &&
+      remote != null &&
+      pending['position'] != remote['position'];
+
+  final initial = await repo.externalDocumentPosition(book, file);
+  report['offer_without_pending'] = initial != null;
+  if (pending.isNotEmpty) {
+    repo.store.cache(id, 'kindle:outbox', {
+      book.id: {...pending, 'not_before': 0},
+    });
+    // The transport refuses any position write, even if the repository would
+    // normally send it on finding no conflict. Only the scratch store changes.
+    await repo.sync();
+    report['pending_conflict_detected'] = repo.conflicts.containsKey(book.id);
+    report['offer_after_conflict'] =
+        await repo.refreshDocumentPosition(book) != null;
+  }
 }
 
 class _ReadOnlyClient extends http.BaseClient {
