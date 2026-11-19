@@ -30,6 +30,10 @@ on:
         description: Kindle runtime mode diagnoses one cached reading position in the installed app
         type: boolean
         default: false
+      require_position_offer:
+        description: Require the source under test to offer the detected live Kindle conflict
+        type: boolean
+        default: false
       expected_runner:
         description: Optional exact PC runner name for the Android USB test
         type: string
@@ -64,6 +68,7 @@ jobs:
       runner_label: ${{ inputs.runner_label }}
       fixture_only: ${{ inputs.fixture_only }}
       installed_position: ${{ inputs.installed_position }}
+      require_position_offer: ${{ inputs.require_position_offer }}
   android_recovery:
     if: inputs.mode == 'android-epub-recovery'
     uses: ./.github/workflows/local-android.yml

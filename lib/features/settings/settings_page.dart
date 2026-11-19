@@ -798,7 +798,20 @@ class _SettingsSection extends StatelessWidget {
                       ),
                       subtitle: Text(app.backgroundDownloads.failure!),
                     ),
-                  if (repository.syncFailure != null)
+                  if (repository case final KindleRepository kindle
+                      when kindle.readingConflicts.isNotEmpty)
+                    ListTile(
+                      leading: const Icon(Icons.sync_problem),
+                      title: const Text('Risolvi conflitti Kindle'),
+                      onTap: () => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              KindleServicesPage(app: app, repository: kindle),
+                        ),
+                      ),
+                    )
+                  else if (repository.syncFailure != null)
                     ListTile(
                       title: Text(repository.syncFailure!),
                       subtitle: Text(

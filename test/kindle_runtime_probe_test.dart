@@ -57,6 +57,10 @@ void main() {
         );
         if (installed) {
           await _installedPosition(repo, report);
+          if (Platform.environment['KMREADER_KINDLE_REQUIRE_OFFER'] == 'true' &&
+              report['offer_after_conflict'] != true) {
+            throw const KindleFailure('probe_conflict_without_offer');
+          }
           report['passed'] = true;
           return;
         }
@@ -257,10 +261,23 @@ Future<void> _installedPosition(KindleRepository repo, Json report) async {
       if (value != null) repo.store.cache(id, key, value);
     }
     if (metadata != null) repo.store.cache(id, 'book:$bookId', metadata);
+    final progress = source.select(
+      'SELECT value FROM progress WHERE server=? AND book=?',
+      [id, bookId],
+    );
+    if (progress.isNotEmpty) {
+      repo.store.recordProgress(
+        id,
+        bookId,
+        object(jsonDecode(progress.single['value'] as String)),
+        pending: false,
+      );
+    }
     await repo.library.initialize();
     // Select the cached item without asking the remote catalog for other books.
     repo.library.item(bookId);
     book = await repo.book(bookId);
+    report['installed_completed'] = book.completed;
   } finally {
     source.close();
   }
@@ -305,8 +322,24 @@ Future<void> _installedPosition(KindleRepository repo, Json report) async {
     // normally send it on finding no conflict. Only the scratch store changes.
     await repo.sync();
     report['pending_conflict_detected'] = repo.conflicts.containsKey(book.id);
-    report['offer_after_conflict'] =
-        await repo.refreshDocumentPosition(book) != null;
+    report['can_apply_after_conflict'] = repo.canApplyDocumentPosition(book);
+    final offer = await repo.refreshDocumentPosition(book);
+    report['offer_after_conflict'] = offer != null;
+    if (offer != null &&
+        Platform.environment['KMREADER_KINDLE_REQUIRE_OFFER'] == 'true') {
+      final conflict = repo.readingConflicts[book.id];
+      final accepted =
+          conflict != null && repo.useKindlePosition(book.id, conflict);
+      final selected = await repo.externalDocumentPosition(book, file);
+      report['choice_reopens_at_verified_locator'] =
+          accepted &&
+          selected?['acceptedConflict'] == true &&
+          selected?['position'] == offer['position'] &&
+          selected?['offset'] == offer['offset'];
+      if (report['choice_reopens_at_verified_locator'] != true) {
+        throw const KindleFailure('probe_choice_not_restorable');
+      }
+    }
   }
 }
 

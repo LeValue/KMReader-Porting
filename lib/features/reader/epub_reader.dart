@@ -179,16 +179,22 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           !_canCheckKindlePosition(session) ||
           session.cfi != currentCfi ||
           session.chapterFor(text(remote['href'])) < 0 ||
-          integer(remote['position']) + integer(remote['offset']) ==
-              session.kindlePosition ||
           mapEquals(remote, _dismissedKindlePosition)) {
         return;
       }
+      if (integer(remote['position']) + integer(remote['offset']) ==
+          session.kindlePosition) {
+        if (remote['acceptedConflict'] == true) {
+          session.rememberKindleResume(remote);
+        }
+        return;
+      }
       final automatic =
+          remote['acceptedConflict'] == true ||
           widget.repository.store.setting<bool>(
-            'kindleAutoResume:${widget.repository.profile.id}',
-          ) ==
-          true;
+                'kindleAutoResume:${widget.repository.profile.id}',
+              ) ==
+              true;
       if (!automatic && !await _confirmKindlePosition(session, remote)) {
         _dismissedKindlePosition = remote;
         return;

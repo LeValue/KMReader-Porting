@@ -20,6 +20,7 @@ import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/progress_gate.dart';
 import 'package:kmreader/features/reader/reader_display.dart';
 import 'package:kmreader/features/reader/reading_session.dart';
+import 'package:kmreader/features/settings/kindle_services_page.dart';
 import 'package:kmreader/features/settings/reader_settings.dart';
 import 'package:kmreader/features/settings/settings_page.dart';
 import 'package:kmreader/ui/strings.dart';
@@ -537,6 +538,68 @@ void main() {
     expect(tile(resume).value, true);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'Kindle services resolves a conflict inline and retains the local bookmark',
+    (tester) async {
+      const account = ServerProfile(
+        id: 'kindle-conflict',
+        name: 'Kindle',
+        url: 'https://example.invalid',
+        email: '',
+        authentication: Authentication.apiKey,
+        source: 'kindle',
+      );
+      final app = AppController(
+        store: store,
+        directory: directory,
+        vault: MemoryVault(),
+      );
+      addTearDown(app.dispose);
+      final repository = KindleRepository(
+        store: store,
+        directory: directory,
+        profile: account,
+        client: KindleClient(),
+      );
+      repositories.add(repository);
+      store.cache(account.id, 'book:example', {'name': 'Example document'});
+      store.cache(account.id, 'epub:example', {'cfi': 'local'});
+      store.cache(account.id, 'kindle:outbox', {
+        'example': {
+          'position': 40,
+          'time': 'pending',
+          'target_guid': 'edition',
+        },
+      });
+      repository.conflicts['example'] = {
+        'position': 80,
+        'time': '2026-01-01T12:00:00Z',
+        'pending_time': 'pending',
+      };
+      await tester.binding.setSurfaceSize(const Size(900, 1100));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: KindleServicesPage(app: app, repository: repository),
+        ),
+      );
+      expect(find.text('1 modifica in attesa'), findsOneWidget);
+      expect(find.text('Example document'), findsOneWidget);
+      await tester.tap(find.byTooltip('Scegli la posizione di lettura'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Invia posizione di questo dispositivo'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Usa posizione Kindle'));
+      await tester.pumpAndSettle();
+      expect(find.text('0 modifiche in attesa'), findsOneWidget);
+      expect(find.text('Example document'), findsNothing);
+      expect(object(store.cached(account.id, 'epub:example'))['cfi'], 'local');
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets(
     'automatic deletion requires explicit confirmation before enabling',

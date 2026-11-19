@@ -14,6 +14,9 @@ on:
       installed_position:
         type: boolean
         default: false
+      require_position_offer:
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -48,6 +51,7 @@ jobs:
         env:
           PROBE_FIXTURE_ONLY: ${{ inputs.fixture_only }}
           PROBE_INSTALLED_POSITION: ${{ inputs.installed_position }}
+          PROBE_REQUIRE_OFFER: ${{ inputs.require_position_offer }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:PROBE_FIXTURE_ONLY -eq 'true' -and $env:PROBE_INSTALLED_POSITION -eq 'true') {
@@ -57,7 +61,13 @@ jobs:
           $build = Get-Content (Join-Path $binaryRoot 'data/flutter_assets/assets/build/source.json') -Raw | ConvertFrom-Json
           git fetch --no-tags origin $build.source
           if ($LASTEXITCODE -ne 0) { throw 'Cannot verify runtime source' }
-          git diff --exit-code $build.source $env:GITHUB_SHA -- lib assets android windows third_party pubspec.yaml pubspec.lock tool/kindle_personal tool/kindle_android tool/kindle_personal_cli.py
+          if ($env:PROBE_INSTALLED_POSITION -eq 'true') {
+            # Flutter test runs the current Dart reader. The release artifact
+            # supplies only its independently built, unchanged Kindle worker.
+            git diff --exit-code $build.source $env:GITHUB_SHA -- tool/kindle_personal tool/kindle_personal_cli.py tool/build_kindle_worker.ps1 tool/package_kindle_prototype.py
+          } else {
+            git diff --exit-code $build.source $env:GITHUB_SHA -- lib assets android windows third_party pubspec.yaml pubspec.lock tool/kindle_personal tool/kindle_android tool/kindle_personal_cli.py
+          }
           if ($LASTEXITCODE -ne 0) { throw 'Runtime source mismatch' }
           $private = Join-Path $env:RUNNER_TEMP ('kindle-runtime-private-' + $env:GITHUB_RUN_ID)
           New-Item $private -ItemType Directory -Force | Out-Null
@@ -77,6 +87,7 @@ jobs:
             $env:KMREADER_KINDLE_PRIVATE_SESSION = $session
             $env:KMREADER_KINDLE_WORKER = $worker
             $env:KMREADER_KINDLE_PROBE_INSTALLED = $env:PROBE_INSTALLED_POSITION
+            $env:KMREADER_KINDLE_REQUIRE_OFFER = $env:PROBE_REQUIRE_OFFER
             if ($env:PROBE_INSTALLED_POSITION -eq 'true') {
               $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
               if ($adb) {
@@ -97,6 +108,7 @@ jobs:
             Remove-Item Env:KMREADER_KINDLE_RUNTIME_FIXTURE -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_WORKER -ErrorAction SilentlyContinue
             Remove-Item Env:KMREADER_KINDLE_PROBE_INSTALLED -ErrorAction SilentlyContinue
+            Remove-Item Env:KMREADER_KINDLE_REQUIRE_OFFER -ErrorAction SilentlyContinue
             $response = $null
             Remove-Item $private -Recurse -Force -ErrorAction SilentlyContinue
           }
