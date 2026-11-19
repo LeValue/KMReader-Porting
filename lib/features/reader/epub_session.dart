@@ -406,12 +406,17 @@ class EpubSession extends ChangeNotifier {
       }
       final external = await externalPosition;
       if (external != null && session.chapterFor(text(external['href'])) >= 0) {
-        session.initialKindleOffer = external;
+        if (external['acceptedConflict'] == true) {
+          session._externalPosition = external;
+        } else {
+          session.initialKindleOffer = external;
+        }
       }
       // This locator belongs to a replacement whose reading state the user
       // already opted to restore. It is the local bookmark for the new edition.
       final migrated = object(saved['kindleResume']);
-      if (session.chapterFor(text(migrated['href'])) >= 0 &&
+      if (session._externalPosition == null &&
+          session.chapterFor(text(migrated['href'])) >= 0 &&
           migrated.isNotEmpty) {
         session._externalPosition = migrated;
       }
@@ -472,7 +477,8 @@ class EpubSession extends ChangeNotifier {
     _saveTimer?.cancel();
     repository.store.transaction(() {
       final old = object(repository.store.cached(repository.profile.id, key))
-        ..remove('kindleResume');
+        ..remove('kindleResume')
+        ..remove('kindleResumeChoice');
       repository.store.cache(repository.profile.id, key, {
         ...old,
         ...preferences.toJson(),
@@ -519,7 +525,10 @@ class EpubSession extends ChangeNotifier {
         final external = _externalPosition;
         _externalPosition = null;
         if (event['kindleResumeApplied'] == true && external != null) {
-          rememberKindleResume(external, fromCloud: false);
+          rememberKindleResume(
+            external,
+            fromCloud: external['acceptedConflict'] == true,
+          );
         }
       case 'auxiliary':
         auxiliary = event['active'] == true;
@@ -608,7 +617,8 @@ class EpubSession extends ChangeNotifier {
       return;
     }
     final old = object(repository.store.cached(repository.profile.id, key))
-      ..remove('kindleResume');
+      ..remove('kindleResume')
+      ..remove('kindleResumeChoice');
     repository.store.cache(repository.profile.id, key, {
       ...old,
       ...preferences.toJson(),

@@ -469,6 +469,14 @@ void main() {
       accountModification = '2020-01-01T02:00:00Z';
       await repo.sync();
       expect(repo.conflicts, contains(book.id));
+      store.cache(repo.profile.id, 'epub:${book.id}', {
+        'cfi': 'epubcfi(/6/2!/4/2:12)',
+        'modified': '2099-01-01T00:00:00Z',
+      });
+      store.cache(repo.profile.id, 'kindle:cloud-read:${book.id}', {
+        'edition': 'SYNTHETIC-ACR',
+        'read': {'position': 80, 'time': '2020-01-01T02:00:00.000Z'},
+      });
       final remote = await repo.refreshDocumentPosition(book);
       expect(remote?['offset'], 70);
       expect(repo.pendingCount, 2);
@@ -512,6 +520,12 @@ void main() {
     expect(repo.syncFailure, contains('position_not_confirmed'));
   });
   test('newer remote progress conflicts and accepting server clears pending locator', () async {
+    final savedKey = 'epub:${book.id}';
+    const localCfi = 'epubcfi(/6/2!/4/2:12)';
+    store.cache(repo.profile.id, savedKey, {
+      'cfi': localCfi,
+      'modified': '2020-01-01T01:00:00Z',
+    });
     await repo.externalDocumentPosition(book, publication);
     repo.documentPosition(book, {'kindlePosition': 42});
     final pending = object(store.cached(repo.profile.id, 'kindle:outbox'));
@@ -524,10 +538,63 @@ void main() {
     expect(repo.conflicts, contains(book.id));
     repo.acceptServerProgress();
     expect(repo.pendingCount, 0);
-    expect(
-      (await repo.externalDocumentPosition(book, publication))?['offset'],
-      70,
-    );
+    expect(object(store.cached(repo.profile.id, savedKey))['cfi'], localCfi);
+    repo.setOffline(true);
+    final session = await EpubSession.open(repo, book, publication);
+    try {
+      expect(session.configuration('test')['cfi'], localCfi);
+      expect(
+        object(session.configuration('test')['kindleResume'])['offset'],
+        70,
+      );
+      expect(session.initialKindleOffer, isNull);
+      session.receive({
+        'type': 'position',
+        'href': 'one.xhtml',
+        'cfi': 'epubcfi(/6/2!/4/2:70)',
+        'progression': .5,
+        'kindlePosition': 80,
+      });
+      session.receive({'type': 'ready', 'kindleResumeApplied': true});
+      final saved = object(store.cached(repo.profile.id, savedKey));
+      expect(saved['cfi'], 'epubcfi(/6/2!/4/2:70)');
+      expect(saved.containsKey('kindleResumeChoice'), isFalse);
+      expect(store.progress(repo.profile.id, book.id)?['kind'], 'epub');
+      expect(writes, 0);
+    } finally {
+      await session.close();
+    }
+  });
+  test('turning after a conflict invalidates the old choice and detects the new conflict', () async {
+    await repo.externalDocumentPosition(book, publication);
+    repo.documentPosition(book, {'kindlePosition': 42});
+    final key = 'kindle:outbox';
+    void makeDue() {
+      final pending = object(store.cached(repo.profile.id, key));
+      pending[book.id] = {...object(pending[book.id]), 'not_before': 0};
+      store.cache(repo.profile.id, key, pending);
+    }
+
+    makeDue();
+    accountPosition = 80;
+    accountModification = '2099-01-01T02:00:00Z';
+    await repo.sync();
+    final old = repo.readingConflicts[book.id]!;
+    repo.documentPosition(book, {'kindlePosition': 43});
+    expect(repo.useKindlePosition(book.id, old), isFalse);
+    makeDue();
+    await repo.sync();
+    final current = repo.readingConflicts[book.id]!;
+    expect(current['pending_time'], isNot(old['pending_time']));
+    expect((await repo.refreshDocumentPosition(book))?['offset'], 70);
+    expect(writes, 0);
+    final pending = object(store.cached(repo.profile.id, key));
+    pending['another-book'] = {'time': 'other-revision', 'not_before': 0};
+    store.cache(repo.profile.id, key, pending);
+    expect(await repo.sendDevicePosition(book.id, current), isTrue);
+    expect(writes, 1);
+    expect(position, 43);
+    expect(object(store.cached(repo.profile.id, key)).keys, ['another-book']);
   });
   test(
     'edition changes never send pending progress to another publication',
