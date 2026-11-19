@@ -41,6 +41,11 @@ on:
         description: Verify one bookmark on the exact generated test document only
         type: boolean
         default: false
+      annotation_kind:
+        description: Annotation type for the generated fixture check
+        type: choice
+        options: [bookmark, highlight, note]
+        default: bookmark
       management_probe:
         description: Verify deletion of the exact generated test document, preserving its private recovery journal
         type: boolean
@@ -93,6 +98,7 @@ jobs:
           PROBE_REPLACEMENT: ${{ inputs.replacement_probe }}
           KMREADER_KINDLE_CLOUD_ONLY: ${{ inputs.cloud_only }}
           KMREADER_KINDLE_RETRY_REMOVAL: ${{ inputs.retry_removal }}
+          KMREADER_KINDLE_PROBE_ANNOTATION_KIND: ${{ inputs.annotation_kind }}
           PROBE_BOOKMARKS: ${{ inputs.bookmark_probe }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |
