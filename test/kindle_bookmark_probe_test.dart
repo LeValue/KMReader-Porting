@@ -26,6 +26,13 @@ void main() {
         'document_deletions': 0,
         'annotation_writes': 0,
       };
+      final kind =
+          Platform.environment['KMREADER_KINDLE_PROBE_ANNOTATION_KIND'] ??
+          'bookmark';
+      if (!const {'bookmark', 'highlight', 'note'}.contains(kind)) {
+        fail('Unsupported test annotation kind');
+      }
+      report['kind'] = kind;
       KindleClient? client;
       KindleRepository? repository;
       final root = Directory.systemTemp.createTempSync(
@@ -51,8 +58,8 @@ void main() {
         final journal = object(payload['management_probe']);
         payload['management_probe'] = journal;
         final bookmarkKey = libraryFixture
-            ? 'bookmark_probe_library'
-            : 'bookmark_probe';
+            ? '${kind}_probe_library'
+            : '${kind}_probe';
         final bookmark = object(journal[bookmarkKey]);
         journal[bookmarkKey] = bookmark;
         Future<void> seal() async {
@@ -68,7 +75,7 @@ void main() {
           }
         }
 
-        final transport = _BookmarkProbeClient(id, report);
+        final transport = _BookmarkProbeClient(id, kind, report);
         client = KindleClient(
           session: KindleSession(object(payload['session'])),
           client: transport,
@@ -115,7 +122,12 @@ void main() {
           throw const KindleFailure('bookmark_probe_mapping_missing');
         }
         final guid = mapping.primary!;
-        final probePosition = integer(mapping.entries.first['position']);
+        final entry = mapping.entries.firstWhere(
+          (entry) => kind == 'bookmark' || integer(entry['length']) >= 8,
+        );
+        final probePosition = integer(entry['position']);
+        final probeEnd = probePosition + 5;
+        transport.end = probeEnd;
         transport.guid = guid;
         transport.position = probePosition;
         report['verified_mapping_available'] = true;
@@ -130,8 +142,12 @@ void main() {
             .map(object)
             .any(
               (r) =>
-                  r['type'] == 'kindle.bookmark' &&
-                  num.tryParse('${r['startPosition']}') == probePosition,
+                  r['type'] == 'kindle.$kind' &&
+                  num.tryParse('${r['startPosition']}') == probePosition &&
+                  (kind == 'bookmark' ||
+                      num.tryParse('${r['endPosition']}') == probeEnd) &&
+                  (kind != 'note' ||
+                      r['noteText'] == _BookmarkProbeClient.note),
             );
         if (!confirmed(sidecar) && bookmark.isEmpty) {
           bookmark['state'] = 'submitting';
@@ -149,12 +165,14 @@ void main() {
                 attributes: {'key': id, 'type': 'PDOC', 'guid': guid},
                 nest: () {
                   builder.element(
-                    'bookmark',
+                    kind,
                     attributes: {
                       'action': 'create',
                       'begin': '$probePosition',
+                      if (kind != 'bookmark') 'end': '$probeEnd',
                       'timestamp': timestamp,
                     },
+                    nest: kind == 'note' ? _BookmarkProbeClient.note : null,
                   );
                 },
               );
@@ -179,7 +197,7 @@ void main() {
           await seal();
           sidecar = await client.sidecar(item, guid: guid, annotations: true);
         }
-        report['bookmark_confirmed'] = confirmed(sidecar);
+        report['annotation_confirmed'] = confirmed(sidecar);
         report['guid_present'] = text(sidecar?['guid']).isNotEmpty;
         report['record_shapes'] = [
           for (final r in (sidecar?['records'] as List? ?? []).map(object))
@@ -207,13 +225,13 @@ void main() {
         ];
         report['recognized_record_count'] =
             (sidecar?['records'] as List? ?? []).length;
-        report['passed'] = report['bookmark_confirmed'] == true;
+        report['passed'] = report['annotation_confirmed'] == true;
         bookmark['state'] = report['passed'] == true
             ? 'confirmed'
             : 'unconfirmed';
         await seal();
         if (report['passed'] != true) {
-          fail('Bookmark protocol not confirmed. No replay.');
+          fail('Annotation protocol not confirmed. No replay.');
         }
       } catch (error) {
         report['passed'] = false;
@@ -241,13 +259,15 @@ void main() {
 }
 
 class _BookmarkProbeClient extends http.BaseClient {
-  _BookmarkProbeClient(this.id, this.report);
+  _BookmarkProbeClient(this.id, this.kind, this.report);
+  static const note = 'KMReader synthetic annotation test';
+  final String kind;
   final String id;
   final Json report;
   final delegate = http.Client();
   int writes = 0;
   String? guid;
-  int? position;
+  int? position, end;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final uri = request.url;
@@ -277,7 +297,7 @@ class _BookmarkProbeClient extends http.BaseClient {
       }
       final document = XmlDocument.parse(request.body);
       final books = document.findAllElements('book').toList();
-      final marks = document.findAllElements('bookmark').toList();
+      final marks = document.findAllElements(kind).toList();
       if (books.length != 1 ||
           books.single.getAttribute('key') != id ||
           books.single.getAttribute('type') != 'PDOC' ||
@@ -285,7 +305,11 @@ class _BookmarkProbeClient extends http.BaseClient {
           books.single.childElements.length != 1 ||
           marks.length != 1 ||
           marks.single.getAttribute('action') != 'create' ||
-          marks.single.getAttribute('begin') != '$position') {
+          marks.single.getAttribute('begin') != '$position' ||
+          marks.single.getAttribute('end') !=
+              (kind == 'bookmark' ? null : '$end') ||
+          marks.single.innerText != (kind == 'note' ? note : '') ||
+          marks.single.childElements.isNotEmpty) {
         throw const KindleFailure('bookmark_probe_document_guard');
       }
       report['annotation_writes'] = writes;
@@ -294,7 +318,7 @@ class _BookmarkProbeClient extends http.BaseClient {
     final steps = report['steps'] ??= <Json>[];
     (steps as List).add({
       'step': write
-          ? 'create_test_bookmark'
+          ? 'create_test_annotation'
           : uri.path.startsWith('/delivery/manifest/')
           ? 'fixture_manifest'
           : uri.path.startsWith('/delivery/')
