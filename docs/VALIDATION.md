@@ -6,6 +6,24 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 42 / public candidate 12 — Kindle reader and annotations
+
+Packaged source `0f9d3f2ecd0b33db34c0b990de05cc37aa9066ee`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.12).
+
+- Regression tests exercise **Stay here** against a stale copy, same-date Kindle
+  moves, forced cloud navigation, offline annotation submission and idempotent
+  readback after an ambiguous response. The browser fixture checks exact
+  selection ranges and original Unicode offsets as well as unchanged text.
+- The Windows runner sent one new synthetic EPUB. Amazon retained one
+  [highlight](https://github.com/LeValue/KMReader-Porting/actions/runs/44546520222) and one
+  [bookmark](https://github.com/LeValue/KMReader-Porting/actions/runs/44546536673). A read-only run confirmed
+  the [note and original text](https://github.com/LeValue/KMReader-Porting/actions/runs/44548719829) with zero annotation writes.
+- The Android signature matches the existing preview. All **711** Windows
+  files match the tested CI payload. Public Android and Windows manifests
+  validate against build 41. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44548246378) · [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44550847038)
+
+Installed-device checks under AT-01 and AT-05 remain open.
+
 ## Build 41 / public candidate 11 — Kindle conflicts
 
 Packaged source `2839df45b3b229eff3a795f19b0c687359bea9c0`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.11).

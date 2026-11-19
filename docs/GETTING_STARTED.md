@@ -1,7 +1,7 @@
 # Installation and first use
 
 KMReader Preview is a community reader for Android and Windows. Current public
-release: [1.0.0 candidate 11, build 41](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.11).
+release: [1.0.0 candidate 12, build 42](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.12).
 It is a development prerelease; stable 1.0 and full upstream parity are not complete.
 
 ## Install
@@ -78,11 +78,18 @@ preparation; Windows distributions include its separate conversion worker.
 Starting with build 38, KMReader offers a newer Kindle reading position when you
 open a supported Kindle ebook or return to the foreground with the reader open.
 It also checks for new positions periodically while that reader is active.
-Choose **Go to position** to continue there or **Stay here** to keep reading.
+Choose **Go to position** to continue there or **Stay here** to keep reading
+and share the position on this device. The reader menu also has **Go to
+latest Kindle position** for an explicit cloud fetch.
 In **Settings → Servers**, turn on **Automatically resume from Kindle** to skip
 confirmation. **Sync reading position with Kindle** controls both sharing your
 reading position and checking for incoming positions. Automatic resume is off
 by default.
+
+Select text to create a note or highlight or search the book. Select one word
+to look it up in Wiktionary. New marks in supported personal Kindle EPUBs are
+synchronized from the **Bookmarks and annotations** menu. See the
+[Kindle guide](KINDLE_IMPORT.md#reading-position-and-annotations) for coverage.
 
 For a local document, open **Send to Kindle**, choose a file and review its
 metadata. **Add to Kindle library** makes it available through the account's
