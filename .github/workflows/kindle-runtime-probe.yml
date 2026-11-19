@@ -80,8 +80,13 @@ jobs:
             if ($env:PROBE_INSTALLED_POSITION -eq 'true') {
               $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
               if ($adb) {
-                $devices = @(& $adb.Source devices 2>$null | Where-Object { $_ -match '\sdevice$' })
-                Write-Output "Authorized Android devices connected: $($devices.Count)"
+                $adbOut = Join-Path $private 'adb-output.txt'
+                $adbErr = Join-Path $private 'adb-error.txt'
+                $probe = Start-Process -FilePath $adb.Source -ArgumentList 'devices' -NoNewWindow -Wait -PassThru -RedirectStandardOutput $adbOut -RedirectStandardError $adbErr
+                if ($probe.ExitCode -eq 0) {
+                  $devices = @(Get-Content $adbOut | Where-Object { $_ -match '\sdevice$' })
+                  Write-Output "Authorized Android devices connected: $($devices.Count)"
+                }
               }
             }
             $env:KMREADER_KINDLE_PROBE_REPORT = Join-Path $PWD 'artifacts/kindle-runtime-report/report.json'
