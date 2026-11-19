@@ -54,6 +54,7 @@ void main() {
           'original',
           'library',
           'annotations',
+          'annotation-removal',
         }.contains(fixtureName)) {
           throw const KindleFailure('bookmark_probe_fixture_type');
         }
@@ -92,7 +93,7 @@ void main() {
                 bookmark['state'] != 'confirmed')) {
           throw const KindleFailure('bookmark_probe_erase_scope');
         }
-        final transport = _BookmarkProbeClient(id, kind, action, report);
+        final transport = _BookmarkProbeClient(id, kind, erase, report);
         client = KindleClient(
           session: KindleSession(object(payload['session'])),
           client: transport,
@@ -166,11 +167,8 @@ void main() {
                   (kind != 'note' ||
                       kindleNoteText(r) == _BookmarkProbeClient.note),
             );
-        final eligible = erase
-            ? confirmed(sidecar) && bookmark['erase'] == null
-            : !confirmed(sidecar) && bookmark.isEmpty;
-        if (eligible) {
-          bookmark[erase ? 'erase' : 'state'] = 'submitting';
+        Future<void> submit(String stage, String operation) async {
+          bookmark[stage] = 'submitting';
           await seal();
           final timestamp =
               '${DateTime.now().toUtc().toIso8601String().split('.').first}+0000';
@@ -187,12 +185,12 @@ void main() {
                   builder.element(
                     kind,
                     attributes: {
-                      'action': action,
+                      'action': operation,
                       'begin': '$probePosition',
                       if (kind != 'bookmark') 'end': '$probeEnd',
                       'timestamp': timestamp,
                     },
-                    nest: !erase && kind == 'note'
+                    nest: operation == 'create' && kind == 'note'
                         ? _BookmarkProbeClient.note
                         : null,
                   );
@@ -202,7 +200,7 @@ void main() {
           );
           // Keep this experimental protocol out of the production manager until
           // a real write followed by readback has established its contract.
-          final response = await client.request(
+          final response = await client!.request(
             Uri.https(
               'cde-ta-g7g.amazon.com',
               '/FionaCDEServiceEngine/sidecar',
@@ -215,9 +213,16 @@ void main() {
           await response.stream.drain<void>().timeout(
             const Duration(seconds: 60),
           );
-          bookmark[erase ? 'erase' : 'state'] = 'submitted';
+          bookmark[stage] = 'submitted';
           await seal();
-          sidecar = await client.sidecar(item, guid: guid, annotations: true);
+          sidecar = await client!.sidecar(item, guid: guid, annotations: true);
+        }
+
+        if (!confirmed(sidecar) && bookmark.isEmpty) {
+          await submit('state', 'create');
+        }
+        if (erase && confirmed(sidecar) && bookmark['erase'] == null) {
+          await submit('erase', 'delete');
         }
         report['annotation_confirmed'] = confirmed(sidecar);
         report['guid_present'] = text(sidecar?['guid']).isNotEmpty;
@@ -255,8 +260,8 @@ void main() {
             (sidecar?['records'] as List? ?? []).length;
         report['passed'] = erase
             ? sidecar != null &&
-                  mapping.matches(sidecar) &&
-                  sidecar['annotations_available'] == true &&
+                  mapping.matches(object(sidecar)) &&
+                  object(sidecar)['annotations_available'] == true &&
                   bookmark['erase'] != null &&
                   !confirmed(sidecar)
             : report['annotation_confirmed'] == true;
@@ -293,13 +298,15 @@ void main() {
 }
 
 class _BookmarkProbeClient extends http.BaseClient {
-  _BookmarkProbeClient(this.id, this.kind, this.action, this.report);
+  _BookmarkProbeClient(this.id, this.kind, this.erase, this.report);
   static const note = 'KMReader synthetic annotation test';
-  final String kind, action;
+  final String kind;
+  final bool erase;
   final String id;
   final Json report;
   final delegate = http.Client();
   int writes = 0;
+  final submitted = <String>{};
   String? guid;
   int? position, end;
   @override
@@ -325,20 +332,23 @@ class _BookmarkProbeClient extends http.BaseClient {
         !(read || auth || write)) {
       throw const KindleFailure('bookmark_probe_guard');
     }
+    String? action;
     if (write) {
-      if (++writes > 1 || request is! http.Request) {
+      if (++writes > (erase ? 2 : 1) || request is! http.Request) {
         throw const KindleFailure('bookmark_probe_limit');
       }
       final document = XmlDocument.parse(request.body);
       final books = document.findAllElements('book').toList();
       final marks = document.findAllElements(kind).toList();
+      action = marks.singleOrNull?.getAttribute('action');
       if (books.length != 1 ||
           books.single.getAttribute('key') != id ||
           books.single.getAttribute('type') != 'PDOC' ||
           books.single.getAttribute('guid') != guid ||
           books.single.childElements.length != 1 ||
           marks.length != 1 ||
-          marks.single.getAttribute('action') != action ||
+          (action != 'create' && !(erase && action == 'delete')) ||
+          !submitted.add(action!) ||
           marks.single.getAttribute('begin') != '$position' ||
           marks.single.getAttribute('end') !=
               (kind == 'bookmark' ? null : '$end') ||
