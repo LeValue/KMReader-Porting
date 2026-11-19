@@ -82,8 +82,8 @@ jobs:
               if ($adb) {
                 $adbOut = Join-Path $private 'adb-output.txt'
                 $adbErr = Join-Path $private 'adb-error.txt'
-                $probe = Start-Process -FilePath $adb.Source -ArgumentList 'devices' -NoNewWindow -Wait -PassThru -RedirectStandardOutput $adbOut -RedirectStandardError $adbErr
-                if ($probe.ExitCode -eq 0) {
+                $probe = Start-Process -FilePath $adb.Source -ArgumentList 'devices' -NoNewWindow -PassThru -RedirectStandardOutput $adbOut -RedirectStandardError $adbErr
+                if ($probe.WaitForExit(5000) -and $probe.ExitCode -eq 0) {
                   $devices = @(Get-Content $adbOut | Where-Object { $_ -match '\sdevice$' })
                   Write-Output "Authorized Android devices connected: $($devices.Count)"
                 }
