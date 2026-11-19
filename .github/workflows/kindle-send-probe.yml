@@ -46,6 +46,10 @@ on:
         type: choice
         options: [bookmark, highlight, note]
         default: bookmark
+      annotation_erase:
+        description: Delete one previously verified annotation on the generated annotations fixture
+        type: boolean
+        default: false
       management_probe:
         description: Verify deletion of the exact generated test document, preserving its private recovery journal
         type: boolean
@@ -99,6 +103,7 @@ jobs:
           KMREADER_KINDLE_CLOUD_ONLY: ${{ inputs.cloud_only }}
           KMREADER_KINDLE_RETRY_REMOVAL: ${{ inputs.retry_removal }}
           KMREADER_KINDLE_PROBE_ANNOTATION_KIND: ${{ inputs.annotation_kind }}
+          KMREADER_KINDLE_PROBE_ANNOTATION_ERASE: ${{ inputs.annotation_erase }}
           PROBE_BOOKMARKS: ${{ inputs.bookmark_probe }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |

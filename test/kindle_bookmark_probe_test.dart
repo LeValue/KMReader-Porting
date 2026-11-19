@@ -32,7 +32,12 @@ void main() {
       if (!const {'bookmark', 'highlight', 'note'}.contains(kind)) {
         fail('Unsupported test annotation kind');
       }
+      final erase =
+          Platform.environment['KMREADER_KINDLE_PROBE_ANNOTATION_ERASE'] ==
+          'true';
+      final action = erase ? 'delete' : 'create';
       report['kind'] = kind;
+      report['action'] = action;
       KindleClient? client;
       KindleRepository? repository;
       final root = Directory.systemTemp.createTempSync(
@@ -82,7 +87,12 @@ void main() {
           }
         }
 
-        final transport = _BookmarkProbeClient(id, kind, report);
+        if (erase &&
+            (fixtureName != 'annotations' ||
+                bookmark['state'] != 'confirmed')) {
+          throw const KindleFailure('bookmark_probe_erase_scope');
+        }
+        final transport = _BookmarkProbeClient(id, kind, action, report);
         client = KindleClient(
           session: KindleSession(object(payload['session'])),
           client: transport,
@@ -156,8 +166,11 @@ void main() {
                   (kind != 'note' ||
                       kindleNoteText(r) == _BookmarkProbeClient.note),
             );
-        if (!confirmed(sidecar) && bookmark.isEmpty) {
-          bookmark['state'] = 'submitting';
+        final eligible = erase
+            ? confirmed(sidecar) && bookmark['erase'] == null
+            : !confirmed(sidecar) && bookmark.isEmpty;
+        if (eligible) {
+          bookmark[erase ? 'erase' : 'state'] = 'submitting';
           await seal();
           final timestamp =
               '${DateTime.now().toUtc().toIso8601String().split('.').first}+0000';
@@ -174,12 +187,14 @@ void main() {
                   builder.element(
                     kind,
                     attributes: {
-                      'action': 'create',
+                      'action': action,
                       'begin': '$probePosition',
                       if (kind != 'bookmark') 'end': '$probeEnd',
                       'timestamp': timestamp,
                     },
-                    nest: kind == 'note' ? _BookmarkProbeClient.note : null,
+                    nest: !erase && kind == 'note'
+                        ? _BookmarkProbeClient.note
+                        : null,
                   );
                 },
               );
@@ -200,7 +215,7 @@ void main() {
           await response.stream.drain<void>().timeout(
             const Duration(seconds: 60),
           );
-          bookmark['state'] = 'submitted';
+          bookmark[erase ? 'erase' : 'state'] = 'submitted';
           await seal();
           sidecar = await client.sidecar(item, guid: guid, annotations: true);
         }
@@ -238,8 +253,14 @@ void main() {
         ];
         report['recognized_record_count'] =
             (sidecar?['records'] as List? ?? []).length;
-        report['passed'] = report['annotation_confirmed'] == true;
-        bookmark['state'] = report['passed'] == true
+        report['passed'] = erase
+            ? sidecar != null &&
+                  mapping.matches(sidecar) &&
+                  sidecar['annotations_available'] == true &&
+                  bookmark['erase'] != null &&
+                  !confirmed(sidecar)
+            : report['annotation_confirmed'] == true;
+        bookmark[erase ? 'erase' : 'state'] = report['passed'] == true
             ? 'confirmed'
             : 'unconfirmed';
         await seal();
@@ -272,9 +293,9 @@ void main() {
 }
 
 class _BookmarkProbeClient extends http.BaseClient {
-  _BookmarkProbeClient(this.id, this.kind, this.report);
+  _BookmarkProbeClient(this.id, this.kind, this.action, this.report);
   static const note = 'KMReader synthetic annotation test';
-  final String kind;
+  final String kind, action;
   final String id;
   final Json report;
   final delegate = http.Client();
@@ -317,11 +338,12 @@ class _BookmarkProbeClient extends http.BaseClient {
           books.single.getAttribute('guid') != guid ||
           books.single.childElements.length != 1 ||
           marks.length != 1 ||
-          marks.single.getAttribute('action') != 'create' ||
+          marks.single.getAttribute('action') != action ||
           marks.single.getAttribute('begin') != '$position' ||
           marks.single.getAttribute('end') !=
               (kind == 'bookmark' ? null : '$end') ||
-          marks.single.innerText != (kind == 'note' ? note : '') ||
+          marks.single.innerText !=
+              (action == 'create' && kind == 'note' ? note : '') ||
           marks.single.childElements.isNotEmpty) {
         throw const KindleFailure('bookmark_probe_document_guard');
       }
@@ -331,7 +353,7 @@ class _BookmarkProbeClient extends http.BaseClient {
     final steps = report['steps'] ??= <Json>[];
     (steps as List).add({
       'step': write
-          ? 'create_test_annotation'
+          ? '${action}_test_annotation'
           : uri.path.startsWith('/delivery/manifest/')
           ? 'fixture_manifest'
           : uri.path.startsWith('/delivery/')
