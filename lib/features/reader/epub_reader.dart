@@ -22,6 +22,7 @@ import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../../ui/reader_options.dart';
 import '../../ui/theme.dart';
+import 'epub_dictionary.dart';
 import 'epub_document.dart';
 import 'epub_overlay.dart';
 import 'epub_session.dart';
@@ -79,6 +80,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   bool _verticalWriting = false;
   final _closed = Completer<void>();
   String? _error, _selection, _actionSelection;
+  Json _selectionRange = {}, _actionRange = {};
   bool _turning = false;
   final _turns = <int>[];
   ThemeData? _readerTheme;
@@ -151,55 +153,74 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     );
   }
 
-  bool _canCheckKindlePosition(EpubSession session) =>
+  bool _canCheckKindlePosition(EpubSession session, {bool force = false}) =>
       _readerInForeground &&
       session.ready &&
       !session.auxiliary &&
       !session.layoutBusy &&
       !_turning &&
       !_settingsOpen &&
-      widget.repository.canApplyDocumentPosition(widget.book);
+      widget.repository.canApplyDocumentPosition(widget.book, force: force);
 
-  Future<void> _checkKindlePosition() async {
+  Future<void> _checkKindlePosition({bool force = false}) async {
     final session = _session;
     if (session == null ||
         _checkingKindlePosition ||
-        !_canCheckKindlePosition(session)) {
+        !_canCheckKindlePosition(session, force: force)) {
+      if (force && mounted) {
+        _kindlePositionNotice('Kindle position unavailable');
+      }
       return;
     }
     _checkingKindlePosition = true;
     final currentCfi = session.cfi;
     try {
-      final initial = session.initialKindleOffer;
+      final initial = force ? null : session.initialKindleOffer;
       session.initialKindleOffer = null;
       final remote =
           initial ??
-          await widget.repository.refreshDocumentPosition(widget.book);
+          await widget.repository.refreshDocumentPosition(
+            widget.book,
+            force: force,
+          );
       if (remote == null ||
-          !_canCheckKindlePosition(session) ||
+          !_canCheckKindlePosition(session, force: force) ||
           session.cfi != currentCfi ||
           session.chapterFor(text(remote['href'])) < 0 ||
-          mapEquals(remote, _dismissedKindlePosition)) {
+          !force && mapEquals(remote, _dismissedKindlePosition)) {
+        if (force && mounted) {
+          _kindlePositionNotice('Kindle position unavailable');
+        }
         return;
       }
       if (integer(remote['position']) + integer(remote['offset']) ==
           session.kindlePosition) {
-        if (remote['acceptedConflict'] == true) {
+        if (force || remote['acceptedConflict'] == true) {
           session.rememberKindleResume(remote);
         }
         return;
       }
       final automatic =
+          force ||
           remote['acceptedConflict'] == true ||
           widget.repository.store.setting<bool>(
                 'kindleAutoResume:${widget.repository.profile.id}',
               ) ==
               true;
-      if (!automatic && !await _confirmKindlePosition(session, remote)) {
-        _dismissedKindlePosition = remote;
-        return;
+      if (!automatic) {
+        final choice = await _confirmKindlePosition(session, remote);
+        if (choice != true) {
+          _dismissedKindlePosition = remote;
+          if (choice == false &&
+              _canCheckKindlePosition(session) &&
+              session.cfi == currentCfi) {
+            session.keepKindlePosition(remote);
+          }
+          return;
+        }
       }
-      if (!_canCheckKindlePosition(session) || session.cfi != currentCfi) {
+      if (!_canCheckKindlePosition(session, force: force) ||
+          session.cfi != currentCfi) {
         return;
       }
       final restored = await _call('resumeKindle', {
@@ -209,22 +230,35 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       if (restored is Map &&
           mounted &&
           (session.cfi == currentCfi || session.cfi == restored['cfi']) &&
-          widget.repository.canApplyDocumentPosition(widget.book)) {
+          widget.repository.canApplyDocumentPosition(
+            widget.book,
+            force: force,
+          )) {
         session.receive({...object(restored), 'type': 'position'});
         session.rememberKindleResume(remote);
       } else {
         _dismissedKindlePosition = remote;
+        if (force && mounted) {
+          _kindlePositionNotice('Kindle position unavailable');
+        }
       }
     } catch (_) {
-      // A transient network failure leaves the current page readable.
+      if (force && mounted) {
+        _kindlePositionNotice('Kindle position unavailable');
+      }
     } finally {
       _checkingKindlePosition = false;
     }
   }
 
-  Future<bool> _confirmKindlePosition(EpubSession session, Json remote) async {
+  void _kindlePositionNotice(String key) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(tr(context, key))));
+
+  Future<bool?> _confirmKindlePosition(EpubSession session, Json remote) async {
     final chapter = session.chapterFor(text(remote['href']));
-    final updated = DateTime.tryParse(text(remote['modified']))?.toLocal();
+    final updated = DateTime.tryParse(text(remote['displayModified']))
+        ?.toLocal();
     final material = MaterialLocalizations.of(context);
     final title = tr(context, 'Resume reading from Kindle?');
     final details = Column(
@@ -256,55 +290,48 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       ),
     ];
     if (MediaQuery.sizeOf(context).width < 600) {
-      return await showModalBottomSheet<bool>(
-            context: context,
-            useSafeArea: true,
-            isScrollControlled: true,
-            showDragHandle: true,
-            builder: (sheet) => SafeArea(
-              top: false,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(sheet).textTheme.titleLarge),
-                    const SizedBox(height: 16),
-                    details,
-                    const SizedBox(height: 16),
-                    OverflowBar(
-                      spacing: 8,
-                      alignment: MainAxisAlignment.end,
-                      children: actions(sheet),
-                    ),
-                  ],
+      return showModalBottomSheet<bool>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(sheet).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                details,
+                const SizedBox(height: 16),
+                OverflowBar(
+                  spacing: 8,
+                  alignment: MainAxisAlignment.end,
+                  children: actions(sheet),
                 ),
-              ),
+              ],
             ),
-          ) ??
-          false;
-    }
-    return await showDialog<bool>(
-          context: context,
-          builder: (dialog) => AlertDialog(
-            title: Text(title),
-            content: details,
-            scrollable: true,
-            actions: actions(dialog),
           ),
-        ) ??
-        false;
+        ),
+      );
+    }
+    return showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(title),
+        content: details,
+        scrollable: true,
+        actions: actions(dialog),
+      ),
+    );
   }
 
   void _annotationsChanged() {
     if (mounted && _initialized && !widget.incognito) {
-      unawaited(
-        _call(
-          'annotations',
-          widget.repository.documentAnnotations(widget.book),
-        ),
-      );
+      unawaited(_call('annotations', _session?.readerAnnotations ?? []));
     }
   }
 
@@ -596,7 +623,16 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         }
         return;
       case 'selection':
-        setState(() => _selection = text(event['text']));
+        setState(() {
+          _selection = text(event['text']);
+          _selectionRange = event;
+          if (_selection!.isNotEmpty && !_fullscreen) _controls = true;
+        });
+        if (_selection!.isNotEmpty) {
+          _chromeTimer?.cancel();
+        } else {
+          _scheduleControlsHide();
+        }
         return;
       case 'link':
         unawaited(_link(text(event['href'])));
@@ -742,83 +778,205 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     );
   }
 
-  Future<void> _search() async {
-    final controller = TextEditingController();
-    List<Json> results = [];
-    bool searching = false;
-    String? error;
+  Future<List<Json>> _searchBook(String query) async {
+    final value = await _call('search', query);
+    final decoded = value is String ? jsonDecode(value) : value;
+    return (decoded as List? ?? []).map(object).toList();
+  }
+
+  Future<void> _search([String initial = '']) async {
+    var query = initial.trim();
+    Future<List<Json>>? request = query.isEmpty ? null : _searchBook(query);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, update) => ReaderSafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              12,
-              20,
-              MediaQuery.viewInsetsOf(context).bottom + 12,
-            ),
-            child: SizedBox(
-              height: MediaQuery.sizeOf(context).height * .65,
-              child: Column(
-                children: [
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      labelText: tr(context, 'Search'),
+        builder: (context, update) {
+          void submit() {
+            if (query.trim().isEmpty) return;
+            update(() => request = _searchBook(query.trim()));
+          }
+
+          return ReaderSafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.viewInsetsOf(context).bottom + 12,
+              ),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * .65,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      initialValue: initial,
+                      autofocus: initial.isEmpty,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (value) => query = value,
+                      decoration: InputDecoration(
+                        labelText: tr(context, 'Search'),
+                        suffixIcon: IconButton(
+                          tooltip: tr(context, 'Search'),
+                          onPressed: submit,
+                          icon: const Icon(Icons.search),
+                        ),
+                      ),
+                      onFieldSubmitted: (_) => submit(),
                     ),
-                    onSubmitted: (query) async {
-                      if (searching || query.trim().isEmpty) return;
-                      update(() {
-                        searching = true;
-                        error = null;
-                      });
-                      try {
-                        final value = await _call('search', query.trim());
-                        final decoded = value is String
-                            ? jsonDecode(value)
-                            : value;
-                        if (context.mounted) {
-                          update(
-                            () => results = (decoded as List? ?? [])
-                                .map(object)
-                                .toList(),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) update(() => error = e.toString());
-                      } finally {
-                        if (context.mounted) update(() => searching = false);
-                      }
-                    },
-                  ),
-                  if (searching) const LinearProgressIndicator(),
-                  if (error != null) Text(error!),
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        for (final result in results)
-                          ListTile(
-                            title: Text(text(result['excerpt'])),
-                            onTap: () {
-                              Navigator.pop(context);
-                              unawaited(_call('display', result['cfi']));
-                            },
-                          ),
-                      ],
-                    ).withWheelScrolling(),
-                  ),
-                ],
+                    if (request != null)
+                      Expanded(
+                        child: FutureBuilder(
+                          future: request,
+                          builder: (context, result) {
+                            if (result.connectionState !=
+                                ConnectionState.done) {
+                              return const Align(
+                                alignment: Alignment.topCenter,
+                                child: LinearProgressIndicator(),
+                              );
+                            }
+                            if (result.hasError) {
+                              return Center(
+                                child: Text(tr(context, 'Search unavailable')),
+                              );
+                            }
+                            final matches = result.data ?? [];
+                            if (matches.isEmpty) {
+                              return Center(
+                                child: Text(tr(context, 'No results')),
+                              );
+                            }
+                            return ListView.builder(
+                              itemCount: matches.length,
+                              itemBuilder: (context, index) {
+                                final hit = matches[index];
+                                return ListTile(
+                                  title: Text(text(hit['excerpt'])),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    unawaited(_call('display', hit['cfi']));
+                                  },
+                                );
+                              },
+                            ).withWheelScrolling();
+                          },
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _dictionary(String selection) async {
+    final word = dictionaryWord(selection);
+    final session = _session;
+    if (word == null || session == null) return;
+    final language = dictionaryLanguage(session.host.language);
+    final request = widget.repository.offline
+        ? Future<List<String>>.value([])
+        : lookupDictionary(word, language);
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => ReaderSafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheet).height * .5,
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            children: [
+              Text(
+                tr(sheet, 'Dictionary'),
+                style: Theme.of(sheet).textTheme.titleMedium,
+              ),
+              Text(word, style: Theme.of(sheet).textTheme.headlineSmall),
+              const SizedBox(height: 12),
+              FutureBuilder<List<String>>(
+                future: request,
+                builder: (context, result) {
+                  if (result.connectionState != ConnectionState.done) {
+                    return const LinearProgressIndicator();
+                  }
+                  final meanings = result.data ?? [];
+                  if (meanings.isEmpty) {
+                    return Text(
+                      tr(context, 'Dictionary definition unavailable'),
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final meaning in meanings)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(meaning),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton(
+                  onPressed: () => openExternalWebLink(
+                    Uri.https('$language.wiktionary.org', '/wiki/$word'),
+                  ),
+                  child: Text(tr(sheet, 'Open Wiktionary')),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
-    controller.dispose();
+  }
+
+  Future<void> _annotate(
+    Json selection, {
+    bool note = false,
+    String previous = '',
+  }) async {
+    final session = _session;
+    if (session == null || widget.incognito || selection['rangeCfi'] == null) {
+      return;
+    }
+    String? body;
+    if (note) {
+      var value = previous;
+      body = await showDialog<String>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(tr(dialog, previous.isEmpty ? 'Add Note' : 'Edit Note')),
+          content: TextFormField(
+            initialValue: previous,
+            autofocus: true,
+            minLines: 2,
+            maxLines: 6,
+            maxLength: 4000,
+            onChanged: (text) => value = text,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: Text(tr(dialog, 'Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, value.trim()),
+              child: Text(tr(dialog, 'Save')),
+            ),
+          ],
+        ),
+      );
+      if (body?.isNotEmpty != true) return;
+    }
+    if (!mounted || !identical(session, _session)) return;
+    if (session.saveAnnotation(selection, note: body)) _annotationsChanged();
   }
 
   Future<void> _quickNavigation() async {
@@ -925,7 +1083,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         action = 'bookmarks';
                         Navigator.pop(context);
                       },
-                      child: Text(tr(context, 'Bookmarks')),
+                      child: Text(tr(context, 'Bookmarks and annotations')),
                     ),
                   ],
                 ),
@@ -975,9 +1133,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Future<void> _bookmarks([String? selectedText]) async {
     final selected = selectedText ?? _selection ?? '';
     final session = _session!;
-    unawaited(
-      _call('annotations', widget.repository.documentAnnotations(widget.book)),
-    );
+    unawaited(_call('annotations', session.readerAnnotations));
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -1027,25 +1183,31 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   },
                   trailing: mark['source'] == 'kindle'
                       ? null
-                      : IconButton(
-                          tooltip: tr(context, 'Delete'),
-                          icon: const Icon(CupertinoIcons.trash),
-                          onPressed: () {
-                            final values = session.bookmarks
-                              ..removeWhere(
-                                (v) => mark['id'] != null
-                                    ? v['id'] == mark['id']
-                                    : v['cfi'] == mark['cfi'],
-                              );
-                            widget.repository.store.cache(
-                              widget.repository.profile.id,
-                              session.bookmarkKey,
-                              values
-                                  .where((v) => v['source'] != 'kindle')
-                                  .toList(),
-                            );
-                            update(() {});
-                          },
+                      : Wrap(
+                          children: [
+                            if (mark['type'] == 'kindle.note')
+                              IconButton(
+                                tooltip: tr(context, 'Edit Note'),
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () async {
+                                  await _annotate(
+                                    {...mark, 'text': mark['excerpt']},
+                                    note: true,
+                                    previous: text(mark['label']),
+                                  );
+                                  if (context.mounted) update(() {});
+                                },
+                              ),
+                            IconButton(
+                              tooltip: tr(context, 'Delete'),
+                              icon: const Icon(CupertinoIcons.trash),
+                              onPressed: () {
+                                session.removeAnnotation(mark);
+                                _annotationsChanged();
+                                update(() {});
+                              },
+                            ),
+                          ],
                         ),
                 ),
             ],
@@ -1752,12 +1914,28 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                           onOpened: () {
                                             _chromeTimer?.cancel();
                                             _actionSelection = _selection;
+                                            _actionRange = _selectionRange;
                                           },
                                           onCanceled: _scheduleControlsHide,
                                           onSelected: (v) => switch (v) {
                                             'fullscreen' => _toggleFullscreen(),
                                             'contents' => _contents(),
                                             'search' => _search(),
+                                            'searchSelection' => _search(
+                                              _actionSelection ?? '',
+                                            ),
+                                            'dictionary' => _dictionary(
+                                              _actionSelection ?? '',
+                                            ),
+                                            'highlight' => _annotate(
+                                              _actionRange,
+                                            ),
+                                            'note' => _annotate(
+                                              _actionRange,
+                                              note: true,
+                                            ),
+                                            'kindlePosition' =>
+                                              _checkKindlePosition(force: true),
                                             'bookmarks' => _bookmarks(
                                               _actionSelection,
                                             ),
@@ -1770,7 +1948,31 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                             for (final entry in {
                                               'contents': 'Table of Contents',
                                               'search': 'Search',
-                                              'bookmarks': 'Bookmarks',
+                                              if (widget
+                                                      .repository
+                                                      .profile
+                                                      .isKindle &&
+                                                  !widget.incognito)
+                                                'kindlePosition': 'Go to latest Kindle position',
+                                              'bookmarks':
+                                                  'Bookmarks and annotations',
+                                              if (_selection
+                                                      ?.trim()
+                                                      .isNotEmpty ==
+                                                  true)
+                                                'searchSelection':
+                                                    'Search Selection',
+                                              if (dictionaryWord(
+                                                    _selection ?? '',
+                                                  ) !=
+                                                  null)
+                                                'dictionary': 'Dictionary',
+                                              if (_selectionRange['rangeCfi'] !=
+                                                      null &&
+                                                  !widget.incognito) ...{
+                                                'highlight': 'Highlight',
+                                                'note': 'Add Note',
+                                              },
                                               if (_selection
                                                       ?.trim()
                                                       .isNotEmpty ==

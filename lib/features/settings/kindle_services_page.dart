@@ -128,9 +128,9 @@ class _KindleServicesPageState extends State<KindleServicesPage> {
               'kindleSync:${repo.profile.id}',
             ),
             _toggle(
-              'Importa segnalibri e annotazioni da Kindle',
+              'Sincronizza segnalibri e annotazioni Kindle',
               'kindleAnnotations:${repo.profile.id}',
-              subtitle: 'Mostra le annotazioni della stessa edizione. I segnalibri creati in KMReader restano locali.',
+              subtitle: 'Mostra le annotazioni Kindle della stessa edizione e invia i nuovi segnalibri, le note e le evidenziazioni dei documenti personali.',
             ),
             _toggle(
               'Aggiorna automaticamente la libreria',

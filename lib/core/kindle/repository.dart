@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -56,7 +57,8 @@ class KindleRepository extends Repository {
   }
 
   Future<void>? _syncWork;
-  Timer? _kindleTimer;
+  Timer? _kindleTimer, _annotationTimer;
+  DateTime? _annotationsFetched;
   String? _mappedBook;
   KindlePositionMap? _mapping;
   int _mappingGeneration = 0;
@@ -94,12 +96,12 @@ class KindleRepository extends Repository {
       return;
     }
     store.cache(profile.id, 'kindle:sidecar:$id', sidecar);
-    _importAnnotations(await book(id), mapping, sidecar);
+    _importAnnotations(id, mapping, sidecar);
   }
 
-  void _importAnnotations(Book book, KindlePositionMap mapping, Json sidecar) {
+  void _importAnnotations(String id, KindlePositionMap mapping, Json sidecar) {
     if (!kindleAnnotationsEnabled ||
-        sidecar['annotations_loaded'] != true ||
+        sidecar['annotations_available'] != true ||
         !mapping.matches(sidecar)) {
       return;
     }
@@ -118,10 +120,7 @@ class KindleRepository extends Repository {
       final locator = mapping.locator(position);
       if (locator == null) continue;
       final end = int.tryParse('${record['endPosition']}');
-      final note = text(
-        record['noteText'],
-        text(record['text'], text(record['note'])),
-      );
+      final note = kindleNoteText(record);
       final endLocator = end != null && end > position
           ? mapping.locator(end - 1)
           : null;
@@ -131,6 +130,8 @@ class KindleRepository extends Repository {
         'type': type,
         'href': locator['href'],
         'locator': locator,
+        'kindleStart': position,
+        'kindleEnd': ?end,
         if (endLocator != null)
           'endLocator': {
             ...endLocator,
@@ -147,13 +148,167 @@ class KindleRepository extends Repository {
         'modified': record['lastModificationTime'],
       });
     }
-    store.cache(profile.id, 'kindle:annotations:${book.id}', values);
+    final key = 'kindle:annotations:$id';
+    if (store.cachedEncoded(profile.id, key) == jsonEncode(values)) return;
+    store.cache(profile.id, key, values);
     documentAnnotationChanges.value++;
   }
 
   Json get _outbox => object(store.cached(profile.id, 'kindle:outbox'));
   void _saveOutbox(Json value) =>
       store.cache(profile.id, 'kindle:outbox', value);
+  Json get _annotationOutbox =>
+      object(store.cached(profile.id, 'kindle:annotation-outbox'));
+
+  void _setAnnotationEdit(String key, Json? value) {
+    final pending = _annotationOutbox;
+    if (value == null) {
+      pending.remove(key);
+    } else {
+      pending[key] = value;
+    }
+    store.cache(profile.id, 'kindle:annotation-outbox', pending);
+  }
+
+  @override
+  void documentBookmark(Book book, int position, {required bool present}) =>
+      _queueAnnotation(book, KindleMark('bookmark', position), present);
+
+  @override
+  void documentAnnotation(Book book, Json annotation, {required bool present}) {
+    final start = annotation['kindleStart'], end = annotation['kindleEnd'];
+    if (start is! int || end is! int) return;
+    final type = text(annotation['type']);
+    if (!const {'kindle.note', 'kindle.highlight'}.contains(type)) return;
+    final mark = KindleMark(
+      type.substring('kindle.'.length),
+      start,
+      end: end,
+      note: type == 'kindle.note' ? text(annotation['label']) : null,
+    );
+    _queueAnnotation(book, mark, present);
+  }
+
+  void _queueAnnotation(Book book, KindleMark mark, bool present) {
+    final mapping = _mapping;
+    if (closed ||
+        present && !kindleAnnotationsEnabled ||
+        book.json['kindleType'] != 'PDOC' ||
+        _mappedBook != book.id ||
+        mapping == null ||
+        !mark.valid ||
+        mapping.locator(mark.start) == null ||
+        mark.end != null && mapping.locator(mark.end! - 1) == null) {
+      return;
+    }
+    final key = '${book.id}:${mark.type}:${mark.start}:${mark.end ?? ''}';
+    final existing = object(_annotationOutbox[key]);
+    if (existing['submitted'] == true) return;
+    if (!present) {
+      if (existing.isNotEmpty) {
+        _setAnnotationEdit(key, null);
+        changed();
+      }
+      return;
+    }
+    _setAnnotationEdit(key, {
+      'book': book.id,
+      'type': mark.type,
+      'start': mark.start,
+      'end': ?mark.end,
+      'note': ?mark.note,
+      'edition': mapping.primary,
+      'acrs': mapping.acrs.toList(),
+    });
+    changed();
+    // Start after the local annotation transaction commits.
+    unawaited(
+      Future<void>(() async {
+        await _syncWork;
+        if (!closed && !offline) await sync();
+      }),
+    );
+  }
+
+  Future<void> _syncAnnotations() async {
+    if (offline || closed || !kindleAnnotationsEnabled) return;
+    for (final entry in _annotationOutbox.entries) {
+      if (closed || offline || !kindleAnnotationsEnabled) break;
+      final edit = object(entry.value);
+      final id = text(edit['book']), edition = text(edit['edition']);
+      try {
+        final item = library.item(id);
+        if (item['type'] != 'PDOC' || edition.isEmpty) {
+          throw const KindleFailure('annotation_edition_unavailable');
+        }
+        Json? sidecar;
+        var missing = false;
+        try {
+          sidecar = await library.client.sidecar(
+            item,
+            guid: edition,
+            annotations: true,
+          );
+        } on KindleFailure catch (error) {
+          if (error.status != 404) rethrow;
+          missing = true;
+        }
+        if (closed || offline || !kindleAnnotationsEnabled) return;
+        final current = object(_annotationOutbox[entry.key]);
+        if (current.isEmpty || current['edition'] != edition) continue;
+        final mark = KindleMark(
+          text(current['type']),
+          integer(current['start'], -1),
+          end: current['end'] is int ? current['end'] as int : null,
+          note: current['note'] as String?,
+        );
+        if (!mark.valid) throw const KindleFailure('annotation_invalid');
+        final acrs = current['acrs'] as List? ?? [];
+        // A 404 on the exact downloaded PDOC edition means there is no
+        // sidecar yet. The first annotation can create it using its mapped ACR.
+        final guid = missing ? edition : text(sidecar?['guid']);
+        if (guid.isEmpty ||
+            !(acrs.contains(guid) || acrs.contains(sidecar?['acr'])) ||
+            sidecar != null && sidecar['annotations_available'] != true) {
+          throw const KindleFailure('annotation_edition_unavailable');
+        }
+        final records = (sidecar?['records'] as List? ?? []).map(object);
+        if (!records.any(mark.matches)) {
+          if (current['submitted'] == true) continue;
+          // Cloud note editing has a different contract from creation. Keep
+          // a local edit without submitting a duplicate at the same range.
+          if (!records.any(mark.sameRange)) {
+            _setAnnotationEdit(entry.key, {...current, 'submitted': true});
+            sidecar = await library.client.pushAnnotation(item, guid, mark);
+          }
+        }
+        if (closed) return;
+        _setAnnotationEdit(entry.key, null);
+        final mapping = _mapping;
+        if (_mappedBook == id && mapping != null && sidecar != null) {
+          store.cache(profile.id, 'kindle:sidecar:$id', sidecar);
+          _importAnnotations(id, mapping, sidecar);
+        }
+        if (conflicts.isEmpty && _outbox.isEmpty && _annotationOutbox.isEmpty) {
+          syncFailure = null;
+        }
+      } on KindleFailure catch (error) {
+        if (!closed) syncFailure = error.toString();
+      } catch (_) {
+        if (!closed) syncFailure = 'Kindle: annotation_sync_response';
+      }
+    }
+    _annotationTimer?.cancel();
+    if (!closed &&
+        !offline &&
+        kindleAnnotationsEnabled &&
+        _annotationOutbox.isNotEmpty) {
+      _annotationTimer = Timer(const Duration(minutes: 2), () {
+        if (!closed && !offline) unawaited(sync());
+      });
+    }
+  }
+
   Map<String, Json> get readingConflicts {
     if (!kindleSyncEnabled) return {};
     final pending = _outbox;
@@ -177,10 +332,13 @@ class KindleRepository extends Repository {
 
   @override
   int get pendingCount =>
-      super.pendingCount + (kindleSyncEnabled ? _outbox.length : 0);
+      super.pendingCount +
+      (kindleSyncEnabled ? _outbox.length : 0) +
+      (kindleAnnotationsEnabled ? _annotationOutbox.length : 0);
   @override
   void dispose() {
     _kindleTimer?.cancel();
+    _annotationTimer?.cancel();
     super.dispose();
   }
 
@@ -189,6 +347,7 @@ class KindleRepository extends Repository {
     final generation = ++_mappingGeneration;
     _mappedBook = null;
     _mapping = null;
+    _annotationsFetched = null;
     if ((!kindleSyncEnabled &&
             !kindleAnnotationsEnabled &&
             _resumeChoice(book.id).isEmpty) ||
@@ -221,11 +380,11 @@ class KindleRepository extends Repository {
             : <String, dynamic>{'acr': mapping.primary, 'guid': ''};
       final chosen = _chosenKindlePosition(book.id, mapping);
       if (chosen != null) {
-        _importAnnotations(book, mapping, cachedSidecar);
+        _importAnnotations(book.id, mapping, cachedSidecar);
         return chosen;
       }
       if (offline) {
-        _importAnnotations(book, mapping, cachedSidecar);
+        _importAnnotations(book.id, mapping, cachedSidecar);
         return null;
       }
       return await _readDocumentPosition(
@@ -240,13 +399,14 @@ class KindleRepository extends Repository {
   }
 
   @override
-  bool canApplyDocumentPosition(Book book) =>
+  bool canApplyDocumentPosition(Book book, {bool force = false}) =>
       !closed &&
       !offline &&
       kindleSyncEnabled &&
       _mappedBook == book.id &&
-      _canReplacePendingPosition(book.id) &&
-      !overlay(book).completed;
+      (force
+          ? _syncWork == null
+          : _canReplacePendingPosition(book.id) && !overlay(book).completed);
 
   bool _canReplacePendingPosition(String id) {
     final pending = _outbox[id];
@@ -258,11 +418,21 @@ class KindleRepository extends Repository {
   }
 
   @override
-  Future<Json?> refreshDocumentPosition(Book book) async {
+  Future<Json?> refreshDocumentPosition(Book book, {bool force = false}) async {
     final mapping = _mapping;
-    if (mapping == null || !canApplyDocumentPosition(book)) return null;
-    return _chosenKindlePosition(book.id, mapping) ??
-        await _readDocumentPosition(book, mapping, _mappingGeneration);
+    if (mapping == null || !canApplyDocumentPosition(book, force: force)) {
+      return null;
+    }
+    if (!force) {
+      final chosen = _chosenKindlePosition(book.id, mapping);
+      if (chosen != null) return chosen;
+    }
+    return _readDocumentPosition(
+      book,
+      mapping,
+      _mappingGeneration,
+      force: force,
+    );
   }
 
   Json _resumeChoice(String id) => object(
@@ -298,7 +468,8 @@ class KindleRepository extends Repository {
     final prior = object(cached['read']);
     if (cached['edition'] == edition &&
         prior['position'] == read['position'] &&
-        prior['time'] == read['time']) {
+        prior['time'] == read['time'] &&
+        prior['account'] == read['account']) {
       return;
     }
     store.cache(profile.id, key, {'edition': edition, 'read': read});
@@ -307,8 +478,15 @@ class KindleRepository extends Repository {
   @override
   void externalDocumentPositionApplied(Book book, Json locator) {
     final mapping = _mapping;
-    if (mapping == null || !canApplyDocumentPosition(book)) return;
+    final force = locator['forcedCloud'] == true;
+    if (mapping == null || !canApplyDocumentPosition(book, force: force)) {
+      return;
+    }
     final pending = _outbox;
+    if (force &&
+        object(pending[book.id])['time'] != locator['pendingRevision']) {
+      return;
+    }
     if (pending.remove(book.id) != null) {
       _saveOutbox(pending);
       conflicts.remove(book.id);
@@ -317,7 +495,37 @@ class KindleRepository extends Repository {
     _rememberCloudRead(book.id, mapping.primary, {
       'position': integer(locator['position']) + integer(locator['offset']),
       'time': locator['modified'],
+      if (locator['account'] == true) 'account': true,
     });
+  }
+
+  @override
+  void keepDocumentPosition(Book book, Json offer, int? position) {
+    final mapping = _mapping;
+    if (mapping == null || !canApplyDocumentPosition(book)) return;
+    final id = book.id;
+    final base = {
+      'position': integer(offer['position']) + integer(offer['offset']),
+      'time': offer['modified'],
+      if (offer['account'] == true) 'account': true,
+    };
+    store.transaction(() {
+      store.cache(profile.id, 'kindle:declined:$id', {
+        'edition': mapping.primary,
+        ...base,
+      });
+      _rememberCloudRead(id, mapping.primary, base);
+      // Rebase this book's pending edit against the exact cloud record the
+      // reader saw. A different, newer cloud edit can still win the next check.
+      if (position != null && mapping.locator(position) != null) {
+        _queueDocumentPosition(book, {'kindlePosition': position}, base: base);
+      } else if (conflicts.remove(id) != null) {
+        final pending = _outbox..remove(id);
+        _saveOutbox(pending);
+        if (conflicts.isEmpty) syncFailure = null;
+      }
+    });
+    changed();
   }
 
   Future<Json?> _readDocumentPosition(
@@ -325,15 +533,20 @@ class KindleRepository extends Repository {
     KindlePositionMap mapping,
     int generation, {
     bool opening = false,
+    bool force = false,
   }) async {
+    final revision = force ? object(_outbox[book.id])['time'] : null;
     final item = library.item(book.id);
+    final withAnnotations =
+        kindleAnnotationsEnabled &&
+        (opening ||
+            force ||
+            _annotationsFetched == null ||
+            DateTime.now().difference(_annotationsFetched!) >=
+                const Duration(minutes: 2));
     final (edition, account) = await (
       library.client
-          .sidecar(
-            item,
-            guid: mapping.primary,
-            annotations: opening && kindleAnnotationsEnabled,
-          )
+          .sidecar(item, guid: mapping.primary, annotations: withAnnotations)
           .onError<KindleFailure>((_, _) => null),
       kindleSyncEnabled
           ? library.client.accountPositionSidecar(item)
@@ -362,17 +575,40 @@ class KindleRepository extends Repository {
       store.cache(profile.id, availabilityKey, availability);
     }
     if (sidecar != null) _verifiedSidecars[book.id] = sidecar;
-    // Polling uses a position-only snapshot. Keep the persisted annotations
-    // intact and save the new reading locator only after the reader applies it.
+    if (sidecar != null && withAnnotations) {
+      _annotationsFetched = DateTime.now();
+      _importAnnotations(book.id, mapping, sidecar);
+    }
     if (opening && sidecar != null) {
-      _importAnnotations(book, mapping, sidecar);
       store.cache(profile.id, 'kindle:sidecar:${book.id}', sidecar);
     }
     final remote = kindleLastRead(sidecar, account: accountMatch);
-    if (remote == null || !canApplyDocumentPosition(book)) return null;
+    if (remote == null ||
+        !canApplyDocumentPosition(book, force: force) ||
+        force && revision != object(_outbox[book.id])['time']) {
+      return null;
+    }
     final locator = mapping.locator(integer(remote['position']));
     if (locator == null) return null;
-    final offer = {...locator, 'modified': remote['time']};
+    final changedPosition = remote['position'] != baseline?['position'];
+    final offer = {
+      ...locator,
+      'modified': remote['time'],
+      if (remote['updated'] != null &&
+          (!changedPosition || remote['updated'] != baseline?['time']))
+        'displayModified': remote['updated'],
+      if (remote['account'] == true) 'account': true,
+      if (force) ...{'forcedCloud': true, 'pendingRevision': revision},
+    };
+    if (force) return offer;
+    final declined = object(
+      store.cached(profile.id, 'kindle:declined:${book.id}'),
+    );
+    if (declined['edition'] == mapping.primary &&
+        declined['position'] == remote['position'] &&
+        declined['time'] == remote['time']) {
+      return null;
+    }
     final conflict = conflicts[book.id];
     if (conflict?['position'] == remote['position'] &&
         conflict?['time'] == remote['time']) {
@@ -389,23 +625,20 @@ class KindleRepository extends Repository {
         (remoteTime == null || remoteTime.isBefore(previousTime))) {
       return null;
     }
-    final changedPosition = remote['position'] != baseline?['position'];
-    if (previousTime != null && remoteTime == previousTime && changedPosition) {
-      final latestAccount = kindleLastRead(accountMatch);
-      if (latestAccount?['position'] != remote['position'] ||
-          latestAccount?['time'] != remote['time']) {
-        return null;
-      }
+    if (remoteTime == previousTime &&
+        changedPosition &&
+        baseline?['account'] == true &&
+        remote['account'] != true) {
+      return null;
     }
     // Once a matching cloud record has been seen, its changes can be compared
     // in Amazon's clock domain. Local EPUB saves include millisecond precision
     // and may come from a device whose clock is ahead of Amazon.
     final cloudMoved =
         baseline != null &&
-        remoteTime != null &&
-        (previousTime == null ||
-            remoteTime.isAfter(previousTime) ||
-            changedPosition);
+        (changedPosition ||
+            remoteTime != null &&
+                (previousTime == null || remoteTime.isAfter(previousTime)));
     if (localTime != null &&
         (remoteTime == null || !remoteTime.isAfter(localTime)) &&
         !cloudMoved) {
@@ -416,7 +649,10 @@ class KindleRepository extends Repository {
   }
 
   @override
-  void documentPosition(Book book, Json event) {
+  void documentPosition(Book book, Json event) =>
+      _queueDocumentPosition(book, event);
+
+  void _queueDocumentPosition(Book book, Json event, {Json? base}) {
     final position = event['kindlePosition'];
     final sidecar = _verifiedSidecars[book.id];
     if (!kindleSyncEnabled ||
@@ -430,9 +666,11 @@ class KindleRepository extends Repository {
     }
     final pending = _outbox;
     final existing = object(pending[book.id]);
-    if (existing['position'] == position) return;
+    if (existing['position'] == position && base == null) return;
     final remote =
-        _cloudReadBaseline(book.id, _mapping!) ?? kindleLastRead(sidecar);
+        base ??
+        _cloudReadBaseline(book.id, _mapping!) ??
+        kindleLastRead(sidecar);
     pending[book.id] = {
       'position': position,
       'time': DateTime.now().toUtc().toIso8601String(),
@@ -440,18 +678,21 @@ class KindleRepository extends Repository {
       'acrs': _mapping!.acrs.toList(),
       'guid': text(sidecar['guid']),
       'target_guid': _mapping!.primary,
-      'base_position': existing.isEmpty
+      'base_position': existing.isEmpty || base != null
           ? (remote?['position'])
           : existing['base_position'],
-      'base_time': existing.isEmpty ? (remote?['time']) : existing['base_time'],
-      'not_before': DateTime.now().millisecondsSinceEpoch + 3000,
+      'base_time': existing.isEmpty || base != null
+          ? (remote?['time'])
+          : existing['base_time'],
+      'not_before':
+          DateTime.now().millisecondsSinceEpoch + (base == null ? 3000 : 0),
     };
     _saveOutbox(pending);
     if (conflicts.remove(book.id) != null && conflicts.isEmpty) {
       syncFailure = null;
     }
     _kindleTimer?.cancel();
-    _kindleTimer = Timer(const Duration(seconds: 3), () {
+    _kindleTimer = Timer(Duration(seconds: base == null ? 3 : 0), () {
       if (!closed) unawaited(sync());
     });
   }
@@ -674,8 +915,7 @@ class KindleRepository extends Repository {
                     kindleTimestamp(local['base_time']) ??
                     (cachedRead?['position'] == local['base_position']
                         ? kindleTimestamp(cachedRead?['time'])
-                        : null) ??
-                    kindleTimestamp(local['time']);
+                        : null);
             if (!force &&
                 remote != null &&
                 remote['position'] != local['position'] &&
@@ -684,7 +924,7 @@ class KindleRepository extends Repository {
                     comparisonTime == null ||
                     !remoteTime.isBefore(comparisonTime))) {
               conflicts[entry.key] = {...remote, 'pending_time': local['time']};
-              syncFailure = 'Newer reading progress exists on the server. Resolve it in Settings.';
+              syncFailure = null;
               continue;
             }
             final alreadyConfirmed = remote?['position'] == local['position'];
@@ -727,25 +967,33 @@ class KindleRepository extends Repository {
           }
         }
       }
+      if (target == null) await _syncAnnotations();
       if (!closed) changed();
     } finally {
-      if (!closed && !offline && kindleSyncEnabled && _outbox.isNotEmpty) {
-        final now = DateTime.now().millisecondsSinceEpoch;
-        final next = _outbox.values
-            .map(object)
-            .map((value) => integer(value['not_before']))
-            .reduce((a, b) => a < b ? a : b);
-        _kindleTimer?.cancel();
-        _kindleTimer = Timer(
-          Duration(
-            milliseconds: next > now ? (next - now).clamp(100, 30000) : 30000,
-          ),
-          () {
-            if (!closed) unawaited(sync());
-          },
-        );
+      if (!closed && !offline && kindleSyncEnabled) {
+        _schedulePositionRetry();
       }
     }
+  }
+
+  void _schedulePositionRetry() {
+    _kindleTimer?.cancel();
+    final due = [
+      for (final entry in _outbox.entries)
+        if (conflicts[entry.key]?['pending_time'] !=
+            object(entry.value)['time'])
+          integer(object(entry.value)['not_before']),
+    ];
+    if (due.isEmpty) return;
+    final delay =
+        due.reduce((a, b) => a < b ? a : b) -
+        DateTime.now().millisecondsSinceEpoch;
+    _kindleTimer = Timer(
+      Duration(milliseconds: delay > 0 ? delay.clamp(100, 30000) : 30000),
+      () {
+        if (!closed && !offline) unawaited(sync());
+      },
+    );
   }
 
   bool useKindlePosition(String id, Json conflict) {

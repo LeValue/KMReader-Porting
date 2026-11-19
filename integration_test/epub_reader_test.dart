@@ -120,7 +120,9 @@ void main() {
       expect(saved(), isNull);
       await tester.tap(find.text('Stay here'));
       await tester.pumpAndSettle();
-      expect(saved(), isNull);
+      expect(saved()?['chapter'], 0);
+      expect(saved()?['cfi'], startsWith('epubcfi('));
+      expect(repository.retainedOffers, [112]);
       expect(offer, findsNothing);
 
       repository.offset = 300;
@@ -135,6 +137,28 @@ void main() {
       repository.offset = 800;
       resumeApp();
       await waitFor('automatic navigation', () => saved()?['cfi'] != confirmed);
+      expect(offer, findsNothing);
+
+      final automatic = saved()!['cfi'];
+      store.setSetting('kindleAutoResume:${repository.profile.id}', false);
+      repository.offset = 35;
+      final menu = find.byType(PopupMenuButton<String>);
+      if (menu.evaluate().isEmpty) {
+        final dynamic state = tester.state(find.byType(BrowserEpubReader));
+        final browser = state.browserController as InAppWebViewController;
+        await browser.evaluateJavascript(
+          source: '''
+          document.querySelector('iframe')?.contentDocument
+            ?.dispatchEvent(new KeyboardEvent('keydown', {key:' ', bubbles:true}));
+        ''',
+        );
+      }
+      await waitFor('reader menu', () => menu.evaluate().isNotEmpty);
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Go to latest Kindle position'));
+      await waitFor('forced navigation', () => saved()?['cfi'] != automatic);
+      expect(repository.forcedReads, 1);
       expect(offer, findsNothing);
       expect(repository.pendingCount, 0);
       expect(repository.writes, 0);
@@ -788,22 +812,31 @@ class _KindleResumeFixture extends Repository {
         ),
       );
 
-  int offset = 12, writes = 0;
+  int offset = 12, writes = 0, forcedReads = 0;
+  final retainedOffers = <int>[];
 
   @override
   Future<Json?> externalDocumentPosition(Book book, File file) =>
       refreshDocumentPosition(book);
 
   @override
-  Future<Json?> refreshDocumentPosition(Book book) async => {
-    'href': 'two.xhtml',
-    'id': 'mapped',
-    'position': 100,
-    'offset': offset,
-  };
+  Future<Json?> refreshDocumentPosition(Book book, {bool force = false}) async {
+    if (force) forcedReads++;
+    return {
+      'href': 'two.xhtml',
+      'id': 'mapped',
+      'position': 100,
+      'offset': offset,
+    };
+  }
 
   @override
-  bool canApplyDocumentPosition(Book book) => !closed;
+  void keepDocumentPosition(Book book, Json offer, int? position) {
+    retainedOffers.add(integer(offer['position']) + integer(offer['offset']));
+  }
+
+  @override
+  bool canApplyDocumentPosition(Book book, {bool force = false}) => !closed;
 
   @override
   void documentPosition(Book book, Json event) => writes++;
