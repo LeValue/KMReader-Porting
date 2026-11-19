@@ -154,7 +154,7 @@ void main() {
                   (kind == 'bookmark' ||
                       num.tryParse('${r['endPosition']}') == probeEnd) &&
                   (kind != 'note' ||
-                      r['noteText'] == _BookmarkProbeClient.note),
+                      kindleNoteText(r) == _BookmarkProbeClient.note),
             );
         if (!confirmed(sidecar) && bookmark.isEmpty) {
           bookmark['state'] = 'submitting';
@@ -228,6 +228,12 @@ void main() {
                   : 'other',
               'start_matches':
                   num.tryParse('${r['startPosition']}') == probePosition,
+              'end_matches': num.tryParse('${r['endPosition']}') == probeEnd,
+              if (r['type'] == 'kindle.note') ...{
+                'note_body_matches':
+                    kindleNoteText(r) == _BookmarkProbeClient.note,
+                'note_body_present': kindleNoteText(r).isNotEmpty,
+              },
             },
         ];
         report['recognized_record_count'] =
