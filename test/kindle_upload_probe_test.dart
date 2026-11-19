@@ -36,6 +36,7 @@ void main() {
           'library',
           'device',
           'annotations',
+          'annotation-removal',
         }.contains(mode)) {
           throw const KindleFailure('probe_delivery_mode');
         }

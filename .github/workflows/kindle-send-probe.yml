@@ -18,12 +18,12 @@ on:
       delivery_mode:
         description: Delivery verification; new modes use separate private journals
         type: choice
-        options: [existing-library, library, device, annotations]
+        options: [existing-library, library, device, annotations, annotation-removal]
         default: existing-library
       management_fixture:
         description: Exact generated fixture eligible for management checks
         type: choice
-        options: [original, library, annotations]
+        options: [original, library, annotations, annotation-removal]
         default: original
       replacement_probe:
         description: Update only the generated cloud fixture and verify state restoration before retirement
@@ -47,7 +47,7 @@ on:
         options: [bookmark, highlight, note]
         default: bookmark
       annotation_erase:
-        description: Delete one previously verified annotation on the generated annotations fixture
+        description: Create, read, and erase one annotation on the generated removal fixture
         type: boolean
         default: false
       management_probe:
