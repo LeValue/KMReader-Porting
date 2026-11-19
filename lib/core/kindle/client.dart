@@ -37,6 +37,52 @@ class KindleFailure implements Exception {
       'Kindle: $code${stage == null ? '' : ' [$stage]'}${status == null ? '' : ' (HTTP $status)'}';
 }
 
+String kindleNoteText(Json record) =>
+    text(record['noteText'], text(record['text'], text(record['note'])));
+
+final class KindleMark {
+  const KindleMark(this.type, this.start, {this.end, this.note});
+
+  final String type;
+  final int start;
+  final int? end;
+  final String? note;
+
+  bool get valid =>
+      start >= 0 &&
+      switch (type) {
+        'bookmark' => end == null && note == null,
+        'highlight' => end != null && end! > start && note == null,
+        'note' =>
+          end != null &&
+              end! > start &&
+              note != null &&
+              note!.isNotEmpty &&
+              note!.length <= 4000 &&
+              !RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]').hasMatch(note!),
+        _ => false,
+      };
+
+  bool sameRange(Json record) =>
+      record['type'] == 'kindle.$type' &&
+      num.tryParse('${record['startPosition']}') == start &&
+      (end == null || num.tryParse('${record['endPosition']}') == end);
+
+  bool matches(Json record) =>
+      sameRange(record) && (note == null || kindleNoteText(record) == note);
+
+  void append(XmlBuilder xml, String timestamp) => xml.element(
+    type,
+    attributes: {
+      'action': 'create',
+      'begin': '$start',
+      if (end != null) 'end': '$end',
+      'timestamp': timestamp,
+    },
+    nest: note,
+  );
+}
+
 String kindleRandom([int count = 32]) => base64UrlEncode(
   List<int>.generate(count, (_) => Random.secure().nextInt(256)),
 ).replaceAll('=', '');
@@ -603,7 +649,6 @@ class KindleClient {
     final after = await sidecar(item, guid: guid, annotations: true);
     if (after == null ||
         after['guid'] != guid ||
-        after['annotations_loaded'] != true ||
         after['annotations_complete'] != true) {
       return false;
     }
@@ -614,13 +659,7 @@ class KindleClient {
                   r['type'] == 'kindle.most_recent_read' &&
                   num.tryParse('${r['location']}') == position,
             )) &&
-        bookmarks.every(
-          (p) => records.any(
-            (r) =>
-                r['type'] == 'kindle.bookmark' &&
-                num.tryParse('${r['startPosition']}') == p,
-          ),
-        );
+        bookmarks.every((p) => records.any(KindleMark('bookmark', p).matches));
   }
 
   /// One submission followed by readback. Callers persist their intent before
@@ -631,58 +670,25 @@ class KindleClient {
     int? position,
     List<int> bookmarks = const [],
   }) async {
-    if (item['type'] != 'PDOC' ||
-        text(item['id']).isEmpty ||
-        guid.isEmpty ||
-        position != null && position < 0 ||
-        bookmarks.any((p) => p < 0)) {
+    if (position != null && position < 0 || bookmarks.any((p) => p < 0)) {
       throw const KindleFailure('position_invalid');
     }
-    final timestamp =
-        '${DateTime.now().toUtc().toIso8601String().split('.').first}+0000';
     if (position != null || bookmarks.isNotEmpty) {
-      final xml = XmlBuilder();
-      xml.element(
-        'annotations',
-        attributes: {'version': '1.0', 'timestamp': timestamp},
-        nest: () {
+      await _postReadingState(item, guid, (xml, timestamp) {
+        if (position != null) {
           xml.element(
-            'book',
-            attributes: {'key': text(item['id']), 'type': 'PDOC', 'guid': guid},
-            nest: () {
-              if (position != null) {
-                xml.element(
-                  'last_read',
-                  attributes: {
-                    'begin': '$position',
-                    'pos': '$position',
-                    'timestamp': timestamp,
-                  },
-                );
-              }
-              for (final bookmark in bookmarks.toSet()) {
-                xml.element(
-                  'bookmark',
-                  attributes: {
-                    'action': 'create',
-                    'begin': '$bookmark',
-                    'timestamp': timestamp,
-                  },
-                );
-              }
+            'last_read',
+            attributes: {
+              'begin': '$position',
+              'pos': '$position',
+              'timestamp': timestamp,
             },
           );
-        },
-      );
-      final response = await request(
-        Uri.https('cde-ta-g7g.amazon.com', '/FionaCDEServiceEngine/sidecar', {
-          'type': 'PDOC',
-        }),
-        method: 'POST',
-        body: utf8.encode(xml.buildDocument().toXmlString()),
-        headers: {'Content-Type': 'application/xml'},
-      );
-      await _bounded(response);
+        }
+        for (final bookmark in bookmarks.toSet()) {
+          KindleMark('bookmark', bookmark).append(xml, timestamp);
+        }
+      });
     }
     if (!await readingStateConfirmed(
       item,
@@ -692,6 +698,50 @@ class KindleClient {
     )) {
       throw const KindleFailure('management_migration_not_confirmed');
     }
+  }
+
+  Future<Json> pushAnnotation(Json item, String guid, KindleMark mark) async {
+    if (!mark.valid) throw const KindleFailure('annotation_invalid');
+    await _postReadingState(item, guid, mark.append);
+    final after = await sidecar(item, guid: guid, annotations: true);
+    if (after == null ||
+        (after['guid'] != guid && after['acr'] != guid) ||
+        after['annotations_available'] != true ||
+        !(after['records'] as List).map(object).any(mark.matches)) {
+      throw const KindleFailure('annotation_not_confirmed');
+    }
+    return after;
+  }
+
+  Future<void> _postReadingState(
+    Json item,
+    String guid,
+    void Function(XmlBuilder xml, String timestamp) append,
+  ) async {
+    if (item['type'] != 'PDOC' || text(item['id']).isEmpty || guid.isEmpty) {
+      throw const KindleFailure('position_invalid');
+    }
+    final timestamp =
+        '${DateTime.now().toUtc().toIso8601String().split('.').first}+0000';
+    final xml = XmlBuilder();
+    xml.element(
+      'annotations',
+      attributes: {'version': '1.0', 'timestamp': timestamp},
+      nest: () => xml.element(
+        'book',
+        attributes: {'key': text(item['id']), 'type': 'PDOC', 'guid': guid},
+        nest: () => append(xml, timestamp),
+      ),
+    );
+    final response = await request(
+      Uri.https('cde-ta-g7g.amazon.com', '/FionaCDEServiceEngine/sidecar', {
+        'type': 'PDOC',
+      }),
+      method: 'POST',
+      body: utf8.encode(xml.buildDocument().toXmlString()),
+      headers: {'Content-Type': 'application/xml'},
+    );
+    await _bounded(response);
   }
 
   Future<Json> pushPosition(
@@ -888,6 +938,7 @@ Json _readSidecar((Uint8List, bool) input) {
         (payload['records'] as List).map(object).every(supported),
     for (final key in ['guid', 'acr', 'syncToken']) key: text(payload[key]),
     'annotations_loaded': input.$2,
+    'annotations_available': input.$2 && payload['records'] is List,
     'records': [
       for (final record in (payload['records'] as List? ?? []).map(object))
         if (const {

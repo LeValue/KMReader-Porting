@@ -294,11 +294,36 @@ class EpubSession extends ChangeNotifier {
   Timer? _saveTimer;
   String get key => 'epub:${book.id}';
   String get bookmarkKey => 'epubBookmarks:${book.id}';
-  List<Json> get bookmarks => [
-    ...(repository.store.cached(repository.profile.id, bookmarkKey) as List? ??
-            [])
-        .map(object),
-    ...repository.documentAnnotations(book),
+  List<Json> get _localAnnotations =>
+      (repository.store.cached(repository.profile.id, bookmarkKey) as List? ??
+              [])
+          .map(object)
+          .toList();
+  List<Json> get bookmarks {
+    if (incognito) return [];
+    final local = _localAnnotations;
+    final matching = {
+      for (final mark in local)
+        if (mark['kindlePosition'] is int)
+          ('kindle.bookmark', mark['kindlePosition'], null)
+        else if (mark['kindleStart'] is int && mark['kindleEnd'] is int)
+          (mark['type'], mark['kindleStart'], mark['kindleEnd']),
+    };
+    return [
+      ...local,
+      for (final mark in repository.documentAnnotations(book))
+        if (!matching.contains((
+          mark['type'],
+          mark['kindleStart'],
+          mark['kindleEnd'],
+        )))
+          mark,
+    ];
+  }
+
+  List<Json> get readerAnnotations => [
+    for (final mark in bookmarks)
+      if (mark['rangeCfi'] != null || mark['endLocator'] != null) mark,
   ];
 
   static Future<EpubSession> open(
@@ -460,7 +485,7 @@ class EpubSession extends ChangeNotifier {
     if (repository.profile.isKindle && !incognito) 'kindlePositions': true,
     if (_externalPosition case final locator?)
       'kindleResume': kindleTarget(locator),
-    'annotations': repository.documentAnnotations(book),
+    'annotations': readerAnnotations,
   };
 
   Json kindleTarget(Json locator) => {
@@ -500,6 +525,12 @@ class EpubSession extends ChangeNotifier {
         );
       }
     });
+  }
+
+  void keepKindlePosition(Json offer) {
+    if (_closed || incognito || repository.closed || cfi.isEmpty) return;
+    rememberKindleResume({}, fromCloud: false);
+    repository.keepDocumentPosition(book, offer, kindlePosition);
   }
 
   void receive(Json event) {
@@ -639,28 +670,113 @@ class EpubSession extends ChangeNotifier {
   }
 
   void toggleBookmark(String label) {
-    if (cfi.isEmpty || repository.closed) return;
-    final values = bookmarks;
-    final index = values.indexWhere((v) => v['cfi'] == cfi);
-    if (index >= 0) {
-      values.removeAt(index);
-    } else {
-      values.add({
-        'cfi': cfi,
-        'href': href,
-        'label': label.trim().isEmpty
-            ? document.chapters[chapter].title
-            : label,
-        'created': DateTime.now().toUtc().toIso8601String(),
-      });
-    }
-    repository.store.cache(
-      repository.profile.id,
-      bookmarkKey,
-      values.where((v) => v['source'] != 'kindle').toList(),
+    if (cfi.isEmpty || incognito || repository.closed) return;
+    final values = _localAnnotations;
+    final index = values.indexWhere(
+      (v) => v['cfi'] == cfi && v['rangeCfi'] == null,
     );
+    if (index >= 0) {
+      removeAnnotation(values[index]);
+      return;
+    }
+    if (kindlePosition != null &&
+        bookmarks.any(
+          (mark) =>
+              mark['type'] == 'kindle.bookmark' &&
+              integer(object(mark['locator'])['position']) +
+                      integer(object(mark['locator'])['offset']) ==
+                  kindlePosition,
+        )) {
+      return;
+    }
+    repository.store.transaction(() {
+      final position = kindlePosition;
+      _writeAnnotations([
+        ...values,
+        {
+          'cfi': cfi,
+          'href': href,
+          'label': label.trim().isEmpty
+              ? document.chapters[chapter].title
+              : label,
+          'created': DateTime.now().toUtc().toIso8601String(),
+          'kindlePosition': ?position,
+        },
+      ]);
+      if (position != null) {
+        repository.documentBookmark(book, position, present: true);
+      }
+    });
     notifyListeners();
   }
+
+  bool saveAnnotation(Json selection, {String? note}) {
+    if (incognito || repository.closed) return false;
+    final start = text(selection['cfi']), range = text(selection['rangeCfi']);
+    final index = chapterFor(text(selection['href']));
+    if (index < 0 ||
+        !start.startsWith('epubcfi(') ||
+        !range.startsWith('epubcfi(') ||
+        start.length > 4096 ||
+        range.length > 4096) {
+      return false;
+    }
+    final excerpt = String.fromCharCodes(
+      text(selection['text']).trim().runes.take(750),
+    );
+    final body = note?.trim();
+    if (excerpt.isEmpty || body?.isEmpty == true) return false;
+    final type = body == null ? 'kindle.highlight' : 'kindle.note';
+    final values = _localAnnotations;
+    final id = '$type:$range';
+    values.removeWhere((mark) => mark['id'] == id);
+    final startPosition = selection['kindleStart'],
+        endPosition = selection['kindleEnd'];
+    final mark = {
+      'id': id,
+      'type': type,
+      'cfi': start,
+      'rangeCfi': range,
+      'href': document.chapters[index].path,
+      'label': body ?? excerpt,
+      'excerpt': excerpt,
+      'created': DateTime.now().toUtc().toIso8601String(),
+      if (startPosition is int &&
+          endPosition is int &&
+          endPosition > startPosition) ...{
+        'kindleStart': startPosition,
+        'kindleEnd': endPosition,
+      },
+    };
+    repository.store.transaction(() {
+      _writeAnnotations([...values, mark]);
+      repository.documentAnnotation(book, mark, present: true);
+    });
+    notifyListeners();
+    return true;
+  }
+
+  void removeAnnotation(Json mark) {
+    if (incognito || repository.closed || mark['source'] == 'kindle') return;
+    repository.store.transaction(() {
+      final values = _localAnnotations
+        ..removeWhere(
+          (value) => mark['id'] != null
+              ? value['id'] == mark['id']
+              : value['id'] == null && value['cfi'] == mark['cfi'],
+        );
+      _writeAnnotations(values);
+      if (mark['kindlePosition'] case final int position) {
+        repository.documentBookmark(book, position, present: false);
+      } else {
+        repository.documentAnnotation(book, mark, present: false);
+      }
+    });
+    notifyListeners();
+  }
+
+  void _writeAnnotations(List<Json> values) =>
+      repository.store.cache(repository.profile.id, bookmarkKey, values);
 
   Future<void> close() async {
     if (_closed) return;

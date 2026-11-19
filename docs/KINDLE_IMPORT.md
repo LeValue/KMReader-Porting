@@ -102,6 +102,30 @@ first time the app sees the document, retained across refreshes. Publication dat
 remain separate metadata. Legacy dashboard section IDs are kept so order, hidden
 sections and card preferences survive the label change.
 
+## Reading position and annotations
+
+When a matching Kindle edition reports a different reading position, KMReader
+offers to open it. **Stay here** keeps the current EPUB location and queues its
+mapped Kindle position against the exact cloud update shown. The same proposal
+stays dismissed on reopen. A later cloud change can still be offered. The date
+appears only when Amazon provides a distinct modification timestamp. **Resume
+automatically from Kindle** skips the confirmation and is off by default.
+Use **Go to latest Kindle position** in the EPUB reader menu to fetch and apply
+the cloud position explicitly.
+
+**Bookmarks and annotations** lists local entries and Kindle entries for the
+same edition. New bookmarks, notes and highlights in a mapped personal Kindle
+EPUB are queued offline and verified by reading them back from Amazon.
+Ambiguous responses are checked again without creating a duplicate. The
+creation queue is scoped to the personal document and its edition. Changes to
+an existing cloud note and removal of a cloud annotation are still open.
+
+Select text in an EPUB to highlight it, write a note or search the book. A
+single selected word can be looked up in Wiktionary from the reader menu. The
+dictionary sends the selected word to Wiktionary only when requested. Notes and
+highlights are saved at the selected range. Existing Kindle notes and highlights
+are imported when their original positions can be mapped.
+
 ## Requested remote management
 
 Build 33 uses the current MyCD deletion endpoint, backs up source and state,

@@ -49,10 +49,20 @@ class Repository extends ChangeNotifier {
   bool get supportsRemoteLists => true;
   Future<Book> resolveDocumentBook(Book book, File file) async => book;
   Future<Json?> externalDocumentPosition(Book book, File file) async => null;
-  Future<Json?> refreshDocumentPosition(Book book) async => null;
-  bool canApplyDocumentPosition(Book book) => false;
+  Future<Json?> refreshDocumentPosition(
+    Book book, {
+    bool force = false,
+  }) async => null;
+  bool canApplyDocumentPosition(Book book, {bool force = false}) => false;
+  void keepDocumentPosition(Book book, Json offer, int? position) {}
   void externalDocumentPositionApplied(Book book, Json locator) {}
   void documentPosition(Book book, Json event) {}
+  void documentBookmark(Book book, int position, {required bool present}) {}
+  void documentAnnotation(
+    Book book,
+    Json annotation, {
+    required bool present,
+  }) {}
   List<Json> documentAnnotations(Book book) => const [];
   final documentAnnotationChanges = ValueNotifier(0);
   bool get prefetchDownloadCover => true;

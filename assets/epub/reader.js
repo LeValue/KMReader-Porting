@@ -919,22 +919,24 @@ class KMReaderPageSnapshot {
       for (const contents of rendition.getContents()) {
         if (contents.sectionIndex !== cfi.spinePos) continue;
         const range = cfi.toRange(contents.document);
-        const node = range?.startContainer;
-        const element = (node?.nodeType === 1 ? node : node?.parentElement)
-          ?.closest('[data-kmreader-kindle-position]');
-        if (!element) continue;
-        const original = Number(element.getAttribute('data-kmreader-kindle-position'));
-        const length = Number(element.getAttribute('data-kmreader-kindle-length'));
-        if (!Number.isSafeInteger(original) || !Number.isSafeInteger(length) ||
-            original < 0 || length !== [...element.textContent].length) continue;
-        const prefix = contents.document.createRange();
-        prefix.selectNodeContents(element);
-        prefix.setEnd(range.startContainer, range.startOffset);
-        const offset = [...prefix.toString()].length;
-        if (offset >= 0 && offset < length) return original + offset;
+        if (range) return kindleOffset(range.startContainer, range.startOffset);
       }
     } catch (_) {}
     return null;
+  }
+  function kindleOffset(node, offset, includeEnd = false) {
+    const element = (node?.nodeType === 1 ? node : node?.parentElement)
+      ?.closest('[data-kmreader-kindle-position]');
+    if (!element) return null;
+    const original = Number(element.dataset.kmreaderKindlePosition);
+    const length = Number(element.dataset.kmreaderKindleLength);
+    if (!Number.isSafeInteger(original) || !Number.isSafeInteger(length) ||
+        original < 0 || length !== [...element.textContent].length) return null;
+    const prefix = element.ownerDocument.createRange();
+    prefix.selectNodeContents(element);
+    prefix.setEnd(node, offset);
+    const count = [...prefix.toString()].length;
+    return count < length || includeEnd && count === length ? original + count : null;
   }
   async function restoreKindlePosition(value) {
     for (const contents of rendition.getContents()) {
@@ -972,12 +974,12 @@ class KMReaderPageSnapshot {
     return last && remaining === 0 ? [last, last.length] : null;
   }
   function drawKindleAnnotations() {
-    if (!config.kindlePositions || !rendition) return;
+    if (!rendition) return;
     for (const mark of config.annotations || []) {
-      if (!mark.endLocator || mark.locator?.href !== mark.endLocator.href || renderedAnnotations.has(mark.id)) continue;
+      if (renderedAnnotations.has(mark.id)) continue;
       for (const contents of rendition.getContents()) {
         try {
-          const cfi = kindleRange(contents, mark);
+          const cfi = annotationRange(contents, mark);
           if (!cfi) continue;
           // Epub.js uses a separate SVG overlay. Publication text nodes and
           // their original position markers are never replaced or wrapped.
@@ -988,7 +990,12 @@ class KMReaderPageSnapshot {
       }
     }
   }
-  function kindleRange(contents, mark) {
+  function annotationRange(contents, mark) {
+    if (typeof mark.rangeCfi === 'string' && mark.rangeCfi.startsWith('epubcfi(')) {
+      return new ePub.CFI(mark.rangeCfi).spinePos === contents.sectionIndex ? mark.rangeCfi : null;
+    }
+    if (!mark.endLocator || mark.locator?.href !== mark.endLocator.href) return null;
+
     const start=kindlePoint(contents,mark.locator),end=kindlePoint(contents,mark.endLocator);
     if(!start||!end)return null;
     const range=contents.document.createRange();range.setStart(...start);range.setEnd(...end);
@@ -1150,9 +1157,22 @@ class KMReaderPageSnapshot {
     doc.addEventListener('selectionchange', () => {
       const selection = doc.getSelection();
       if (inputSuspended) return;
-      const selected = selection.isCollapsed ? '' : selection.toString().trim().slice(0,16000);
       clearTimeout(doc._selectionReport);
-      doc._selectionReport=setTimeout(()=>send('selection',{text:selected}),80);
+      doc._selectionReport = setTimeout(() => {
+        const text = !selection || selection.isCollapsed ? '' : selection.toString().trim().slice(0,16000);
+        if (!text || !selection.rangeCount) {
+          send('selection', {text: ''});
+          return;
+        }
+        const range = selection.getRangeAt(0), start = range.cloneRange();
+        start.collapse(true);
+        try {
+          send('selection', {text, href: section.href, cfi: contents.cfiFromRange(start),
+            rangeCfi: contents.cfiFromRange(range),
+            kindleStart: config.kindlePositions ? kindleOffset(range.startContainer, range.startOffset) : null,
+            kindleEnd: config.kindlePositions ? kindleOffset(range.endContainer, range.endOffset, true) : null});
+        } catch (_) { send('selection', {text}); }
+      },80);
     });
   }
   function resizePublication(width, height) {
@@ -1587,10 +1607,11 @@ class KMReaderPageSnapshot {
           doc.documentElement.dir='rtl';layout.format(view.contents,section,view.axis);view.expand();
         }
         await stable([view.contents]);
-        if(config.kindlePositions)for(const mark of config.annotations||[]){
-          if(!mark.endLocator||mark.locator?.href!==mark.endLocator.href)continue;
-          const cfi=kindleRange(view.contents,mark);
-          if(cfi)view.highlight(cfi,{},null,'kmreader-kindle-highlight',{fill:'#e6b72d','fill-opacity':'.24','mix-blend-mode':'multiply'});
+        for(const mark of config.annotations||[]){
+          try {
+            const cfi=annotationRange(view.contents,mark);
+            if(cfi)view.highlight(cfi,{},null,'kmreader-kindle-highlight',{fill:'#e6b72d','fill-opacity':'.24','mix-blend-mode':'multiply'});
+          } catch (_) { /* A malformed mark must not block the chapter preview. */ }
         }
         if(disposed||revision!==captureRevision||rendition?.manager!==manager)return null;
         const bounds=view.iframe.getBoundingClientRect(),rtl=config.direction==='rtl';

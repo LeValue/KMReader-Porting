@@ -14,6 +14,7 @@ import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/reader/epub_session.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'package:xml/xml.dart';
 
 import 'support/epub_fixture.dart';
 
@@ -36,7 +37,7 @@ void main() {
   int? accountPosition;
   String? accountModification, accountEdition;
   var writes = 0;
-  var confirm = true;
+  var confirm = true, missingSidecar = false;
   var accountReadback = false;
   var networkUnavailable = false;
   var expiredCdn = false, expiredRequests = 0;
@@ -72,6 +73,7 @@ void main() {
     sidecarStarted = null;
     writes = 0;
     confirm = true;
+    missingSidecar = false;
     accountReadback = false;
     edition = 'SYNTHETIC-ACR';
     time = '2020-01-01T00:00:00Z';
@@ -151,17 +153,36 @@ void main() {
             sidecarStarted?.complete();
             await delayedSidecar!.future;
           }
+          if (request.method == 'GET' &&
+              !account &&
+              missingSidecar &&
+              annotations.isEmpty) {
+            return http.Response('', 404);
+          }
           if (request.method == 'POST') {
             writes++;
             expect(request.url.queryParameters.keys, ['type']);
-            expect(request.body, isNot(contains('furthest')));
-            expect(request.body, isNot(contains('<lpr')));
-            expect(request.body, contains('key="opaque+/id"'));
+            final book = XmlDocument.parse(request.body)
+                .findAllElements('book')
+                .single;
+            expect(book.getAttribute('key'), 'opaque+/id');
+            final mark = book.childElements.single;
+            expect(
+              mark.localName,
+              isIn(['last_read', 'bookmark', 'highlight', 'note']),
+            );
             if (confirm) {
-              final sent = int.parse(
-                RegExp('begin="(\\d+)"').firstMatch(request.body)![1]!,
-              );
-              if (accountReadback) {
+              final sent = int.parse(mark.getAttribute('begin')!);
+              if (mark.localName != 'last_read') {
+                expect(mark.getAttribute('action'), 'create');
+                annotations.add({
+                  'type': 'kindle.${mark.localName}',
+                  'annotationId': 'generated-${mark.localName}-$sent',
+                  'startPosition': '$sent',
+                  'endPosition': ?mark.getAttribute('end'),
+                  if (mark.localName == 'note') 'text': mark.innerText,
+                });
+              } else if (accountReadback) {
                 accountPosition = sent;
               } else {
                 position = sent;
@@ -629,6 +650,180 @@ void main() {
       expect(store.download(repo.profile.id, book.id)?['status'], 'ready');
     },
   );
+  test('scoped Kindle moves are offered even with a stale date', () async {
+    lastModification = '2020-01-02T14:11:00Z';
+    accountEdition = 'UNRELATED-EDITION';
+    await repo.externalDocumentPosition(book, publication);
+    store.cache(repo.profile.id, 'epub:${book.id}', {
+      'cfi': 'epubcfi(/6/2!/4/2:2)',
+      'modified': '2099-01-01T00:00:00Z',
+    });
+    position = 81;
+    final remote = await repo.refreshDocumentPosition(book);
+    expect(remote?['offset'], 71);
+    expect(remote?['displayModified'], isNull);
+    lastModification = '2020-01-03T08:15:00Z';
+    position = 84;
+    expect(
+      (await repo.refreshDocumentPosition(book))?['displayModified'],
+      '2020-01-03T08:15:00.000Z',
+    );
+  });
+
+  test(
+    'Stay here rebases a conflicting edit without offering it again',
+    () async {
+      await repo.externalDocumentPosition(book, publication);
+      repo.documentPosition(book, {'kindlePosition': 42});
+      const key = 'kindle:outbox';
+      final pending = object(store.cached(repo.profile.id, key));
+      pending[book.id] = {...object(pending[book.id]), 'not_before': 0};
+      store.cache(repo.profile.id, key, pending);
+      position = 80;
+      await repo.sync();
+      expect(repo.readingConflicts, contains(book.id));
+      final offer = await repo.refreshDocumentPosition(book);
+      expect(offer?['offset'], 70);
+      repo.keepDocumentPosition(book, offer!, 42);
+      expect(repo.readingConflicts, isEmpty);
+      expect(
+        object(
+          object(store.cached(repo.profile.id, key))[book.id],
+        )['base_position'],
+        80,
+      );
+      await repo.sync();
+      expect(writes, 1);
+      expect(position, 42);
+      expect(repo.pendingCount, 0);
+
+      // A stale replica can keep returning the dismissed record on reopen.
+      position = 80;
+      expect(await repo.externalDocumentPosition(book, publication), isNull);
+      position = 81;
+      expect((await repo.refreshDocumentPosition(book))?['offset'], 71);
+    },
+  );
+
+  test('force cloud can read past an unsent position and clears it only after apply', () async {
+    await repo.externalDocumentPosition(book, publication);
+    repo.documentPosition(book, {'kindlePosition': 42});
+    expect(await repo.refreshDocumentPosition(book), isNull);
+    final remote = await repo.refreshDocumentPosition(book, force: true);
+    expect(remote?['offset'], 2);
+    expect(repo.pendingCount, 1);
+    repo.documentPosition(book, {'kindlePosition': 43});
+    repo.externalDocumentPositionApplied(book, remote!);
+    expect(repo.pendingCount, 1);
+    final fresh = await repo.refreshDocumentPosition(book, force: true);
+    repo.externalDocumentPositionApplied(book, fresh!);
+    expect(repo.pendingCount, 0);
+    expect(writes, 0);
+  });
+
+  test('new PDOC bookmarks survive offline and are posted only once', () async {
+    repo.setOffline(true);
+    await repo.externalDocumentPosition(book, publication);
+    repo.documentBookmark(book, 54, present: true);
+    await repo.sync();
+    expect(repo.pendingCount, 1);
+    expect(writes, 0);
+    repo.setOffline(false);
+    await repo.sync();
+    expect(writes, 1);
+    expect(position, 12);
+    expect(repo.pendingCount, 0);
+    await repo.externalDocumentPosition(book, publication);
+    expect(repo.documentAnnotations(book).single['locator']['offset'], 44);
+    repo.documentBookmark(book, 54, present: true);
+    await repo.sync();
+    expect(writes, 1);
+    expect(repo.pendingCount, 0);
+  });
+
+  test(
+    'an ambiguous bookmark write is cleared only after cloud readback',
+    () async {
+      await repo.externalDocumentPosition(book, publication);
+      confirm = false;
+      repo.documentBookmark(book, 54, present: true);
+      await repo.sync();
+      expect(writes, 1);
+      expect(repo.pendingCount, 1);
+      await repo.sync();
+      expect(writes, 1);
+      annotations.add({
+        'type': 'kindle.bookmark',
+        'annotationId': 'delayed-bookmark',
+        'startPosition': '54',
+      });
+      await repo.sync();
+      expect(writes, 1);
+      expect(repo.pendingCount, 0);
+    },
+  );
+
+  test('notes and highlights persist at the exact selected range', () async {
+    final session = await EpubSession.open(repo, book, publication);
+    const range = 'epubcfi(/6/2!/4/2,:2,:5)';
+    final selection = {
+      'cfi': 'epubcfi(/6/2!/4/2:2)',
+      'rangeCfi': range,
+      'href': 'one.xhtml',
+      'text': 'Synthetic excerpt',
+      'kindleStart': 12,
+      'kindleEnd': 15,
+    };
+    expect(session.saveAnnotation(selection), isTrue);
+    expect(session.saveAnnotation(selection, note: 'Original note'), isTrue);
+    expect(session.saveAnnotation({...selection, 'text': ''}), isFalse);
+    await session.close();
+    final reopened = await EpubSession.open(repo, book, publication);
+    try {
+      expect(reopened.readerAnnotations.map((a) => a['rangeCfi']), [
+        range,
+        range,
+      ]);
+      expect(reopened.saveAnnotation(selection, note: 'Updated note'), isTrue);
+      final note = reopened.readerAnnotations.singleWhere(
+        (a) => a['type'] == 'kindle.note',
+      );
+      expect(note['label'], 'Updated note');
+      reopened.removeAnnotation(note);
+      expect(reopened.readerAnnotations.single['type'], 'kindle.highlight');
+    } finally {
+      await reopened.close();
+    }
+  });
+
+  test('selected highlights and notes sync at original offsets without moving the reader', () async {
+    final session = await EpubSession.open(repo, book, publication);
+    final selection = {
+      'cfi': 'epubcfi(/6/2!/4/2:2)',
+      'rangeCfi': 'epubcfi(/6/2!/4/2,:2,:5)',
+      'href': 'one.xhtml',
+      'text': 'Synthetic excerpt',
+      'kindleStart': 12,
+      'kindleEnd': 15,
+    };
+    missingSidecar = true;
+    expect(session.saveAnnotation(selection), isTrue);
+    expect(session.saveAnnotation(selection, note: 'Note <&>'), isTrue);
+    await repo.sync();
+    expect(repo.pendingCount, 0, reason: '${repo.syncFailure} $annotations');
+    expect(writes, 2);
+    expect(position, 12);
+    expect(annotations.map((r) => r['type']), [
+      'kindle.highlight',
+      'kindle.note',
+    ]);
+    expect(annotations.last, containsPair('text', 'Note <&>'));
+    expect(annotations.last, containsPair('endPosition', '15'));
+    expect(repo.documentAnnotations(book), hasLength(2));
+    expect(session.readerAnnotations, hasLength(2));
+    await session.close();
+  });
+
   test('Kindle imports only matching-edition annotations and replaces remote deletions', () async {
     annotations = [
       {

@@ -26,8 +26,9 @@ DateTime? kindleTimestamp(dynamic value) {
 Json? kindleLastRead(Json? sidecar, {Json? account, bool allowLegacy = true}) {
   final records = [
     // The account-wide record wins only when the service timestamps tie.
-    for (final snapshot in [account, sidecar])
-      if (snapshot?['records'] case final List records) ...records.map(object),
+    for (final (snapshot, accountWide) in [(account, true), (sidecar, false)])
+      if (snapshot?['records'] case final List values)
+        for (final value in values) (object(value), accountWide),
   ];
   for (final type in [
     'kindle.most_recent_read',
@@ -35,7 +36,8 @@ Json? kindleLastRead(Json? sidecar, {Json? account, bool allowLegacy = true}) {
   ]) {
     Json? latest;
     DateTime? latestTime;
-    for (final record in records.where((r) => r['type'] == type)) {
+    for (final (record, accountWide) in records) {
+      if (record['type'] != type) continue;
       final position = num.tryParse('${record['location']}');
       if (position == null ||
           !position.isFinite ||
@@ -43,15 +45,19 @@ Json? kindleLastRead(Json? sidecar, {Json? account, bool allowLegacy = true}) {
           position != position.roundToDouble()) {
         continue;
       }
-      final time =
-          kindleTimestamp(record['lastModificationTime']) ??
-          kindleTimestamp(record['creationTime']);
+      final updated = kindleTimestamp(record['lastModificationTime']);
+      final time = updated ?? kindleTimestamp(record['creationTime']);
       if (latest != null &&
           (time == null || latestTime != null && !time.isAfter(latestTime))) {
         continue;
       }
       latestTime = time;
-      latest = {'position': position.toInt(), 'time': time?.toIso8601String()};
+      latest = {
+        'position': position.toInt(),
+        'time': time?.toIso8601String(),
+        if (updated != null) 'updated': updated.toIso8601String(),
+        if (accountWide) 'account': true,
+      };
     }
     if (latest != null) return latest;
   }

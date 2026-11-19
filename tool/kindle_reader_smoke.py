@@ -24,6 +24,23 @@ with sync_playwright() as p:
     assert first['kindlePosition'] == 102, first
     assert not first['changed'], first
     original = page.evaluate("document.querySelector('iframe').contentDocument.body.textContent")
+    page.evaluate("""() => {
+      const doc = document.querySelector('iframe').contentDocument;
+      const text = doc.querySelector('#mapped').firstChild;
+      const range = doc.createRange();
+      range.setStart(text, 3);
+      range.setEnd(text, 6);
+      doc.getSelection().removeAllRanges();
+      doc.getSelection().addRange(range);
+    }""")
+    page.wait_for_function("() => events.some(e=>e.type==='selection'&&e.text==='old')")
+    selected = page.evaluate("events.filter(e=>e.type==='selection'&&e.text==='old').at(-1)")
+    assert selected['kindleStart'] == 102 and selected['kindleEnd'] == 105, selected
+    assert selected['cfi'].startswith('epubcfi(') and selected['rangeCfi'].count(',') == 2, selected
+    page.evaluate('reader.clearSelection()')
+    page.evaluate("(rangeCfi) => reader.annotations([{id:'local-highlight',rangeCfi}])", selected['rangeCfi'])
+    page.wait_for_function("() => !!document.querySelector('.kmreader-kindle-highlight')")
+    assert original == page.evaluate("document.querySelector('iframe').contentDocument.body.textContent")
     page.evaluate("reader.annotations([{id:'synthetic-highlight', type:'kindle.highlight', locator:{href:'one.xhtml',id:'mapped',position:100,offset:2},endLocator:{href:'one.xhtml',id:'mapped',position:100,offset:15}}])")
     page.wait_for_function("() => !!document.querySelector('.kmreader-kindle-highlight')")
     assert original == page.evaluate("document.querySelector('iframe').contentDocument.body.textContent")
