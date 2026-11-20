@@ -39,7 +39,12 @@ void main() {
           Platform
               .environment['KMREADER_KINDLE_PROBE_ANNOTATION_ERASE_DELAYED'] ==
           'true';
-      final eraseStage = delayed ? 'delayedErase' : 'erase';
+      final addressed = delayed && kind == 'note';
+      final eraseStage = addressed
+          ? 'addressedErase'
+          : delayed
+          ? 'delayedErase'
+          : 'erase';
       final action = erase ? 'delete' : 'create';
       report['kind'] = kind;
       report['action'] = action;
@@ -94,7 +99,8 @@ void main() {
         }
 
         if ((erase && fixtureName != 'annotation-removal') ||
-            (delayed && (!erase || bookmark['erase'] != 'unconfirmed'))) {
+            (delayed && (!erase || bookmark['erase'] != 'unconfirmed')) ||
+            (addressed && bookmark['delayedErase'] != 'unconfirmed')) {
           throw const KindleFailure('bookmark_probe_erase_scope');
         }
         final transport = _BookmarkProbeClient(id, kind, erase, report);
@@ -160,9 +166,9 @@ void main() {
           if (error.status != 404) rethrow;
           report['initial_sidecar_missing'] = true;
         }
-        bool confirmed(Json? value) => (value?['records'] as List? ?? [])
+        Json? matchingRecord(Json? value) => (value?['records'] as List? ?? [])
             .map(object)
-            .any(
+            .where(
               (r) =>
                   r['type'] == 'kindle.$kind' &&
                   num.tryParse('${r['startPosition']}') == probePosition &&
@@ -170,8 +176,17 @@ void main() {
                       num.tryParse('${r['endPosition']}') == probeEnd) &&
                   (kind != 'note' ||
                       kindleNoteText(r) == _BookmarkProbeClient.note),
-            );
+            )
+            .firstOrNull;
+        bool confirmed(Json? value) => matchingRecord(value) != null;
         Future<void> submit(String stage, String operation) async {
+          final annotationId = addressed && operation == 'delete'
+              ? text(matchingRecord(sidecar)?['annotationId'])
+              : null;
+          if (annotationId?.isEmpty == true) {
+            throw const KindleFailure('bookmark_probe_annotation_id_missing');
+          }
+          transport.deleteAnnotationId = annotationId;
           bookmark[stage] = 'submitting';
           await seal();
           final timestamp =
@@ -193,8 +208,11 @@ void main() {
                       'begin': '$probePosition',
                       if (kind != 'bookmark') 'end': '$probeEnd',
                       'timestamp': timestamp,
+                      if (annotationId != null) 'id': annotationId,
                     },
-                    nest: operation == 'create' && kind == 'note'
+                    nest:
+                        kind == 'note' &&
+                            (operation == 'create' || annotationId != null)
                         ? _BookmarkProbeClient.note
                         : null,
                   );
@@ -323,6 +341,7 @@ class _BookmarkProbeClient extends http.BaseClient {
   int writes = 0;
   final submitted = <String>{};
   String? guid;
+  String? deleteAnnotationId;
   int? position, end;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -367,8 +386,13 @@ class _BookmarkProbeClient extends http.BaseClient {
           marks.single.getAttribute('begin') != '$position' ||
           marks.single.getAttribute('end') !=
               (kind == 'bookmark' ? null : '$end') ||
+          marks.single.getAttribute('id') !=
+              (action == 'delete' ? deleteAnnotationId : null) ||
           marks.single.innerText !=
-              (action == 'create' && kind == 'note' ? note : '') ||
+              (kind == 'note' &&
+                      (action == 'create' || deleteAnnotationId != null)
+                  ? note
+                  : '') ||
           marks.single.childElements.isNotEmpty) {
         throw const KindleFailure('bookmark_probe_document_guard');
       }
