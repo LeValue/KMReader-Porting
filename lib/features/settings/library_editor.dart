@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
+import '../../core/komga_library_admin.dart';
 import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
@@ -108,6 +110,12 @@ class _LibraryEditorState extends State<LibraryEditor> {
   late Json _values;
   late final Map<String, TextEditingController> _inputs;
   bool _busy = false, _saved = false;
+  bool _canEnroll = false, _enroll = false;
+  String? _pendingEnrollment;
+  String? _enrollmentError;
+  late final _admin = KomgaLibraryAdmin(widget.repository);
+  String _enrollmentKey(String id) =>
+      'komgaEnroll:${widget.repository.profile.id}:$id';
   bool get _dirty =>
       jsonEncode(_values) !=
       jsonEncode({...defaultLibrary(), ...?widget.library});
@@ -128,6 +136,47 @@ class _LibraryEditorState extends State<LibraryEditor> {
               : text(_values[key]),
         ),
     };
+    final id = widget.library?['id'];
+    if (id is String &&
+        widget.repository.store.setting<bool>(_enrollmentKey(id)) == true) {
+      _pendingEnrollment = id;
+    }
+    if (id == null) unawaited(_loadCompanion());
+  }
+
+  Future<void> _loadCompanion() async {
+    try {
+      final service = await _admin.uploadLibraries();
+      if (mounted) {
+        setState(
+          () => _canEnroll =
+              object(service['capabilities'])['enrollment'] == true,
+        );
+      }
+    } on ApiFailure {
+      // The stock Komga editor is usable with or without its companion.
+    }
+  }
+
+  Future<void> _register(String id) async {
+    try {
+      await _admin.enrollLibrary(id);
+      widget.repository.store.setSetting(_enrollmentKey(id), null);
+      if (mounted) {
+        setState(() {
+          _saved = true;
+          _pendingEnrollment = null;
+        });
+        Navigator.pop(context, true);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _enrollmentError = '$error';
+        });
+      }
+    }
   }
 
   @override
@@ -140,6 +189,11 @@ class _LibraryEditorState extends State<LibraryEditor> {
 
   Future<void> _save() async {
     if (_busy) return;
+    if (_pendingEnrollment case final id?) {
+      setState(() => _busy = true);
+      await _register(id);
+      return;
+    }
     try {
       if (!widget.repository.profile.admin) {
         throw const ApiFailure('Admin access required.', status: 403);
@@ -171,7 +225,7 @@ class _LibraryEditorState extends State<LibraryEditor> {
           }
         }
       }
-      await widget.repository.api.request(
+      final response = await widget.repository.api.request(
         id == null
             ? '/api/v1/libraries'
             : '/api/v1/libraries/${Uri.encodeComponent(id)}',
@@ -179,6 +233,27 @@ class _LibraryEditorState extends State<LibraryEditor> {
         body: patch,
       );
       widget.repository.refreshContent();
+      if (id == null && _enroll) {
+        _saved = true;
+        final created = text(object(response)['id']);
+        if (created.isEmpty) {
+          if (mounted) {
+            setState(() => _busy = false);
+            showError(
+              context,
+              const ApiFailure(
+                'Library created. The server did not return its ID for registration.',
+              ),
+            );
+            Navigator.pop(context, true);
+          }
+          return;
+        }
+        widget.repository.store.setSetting(_enrollmentKey(created), true);
+        if (mounted) setState(() => _pendingEnrollment = created);
+        await _register(created);
+        return;
+      }
       if (mounted) {
         setState(() => _saved = true);
         Navigator.pop(context, true);
@@ -231,16 +306,46 @@ class _LibraryEditorState extends State<LibraryEditor> {
         actions: [
           TextButton(
             onPressed: _busy ? null : _save,
-            child: Text(tr(context, 'Save')),
+            child: Text(
+              tr(
+                context,
+                _pendingEnrollment == null ? 'Save' : 'Retry registration',
+              ),
+            ),
           ),
         ],
       ),
       body: AbsorbPointer(
-        absorbing: _busy,
+        absorbing: _busy || _pendingEnrollment != null,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             if (_busy) const LinearProgressIndicator(),
+            if (_pendingEnrollment != null)
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: Text(
+                  tr(
+                    context,
+                    'Library created. Upload registration is pending.',
+                  ),
+                ),
+                subtitle: _enrollmentError == null
+                    ? null
+                    : Text(_enrollmentError!),
+              )
+            else if (_canEnroll)
+              SwitchListTile.adaptive(
+                title: Text(tr(context, 'Enable uploads from KMReader')),
+                subtitle: Text(
+                  tr(
+                    context,
+                    'The library folder must be authorized in kmreader-admin.',
+                  ),
+                ),
+                value: _enroll,
+                onChanged: (value) => setState(() => _enroll = value),
+              ),
             for (final key in [
               'name',
               'root',

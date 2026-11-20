@@ -48,13 +48,17 @@ void main() {
       );
       final admin = KomgaLibraryAdmin(repo);
       try {
-        final dto = await admin.uploadLibraries();
-        expect(
-          (dto['libraries'] as List).any(
-            (value) => value['id'] == env['KMREADER_ADMIN_LIBRARY'],
-          ),
-          true,
-        );
+        final library = env['KMREADER_ADMIN_LIBRARY']!;
+        expect((await admin.uploadLibraries())['libraries'], isEmpty);
+        await admin.enrollLibrary(library);
+        expect((await admin.uploadLibraries())['libraries'], [
+          containsPair('id', library),
+        ]);
+        await admin.createFolder(library, '', 'Publisher');
+        await admin.createFolder(library, 'Publisher', 'New Series');
+        expect((await admin.folders(library, 'Publisher'))['folders'], [
+          'New Series',
+        ]);
         final file = XFile(env['KMREADER_ADMIN_FIXTURE']!);
         final operation = {
           'id': 'd31831ef-6589-4d67-a434-dc32b4874e28',
@@ -63,6 +67,7 @@ void main() {
           'filename': 'Uploaded.cbz',
           'size': await file.length(),
           'sha256': await KomgaLibraryAdmin.digest(file),
+          'deferScan': true,
         };
         final receipt = await admin.upload(
           file,
@@ -71,7 +76,29 @@ void main() {
           Completer<void>().future,
         );
         expect(receipt['status'], 'uploaded');
-        expect(receipt['scan_requested'], true);
+        expect(receipt['scan_requested'], false);
+        final second = {
+          ...operation,
+          'id': '0b4a8db6-aabb-4b92-9443-aab07e09ac44',
+          'filename': 'Second.cbz',
+        };
+        expect(
+          (await admin.upload(
+            file,
+            second,
+            (_) {},
+            Completer<void>().future,
+          ))['status'],
+          'uploaded',
+        );
+        await admin.scanBatch(library, [
+          operation['id'] as String,
+          second['id'] as String,
+        ]);
+        expect(
+          (await admin.uploadStatus(second['id'] as String))['scan_requested'],
+          true,
+        );
         expect(
           (await admin.uploadStatus(operation['id'] as String))['sha256'],
           operation['sha256'],
@@ -83,9 +110,13 @@ void main() {
         CatalogItem? book;
         for (var attempt = 0; attempt < 120; attempt++) {
           final page = await api.catalog('books');
-          if (page.items.isNotEmpty &&
-              page.items.first.book.media['status'] == 'READY') {
-            book = page.items.first;
+          if (page.items.length == 2 &&
+              page.items.every(
+                (item) => item.book.media['status'] == 'READY',
+              )) {
+            book = page.items.firstWhere(
+              (item) => text(item.book.json['name']).startsWith('Uploaded'),
+            );
             break;
           }
           await Future<void>.delayed(const Duration(milliseconds: 500));

@@ -29,6 +29,57 @@ class KomgaLibraryAdmin {
     return repository.api.request('$komgaUploadPrefix/libraries').then(object);
   }
 
+  String _libraryEndpoint(String library, String action) =>
+      '$komgaUploadPrefix/libraries/${Uri.encodeComponent(library)}/$action';
+
+  Future<Json> folders(String library, String parent, {String? after}) {
+    requireAdmin();
+    return repository.api
+        .request(
+          _libraryEndpoint(library, 'folders'),
+          query: {if (parent.isNotEmpty) 'parent': parent, 'after': ?after},
+        )
+        .then(object);
+  }
+
+  Future<Json> createFolder(String library, String parent, String name) {
+    requireAdmin();
+    return repository.api
+        .request(
+          _libraryEndpoint(library, 'folders'),
+          method: 'POST',
+          body: {'parent': parent, 'name': name},
+        )
+        .then(object);
+  }
+
+  Future<void> enrollLibrary(String library) async {
+    requireAdmin();
+    final result = object(
+      await repository.api.request(
+        _libraryEndpoint(library, 'enroll'),
+        method: 'POST',
+      ),
+    );
+    if (result['id'] != library) {
+      throw const ApiFailure('The server returned an unexpected response.');
+    }
+  }
+
+  Future<void> scanBatch(String library, List<String> uploads) async {
+    requireAdmin();
+    final result = object(
+      await repository.api.request(
+        _libraryEndpoint(library, 'scan'),
+        method: 'POST',
+        body: {'uploads': uploads},
+      ),
+    );
+    if (result['scan_requested'] != true) {
+      throw const ApiFailure('The server returned an unexpected response.');
+    }
+  }
+
   Future<Json> uploadStatus(String id) {
     requireAdmin();
     return repository.api
@@ -59,6 +110,7 @@ class KomgaLibraryAdmin {
       length: integer(operation['size']),
       progress: progress,
       query: {
+        if (operation['deferScan'] == true) 'defer_scan': '1',
         for (final key in ['library', 'folder', 'filename'])
           key: operation[key],
       },
@@ -194,23 +246,32 @@ class KomgaLibraryAdmin {
   }
 
   static void validateDestination(String folder, String filename) {
-    final parts = folder.split('/');
-    if (parts.length > 16 || utf8.encode(folder).length > 1024) {
-      throw const ApiFailure('Invalid folder or filename');
-    }
-    for (final value in [...parts, filename]) {
-      if (value.trim().isEmpty ||
-          value.startsWith('.') ||
-          RegExp(r'[/\\\x00-\x1f]').hasMatch(value) ||
-          utf8.encode(value).length > 240) {
-        throw const ApiFailure('Invalid folder or filename');
-      }
-    }
+    validateFolder(folder);
+    validateComponent(filename);
     if (!RegExp(
       r'\.(cbz|cbr|epub|pdf)$',
       caseSensitive: false,
     ).hasMatch(filename)) {
       throw const ApiFailure('Use CBZ, CBR, EPUB or PDF');
+    }
+  }
+
+  static void validateFolder(String folder) {
+    final parts = folder.split('/');
+    if (parts.length > 16 || utf8.encode(folder).length > 1024) {
+      throw const ApiFailure('Invalid folder or filename');
+    }
+    for (final part in parts) {
+      validateComponent(part);
+    }
+  }
+
+  static void validateComponent(String value) {
+    if (value.trim().isEmpty ||
+        value.startsWith('.') ||
+        RegExp(r'[/\\\x00-\x1f]').hasMatch(value) ||
+        utf8.encode(value).length > 240) {
+      throw const ApiFailure('Invalid folder or filename');
     }
   }
 

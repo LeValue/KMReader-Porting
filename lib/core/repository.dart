@@ -63,6 +63,7 @@ class Repository extends ChangeNotifier {
     Json annotation, {
     required bool present,
   }) {}
+  bool canDeleteDocumentAnnotation(Book book, Json annotation) => false;
   List<Json> documentAnnotations(Book book) => const [];
   final documentAnnotationChanges = ValueNotifier(0);
   bool get prefetchDownloadCover => true;

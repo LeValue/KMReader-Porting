@@ -60,6 +60,32 @@ un nome esistente. Cartelle/nomi con attraversamento di percorso e symlink nelle
 cartelle di destinazione vengono rifiutati. Il controllo del formato è iniziale;
 l'analisi completa resta responsabilità di Komga.
 
+## Caricamento multiplo e registrazione delle librerie
+
+Apri **Aggiungi a Komga** da **Gestione libreria** o dal menu di una libreria.
+Scegli la cartella della serie, oppure creala dalla cartella aperta. Seleziona i
+file del lotto e controlla nomi, dimensioni ed esito di ciascuno. Un conflitto di
+nome permette di cambiare il nome del file in coda. L’app conserva le ricevute e
+chiede a Komga di indicizzare insieme i file caricati. Le versioni precedenti del
+servizio accettano il percorso relativo digitato e indicizzano i file singolarmente.
+
+Per abilitare la registrazione dal modulo **Nuova libreria**, aggiorna
+`server.py` sul server, configura le radici autorizzate e riavvia
+`kmreader-admin`. Esempio per Komga in un container:
+
+```json
+"enrollment_roots": [
+  {"komga_root": "/books", "path": "/srv/komga/books"}
+]
+```
+
+`komga_root` è il percorso visto da Komga e `path` il corrispondente percorso
+della VM. Le cartelle devono esistere e il servizio deve poterle scrivere entro
+i suoi `ReadWritePaths`. La scelta **Abilita caricamenti da KMReader** è
+facoltativa. Le registrazioni sono salvate in `registered-libraries.json` nella
+directory di stato, con verifica della radice a ogni uso. Se la registrazione
+fallisce, riapri la libreria per ripetere la registrazione dal suo editor.
+
 ## Installazione una tantum su Debian
 
 Questi passi si eseguono **sul server Debian che ospita i file Komga**. Se usi

@@ -3,6 +3,7 @@ import argparse
 import ctypes
 import errno
 import hashlib
+from heapq import nsmallest
 import http.server
 import json
 import logging
@@ -64,11 +65,21 @@ class Application:
         parsed = urllib.parse.urlsplit(self.base)
         if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError('Use a Komga URL without credentials, query or fragment')
-        self.libraries = config['libraries']
+        self.libraries = config.get('libraries', {})
+        self.enrollment_roots = [
+            (Path(row['komga_root']), Path(row['path']).resolve(strict=True))
+            for row in config.get('enrollment_roots', [])
+        ]
+        if any(not root.is_absolute() or '..' in root.parts
+               for root, _ in self.enrollment_roots):
+            raise ValueError('Enrollment roots must be absolute Komga paths')
         self.state = Path(config['state_directory'])
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.maximum = int(config.get('max_upload_bytes', 2 * 1024**3))
         self.writer = threading.Lock()
+        self.enrollments = self.state / 'registered-libraries.json'
+        self.enrolled = json.loads(self.enrollments.read_text()) if self.enrollments.exists() else {}
+        self.enrollment_lock = threading.Lock()
         self.opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler({}))
 
     def request(self, auth, path, method='GET', body=None):
@@ -98,20 +109,58 @@ class Application:
         self.request(auth, '/api/v1/filesystem', 'POST', {'path': '', 'showFiles': False})
         return auth, user['id']
 
+    def komga_library(self, auth, identifier):
+        return self.request(auth, '/api/v1/libraries/' + urllib.parse.quote(identifier, safe=''))
+
+    def _enrollment_path(self, komga_root):
+        remote = Path(komga_root)
+        if not remote.is_absolute() or '..' in remote.parts:
+            raise Failure(403, 'Library root is outside the allowed upload locations')
+        for prefix, base in sorted(self.enrollment_roots, key=lambda pair: -len(pair[0].parts)):
+            if remote.is_relative_to(prefix):
+                relative = remote.relative_to(prefix)
+                parts = [component(part) for part in relative.parts]
+                return base, parts
+        raise Failure(403, 'Library root is outside the allowed upload locations')
+
+    def register_library(self, auth, identifier):
+        dto = self.komga_library(auth, identifier)
+        if identifier in self.libraries:
+            self.library(auth, identifier)
+            return {'id': identifier, 'name': dto['name']}
+        base, parts = self._enrollment_path(dto['root'])
+        fd = self._open_directory(base, parts)
+        try:
+            if not os.access('.', os.W_OK | os.X_OK, dir_fd=fd, effective_ids=True):
+                raise Failure(403, 'The companion cannot write to this library')
+        finally:
+            os.close(fd)
+        with self.enrollment_lock:
+            enrolled = {**self.enrolled, identifier: dto['root']}
+            self._save_json(self.enrollments, enrolled)
+            self.enrolled = enrolled
+        return {'id': identifier, 'name': dto['name']}
+
     def library(self, auth, identifier):
         mapping = self.libraries.get(identifier)
-        if not mapping:
+        enrolled = self.enrolled.get(identifier)
+        if mapping is None and enrolled is None:
             raise Failure(403, 'Library is not enabled for uploads')
-        dto = self.request(auth, '/api/v1/libraries/' + urllib.parse.quote(identifier, safe=''))
-        if os.path.normpath(dto['root']) != os.path.normpath(mapping.get('komga_root', mapping['path'])):
+        dto = self.komga_library(auth, identifier)
+        expected = enrolled if mapping is None else mapping.get('komga_root', mapping['path'])
+        if os.path.normpath(dto['root']) != os.path.normpath(expected):
             raise Failure(409, 'Configured library root does not match Komga')
-        return dto, Path(mapping['path']).resolve(strict=True)
+        if mapping is None:
+            root, parts = self._enrollment_path(expected)
+        else:
+            root, parts = Path(mapping['path']).resolve(strict=True), []
+        return dto, root, parts
 
-    def directory(self, auth, record, create=False):
-        dto, root = self.library(auth, record['library'])
-        current = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    @staticmethod
+    def _open_directory(root, parts, create=False, root_fd=None):
+        current = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root_fd)
         try:
-            for name in folder_components(record['folder']):
+            for name in parts:
                 if create:
                     try:
                         os.mkdir(name, 0o2770, dir_fd=current)
@@ -120,14 +169,79 @@ class Application:
                 child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
                 os.close(current)
                 current = child
+            return current
+        except Exception:
+            os.close(current)
+            raise
+
+    def directory(self, auth, record, create=False):
+        dto, root, parts = self.library(auth, record['library'])
+        current = self._open_directory(root, parts)
+        try:
+            path = record['folder']
+            if path != '':
+                child = self._open_directory('.', folder_components(path), create, root_fd=current)
+                os.close(current)
+                current = child
             return dto, current
         except Exception:
             os.close(current)
             raise
 
+    def folders(self, auth, identifier, parent, after):
+        _, fd = self.directory(auth, {'library': identifier, 'folder': parent})
+        try:
+            # Keep file names, symlinks and hidden directories out of the
+            # browser. Only the bounded set of names for this page is returned.
+            with os.scandir(fd) as entries:
+                names = nsmallest(201, (entry.name for entry in entries
+                    if entry.name > after and not entry.name.startswith('.')
+                    and entry.is_dir(follow_symlinks=False)))
+            return {'folders': names[:200], 'next': names[199] if len(names) > 200 else None}
+        finally:
+            os.close(fd)
+
+    def create_folder(self, auth, identifier, parent, name):
+        name = component(name)
+        relative = f'{parent}/{name}' if parent else name
+        folder_components(relative)
+        _, fd = self.directory(auth, {'library': identifier, 'folder': parent})
+        try:
+            os.mkdir(name, 0o2770, dir_fd=fd)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        return {'folder': relative}
+
+    def request_batch_scan(self, auth, owner, identifier, ids):
+        if not isinstance(ids, list) or not 1 <= len(ids) <= 100 or any(
+            not isinstance(value, str) or str(uuid.UUID(value)) != value for value in ids
+        ):
+            raise Failure(400, 'Invalid upload IDs')
+        if not self.writer.acquire(blocking=False):
+            raise Failure(409, 'Upload is still active')
+        try:
+            self.library(auth, identifier)
+            records = {}
+            for upload_id in ids:
+                record = self.receipt(upload_id, owner)
+                if record['status'] != 'uploaded' or record['library'] != identifier:
+                    raise Failure(409, 'Uploads are not ready for the requested library')
+                records[upload_id] = record
+            if not all(record['scan_requested'] for record in records.values()):
+                self.request(auth, '/api/v1/libraries/' + urllib.parse.quote(identifier, safe='') + '/scan', 'POST')
+                for upload_id, record in records.items():
+                    record['scan_requested'] = True
+                    self.save(upload_id, record)
+            return {'scan_requested': True}
+        finally:
+            self.writer.release()
+
     def save(self, identifier, record):
-        target = self.state / (identifier + '.json')
-        temporary = self.state / (identifier + '.json.tmp')
+        self._save_json(self.state / (identifier + '.json'), record)
+
+    def _save_json(self, target, record):
+        temporary = target.with_suffix('.json.tmp')
         with temporary.open('w', encoding='utf-8') as output:
             json.dump(record, output)
             output.flush()
@@ -170,6 +284,7 @@ class Application:
         if not re.fullmatch('[a-f0-9]{64}', expected):
             raise Failure(400, 'SHA256 is required')
         record = dict(owner=owner, library=fields.get('library'), folder='/'.join(folder_components(fields.get('folder'))), filename=component(fields.get('filename')), size=size, sha256=expected, status='receiving', scan_requested=False)
+        deferred = fields.get('defer_scan') == '1'
         extension = Path(record['filename']).suffix.lower()
         if extension not in ('.cbz', '.cbr', '.epub', '.pdf'):
             raise Failure(415, 'Use CBZ, CBR, EPUB or PDF')
@@ -210,7 +325,7 @@ class Application:
                     self.save(identifier, old)
                     if staged:
                         os.unlink(part, dir_fd=folder_fd)
-                    return self.scan(auth, identifier, old)
+                    return old if deferred else self.scan(auth, identifier, old)
                 raise Failure(409, 'A file with this name already exists; it was not overwritten')
             try:
                 os.unlink(part, dir_fd=folder_fd)
@@ -267,7 +382,7 @@ class Application:
                     except FileNotFoundError:
                         pass
                 raise
-            return self.scan(auth, identifier, record)
+            return record if deferred else self.scan(auth, identifier, record)
         finally:
             if folder_fd is not None:
                 os.close(folder_fd)
@@ -290,6 +405,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
         self.close_connection = True
 
+    def json_body(self):
+        lengths = self.headers.get_all('Content-Length', [])
+        if len(lengths) != 1 or self.headers.get('Transfer-Encoding'):
+            raise Failure(411, 'A fixed Content-Length is required')
+        count = int(lengths[0])
+        if not 0 < count <= 16384:
+            raise Failure(400, 'Invalid request size')
+        value = json.loads(self.rfile.read(count))
+        if not isinstance(value, dict):
+            raise Failure(400, 'Expected an object')
+        return value
+
     def dispatch(self):
         try:
             self.connection.settimeout(30)
@@ -297,10 +424,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             url = urllib.parse.urlsplit(self.path)
             if self.command == 'GET' and url.path == '/v1/libraries':
                 libraries = []
-                for identifier in self.server.app.libraries:
-                    dto, _ = self.server.app.library(auth, identifier)
+                for identifier in self.server.app.libraries.keys() | self.server.app.enrolled.keys():
+                    try:
+                        dto, _, _ = self.server.app.library(auth, identifier)
+                    except Failure as error:
+                        if error.status in (404, 409):
+                            continue
+                        raise
                     libraries.append({k: dto[k] for k in ('id', 'name')})
-                self.reply(200, {'libraries': libraries, 'max_upload_bytes': self.server.app.maximum})
+                libraries.sort(key=lambda library: (library['name'].casefold(), library['id']))
+                self.reply(200, {
+                    'libraries': libraries, 'max_upload_bytes': self.server.app.maximum,
+                    'capabilities': {'folders': True, 'batch_scan': True,
+                                     'enrollment': bool(self.server.app.enrollment_roots)},
+                })
+                return
+            library_route = re.fullmatch('/v1/libraries/([^/]+)/(folders|enroll|scan)', url.path)
+            if library_route:
+                library = urllib.parse.unquote(library_route[1])
+                if not library or len(library) > 120 or any(c in library for c in '/\\'):
+                    raise Failure(400, 'Invalid library')
+                if library_route[2] == 'folders' and self.command == 'GET':
+                    query = urllib.parse.parse_qs(url.query, strict_parsing=True)
+                    parent = query.get('parent', [''])[0]
+                    after = query.get('after', [''])[0]
+                    self.reply(200, self.server.app.folders(auth, library, parent, after))
+                elif library_route[2] == 'folders' and self.command == 'POST':
+                    body = self.json_body()
+                    self.reply(201, self.server.app.create_folder(auth, library, body.get('parent'), body.get('name')))
+                elif library_route[2] == 'enroll' and self.command == 'POST':
+                    self.reply(200, self.server.app.register_library(auth, library))
+                elif library_route[2] == 'scan' and self.command == 'POST':
+                    self.reply(200, self.server.app.request_batch_scan(auth, owner, library, self.json_body().get('uploads')))
+                else:
+                    raise Failure(405, 'Method not allowed')
                 return
             match = re.fullmatch('/v1/uploads/([a-f0-9-]{36})(/scan)?', url.path)
             if not match:
@@ -322,7 +479,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.server.app.writer.release()
             elif self.command == 'PUT' and not match[2]:
                 fields = urllib.parse.parse_qs(url.query, strict_parsing=True)
-                if set(fields) != {'library', 'folder', 'filename'} or any(len(v) != 1 for v in fields.values()):
+                required = {'library', 'folder', 'filename'}
+                if not required <= set(fields) <= required | {'defer_scan'} or any(len(v) != 1 for v in fields.values()) or fields.get('defer_scan', ['1']) != ['1']:
                     raise Failure(400, 'Invalid upload destination')
                 record = self.server.app.upload(identifier, owner, auth, {k: v[0] for k, v in fields.items()}, self.headers, self.rfile)
                 self.reply(200, record)

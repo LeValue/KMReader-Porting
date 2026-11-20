@@ -322,6 +322,9 @@ jobs:
           set -euo pipefail
           mkdir -p .dart_tool/native-test-apks
           fixtures="$RUNNER_TEMP/updater-fixtures"
+          baseline=0f9d3f2ecd0b33db34c0b990de05cc37aa9066ee
+          git fetch --no-tags --depth=1 origin "$baseline"
+          git show "$baseline:assets/epub/reader.js" > assets/epub/benchmark-baseline.js
           bash tool/prepare_android_update_fixtures.sh "$fixtures"
           flutter build apk --debug --target-platform android-x64 --target=integration_test/android_native_test.dart --no-pub \
             --dart-define=KMREADER_UPDATE_SAME="$(base64 -w0 "$fixtures/same.apk")" \
@@ -379,6 +382,7 @@ jobs:
           name: android-reader-display
           path: |
             artifacts/native-epub/*.png
+            artifacts/android-epub-recovery/report.json
             ${{ runner.temp }}/reader-logcat.txt
   publish_android_preview:
     if: always() && github.event_name == 'workflow_dispatch' && inputs.publish_preview && !inputs.deliver_draft && github.ref == 'refs/heads/main'

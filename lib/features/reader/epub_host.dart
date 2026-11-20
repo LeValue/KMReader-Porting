@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:xml/xml.dart';
 
@@ -30,6 +31,9 @@ class EpubHost {
   Uri get publication => base.resolve('book/${Uri(path: packagePath)}');
 
   static Future<Map<String, Uint8List>>? _bundledAssets;
+
+  @visibleForTesting
+  static Uint8List? benchmarkReaderScript;
   static Future<Map<String, Uint8List>> _loadAssets() async {
     final assets = <String, Uint8List>{};
     for (final name in ['epub.min.js', 'reader.js', 'reader.css']) {
@@ -49,10 +53,11 @@ class EpubHost {
   }) => _open(document, filePath);
   static Future<EpubHost> _open(EpubDocument? document, String filePath) async {
     final assets = await (_bundledAssets ??= _loadAssets());
+    final script = benchmarkReaderScript;
     final ready = ReceivePort();
     final isolate = await Isolate.spawn(_startEpubServer, (
       filePath,
-      assets,
+      script == null ? assets : {...assets, 'reader.js': script},
       ready.sendPort,
     ));
     try {

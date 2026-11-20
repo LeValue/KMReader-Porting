@@ -321,10 +321,38 @@ class EpubSession extends ChangeNotifier {
     ];
   }
 
-  List<Json> get readerAnnotations => [
-    for (final mark in bookmarks)
-      if (mark['rangeCfi'] != null || mark['endLocator'] != null) mark,
-  ];
+  static String markType(Json mark) => text(mark['type'], 'kindle.bookmark');
+
+  static Object markRange(Json mark) {
+    if (mark['kindleStart'] case final int start) {
+      return (start, mark['kindleEnd']);
+    }
+    return mark['rangeCfi'] ?? mark['id'] ?? mark['cfi'] ?? mark;
+  }
+
+  List<Json> get readerAnnotations {
+    final byRange = <Object, Json>{};
+    for (final mark in bookmarks) {
+      if (mark['rangeCfi'] == null && mark['endLocator'] == null) continue;
+      final range = markRange(mark);
+      if (!byRange.containsKey(range) || markType(mark) == 'kindle.note') {
+        byRange[range] = mark;
+      }
+    }
+    return byRange.values.toList();
+  }
+
+  bool get hasCurrentBookmark =>
+      !incognito &&
+      cfi.isNotEmpty &&
+      bookmarks.any(
+        (mark) =>
+            markType(mark) == 'kindle.bookmark' &&
+            (mark['cfi'] == cfi ||
+                kindlePosition != null &&
+                    (mark['kindlePosition'] ?? mark['kindleStart']) ==
+                        kindlePosition),
+      );
 
   static Future<EpubSession> open(
     Repository repository,
@@ -749,27 +777,65 @@ class EpubSession extends ChangeNotifier {
       },
     };
     repository.store.transaction(() {
-      _writeAnnotations([...values, mark]);
+      final highlight = {
+        ...mark,
+        'id': 'kindle.highlight:$range',
+        'type': 'kindle.highlight',
+        'label': excerpt,
+      };
+      final addInk =
+          body != null &&
+          !bookmarks.any(
+            (value) =>
+                markType(value) == 'kindle.highlight' &&
+                (markRange(value) == markRange(mark) ||
+                    value['rangeCfi'] == range),
+          );
+      _writeAnnotations([...values, if (addInk) highlight, mark]);
+      if (addInk) repository.documentAnnotation(book, highlight, present: true);
       repository.documentAnnotation(book, mark, present: true);
     });
     notifyListeners();
     return true;
   }
 
+  bool canRemoveAnnotation(Json mark) =>
+      !incognito &&
+      !repository.closed &&
+      (mark['source'] != 'kindle' ||
+          repository.canDeleteDocumentAnnotation(book, mark));
+
   void removeAnnotation(Json mark) {
-    if (incognito || repository.closed || mark['source'] == 'kindle') return;
+    if (!canRemoveAnnotation(mark)) return;
+    final range = markRange(mark);
+    final related = [
+      mark,
+      if (markType(mark) == 'kindle.highlight')
+        ...bookmarks.where(
+          (value) =>
+              markType(value) == 'kindle.note' &&
+              markRange(value) == range &&
+              canRemoveAnnotation(value),
+        ),
+    ];
     repository.store.transaction(() {
       final values = _localAnnotations
         ..removeWhere(
-          (value) => mark['id'] != null
-              ? value['id'] == mark['id']
-              : value['id'] == null && value['cfi'] == mark['cfi'],
+          (value) => related.any(
+            (remove) => remove['id'] != null
+                ? value['id'] == remove['id'] ||
+                      markType(value) == markType(remove) &&
+                          markRange(value) == markRange(remove)
+                : value['id'] == null && value['cfi'] == remove['cfi'],
+          ),
         );
       _writeAnnotations(values);
-      if (mark['kindlePosition'] case final int position) {
-        repository.documentBookmark(book, position, present: false);
-      } else {
-        repository.documentAnnotation(book, mark, present: false);
+      for (final removed in related) {
+        if (removed['kindlePosition'] case final int position) {
+          repository.documentBookmark(book, position, present: false);
+        } else {
+          repository.documentAnnotation(book, removed, present: false);
+        }
       }
     });
     notifyListeners();

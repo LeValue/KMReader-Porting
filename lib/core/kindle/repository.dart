@@ -68,12 +68,67 @@ class KindleRepository extends Repository {
   bool get kindleAnnotationsEnabled =>
       store.setting<bool>('kindleAnnotations:${profile.id}') != false;
   @override
-  List<Json> documentAnnotations(Book book) => !kindleAnnotationsEnabled
-      ? const []
-      : (store.cached(profile.id, 'kindle:annotations:${book.id}') as List? ??
-                [])
-            .map(object)
-            .toList();
+  List<Json> documentAnnotations(Book book) {
+    if (!kindleAnnotationsEnabled) return const [];
+    final hidden = object(
+      store.cached(profile.id, 'kindle:annotation-removals:${book.id}'),
+    );
+    return [
+      for (final mark
+          in (store.cached(profile.id, 'kindle:annotations:${book.id}')
+                      as List? ??
+                  [])
+              .map(object))
+        if (!hidden.containsKey(
+              _annotationKey(
+                book.id,
+                text(mark['type']).split('.').last,
+                mark['kindleStart'],
+                mark['kindleEnd'],
+              ),
+            ) &&
+            !hidden.containsKey(text(mark['id'])))
+          mark,
+    ];
+  }
+
+  String _annotationKey(String book, String type, Object? start, Object? end) =>
+      '$book:$type:$start:${end ?? ''}';
+
+  void _reconcileRemoval(
+    String book,
+    String key,
+    String? deletedId, {
+    bool pending = false,
+  }) {
+    final cacheKey = 'kindle:annotation-removals:$book';
+    final removed = object(store.cached(profile.id, cacheKey))..remove(key);
+    if (pending) removed[key] = true;
+    if (deletedId != null) removed[deletedId] = key;
+    // Keep a small record of confirmed remote IDs to suppress delayed reads
+    // from older sidecar replicas. Explicitly re-adding this range clears it.
+    final confirmations = removed.entries
+        .where((entry) => entry.value is String)
+        .toList();
+    for (final entry in confirmations.take(
+      (confirmations.length - 512).clamp(0, confirmations.length),
+    )) {
+      removed.remove(entry.key);
+    }
+    store.cache(profile.id, cacheKey, removed);
+    documentAnnotationChanges.value++;
+  }
+
+  void _allowNewAnnotation(String book, String key) {
+    final cacheKey = 'kindle:annotation-removals:$book';
+    final removed = object(store.cached(profile.id, cacheKey));
+    final count = removed.length;
+    removed.removeWhere((id, range) => id == key || range == key);
+    if (count != removed.length) {
+      store.cache(profile.id, cacheKey, removed);
+      documentAnnotationChanges.value++;
+    }
+  }
 
   Future<void> refreshAnnotations() async {
     final id = _mappedBook, mapping = _mapping, generation = _mappingGeneration;
@@ -176,50 +231,106 @@ class KindleRepository extends Repository {
 
   @override
   void documentAnnotation(Book book, Json annotation, {required bool present}) {
+    final mark = _editableMark(annotation);
+    if (mark != null) {
+      _queueAnnotation(
+        book,
+        mark,
+        present,
+        cloudId: annotation['source'] == 'kindle'
+            ? text(annotation['id'])
+            : null,
+      );
+    }
+  }
+
+  KindleMark? _editableMark(Json annotation) {
     final start = annotation['kindleStart'], end = annotation['kindleEnd'];
-    if (start is! int || end is! int) return;
+    if (start is! int || end is! int) return null;
     final type = text(annotation['type']);
-    if (!const {'kindle.note', 'kindle.highlight'}.contains(type)) return;
-    final mark = KindleMark(
+    if (!const {'kindle.note', 'kindle.highlight'}.contains(type)) return null;
+    return KindleMark(
       type.substring('kindle.'.length),
       start,
       end: end,
       note: type == 'kindle.note' ? text(annotation['label']) : null,
     );
-    _queueAnnotation(book, mark, present);
   }
 
-  void _queueAnnotation(Book book, KindleMark mark, bool present) {
+  @override
+  bool canDeleteDocumentAnnotation(Book book, Json annotation) {
+    final mark = _editableMark(annotation);
+    return !closed &&
+        kindleAnnotationsEnabled &&
+        book.json['kindleType'] == 'PDOC' &&
+        _mappedBook == book.id &&
+        mark?.deletable == true;
+  }
+
+  void _queueAnnotation(
+    Book book,
+    KindleMark mark,
+    bool present, {
+    String? cloudId,
+  }) {
     final mapping = _mapping;
     if (closed ||
         present && !kindleAnnotationsEnabled ||
         book.json['kindleType'] != 'PDOC' ||
         _mappedBook != book.id ||
         mapping == null ||
-        !mark.valid ||
+        !(present ? mark.valid : mark.valid || mark.deletable) ||
         mapping.locator(mark.start) == null ||
         mark.end != null && mapping.locator(mark.end! - 1) == null) {
       return;
     }
-    final key = '${book.id}:${mark.type}:${mark.start}:${mark.end ?? ''}';
+    final key = _annotationKey(book.id, mark.type, mark.start, mark.end);
     final existing = object(_annotationOutbox[key]);
-    if (existing['submitted'] == true) return;
-    if (!present) {
-      if (existing.isNotEmpty) {
+    if (present && existing['submitted'] == true) return;
+    if (!present && !mark.deletable) {
+      if (existing.isNotEmpty && existing['submitted'] != true) {
         _setAnnotationEdit(key, null);
         changed();
       }
       return;
     }
+    final erase = !present;
+    final known = documentAnnotations(book)
+        .where(
+          (cached) =>
+              _annotationKey(
+                book.id,
+                text(cached['type']).split('.').last,
+                cached['kindleStart'],
+                cached['kindleEnd'],
+              ) ==
+              key,
+        )
+        .firstOrNull;
+    final id = cloudId ?? (known == null ? null : text(known['id']));
+    if (erase && existing['erase'] == true) return;
+    final waitForCreate = erase && existing['submitted'] == true && id == null;
     _setAnnotationEdit(key, {
       'book': book.id,
       'type': mark.type,
       'start': mark.start,
       'end': ?mark.end,
-      'note': ?mark.note,
+      if (present) 'note': ?mark.note,
       'edition': mapping.primary,
       'acrs': mapping.acrs.toList(),
+      'revision': DateTime.now().microsecondsSinceEpoch,
+      if (erase) 'erase': true,
+      if (erase) 'cloudId': ?id,
+      if (waitForCreate)
+        'settleAfter': DateTime.now()
+            .add(const Duration(minutes: 2))
+            .millisecondsSinceEpoch,
     });
+    if (erase) {
+      _reconcileRemoval(book.id, key, null, pending: true);
+    } else {
+      _allowNewAnnotation(book.id, key);
+    }
     changed();
     // Start after the local annotation transaction commits.
     unawaited(
@@ -262,7 +373,10 @@ class KindleRepository extends Repository {
           end: current['end'] is int ? current['end'] as int : null,
           note: current['note'] as String?,
         );
-        if (!mark.valid) throw const KindleFailure('annotation_invalid');
+        final erase = current['erase'] == true;
+        if (!(erase ? mark.deletable : mark.valid)) {
+          throw const KindleFailure('annotation_invalid');
+        }
         final acrs = current['acrs'] as List? ?? [];
         // A 404 on the exact downloaded PDOC edition means there is no
         // sidecar yet. The first annotation can create it using its mapped ACR.
@@ -273,17 +387,50 @@ class KindleRepository extends Repository {
           throw const KindleFailure('annotation_edition_unavailable');
         }
         final records = (sidecar?['records'] as List? ?? []).map(object);
-        if (!records.any(mark.matches)) {
+        final matches = records.where(mark.sameRange);
+        if (erase) {
+          final requested = current['cloudId'];
+          final candidate = matches
+              .where(
+                (record) =>
+                    requested == null ||
+                    'kindle:${record['annotationId']}' == requested,
+              )
+              .firstOrNull;
+          if (candidate != null) {
+            // If a previous response was lost, continue with readback only.
+            if (current['submitted'] == true) continue;
+            final id = 'kindle:${candidate['annotationId']}';
+            _setAnnotationEdit(entry.key, {
+              ...current,
+              'cloudId': id,
+              'submitted': true,
+            });
+            sidecar = await library.client.pushAnnotation(
+              item,
+              guid,
+              mark,
+              erase: true,
+            );
+          } else if (integer(current['settleAfter']) >
+              DateTime.now().millisecondsSinceEpoch) {
+            continue;
+          }
+        } else if (!records.any(mark.matches)) {
           if (current['submitted'] == true) continue;
-          // Cloud note editing has a different contract from creation. Keep
-          // a local edit without submitting a duplicate at the same range.
-          if (!records.any(mark.sameRange)) {
+          if (matches.isEmpty) {
             _setAnnotationEdit(entry.key, {...current, 'submitted': true});
             sidecar = await library.client.pushAnnotation(item, guid, mark);
           }
         }
         if (closed) return;
-        _setAnnotationEdit(entry.key, null);
+        final latest = object(_annotationOutbox[entry.key]);
+        if (latest['revision'] == current['revision']) {
+          if (erase) {
+            _reconcileRemoval(id, entry.key, latest['cloudId'] as String?);
+          }
+          _setAnnotationEdit(entry.key, null);
+        }
         final mapping = _mapping;
         if (_mappedBook == id && mapping != null && sidecar != null) {
           store.cache(profile.id, 'kindle:sidecar:$id', sidecar);

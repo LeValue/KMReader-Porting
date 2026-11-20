@@ -48,6 +48,12 @@ final class KindleMark {
   final int? end;
   final String? note;
 
+  bool get deletable =>
+      start >= 0 &&
+      end != null &&
+      end! > start &&
+      const {'highlight', 'note'}.contains(type);
+
   bool get valid =>
       start >= 0 &&
       switch (type) {
@@ -71,16 +77,17 @@ final class KindleMark {
   bool matches(Json record) =>
       sameRange(record) && (note == null || kindleNoteText(record) == note);
 
-  void append(XmlBuilder xml, String timestamp) => xml.element(
-    type,
-    attributes: {
-      'action': 'create',
-      'begin': '$start',
-      if (end != null) 'end': '$end',
-      'timestamp': timestamp,
-    },
-    nest: note,
-  );
+  void append(XmlBuilder xml, String timestamp, {bool erase = false}) =>
+      xml.element(
+        type,
+        attributes: {
+          'action': erase ? 'delete' : 'create',
+          'begin': '$start',
+          if (end != null) 'end': '$end',
+          'timestamp': timestamp,
+        },
+        nest: erase ? null : note,
+      );
 }
 
 String kindleRandom([int count = 32]) => base64UrlEncode(
@@ -700,14 +707,28 @@ class KindleClient {
     }
   }
 
-  Future<Json> pushAnnotation(Json item, String guid, KindleMark mark) async {
-    if (!mark.valid) throw const KindleFailure('annotation_invalid');
-    await _postReadingState(item, guid, mark.append);
+  Future<Json> pushAnnotation(
+    Json item,
+    String guid,
+    KindleMark mark, {
+    bool erase = false,
+  }) async {
+    if (!(erase ? mark.deletable : mark.valid)) {
+      throw const KindleFailure('annotation_invalid');
+    }
+    await _postReadingState(
+      item,
+      guid,
+      (xml, time) => mark.append(xml, time, erase: erase),
+    );
     final after = await sidecar(item, guid: guid, annotations: true);
     if (after == null ||
         (after['guid'] != guid && after['acr'] != guid) ||
         after['annotations_available'] != true ||
-        !(after['records'] as List).map(object).any(mark.matches)) {
+        (after['records'] as List)
+                .map(object)
+                .any(erase ? mark.sameRange : mark.matches) ==
+            erase) {
       throw const KindleFailure('annotation_not_confirmed');
     }
     return after;

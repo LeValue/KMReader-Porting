@@ -244,15 +244,21 @@ void verifyNativeEpubRecovery() {
           }
           expect(find.byType(PopupMenuButton<String>), findsWidgets);
           await pointer.down(
-            tester.getCenter(find.byType(PopupMenuButton<String>).first),
+            tester.getCenter(
+              Platform.isWindows
+                  ? find.byTooltip('Text Settings')
+                  : find.byType(PopupMenuButton<String>).first,
+            ),
           );
           await pointer.up();
         } finally {
           await pointer.removePointer();
         }
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Text Settings').last);
-        await tester.pumpAndSettle();
+        if (!Platform.isWindows) {
+          await tester.tap(find.text('Text Settings').last);
+          await tester.pumpAndSettle();
+        }
         expect(find.text('Text Settings'), findsWidgets);
         await tester.tap(find.byTooltip('Close').last);
         await tester.pumpAndSettle();

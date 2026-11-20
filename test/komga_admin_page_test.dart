@@ -67,7 +67,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Series folder'), findsOneWidget);
-      expect(find.text('Filename'), findsOneWidget);
+      expect(find.text('Choose files'), findsOneWidget);
       expect(requests.map((r) => r.method).toList(), ['GET']);
       final button = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Upload to Komga'),
