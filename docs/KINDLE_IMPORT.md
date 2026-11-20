@@ -115,16 +115,24 @@ the cloud position explicitly.
 
 **Bookmarks and annotations** lists local entries and Kindle entries for the
 same edition. New bookmarks, notes and highlights in a mapped personal Kindle
-EPUB are queued offline and verified by reading them back from Amazon.
-Ambiguous responses are checked again without creating a duplicate. The
-creation queue is scoped to the personal document and its edition. Changes to
-an existing cloud note and removal of a cloud annotation are still open.
+EPUB are queued offline and verified by reading them back from Amazon. An
+ambiguous response triggers readback without resubmission. The queue is scoped
+to the personal document and its edition.
 
-Select text in an EPUB to highlight it, write a note or search the book. A
-single selected word can be looked up in Wiktionary from the reader menu. The
-dictionary sends the selected word to Wiktionary only when requested. Notes and
-highlights are saved at the selected range. Existing Kindle notes and highlights
-are imported when their original positions can be mapped.
+Build 43 can delete a mapped Kindle highlight or note from an editable
+personal EPUB. The app keeps the removal pending until Amazon confirms that
+the mark is absent. Deleting a note preserves its highlight. Deleting a
+highlight with a note removes both. The real-account tests used one generated
+document and confirmed both kinds of removal. Cloud note editing and interactive
+sync verification on a second device remain open.
+[Highlight test](https://github.com/LeValue/KMReader-Porting/actions/runs/44825381076) ·
+[Independent note readback](https://github.com/LeValue/KMReader-Porting/actions/runs/44827584824)
+
+Select text in an EPUB to highlight it, write a note or search the book. The
+selection menu can look up a single word in Wiktionary and sends the word only
+on request. Notes and highlights use the exact selected range. Tap a marked
+passage to read its note. Existing Kindle notes and highlights are imported
+when their original positions can be mapped.
 
 ## Requested remote management
 
