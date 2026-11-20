@@ -77,17 +77,22 @@ final class KindleMark {
   bool matches(Json record) =>
       sameRange(record) && (note == null || kindleNoteText(record) == note);
 
-  void append(XmlBuilder xml, String timestamp, {bool erase = false}) =>
-      xml.element(
-        type,
-        attributes: {
-          'action': erase ? 'delete' : 'create',
-          'begin': '$start',
-          if (end != null) 'end': '$end',
-          'timestamp': timestamp,
-        },
-        nest: erase ? null : note,
-      );
+  void append(
+    XmlBuilder xml,
+    String timestamp, {
+    bool erase = false,
+    String? annotationId,
+  }) => xml.element(
+    type,
+    attributes: {
+      'action': erase ? 'delete' : 'create',
+      'begin': '$start',
+      if (end != null) 'end': '$end',
+      'timestamp': timestamp,
+      if (annotationId != null) 'id': annotationId,
+    },
+    nest: erase && annotationId == null ? null : note,
+  );
 }
 
 String kindleRandom([int count = 32]) => base64UrlEncode(
@@ -707,27 +712,56 @@ class KindleClient {
     }
   }
 
-  Future<Json> pushAnnotation(
+  Future<Json?> pushAnnotation(
     Json item,
     String guid,
     KindleMark mark, {
     bool erase = false,
+    String? annotationId,
   }) async {
-    if (!(erase ? mark.deletable : mark.valid)) {
+    final addressedNote = erase && mark.type == 'note';
+    if (!(erase ? mark.deletable : mark.valid) ||
+        (addressedNote
+            ? annotationId?.isNotEmpty != true || !mark.valid
+            : annotationId != null)) {
       throw const KindleFailure('annotation_invalid');
     }
     await _postReadingState(
       item,
       guid,
-      (xml, time) => mark.append(xml, time, erase: erase),
+      (xml, time) =>
+          mark.append(xml, time, erase: erase, annotationId: annotationId),
     );
-    final after = await sidecar(item, guid: guid, annotations: true);
+    Future<(Json?, bool)> readBack() async {
+      try {
+        return (await sidecar(item, guid: guid, annotations: true), false);
+      } on KindleFailure catch (error) {
+        if (!erase || error.status != 404) rethrow;
+        try {
+          return (await sidecar(item, guid: guid, annotations: true), false);
+        } on KindleFailure catch (confirm) {
+          // Removing the last annotation can remove the exact sidecar.
+          if (confirm.status == 404) return (null, true);
+          rethrow;
+        }
+      }
+    }
+
+    final (after, confirmedMissing) = await readBack();
+    if (confirmedMissing) return null;
     if (after == null ||
         (after['guid'] != guid && after['acr'] != guid) ||
         after['annotations_available'] != true ||
         (after['records'] as List)
                 .map(object)
-                .any(erase ? mark.sameRange : mark.matches) ==
+                .any(
+                  erase
+                      ? (record) =>
+                            mark.sameRange(record) &&
+                            (annotationId == null ||
+                                record['annotationId'] == annotationId)
+                      : mark.matches,
+                ) ==
             erase) {
       throw const KindleFailure('annotation_not_confirmed');
     }

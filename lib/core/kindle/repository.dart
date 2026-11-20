@@ -419,7 +419,24 @@ class KindleRepository extends Repository {
                 }
               }
             }
-            final id = 'kindle:${candidate['annotationId']}';
+            final annotationId = text(candidate['annotationId']);
+            if (annotationId.isEmpty) {
+              throw const KindleFailure('annotation_edition_unavailable');
+            }
+            final id = 'kindle:$annotationId';
+            // Amazon addresses a note by its ID and original body as well as
+            // its range. Always take those fields from the matching sidecar.
+            final deleteMark = mark.type == 'note'
+                ? KindleMark(
+                    mark.type,
+                    mark.start,
+                    end: mark.end,
+                    note: kindleNoteText(candidate),
+                  )
+                : mark;
+            if (mark.type == 'note' && !deleteMark.valid) {
+              throw const KindleFailure('annotation_invalid');
+            }
             _setAnnotationEdit(entry.key, {
               ...current,
               'cloudId': id,
@@ -428,8 +445,9 @@ class KindleRepository extends Repository {
             sidecar = await library.client.pushAnnotation(
               item,
               guid,
-              mark,
+              deleteMark,
               erase: true,
+              annotationId: mark.type == 'note' ? annotationId : null,
             );
           } else if (integer(current['settleAfter']) >
               DateTime.now().millisecondsSinceEpoch) {
