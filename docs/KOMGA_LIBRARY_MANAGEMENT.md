@@ -95,11 +95,11 @@ dell’app Android/Windows non installa automaticamente questo servizio.
 
 1. Copia `tool/komga_admin/server.py` in `/opt/kmreader-admin/server.py`.
    I file della candidata sono anche disponibili dal tag versionato
-   `v1.0.0-candidate.6` del repository, senza dipendenze pip:
+   `v1.0.0-candidate.13` del repository, senza dipendenze pip:
 
    ```sh
    sudo install -d -m 0755 /opt/kmreader-admin /etc/kmreader-admin
-   curl --fail --location https://raw.githubusercontent.com/LeValue/KMReader-Porting/v1.0.0-candidate.6/tool/komga_admin/server.py -o /tmp/kmreader-admin-server.py
+   curl --fail --location https://raw.githubusercontent.com/LeValue/KMReader-Porting/v1.0.0-candidate.13/tool/komga_admin/server.py -o /tmp/kmreader-admin-server.py
    sudo install -m 0644 /tmp/kmreader-admin-server.py /opt/kmreader-admin/server.py
    ```
 

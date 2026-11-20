@@ -1,7 +1,7 @@
 # Installation and first use
 
 KMReader Preview is a community reader for Android and Windows. Current public
-release: [1.0.0 candidate 12, build 42](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.12).
+release: [1.0.0 candidate 13, build 43](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.13).
 It is a development prerelease; stable 1.0 and full upstream parity are not complete.
 
 ## Install
@@ -54,8 +54,8 @@ With a Komga administrator account:
 - Open a volume or series and choose **Manage on Komga** to edit metadata or covers.
 - **Delete from Komga** removes the volume's original server file for every user
   after confirmation. It is different from removing a local download.
-- **Settings → Server → Add to Komga** uploads a new EPUB/PDF/CBZ/CBR after installing
-  the optional [Debian server companion](KOMGA_LIBRARY_MANAGEMENT.md) (guide in Italian).
+- **Library Management → Add to Komga** uploads EPUB/PDF/CBZ/CBR files in a batch.
+  Install or update the [Debian server companion](KOMGA_LIBRARY_MANAGEMENT.md) (guide in Italian).
   The server companion is needed only for new-file uploads. Metadata, covers and
   deletion use native Komga APIs. Duplicate filenames are rejected.
 
@@ -86,8 +86,10 @@ confirmation. **Sync reading position with Kindle** controls both sharing your
 reading position and checking for incoming positions. Automatic resume is off
 by default.
 
-Select text to create a note or highlight or search the book. Select one word
-to look it up in Wiktionary. New marks in supported personal Kindle EPUBs are
+Select text to copy it, highlight it, write a note or search the book. Select
+one word to look it up in Wiktionary. Tap a highlighted passage with a note
+to open it. On Windows, use the reader toolbar to add a bookmark or open
+text settings, search and annotations beside the page. New marks in supported personal Kindle EPUBs are
 synchronized from the **Bookmarks and annotations** menu. See the
 [Kindle guide](KINDLE_IMPORT.md#reading-position-and-annotations) for coverage.
 
