@@ -50,6 +50,10 @@ on:
         description: Create, read, and erase one annotation on the generated removal fixture
         type: boolean
         default: false
+      annotation_erase_delayed:
+        description: Recheck and allow one delayed deletion of the same generated mark
+        type: boolean
+        default: false
       management_probe:
         description: Verify deletion of the exact generated test document, preserving its private recovery journal
         type: boolean
@@ -104,6 +108,7 @@ jobs:
           KMREADER_KINDLE_RETRY_REMOVAL: ${{ inputs.retry_removal }}
           KMREADER_KINDLE_PROBE_ANNOTATION_KIND: ${{ inputs.annotation_kind }}
           KMREADER_KINDLE_PROBE_ANNOTATION_ERASE: ${{ inputs.annotation_erase }}
+          KMREADER_KINDLE_PROBE_ANNOTATION_ERASE_DELAYED: ${{ inputs.annotation_erase_delayed }}
           PROBE_BOOKMARKS: ${{ inputs.bookmark_probe }}
           PROBE_MANAGEMENT: ${{ inputs.management_probe }}
         run: |

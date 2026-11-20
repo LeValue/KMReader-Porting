@@ -35,6 +35,11 @@ void main() {
       final erase =
           Platform.environment['KMREADER_KINDLE_PROBE_ANNOTATION_ERASE'] ==
           'true';
+      final delayed =
+          Platform
+              .environment['KMREADER_KINDLE_PROBE_ANNOTATION_ERASE_DELAYED'] ==
+          'true';
+      final eraseStage = delayed ? 'delayedErase' : 'erase';
       final action = erase ? 'delete' : 'create';
       report['kind'] = kind;
       report['action'] = action;
@@ -88,7 +93,8 @@ void main() {
           }
         }
 
-        if (erase && fixtureName != 'annotation-removal') {
+        if ((erase && fixtureName != 'annotation-removal') ||
+            (delayed && (!erase || bookmark['erase'] != 'unconfirmed'))) {
           throw const KindleFailure('bookmark_probe_erase_scope');
         }
         final transport = _BookmarkProbeClient(id, kind, erase, report);
@@ -222,8 +228,8 @@ void main() {
         if (erase &&
             mapping.matches(object(sidecar)) &&
             confirmed(sidecar) &&
-            bookmark['erase'] == null) {
-          await submit('erase', 'delete');
+            bookmark[eraseStage] == null) {
+          await submit(eraseStage, 'delete');
         }
         report['annotation_confirmed'] = confirmed(sidecar);
         report['guid_present'] = text(sidecar?['guid']).isNotEmpty;
@@ -263,7 +269,7 @@ void main() {
             ? sidecar != null &&
                   mapping.matches(object(sidecar)) &&
                   object(sidecar)['annotations_available'] == true &&
-                  bookmark['erase'] != null &&
+                  (bookmark['erase'] != null || bookmark[eraseStage] != null) &&
                   !(object(sidecar)['records'] as List)
                       .map(object)
                       .any(
@@ -274,7 +280,7 @@ void main() {
                         ).sameRange,
                       )
             : report['annotation_confirmed'] == true;
-        bookmark[erase ? 'erase' : 'state'] = report['passed'] == true
+        bookmark[erase ? eraseStage : 'state'] = report['passed'] == true
             ? 'confirmed'
             : 'unconfirmed';
         await seal();
