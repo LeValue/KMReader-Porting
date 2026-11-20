@@ -1113,7 +1113,7 @@ class KMReaderPageSnapshot {
             if([...range.getClientRects()].some(r=>event.clientX>=r.left-2&&event.clientX<=r.right+2&&event.clientY>=r.top&&event.clientY<=r.bottom)){textHit=true;break;}
           }
         }
-        if (!textHit && !event.target.closest?.('a[href]')) { event.preventDefault(); clearSelection(); }
+        if (!textHit && !event.target.closest?.('a[href]')) { event.preventDefault(); doc.getSelection()?.removeAllRanges(); }
       }
       const edge = p.x < innerWidth * .18 || p.x > innerWidth * .82;
       contact = event.target.closest?.('a[href]') || (event.pointerType === 'mouse' && (!edge || textHit))

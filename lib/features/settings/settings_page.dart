@@ -1042,7 +1042,9 @@ class _LibraryManagementState extends State<LibraryManagement> {
               LibraryEditor(repository: widget.repository, library: fresh),
         ),
       );
-      if (saved == true && mounted) setState(() => _revision++);
+      if (mounted && (saved == true || library == null)) {
+        setState(() => _revision++);
+      }
     } catch (e) {
       if (mounted) showError(context, e);
     }

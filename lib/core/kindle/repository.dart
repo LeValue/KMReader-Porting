@@ -400,6 +400,25 @@ class KindleRepository extends Repository {
           if (candidate != null) {
             // If a previous response was lost, continue with readback only.
             if (current['submitted'] == true) continue;
+            final modification = kindleTimestamp(
+              candidate['lastModificationTime'] ?? candidate['creationTime'],
+            );
+            if (modification != null) {
+              final delay = modification
+                  .add(const Duration(milliseconds: 1100))
+                  .difference(DateTime.now().toUtc());
+              if (delay > Duration.zero &&
+                  delay <= const Duration(seconds: 2)) {
+                await Future<void>.delayed(delay);
+                if (closed) return;
+                if (offline ||
+                    !kindleAnnotationsEnabled ||
+                    object(_annotationOutbox[entry.key])['revision'] !=
+                        current['revision']) {
+                  continue;
+                }
+              }
+            }
             final id = 'kindle:${candidate['annotationId']}';
             _setAnnotationEdit(entry.key, {
               ...current,

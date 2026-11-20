@@ -302,17 +302,21 @@ class ReaderSafeArea extends StatelessWidget {
     required this.child,
     this.top = true,
     this.bottom = true,
+    this.maintainBottomViewPadding = false,
   });
   final Widget child;
-  final bool top, bottom;
+  final bool top, bottom, maintainBottomViewPadding;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<EdgeInsets>(
     valueListenable: ReaderDisplay._safeInsets,
     builder: (context, physical, _) {
       final media = MediaQuery.of(context);
+      final layout = maintainBottomViewPadding
+          ? media.copyWith(viewInsets: EdgeInsets.zero)
+          : media;
       return MediaQuery(
-        data: media.copyWith(padding: _readerPadding(media, physical)),
+        data: media.copyWith(padding: _readerPadding(layout, physical)),
         child: SafeArea(top: top, bottom: bottom, child: child),
       );
     },
