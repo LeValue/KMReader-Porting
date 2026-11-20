@@ -311,13 +311,7 @@ void verifyNativeEpubPerformance() {
         of: find.byType(ReaderOptionsPanel),
         matching: find.byType(ListView),
       );
-      final sizeSlider = find
-          .descendant(
-            of: find.byType(ReaderOptionsPanel),
-            matching: find.byType(Slider),
-          )
-          .first;
-      await tester.ensureVisible(sizeSlider);
+      final sizeSlider = await showEpubFontSizeSlider(tester);
       await tester.drag(sizeSlider, const Offset(60, 0));
       await tester.pumpAndSettle();
       for (var i = 0; i < 60; i++) {
@@ -819,4 +813,22 @@ Future<void> openEpubTextSettings(WidgetTester tester) async {
     await tester.tap(find.text('Text Settings').last);
   }
   await tester.pumpAndSettle();
+}
+
+Future<Finder> showEpubFontSizeSlider(WidgetTester tester) async {
+  final slider = find.descendant(
+    of: find.byKey(const ValueKey('epub-fontSize')),
+    matching: find.byType(Slider),
+  );
+  await tester.scrollUntilVisible(
+    slider,
+    75,
+    scrollable: find.descendant(
+      of: find.byType(ReaderOptionsPanel),
+      matching: find.byType(Scrollable),
+    ),
+  );
+  await tester.pumpAndSettle();
+  expect(slider.hitTestable(), findsOneWidget);
+  return slider;
 }
