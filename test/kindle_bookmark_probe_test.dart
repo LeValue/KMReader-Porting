@@ -208,7 +208,7 @@ void main() {
                       'begin': '$probePosition',
                       if (kind != 'bookmark') 'end': '$probeEnd',
                       'timestamp': timestamp,
-                      if (annotationId != null) 'id': annotationId,
+                      'id': ?annotationId,
                     },
                     nest:
                         kind == 'note' &&

@@ -89,7 +89,7 @@ final class KindleMark {
       'begin': '$start',
       if (end != null) 'end': '$end',
       'timestamp': timestamp,
-      if (annotationId != null) 'id': annotationId,
+      'id': ?annotationId,
     },
     nest: erase && annotationId == null ? null : note,
   );
