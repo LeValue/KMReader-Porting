@@ -174,14 +174,27 @@ void main() {
             if (confirm) {
               final sent = int.parse(mark.getAttribute('begin')!);
               if (mark.localName != 'last_read') {
-                expect(mark.getAttribute('action'), 'create');
-                annotations.add({
-                  'type': 'kindle.${mark.localName}',
-                  'annotationId': 'generated-${mark.localName}-$sent',
-                  'startPosition': '$sent',
-                  'endPosition': ?mark.getAttribute('end'),
-                  if (mark.localName == 'note') 'text': mark.innerText,
-                });
+                final action = mark.getAttribute('action');
+                expect(action, isIn(['create', 'delete']));
+                final type = 'kindle.${mark.localName}';
+                final end = mark.getAttribute('end');
+                if (action == 'delete') {
+                  expect(mark.innerText, isEmpty);
+                  annotations.removeWhere(
+                    (record) =>
+                        record['type'] == type &&
+                        '${record['startPosition']}' == '$sent' &&
+                        '${record['endPosition']}' == '$end',
+                  );
+                } else {
+                  annotations.add({
+                    'type': type,
+                    'annotationId': 'generated-${mark.localName}-$sent',
+                    'startPosition': '$sent',
+                    'endPosition': ?end,
+                    if (mark.localName == 'note') 'text': mark.innerText,
+                  });
+                }
               } else if (accountReadback) {
                 accountPosition = sent;
               } else {
@@ -780,10 +793,7 @@ void main() {
     await session.close();
     final reopened = await EpubSession.open(repo, book, publication);
     try {
-      expect(reopened.readerAnnotations.map((a) => a['rangeCfi']), [
-        range,
-        range,
-      ]);
+      expect(reopened.bookmarks.map((a) => a['rangeCfi']), [range, range]);
       expect(reopened.saveAnnotation(selection, note: 'Updated note'), isTrue);
       final note = reopened.readerAnnotations.singleWhere(
         (a) => a['type'] == 'kindle.note',
@@ -820,9 +830,56 @@ void main() {
     expect(annotations.last, containsPair('text', 'Note <&>'));
     expect(annotations.last, containsPair('endPosition', '15'));
     expect(repo.documentAnnotations(book), hasLength(2));
-    expect(session.readerAnnotations, hasLength(2));
+    expect(session.readerAnnotations.single['type'], 'kindle.note');
     await session.close();
   });
+
+  test(
+    'cloud note deletion stays hidden until readback and does not replay',
+    () async {
+      final note = <String, dynamic>{
+        'type': 'kindle.note',
+        'annotationId': 'note-to-delete',
+        'startPosition': '12',
+        'endPosition': '15',
+        'text': 'Synthetic note',
+      };
+      annotations = [
+        note,
+        {
+          'type': 'kindle.highlight',
+          'annotationId': 'keep-highlight',
+          'startPosition': '12',
+          'endPosition': '15',
+        },
+      ];
+      final session = await EpubSession.open(repo, book, publication);
+      try {
+        final cloud = session.bookmarks.singleWhere(
+          (mark) => mark['type'] == 'kindle.note',
+        );
+        expect(session.canRemoveAnnotation(cloud), isTrue);
+        confirm = false;
+        session.removeAnnotation(cloud);
+        expect(session.readerAnnotations.single['type'], 'kindle.highlight');
+        await repo.sync();
+        expect(writes, 1);
+        expect(repo.pendingCount, 1);
+        annotations.remove(note);
+        await repo.sync();
+        expect(writes, 1);
+        expect(repo.pendingCount, 0);
+        annotations.add(note); // delayed read from a stale replica
+        await repo.externalDocumentPosition(book, publication);
+        expect(
+          repo.documentAnnotations(book).single['type'],
+          'kindle.highlight',
+        );
+      } finally {
+        await session.close();
+      }
+    },
+  );
 
   test('Kindle imports only matching-edition annotations and replaces remote deletions', () async {
     annotations = [

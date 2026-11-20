@@ -302,18 +302,11 @@ void verifyNativeEpubPerformance() {
         '''window.preferenceApplications=0; const applyPreferences=reader.preferences;
         reader.preferences=(...args)=>{preferenceApplications++;return applyPreferences(...args);};return true;''',
       );
-      await tester.tap(find.byType(PopupMenuButton<String>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Text Settings'));
-      await tester.pumpAndSettle();
-      final hiddenBrowser = find.byType(InAppWebView, skipOffstage: false);
-      expect(hiddenBrowser, findsOneWidget);
-      expect(
-        find.byType(InAppWebView),
-        findsNothing,
-        reason: 'Scrolling settings must not composite the native WebView',
-      );
-      expect(tester.getSize(hiddenBrowser), retainedSize);
+      await openEpubTextSettings(tester);
+      expect(find.byType(InAppWebView), findsOneWidget);
+      if (Platform.isAndroid) {
+        expect(tester.getSize(find.byType(InAppWebView)), retainedSize);
+      }
       final settingsList = find.descendant(
         of: find.byType(ReaderOptionsPanel),
         matching: find.byType(ListView),
@@ -327,10 +320,15 @@ void verifyNativeEpubPerformance() {
       await tester.ensureVisible(sizeSlider);
       await tester.drag(sizeSlider, const Offset(60, 0));
       await tester.pumpAndSettle();
+      for (var i = 0; i < 60; i++) {
+        if (await js('return preferenceApplications;') == 1) break;
+        await tester.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
       expect(
         await js('return preferenceApplications;'),
-        0,
-        reason: 'Settings input must not queue hidden chapter reflows',
+        1,
+        reason: 'Apply one reflow after a completed slider adjustment',
       );
       for (var i = 0; i < 3; i++) {
         await tester.fling(settingsList, const Offset(0, -350), 900);
@@ -635,8 +633,7 @@ void verifyNativeEpubPerformance() {
 }
           return true;
         """);
-      // The action must retain its selected passage even if native focus
-      // clears the DOM selection while the toolbar popup is open.
+      // The reader shows an application menu directly at the selection.
       final selected = await js("""
           const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();
           const paragraph=[...doc.querySelectorAll('p')].find(p=>[...p.getClientRects()].some(r=>r.right+b.left>0&&r.left+b.left<innerWidth&&r.bottom+b.top>0&&r.top+b.top<innerHeight));
@@ -659,39 +656,9 @@ void verifyNativeEpubPerformance() {
         );
         await waitFor(() => selectionState.selectedText == selected);
       }
-      // Reveal/reset idle chrome immediately before opening the action.
-      // Hovering the book's top edge preserves the selected passage; an
-      // Escape key would clear it. Earlier GPU work may consume five seconds.
-      // A live desktop already owns mouse device 1. Keep this test mouse
-      // separate, and use the same device for hover, press and release.
-      final pointer = TestGesture(
-        dispatcher: tester.sendEventToBinding,
-        pointer: 424242,
-        device: 424242,
-        kind: PointerDeviceKind.mouse,
+      await waitFor(
+        () => find.text('Translate Selected Text').evaluate().isNotEmpty,
       );
-      try {
-        await pointer.addPointer();
-        await pointer.moveTo(
-          tester.getTopLeft(find.byType(BrowserEpubReader)) +
-              const Offset(8, 8),
-        );
-        await waitFor(
-          () => find.byType(PopupMenuButton<String>).evaluate().isNotEmpty,
-        );
-        await pointer.down(
-          tester.getCenter(find.byType(PopupMenuButton<String>).first),
-        );
-        await pointer.up();
-      } finally {
-        await pointer.removePointer();
-      }
-      await tester.pumpAndSettle();
-      expect(find.text('Translate Selected Text'), findsOneWidget);
-      await js(
-        "document.querySelector('#viewer iframe').contentDocument.getSelection().removeAllRanges();return true;",
-      );
-      await waitFor(() => selectionState.selectedText == '');
       await tester.tap(find.text('Translate Selected Text'));
       await tester.pumpAndSettle();
       expect(find.text(selected as String), findsOneWidget);
@@ -811,4 +778,15 @@ void verifyNativeEpubPerformance() {
       await directory.delete(recursive: true);
     }
   });
+}
+
+Future<void> openEpubTextSettings(WidgetTester tester) async {
+  if (Platform.isWindows) {
+    await tester.tap(find.byTooltip('Text Settings'));
+  } else {
+    await tester.tap(find.byType(PopupMenuButton<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Text Settings').last);
+  }
+  await tester.pumpAndSettle();
 }

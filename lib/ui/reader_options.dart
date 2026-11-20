@@ -15,9 +15,13 @@ class ReaderOptionsPanel extends StatelessWidget {
     super.key,
     required this.title,
     required this.children,
+    this.onClose,
+    this.fill = false,
   });
   final String title;
   final List<Widget> children;
+  final VoidCallback? onClose;
+  final bool fill;
   @override
   Widget build(BuildContext context) {
     // Each control is a separate sliver child. A long text section must not
@@ -64,7 +68,9 @@ class ReaderOptionsPanel extends StatelessWidget {
       child: ColoredBox(
         color: settingsTheme(Theme.of(context)).scaffoldBackgroundColor,
         child: SizedBox(
-          height: math.min(820, MediaQuery.sizeOf(context).height * .88),
+          height: fill
+              ? null
+              : math.min(820, MediaQuery.sizeOf(context).height * .88),
           child: Column(
             children: [
               Padding(
@@ -80,7 +86,7 @@ class ReaderOptionsPanel extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: tr(context, 'Close'),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: onClose ?? () => Navigator.pop(context),
                       icon: const Icon(Icons.close),
                     ),
                   ],

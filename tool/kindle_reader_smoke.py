@@ -37,9 +37,31 @@ with sync_playwright() as p:
     selected = page.evaluate("events.filter(e=>e.type==='selection'&&e.text==='old').at(-1)")
     assert selected['kindleStart'] == 102 and selected['kindleEnd'] == 105, selected
     assert selected['cfi'].startswith('epubcfi(') and selected['rangeCfi'].count(',') == 2, selected
+    assert len(selected['anchor']) == 4, selected
+    assert page.evaluate('''() => {
+      const doc=document.querySelector('iframe').contentDocument;
+      return !doc.body.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles:true, cancelable:true, clientX:23, clientY:34
+      }));
+    }'''), 'The native context menu was not prevented'
+    anchored = page.evaluate("events.filter(e=>e.type==='selection'&&e.context).at(-1)")
+    assert anchored['anchor'][0] == anchored['anchor'][2], anchored
     page.evaluate('reader.clearSelection()')
-    page.evaluate("(rangeCfi) => reader.annotations([{id:'local-highlight',rangeCfi}])", selected['rangeCfi'])
+    page.evaluate("(rangeCfi) => reader.annotations([{id:'local-note',type:'kindle.note',rangeCfi}])", selected['rangeCfi'])
     page.wait_for_function("() => !!document.querySelector('.kmreader-kindle-highlight')")
+    assert page.evaluate('''cfi => {
+      const doc=document.querySelector('iframe').contentDocument;
+      const complete=new ePub.CFI(cfi).toRange(doc);
+      const last=complete.cloneRange();
+      last.setStart(last.endContainer,last.endOffset-1);
+      const finalGlyph=last.getBoundingClientRect();
+      const painted=document.querySelector('.kmreader-kindle-highlight rect').getBoundingClientRect();
+      const frame=doc.defaultView.frameElement.getBoundingClientRect();
+      doc.body.dispatchEvent(new MouseEvent('click',{bubbles:true,
+        clientX:(finalGlyph.left+finalGlyph.right)/2,clientY:(finalGlyph.top+finalGlyph.bottom)/2}));
+      return complete.toString()==='old' && painted.right+.5>=frame.left+finalGlyph.right;
+    }''', selected['rangeCfi']), 'Highlight did not reach its exclusive endpoint'
+    page.wait_for_function("() => events.some(e=>e.type==='openNote'&&e.id==='local-note')")
     assert original == page.evaluate("document.querySelector('iframe').contentDocument.body.textContent")
     page.evaluate("reader.annotations([{id:'synthetic-highlight', type:'kindle.highlight', locator:{href:'one.xhtml',id:'mapped',position:100,offset:2},endLocator:{href:'one.xhtml',id:'mapped',position:100,offset:15}}])")
     page.wait_for_function("() => !!document.querySelector('.kmreader-kindle-highlight')")
@@ -64,6 +86,8 @@ with sync_playwright() as p:
     moved = page.evaluate('(value)=>reader.resumeKindle(value)', across)
     assert moved['kindlePosition'] == 20004 and not moved['changed'], moved
     assert page.evaluate("reader.position().start.index") == 1
+    page.evaluate("document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));")
+    assert page.evaluate("events.some(e=>e.type==='turn'&&e.delta===1)")
     assert page.evaluate('(value)=>reader.resumeKindle(value)',
                          {**remote, 'expectedCfi': moved['cfi']})
     page.evaluate('reader.next()')

@@ -91,7 +91,7 @@ def main():
                 payload = {k: False for k in ['analyzeDimensions','convertToCbz','emptyTrashAfterScan','hashFiles','hashKoreader','hashPages','importBarcodeIsbn','importComicInfoBook','importComicInfoCollection','importComicInfoReadList','importComicInfoSeries','importComicInfoSeriesAppendVolume','importEpubBook','importEpubSeries','importLocalArtwork','importMylarSeries','repairExtensions','scanCbx','scanEpub','scanForceModifiedTime','scanOnStartup','scanPdf']}
                 payload.update(name='Synthetic uploads', root=str(library), scanCbx=True, scanEpub=True, scanPdf=True, analyzeDimensions=True, scanDirectoryExclusions=[], scanInterval='DISABLED', seriesCover='FIRST')
                 created = request('/api/v1/libraries', 'POST', payload)
-                uploads = Server(('127.0.0.1', 0), Application({'komga_url': f'http://127.0.0.1:{port}', 'state_directory': str(root/'journal'), 'libraries': {created['id']: {'path': str(library)}}}))
+                uploads = Server(('127.0.0.1', 0), Application({'komga_url': f'http://127.0.0.1:{port}', 'state_directory': str(root/'journal'), 'enrollment_roots': [{'komga_root': str(root), 'path': str(root)}]}))
                 frontend = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
                 frontend.upload_port = uploads.server_port; frontend.komga_port = port
                 for server in (uploads, frontend):

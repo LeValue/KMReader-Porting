@@ -1049,7 +1049,6 @@ class KMReaderPageSnapshot {
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
-    const clearSelection = () => doc.getSelection()?.removeAllRanges();
     if (preferences.flow === 'scrolled' && rendition.manager?.stage) {
       // The first CJK view can change the manager axis after its stage chose
       // overflow-x/y. Reapply that policy so the new axis accepts input.
@@ -1058,6 +1057,21 @@ class KMReaderPageSnapshot {
     }
     doc.addEventListener('click', event => {
       if (inputSuspended || Date.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      const note = doc.getSelection()?.isCollapsed && (config.annotations || []).find(mark => {
+        if (mark.type !== 'kindle.note') return false;
+        try {
+          const cfi = annotationRange(contents, mark);
+          const range = cfi && new ePub.CFI(cfi).toRange(doc);
+          return range && [...range.getClientRects()].some(r =>
+            event.clientX >= r.left && event.clientX <= r.right &&
+            event.clientY >= r.top && event.clientY <= r.bottom);
+        } catch (_) { return false; }
+      });
+      if (note) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        send('openNote', {id: note.id});
+        return;
+      }
       const link = event.target.closest && event.target.closest('a[href]');
       if (link) {
         event.preventDefault(); event.stopImmediatePropagation();
@@ -1067,18 +1081,11 @@ class KMReaderPageSnapshot {
         send('tap', {pointerType: event.pointerType || 'mouse', x: (bounds.left + event.clientX) / window.innerWidth, y: (bounds.top + event.clientY) / window.innerHeight});
       }
     }, true);
-    doc.addEventListener('keydown', event => {
-      if (inputSuspended || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === 'Escape' && !doc.getSelection().isCollapsed) { clearSelection(); event.preventDefault(); return; }
-      if (!doc.getSelection().isCollapsed && !['ArrowLeft','ArrowRight','PageDown','PageUp','F11'].includes(event.key)) return;
-      const rtl = config.direction === 'rtl';
-      if (event.key === 'F11') { event.preventDefault(); send('fullscreen'); }
-      else if (event.key === ' ' && preferences.spaceKeyAction === 'toggleControls') { event.preventDefault(); send('controls'); }
-      else if ([rtl ? 'ArrowLeft' : 'ArrowRight', 'PageDown', ' '].includes(event.key)) {
-        event.preventDefault(); send('turn', {delta: 1});
-      } else if ([rtl ? 'ArrowRight' : 'ArrowLeft', 'PageUp'].includes(event.key)) {
-        event.preventDefault(); send('turn', {delta: -1});
-      } else if (event.key === 'Escape') send('close');
+    doc.addEventListener('keydown', readerKey);
+    doc.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      clearTimeout(doc._selectionReport);
+      reportSelection(contents, event);
     });
     let contact;
     const point = event => {
@@ -1144,7 +1151,8 @@ class KMReaderPageSnapshot {
     doc.addEventListener('wheel', noteUserMove, {passive: true});
     let reflowQueued = false;
     const resourceChanged = () => {
-      settledDocuments.delete(doc);
+      if (!settledDocuments.delete(doc)) return;
+      captureRevision++; capturePages.clear();
       if (!active() || restoring || !location || reflowQueued) return;
       reflowQueued = true;
       enqueue(async () => {
@@ -1155,25 +1163,89 @@ class KMReaderPageSnapshot {
     for (const image of doc.images) image.addEventListener('load', resourceChanged);
     if (doc.fonts) doc.fonts.addEventListener('loadingdone', resourceChanged);
     doc.addEventListener('selectionchange', () => {
-      const selection = doc.getSelection();
-      if (inputSuspended) return;
       clearTimeout(doc._selectionReport);
       doc._selectionReport = setTimeout(() => {
-        const text = !selection || selection.isCollapsed ? '' : selection.toString().trim().slice(0,16000);
-        if (!text || !selection.rangeCount) {
-          send('selection', {text: ''});
-          return;
-        }
-        const range = selection.getRangeAt(0), start = range.cloneRange();
-        start.collapse(true);
-        try {
-          send('selection', {text, href: section.href, cfi: contents.cfiFromRange(start),
-            rangeCfi: contents.cfiFromRange(range),
-            kindleStart: config.kindlePositions ? kindleOffset(range.startContainer, range.startOffset) : null,
-            kindleEnd: config.kindlePositions ? kindleOffset(range.endContainer, range.endOffset, true) : null});
-        } catch (_) { send('selection', {text}); }
-      },80);
+        try { reportSelection(contents); } catch (_) { send('selection', {text:''}); }
+      }, 100);
     });
+    doc.addEventListener('scroll', () => {
+      if (!doc.getSelection()?.isCollapsed) {
+        clearTimeout(doc._selectionReport);
+        doc._selectionReport = setTimeout(() => reportSelection(contents), 120);
+      }
+    }, {passive:true});
+
+  }
+  // CFIs encode offsets in text nodes. A native selection handle may instead
+  // leave either endpoint at a child boundary of an inline element.
+  function textBoundary(node, offset, end) {
+    if (node.nodeType === Node.TEXT_NODE) return [node, offset];
+    const child = node.childNodes[end ? offset - 1 : offset];
+    if (!child) return [node, offset];
+    if (child.nodeType === Node.TEXT_NODE) return [child, end ? child.length : 0];
+    const walker = node.ownerDocument.createTreeWalker(child, NodeFilter.SHOW_TEXT);
+    if (!end) {
+      const text = walker.nextNode();
+      return text ? [text, 0] : [node, offset];
+    }
+    let last, text;
+    while ((text = walker.nextNode())) last = text;
+    return last ? [last, last.length] : [node, offset];
+  }
+  function reportSelection(contents, click) {
+    const doc = contents.document, frame = doc.defaultView?.frameElement;
+    if (inputSuspended || !frame?.isConnected || !document.getElementById('viewer').contains(frame)) return;
+    const selected = doc.getSelection();
+    const text = selected && !selected.isCollapsed ? selected.toString().slice(0,16000) : '';
+    if (!text.trim() && !click) {
+      if (!rendition?.getContents().some(c => c.document !== doc && c.document.getSelection()?.toString().trim())) send('selection', {text:''});
+      return;
+    }
+    const frameBounds = frame.getBoundingClientRect();
+    const value = {text, context: !!click};
+    const range = text.trim() ? selected.getRangeAt(0).cloneRange() : null;
+    if (range) {
+      // Preserve the exclusive endpoint, including the last selected glyph.
+      const start = textBoundary(range.startContainer, range.startOffset, false);
+      const end = textBoundary(range.endContainer, range.endOffset, true);
+      range.setStart(...start); range.setEnd(...end);
+      const first = range.cloneRange();
+      first.collapse(true);
+      Object.assign(value, {
+        href: book.spine.get(contents.sectionIndex).href,
+        cfi: contents.cfiFromRange(first),
+        rangeCfi: contents.cfiFromRange(range),
+        kindleStart: config.kindlePositions ? kindleOffset(...start) : null,
+        kindleEnd: config.kindlePositions ? kindleOffset(...end, true) : null,
+      });
+    }
+    // Transmit viewport fractions. Flutter positions the menu inside its
+    // reader surface even when the OS window has moved or changed DPI.
+    const bounds = click ? {left:click.clientX,right:click.clientX,top:click.clientY,bottom:click.clientY} : range.getBoundingClientRect();
+    value.anchor = [(bounds.left+frameBounds.left)/innerWidth, (bounds.top+frameBounds.top)/innerHeight,
+      (bounds.right+frameBounds.left)/innerWidth, (bounds.bottom+frameBounds.top)/innerHeight];
+    send('selection', value);
+  }
+
+  function readerKey(event) {
+    if (inputSuspended || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+    const doc = event.currentTarget;
+    if (event.target.closest?.('input,textarea,select,[contenteditable=true]')) return;
+    const hasSelection = !doc.getSelection()?.isCollapsed;
+    if (event.key === 'Escape' && hasSelection) {
+      doc.getSelection()?.removeAllRanges();
+      event.preventDefault();
+      return;
+    }
+    if (hasSelection && !['ArrowLeft','ArrowRight','PageDown','PageUp','F11'].includes(event.key)) return;
+    const rtl = config.direction === 'rtl';
+    if (event.key === 'F11') { event.preventDefault(); send('fullscreen'); }
+    else if (event.key === ' ' && preferences.spaceKeyAction === 'toggleControls') { event.preventDefault(); send('controls'); }
+    else if ([rtl ? 'ArrowLeft' : 'ArrowRight', 'PageDown', ' '].includes(event.key)) {
+      event.preventDefault(); send('turn', {delta: 1});
+    } else if ([rtl ? 'ArrowRight' : 'ArrowLeft', 'PageUp'].includes(event.key)) {
+      event.preventDefault(); send('turn', {delta: -1});
+    } else if (event.key === 'Escape') { event.preventDefault(); send('close'); }
   }
   function resizePublication(width, height) {
     const manager = rendition.manager;
@@ -1512,7 +1584,16 @@ class KMReaderPageSnapshot {
     const doc=frame.contentDocument,box=frame.getBoundingClientRect();
     const signature=[captureRevision,box.width,box.height,doc.body.getAttribute('style'),doc.documentElement.getAttribute('style')].join('|');
     let cached=captureMarkup.get(doc);
-    if(cached?.signature!==signature){cached={signature,id:++captureSerial,pages:new Map()};captureMarkup.set(doc,cached);}
+    if(cached?.signature!==signature){
+      const images=[...doc.images].map(image=>{
+        const style=doc.defaultView.getComputedStyle(image);
+        return {url:image.currentSrc||image.src,width:style.width,height:style.height,
+          boxSizing:style.boxSizing,objectFit:style.objectFit,objectPosition:style.objectPosition};
+      });
+      const css=Promise.all([...doc.styleSheets].map(sheet=>cssSheet(sheet,doc.baseURI))).then(rules=>rules.join('\n'));
+      cached={signature,id:++captureSerial,pages:new Map(),images,css};
+      captureMarkup.set(doc,cached);
+    }
     const clip={left:-box.x-shift,right:innerWidth-box.x-shift,top:-box.y,bottom:innerHeight-box.y};
     const pageKey=JSON.stringify(clip);
     if(cached.pages.has(pageKey))return cached.pages.get(pageKey);
@@ -1521,10 +1602,22 @@ class KMReaderPageSnapshot {
       const root=doc.documentElement.cloneNode(true);
       if(!isFixedLayout())KMReaderPageSnapshot.compact(root,doc,clip,cached);
       root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
-      const css=(await Promise.all([...doc.styleSheets].map(sheet=>cssSheet(sheet,doc.baseURI)))).join('\n');
+      const css=await cached.css;
       const style=doc.createElement('style');style.textContent=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}*{caret-color:transparent!important}::selection{background:transparent!important}';root.querySelector('head').append(style);
-      const original=doc.querySelectorAll('img'),clones=root.querySelectorAll('img');
-      await Promise.all([...clones].map(async(img,i)=>{const url=original[i].currentSrc||original[i].src;if(url)img.setAttribute('src',await embeddedResource(url,doc.baseURI));img.removeAttribute('srcset');img.removeAttribute('loading');}));
+      await Promise.all([...root.querySelectorAll('img')].map(async(img,i)=>{
+        const image=cached.images[i];
+        if(!image)return;
+        if(image.url)img.setAttribute('src',await embeddedResource(image.url,doc.baseURI));
+        img.removeAttribute('srcset'); img.removeAttribute('sizes'); img.removeAttribute('loading');
+        // Match the laid-out publication, including picture/srcset choices.
+        // Re-resolving percentages or intrinsic dimensions in an SVG image
+        // can otherwise lay out the same illustration at a different size.
+        for(const [key,value] of [['width',image.width],['height',image.height],
+          ['box-sizing',image.boxSizing],['object-fit',image.objectFit],['object-position',image.objectPosition],
+          ['max-width','none'],['max-height','none'],['min-width','0'],['min-height','0'],
+          ['animation','none'],['transition','none']]) img.style.setProperty(key,value,'important');
+      }));
+      for(const source of root.querySelectorAll('picture source')) source.remove();
       await Promise.all([...root.querySelectorAll('image')].map(async(img)=>{const url=img.getAttribute('href')||img.getAttributeNS('http://www.w3.org/1999/xlink','href');if(url){const data=await embeddedResource(url,doc.baseURI);img.setAttribute('href',data);img.removeAttributeNS('http://www.w3.org/1999/xlink','href');}}));
       root.querySelector('body').style.setProperty('overflow','visible','important');root.style.setProperty('overflow','visible','important');
       root.setAttribute('xmlns','http://www.w3.org/1999/xhtml');root.style.width=box.width+'px';root.style.height=box.height+'px';
@@ -1849,7 +1942,8 @@ class KMReaderPageSnapshot {
     // queue, and the next input can replace this compositor transition.
     const duration = Math.max(150, Math.min(900, Number(preferences.animationDuration) || 380));
     Promise.resolve().then(()=>effect.animateTo(1, duration, {automatic:true})).catch(()=>effect.fail()).finally(() => {
-      effect.stop(); if (sheetEffect === effect) sheetEffect = undefined; warmCurl();
+      effect.stop();
+      if (sheetEffect === effect) { sheetEffect = undefined; warmCurl(); }
     });
   }
   async function legacyProgress(progression) {
@@ -1916,16 +2010,27 @@ class KMReaderPageSnapshot {
     restoring = false; userMove = false; anchor = restoredCfi ? value.cfi : (location && location.start.cfi);
     position(false); warmCurl(); send('ready', {layout: isFixedLayout() ? 'pre-paginated' : 'reflowable', writingMode: rendition.manager?.writingMode || 'horizontal-tb', kindleResumeApplied});
     window.addEventListener('resize', onResize);
+    // When a focused chapter iframe is replaced, keyboard events can target
+    // the host document until the next click. Both targets use the same map.
+    document.addEventListener('keydown', readerKey);
+    document.addEventListener('contextmenu', hostContextMenu);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onVisibility);
     document.addEventListener('pointerdown',interruptMouse,true);
     for (const event of inputEvents) document.addEventListener(event, noteUserMove, {passive: true});
+  }
+  function hostContextMenu(event) {
+    if (inputSuspended) return;
+    event.preventDefault();
+    const x = event.clientX / innerWidth, y = event.clientY / innerHeight;
+    send('selection', {text:'', context:true, anchor:[x,y,x,y]});
   }
   function onVisibility(event){
     if(document.hidden||event.type==='pagehide'){cancelCurlWarm();cancelGesture();cancelTurnAnimation();}
     else warmCurl();
   }
   function onResize() {
+    send('selection', {text:''});
     cancelCurlWarm();
     cancelGesture();
     captureRevision++;capturePages.clear();
@@ -2042,6 +2147,8 @@ class KMReaderPageSnapshot {
       cancelTurnAnimation();
       KMReaderCurlSurface.shared?.dispose();
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('keydown', readerKey);
+      document.removeEventListener('contextmenu', hostContextMenu);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onVisibility);
       document.removeEventListener('pointerdown',interruptMouse,true);

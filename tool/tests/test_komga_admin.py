@@ -88,6 +88,69 @@ class UploadTest(unittest.TestCase):
         self.assertEqual(self.upload()[0], 409)
         self.assertEqual((self.upstream.root/'Series/New.cbz').read_bytes(), self.data)
 
+    def post_json(self, route, body, token='admin'):
+        return self.request(route, 'POST', json.dumps(body).encode(), token=token,
+                            extra={'Content-Type': 'application/json'})
+
+    def test_folder_navigation_and_creation_scope(self):
+        root = self.upstream.root
+        (root/'Existing').mkdir()
+        (root/'Synthetic.cbz').write_bytes(self.data)
+        (root/'.hidden').mkdir()
+        (root/'Alias').symlink_to(root/'Existing')
+        self.assertEqual(self.request('/v1/libraries/lib/folders'), (200, {
+            'folders': ['Existing'], 'next': None,
+        }))
+        route = '/v1/libraries/lib/folders'
+        self.assertEqual(self.post_json(route, {'parent': 'Existing', 'name': 'Volumes'}),
+                         (201, {'folder': 'Existing/Volumes'}))
+        self.assertTrue((root/'Existing/Volumes').is_dir())
+        self.assertEqual(self.post_json(route, {'parent': 'Existing', 'name': 'Volumes'})[0], 409)
+        self.assertEqual(self.post_json(route, {'parent': 'Existing', 'name': '../outside'})[0], 400)
+        self.assertEqual(self.post_json(route, {'parent': '', 'name': 'Reader'}, token='reader')[0], 403)
+        self.assertEqual(self.request(route+'?parent=Alias')[0], 503)
+        self.assertEqual(self.request(route+'?parent=Existing')[1]['folders'], ['Volumes'])
+
+    def test_explicit_enrollment_persists_and_rechecks_authorized_root(self):
+        library = self.upstream.root
+        config = {
+            'komga_url': self.app.base,
+            'state_directory': str(self.root/'dynamic-state'),
+            'enrollment_roots': [{'komga_root': str(self.root), 'path': str(self.root)}],
+        }
+        self.server.app = Application(config)
+        enroll = '/v1/libraries/lib/enroll'
+        self.assertEqual(self.request('/v1/libraries')[1]['libraries'], [])
+        self.assertEqual(self.request(enroll, 'POST', token='reader')[0], 403)
+        self.assertEqual(self.request(enroll, 'POST')[1]['id'], 'lib')
+        self.server.app = Application(config)
+        self.assertEqual(self.request('/v1/libraries')[1]['libraries'][0]['id'], 'lib')
+        self.upstream.root = library/'Different'
+        self.assertEqual(self.request('/v1/libraries/lib/folders')[0], 409)
+        self.upstream.root = Path('/unauthorized-root')
+        self.assertEqual(self.request(enroll, 'POST')[0], 403)
+        self.upstream.root = self.root/'Alias'
+        self.upstream.root.symlink_to(library)
+        self.assertEqual(self.request(enroll, 'POST')[0], 503)
+
+    def test_batch_scan_is_single_and_only_accepts_owned_receipts(self):
+        ids = [str(uuid.uuid4()) for _ in range(2)]
+        for i, identifier in enumerate(ids):
+            query = urllib.parse.urlencode({
+                'library': 'lib', 'folder': 'Series',
+                'filename': f'{i}.cbz', 'defer_scan': '1',
+            })
+            status, receipt = self.request(f'/v1/uploads/{identifier}?{query}', 'PUT', self.data,
+                                           extra={'X-Content-SHA256': hashlib.sha256(self.data).hexdigest()})
+            self.assertEqual(status, 200)
+            self.assertFalse(receipt['scan_requested'])
+        self.assertEqual(self.upstream.scans, 0)
+        route = '/v1/libraries/lib/scan'
+        self.assertEqual(self.post_json(route, {'uploads': ids}, token='other')[0], 403)
+        for _ in range(2):
+            self.assertEqual(self.post_json(route, {'uploads': ids}), (200, {'scan_requested': True}))
+        self.assertEqual(self.upstream.scans, 1)
+
     def test_permissions_and_token_effective_role(self):
         for token, expected in [('invalid', 401), ('reader', 403), ('restricted', 403)]:
             self.assertEqual(self.upload(token=token)[0], expected)

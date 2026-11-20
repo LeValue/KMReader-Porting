@@ -25,6 +25,7 @@ import '../../ui/theme.dart';
 import 'epub_dictionary.dart';
 import 'epub_document.dart';
 import 'epub_overlay.dart';
+import 'epub_reader_chrome.dart';
 import 'epub_session.dart';
 import 'reader_display.dart';
 import 'tap_zones.dart';
@@ -67,7 +68,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Json? _dismissedKindlePosition;
   void _scheduleControlsHide() {
     _chromeTimer?.cancel();
-    if (!_controls || _settingsOpen || _session?.ready != true) return;
+    if (!_controls ||
+        _sidePanel != null ||
+        _settingsOpen ||
+        _session?.ready != true) {
+      return;
+    }
     _chromeTimer = Timer(const Duration(seconds: 5), () {
       if (mounted && ModalRoute.of(context)?.isCurrent == true) {
         setState(() => _controls = false);
@@ -76,11 +82,15 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   bool _fixedLayout = false, _settingsOpen = false;
-  bool _settingsHidden = false;
+  final _selectionEvent = ValueNotifier<Json>({});
+  final _panelFocus = FocusNode(debugLabel: 'EPUB right panel');
+  WidgetBuilder? _sidePanel;
+  Completer<void>? _sidePanelClosed;
+  String? _sidePanelTitle;
   bool _verticalWriting = false;
   final _closed = Completer<void>();
-  String? _error, _selection, _actionSelection;
-  Json _selectionRange = {}, _actionRange = {};
+  String? _error;
+  String get _selection => text(_selectionEvent.value['text']);
   bool _turning = false;
   final _turns = <int>[];
   ThemeData? _readerTheme;
@@ -399,10 +409,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     final generation = _browserGeneration;
     final browserClosed = _browserClosed.future;
     try {
-      assert(() {
-        debugPrint('EPUB command $method started');
-        return true;
-      }());
       final work = _browser!.callAsyncJavaScript(
         functionBody:
             'return await window.reader.$method(${value == null ? '' : jsonEncode(value)});',
@@ -423,10 +429,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           );
       if (generation != _browserGeneration) return null;
       if (result?.error != null) throw StateError(result!.error!);
-      assert(() {
-        debugPrint('EPUB command $method completed');
-        return true;
-      }());
       return result?.value;
     } catch (error) {
       if (mounted && generation == _browserGeneration) {
@@ -549,14 +551,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return;
     }
     final event = object(value);
-    assert(() {
-      if (event['type'] == 'position') {
-        debugPrint(
-          'EPUB position: page=${event['page']} pages=${event['pages']} valid=${event['progression'] is num} changed=${event['changed']}',
-        );
-      }
-      return true;
-    }());
     switch (event['type']) {
       case 'ready':
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -571,6 +565,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         });
         break;
       case 'turn':
+        _selectionEvent.value = {};
         unawaited(_turn(integer(event['delta'], 1)));
         return;
       case 'tap':
@@ -623,16 +618,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         }
         return;
       case 'selection':
-        setState(() {
-          _selection = text(event['text']);
-          _selectionRange = event;
-          if (_selection!.isNotEmpty && !_fullscreen) _controls = true;
-        });
-        if (_selection!.isNotEmpty) {
-          _chromeTimer?.cancel();
-        } else {
-          _scheduleControlsHide();
+        final selection = event['anchor'] is List ? event : <String, dynamic>{};
+        if (!mapEquals(selection, _selectionEvent.value)) {
+          _selectionEvent.value = selection;
         }
+        return;
+      case 'openNote':
+        final marks = _session!.bookmarks;
+        final note = marks
+            .where((mark) => mark['id'] == event['id'])
+            .firstOrNull;
+        if (note != null) unawaited(_openNote(note));
         return;
       case 'link':
         unawaited(_link(text(event['href'])));
@@ -784,93 +780,315 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     return (decoded as List? ?? []).map(object).toList();
   }
 
-  Future<void> _search([String initial = '']) async {
-    var query = initial.trim();
-    Future<List<Json>>? request = query.isEmpty ? null : _searchBook(query);
+  void _closeSidePanel() {
+    final closed = _sidePanelClosed;
+    if (closed == null) return;
+    _panelFocus.unfocus();
+    setState(() {
+      _sidePanel = null;
+      _sidePanelTitle = null;
+      _sidePanelClosed = null;
+    });
+    closed.complete();
+    _scheduleControlsHide();
+  }
+
+  Future<void> _showReaderPanel(
+    String title,
+    Widget Function(BuildContext panel, VoidCallback close) content, {
+    double heightFraction = .65,
+    bool dedicated = false,
+    bool keyboard = false,
+    bool withHeader = true,
+  }) async {
+    if (!mounted) return;
+    final theme = Theme.of(context);
+    Widget panel(BuildContext context, VoidCallback close) => Theme(
+      data: theme,
+      child: Material(
+        color: theme.colorScheme.surface,
+        child: withHeader
+            ? Column(
+                children: [
+                  EpubPanelHeader(title: title, close: close),
+                  Expanded(child: content(context, close)),
+                ],
+              )
+            : content(context, close),
+      ),
+    );
+    if (Platform.isWindows) {
+      if (_sidePanelTitle == title) {
+        _closeSidePanel();
+        return;
+      }
+      _closeSidePanel();
+      final closed = Completer<void>();
+      _chromeTimer?.cancel();
+      setState(() {
+        _sidePanelTitle = title;
+        _sidePanelClosed = closed;
+        _sidePanel = (context) => panel(context, _closeSidePanel);
+        _controls = true;
+      });
+      await closed.future;
+      return;
+    }
+    if (dedicated) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (page) => Scaffold(
+            body: ReaderSafeArea(child: panel(page, () => Navigator.pop(page))),
+          ),
+        ),
+      );
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
+      constraints: const BoxConstraints(maxWidth: 620),
+      barrierColor: withHeader ? null : Colors.transparent,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => StatefulBuilder(
+      backgroundColor: theme.colorScheme.surface,
+      builder: (sheet) {
+        final size = MediaQuery.sizeOf(sheet);
+        final inset = MediaQuery.viewInsetsOf(sheet).bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: keyboard ? inset : 0),
+          child: SizedBox(
+            height: min(
+              size.height * heightFraction,
+              max(80, size.height - inset - 56),
+            ),
+            child: ReaderSafeArea(
+              child: panel(sheet, () => Navigator.pop(sheet)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _search([String initial = '']) async {
+    var query = initial.trim(), submitted = query;
+    Future<List<Json>>? request = query.isEmpty ? null : _searchBook(query);
+    await _showReaderPanel(
+      'Search',
+      (context, close) => StatefulBuilder(
         builder: (context, update) {
           void submit() {
-            if (query.trim().isEmpty) return;
-            update(() => request = _searchBook(query.trim()));
+            final value = query.trim();
+            if (value.isEmpty) return;
+            update(() {
+              submitted = value;
+              request = _searchBook(value);
+            });
           }
 
-          return ReaderSafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                MediaQuery.viewInsetsOf(context).bottom + 12,
-              ),
-              child: SizedBox(
-                height: MediaQuery.sizeOf(context).height * .65,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      initialValue: initial,
-                      autofocus: initial.isEmpty,
-                      textInputAction: TextInputAction.search,
-                      onChanged: (value) => query = value,
-                      decoration: InputDecoration(
-                        labelText: tr(context, 'Search'),
-                        suffixIcon: IconButton(
-                          tooltip: tr(context, 'Search'),
-                          onPressed: submit,
-                          icon: const Icon(Icons.search),
-                        ),
-                      ),
-                      onFieldSubmitted: (_) => submit(),
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+            child: Column(
+              children: [
+                TextFormField(
+                  initialValue: initial,
+                  autofocus: initial.isEmpty,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (value) => query = value,
+                  decoration: InputDecoration(
+                    labelText: tr(context, 'Search'),
+                    suffixIcon: IconButton(
+                      tooltip: tr(context, 'Search'),
+                      onPressed: submit,
+                      icon: const Icon(Icons.search),
                     ),
-                    if (request != null)
-                      Expanded(
-                        child: FutureBuilder(
-                          future: request,
-                          builder: (context, result) {
-                            if (result.connectionState !=
-                                ConnectionState.done) {
-                              return const Align(
-                                alignment: Alignment.topCenter,
-                                child: LinearProgressIndicator(),
-                              );
-                            }
-                            if (result.hasError) {
-                              return Center(
-                                child: Text(tr(context, 'Search unavailable')),
-                              );
-                            }
-                            final matches = result.data ?? [];
-                            if (matches.isEmpty) {
-                              return Center(
-                                child: Text(tr(context, 'No results')),
-                              );
-                            }
-                            return ListView.builder(
-                              itemCount: matches.length,
-                              itemBuilder: (context, index) {
-                                final hit = matches[index];
-                                return ListTile(
-                                  title: Text(text(hit['excerpt'])),
-                                  onTap: () {
-                                    Navigator.pop(context);
-                                    unawaited(_call('display', hit['cfi']));
-                                  },
-                                );
-                              },
-                            ).withWheelScrolling();
-                          },
-                        ),
-                      ),
-                  ],
+                  ),
+                  onFieldSubmitted: (_) {
+                    submit();
+                    if (!Platform.isWindows) FocusScope.of(context).unfocus();
+                  },
                 ),
-              ),
+                const SizedBox(height: 12),
+                if (request != null)
+                  Expanded(
+                    child: FutureBuilder(
+                      future: request,
+                      builder: (context, result) {
+                        if (result.connectionState != ConnectionState.done) {
+                          return const Align(
+                            alignment: Alignment.topCenter,
+                            child: LinearProgressIndicator(),
+                          );
+                        }
+                        if (result.hasError) {
+                          return Center(
+                            child: Text(tr(context, 'Search unavailable')),
+                          );
+                        }
+                        final matches = result.data ?? [];
+                        if (matches.isEmpty) {
+                          return Center(child: Text(tr(context, 'No results')));
+                        }
+                        return ListView.separated(
+                          itemCount: matches.length + 1,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: Text(
+                                  '${matches.length} ${tr(context, 'Search results')}',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                              );
+                            }
+                            final hit = matches[index - 1];
+                            final excerpt = text(hit['excerpt']);
+                            final parts = <TextSpan>[];
+                            var start = 0;
+                            final pattern = RegExp(
+                              RegExp.escape(submitted),
+                              caseSensitive: false,
+                            );
+                            for (final match in pattern.allMatches(excerpt)) {
+                              parts.add(
+                                TextSpan(
+                                  text: excerpt.substring(start, match.start),
+                                ),
+                              );
+                              parts.add(
+                                TextSpan(
+                                  text: match.group(0),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              );
+                              start = match.end;
+                            }
+                            parts.add(TextSpan(text: excerpt.substring(start)));
+                            final section = _session!.chapterFor(
+                              text(hit['href']),
+                            );
+                            return Material(
+                              borderRadius: BorderRadius.circular(10),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerLow,
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                onTap: () {
+                                  FocusScope.of(context).unfocus();
+                                  if (!Platform.isWindows) close();
+                                  unawaited(_call('display', hit['cfi']));
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (section >= 0) ...[
+                                        Text(
+                                          _session!
+                                              .document
+                                              .chapters[section]
+                                              .title,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium,
+                                        ),
+                                        const SizedBox(height: 5),
+                                      ],
+                                      Text.rich(TextSpan(children: parts)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ).withWheelScrolling();
+                      },
+                    ),
+                  ),
+              ],
             ),
           );
         },
       ),
+      keyboard: true,
+    );
+  }
+
+  Widget _contextActions(Json selection) {
+    final values = selection['anchor'];
+    if (values is! List ||
+        values.length != 4 ||
+        values.any((v) => v is! num || !v.isFinite)) {
+      return const SizedBox.shrink();
+    }
+    final anchor = Rect.fromLTRB(
+      (values[0] as num).toDouble(),
+      (values[1] as num).toDouble(),
+      (values[2] as num).toDouble(),
+      (values[3] as num).toDouble(),
+    );
+    final selected = text(selection['text']);
+    final hasRange = selection['rangeCfi'] is String && !widget.incognito;
+    ({String label, IconData icon, VoidCallback invoke}) action(
+      String label,
+      IconData icon,
+      Future<void> Function() run,
+    ) => (
+      label: label,
+      icon: icon,
+      invoke: () {
+        _selectionEvent.value = {};
+        unawaited(_call('clearSelection'));
+        unawaited(run());
+      },
+    );
+    return EpubSelectionMenu(
+      anchor: anchor,
+      actions: [
+        if (selected.trim().isNotEmpty) ...[
+          action(
+            'Copy',
+            Icons.copy_outlined,
+            () => Clipboard.setData(ClipboardData(text: selected)),
+          ),
+          if (hasRange)
+            action(
+              'Highlight',
+              Icons.highlight_outlined,
+              () => _annotate(selection),
+            ),
+          if (dictionaryWord(selected) != null)
+            action(
+              'Dictionary',
+              Icons.menu_book_outlined,
+              () => _dictionary(selected),
+            ),
+          if (hasRange)
+            action(
+              'Add Note',
+              Icons.edit_note,
+              () => _annotate(selection, note: true),
+            ),
+          action('Search Selection', Icons.search, () => _search(selected)),
+          action(
+            'Translate Selected Text',
+            Icons.translate,
+            () => _translateSelection(selected),
+          ),
+        ] else if (selection['context'] == true) ...[
+          action('Search', Icons.search, _search),
+          action('Text Settings', Icons.text_fields, _settings),
+        ],
+      ],
     );
   }
 
@@ -951,26 +1169,64 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       var value = previous;
       body = await showDialog<String>(
         context: context,
-        builder: (dialog) => AlertDialog(
-          title: Text(tr(dialog, previous.isEmpty ? 'Add Note' : 'Edit Note')),
-          content: TextFormField(
-            initialValue: previous,
-            autofocus: true,
-            minLines: 2,
-            maxLines: 6,
-            maxLength: 4000,
-            onChanged: (text) => value = text,
+        builder: (dialog) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog),
-              child: Text(tr(dialog, 'Cancel')),
+          child: LayoutBuilder(
+            builder: (context, constraints) => SizedBox(
+              width: min(540, constraints.maxWidth),
+              height: min(380, constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      tr(context, previous.isEmpty ? 'Add Note' : 'Edit Note'),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: previous,
+                        autofocus: true,
+                        expands: true,
+                        minLines: null,
+                        maxLines: null,
+                        maxLength: 4000,
+                        keyboardType: TextInputType.multiline,
+                        textAlignVertical: TextAlignVertical.top,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (text) => value = text,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialog),
+                            child: Text(tr(context, 'Cancel')),
+                          ),
+                          FilledButton(
+                            onPressed: () =>
+                                Navigator.pop(dialog, value.trim()),
+                            child: Text(tr(context, 'Save')),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialog, value.trim()),
-              child: Text(tr(dialog, 'Save')),
-            ),
-          ],
+          ),
         ),
       );
       if (body?.isNotEmpty != true) return;
@@ -1078,19 +1334,15 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       },
                       child: Text(tr(context, 'Table of Contents')),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        action = 'bookmarks';
-                        Navigator.pop(context);
-                      },
-                      child: Text(tr(context, 'Bookmarks and annotations')),
-                    ),
+                    if (!Platform.isWindows)
+                      TextButton(
+                        onPressed: () {
+                          action = 'bookmarks';
+                          Navigator.pop(context);
+                        },
+                        child: Text(tr(context, 'Bookmarks and annotations')),
+                      ),
                   ],
-                ),
-                const Text(
-                  'Le pagine stimate coprono l’intero volume e restano stabili cambiando carattere o dimensione del testo.',
-                  style: TextStyle(fontSize: 11),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -1130,96 +1382,304 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     }
   }
 
-  Future<void> _bookmarks([String? selectedText]) async {
-    final selected = selectedText ?? _selection ?? '';
+  Future<void> _bookmarks() async {
     final session = _session!;
-    unawaited(_call('annotations', session.readerAnnotations));
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) => ReaderSafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                leading: const Icon(CupertinoIcons.bookmark),
-                title: Text(tr(context, 'Toggle Bookmark')),
-                onTap: () {
-                  session.toggleBookmark(selected);
-                  update(() {});
-                },
-              ),
-              for (final mark in session.bookmarks)
-                ListTile(
-                  leading: Icon(
-                    mark['type'] == 'kindle.highlight'
-                        ? Icons.highlight
-                        : mark['type'] == 'kindle.note'
-                        ? Icons.sticky_note_2_outlined
-                        : CupertinoIcons.bookmark,
+    var filter = 'all';
+    await _showReaderPanel(
+      'Bookmarks and annotations',
+      (context, close) => ListenableBuilder(
+        listenable: Listenable.merge([
+          session,
+          widget.repository.documentAnnotationChanges,
+        ]),
+        builder: (context, _) => StatefulBuilder(
+          builder: (context, update) {
+            final marks = session.bookmarks;
+            final highlights = {
+              for (final mark in marks)
+                if (EpubSession.markType(mark) == 'kindle.highlight')
+                  EpubSession.markRange(mark): mark,
+            };
+            final notes = {
+              for (final mark in marks)
+                if (EpubSession.markType(mark) == 'kindle.note')
+                  EpubSession.markRange(mark): mark,
+            };
+            final visible =
+                marks.where((mark) {
+                  final type = EpubSession.markType(mark);
+                  if (filter != 'all') return type == filter;
+                  return type != 'kindle.note' ||
+                      !highlights.containsKey(EpubSession.markRange(mark));
+                }).toList()..sort((a, b) {
+                  final chapter = session
+                      .chapterFor(text(a['href']))
+                      .compareTo(session.chapterFor(text(b['href'])));
+                  if (chapter != 0) return chapter;
+                  final start = a['kindleStart'], other = b['kindleStart'];
+                  return start is int && other is int
+                      ? start.compareTo(other)
+                      : text(a['created']).compareTo(text(b['created']));
+                });
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!Platform.isWindows)
+                  ListTile(
+                    leading: Icon(
+                      session.hasCurrentBookmark
+                          ? Icons.bookmark
+                          : Icons.bookmark_add_outlined,
+                    ),
+                    title: Text(tr(context, 'Toggle Bookmark')),
+                    onTap: widget.incognito
+                        ? null
+                        : () => session.toggleBookmark(''),
                   ),
-                  title: Text(text(mark['label'])),
-                  subtitle: Text(
-                    mark['source'] == 'kindle' ? 'Da Kindle' : 'KMReader',
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (mark['locator'] is Map) {
-                      final chapter = session.chapterFor(text(mark['href']));
-                      if (chapter >= 0) {
-                        unawaited(
-                          _call('seek', {
-                            'href': session.relativeHref(
-                              session.document.chapters[chapter].path,
-                            ),
-                            'locator': mark['locator'],
-                          }),
-                        );
-                      }
-                    } else {
-                      unawaited(_call('display', mark['cfi']));
-                    }
-                  },
-                  trailing: mark['source'] == 'kindle'
-                      ? null
-                      : Wrap(
-                          children: [
-                            if (mark['type'] == 'kindle.note')
-                              IconButton(
-                                tooltip: tr(context, 'Edit Note'),
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () async {
-                                  await _annotate(
-                                    {...mark, 'text': mark['excerpt']},
-                                    note: true,
-                                    previous: text(mark['label']),
-                                  );
-                                  if (context.mounted) update(() {});
-                                },
-                              ),
-                            IconButton(
-                              tooltip: tr(context, 'Delete'),
-                              icon: const Icon(CupertinoIcons.trash),
-                              onPressed: () {
-                                session.removeAnnotation(mark);
-                                _annotationsChanged();
-                                update(() {});
-                              },
-                            ),
-                          ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+                  child: Wrap(
+                    spacing: 6,
+                    children: [
+                      for (final entry in const {
+                        'all': 'All',
+                        'kindle.bookmark': 'Bookmarks',
+                        'kindle.highlight': 'Highlights',
+                        'kindle.note': 'Notes',
+                      }.entries)
+                        ChoiceChip(
+                          label: Text(tr(context, entry.value)),
+                          selected: filter == entry.key,
+                          onSelected: (_) => update(() => filter = entry.key),
                         ),
+                    ],
+                  ),
                 ),
-            ],
-          ).withWheelScrolling(),
+                Expanded(
+                  child: visible.isEmpty
+                      ? Center(child: Text(tr(context, 'No annotations')))
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
+                          itemCount: visible.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, i) {
+                            final mark = visible[i];
+                            final type = EpubSession.markType(mark);
+                            final range = EpubSession.markRange(mark);
+                            final note = type == 'kindle.note'
+                                ? mark
+                                : notes[range];
+                            final highlight = highlights[range];
+                            final chapter = session.chapterFor(
+                              text(mark['href']),
+                            );
+                            final isBookmark = type == 'kindle.bookmark';
+                            final excerpt = text(
+                              highlight?['excerpt'],
+                              text(mark['excerpt']),
+                            );
+                            return DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerLow,
+                                border: Border(
+                                  left: BorderSide(
+                                    color: isBookmark
+                                        ? Theme.of(context).colorScheme.primary
+                                        : const Color(0xffd7a92d),
+                                    width: 3,
+                                  ),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 4, 4, 8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          isBookmark
+                                              ? Icons.bookmark_outline
+                                              : note == null
+                                              ? Icons.highlight_outlined
+                                              : Icons.sticky_note_2_outlined,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            chapter < 0
+                                                ? tr(
+                                                    context,
+                                                    'Bookmarks and annotations',
+                                                  )
+                                                : session
+                                                      .document
+                                                      .chapters[chapter]
+                                                      .title,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium,
+                                          ),
+                                        ),
+                                        if (session.canRemoveAnnotation(mark))
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                            ),
+                                            tooltip: tr(context, 'Delete'),
+                                            onPressed: () => _deleteMark(mark),
+                                          ),
+                                      ],
+                                    ),
+                                    TextButton(
+                                      style: TextButton.styleFrom(
+                                        alignment:
+                                            AlignmentDirectional.centerStart,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        if (!Platform.isWindows) close();
+                                        unawaited(_jumpToAnnotation(mark));
+                                      },
+                                      child: Text(
+                                        excerpt.isNotEmpty
+                                            ? excerpt
+                                            : text(mark['label']),
+                                        maxLines: 4,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (note != null)
+                                      TextButton.icon(
+                                        style: TextButton.styleFrom(
+                                          alignment:
+                                              AlignmentDirectional.centerStart,
+                                        ),
+                                        onPressed: () => _openNote(note),
+                                        icon: const Icon(Icons.notes),
+                                        label: Text(
+                                          text(note['label']),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      )
+                                    else if (!isBookmark &&
+                                        mark['rangeCfi'] != null)
+                                      TextButton.icon(
+                                        style: TextButton.styleFrom(
+                                          alignment:
+                                              AlignmentDirectional.centerStart,
+                                        ),
+                                        onPressed: () => _annotate({
+                                          ...mark,
+                                          'text': excerpt,
+                                        }, note: true),
+                                        icon: const Icon(Icons.edit_note),
+                                        label: Text(tr(context, 'Add Note')),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ).withWheelScrolling(),
+                ),
+              ],
+            );
+          },
         ),
       ),
+      dedicated: true,
     );
+  }
+
+  Future<void> _jumpToAnnotation(Json mark) async {
+    if (mark['locator'] is Map && mark['cfi'] == null) {
+      final session = _session!;
+      final chapter = session.chapterFor(text(mark['href']));
+      if (chapter < 0) return;
+      await _call('seek', {
+        'href': session.relativeHref(session.document.chapters[chapter].path),
+        'locator': mark['locator'],
+      });
+    } else {
+      await _call('display', mark['cfi']);
+    }
+  }
+
+  Future<void> _openNote(Json note) async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(tr(dialog, 'Note')),
+        scrollable: true,
+        content: SelectableText(text(note['label'])),
+        actions: [
+          if (_session!.canRemoveAnnotation(note))
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, 'delete'),
+              child: Text(tr(dialog, 'Delete')),
+            ),
+          if (note['rangeCfi'] != null)
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, 'edit'),
+              child: Text(tr(dialog, 'Edit Note')),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: Text(tr(dialog, 'Close')),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'edit') {
+      await _annotate(
+        {...note, 'text': note['excerpt']},
+        note: true,
+        previous: text(note['label']),
+      );
+    } else if (action == 'delete') {
+      await _deleteMark(note);
+    }
+  }
+
+  Future<void> _deleteMark(Json mark) async {
+    final session = _session!;
+    if (!session.canRemoveAnnotation(mark)) return;
+    final withNote =
+        EpubSession.markType(mark) == 'kindle.highlight' &&
+        session.bookmarks.any(
+          (value) =>
+              EpubSession.markType(value) == 'kindle.note' &&
+              EpubSession.markRange(value) == EpubSession.markRange(mark),
+        );
+    if (!await confirm(
+          context,
+          'Delete',
+          withNote
+              ? 'Delete the highlight and its note?'
+              : 'Delete this annotation?',
+        ) ||
+        !mounted) {
+      return;
+    }
+    session.removeAnnotation(mark);
+    _annotationsChanged();
   }
 
   Future<void> _translateSelection([String? selectedText]) async {
     final selected = selectedText ?? _selection;
-    if (selected?.trim().isNotEmpty != true) return;
+    if (selected.trim().isEmpty) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
@@ -1236,25 +1696,38 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<void> _settings() async {
-    if (_settingsOpen) return;
-    setState(() {
-      _settingsOpen = true;
-      _settingsHidden = true;
-    });
-    _chromeTimer?.cancel();
-    // The native sheet can open while the browser finishes outstanding work.
-    // Keep suspension ordered before preference changes and resuming input,
-    // without making Flutter's controls wait for the JavaScript thread.
-    final suspended = _call('suspendInput', true);
-    var draft = _session!.preferences.toJson();
-    final original = jsonEncode(draft);
-    if (!mounted) return;
+    if (_settingsOpen) {
+      if (Platform.isWindows && _sidePanelTitle == 'Text Settings') {
+        _closeSidePanel();
+      }
+      return;
+    }
+    _settingsOpen = true;
+    final session = _session!;
+    var draft = session.preferences.toJson();
+    String? applied = jsonEncode(draft);
+    var pending = Future<void>.value();
+    void preview() {
+      final settings = jsonEncode(draft);
+      if (applied == settings) return;
+      applied = settings;
+      final value = EpubPreferences.fromJson(draft);
+      pending = pending
+          .then((_) async {
+            if (!mounted || applied != settings) return;
+            session.setPreferences(value);
+            await session.prepareFont();
+            if (mounted) await _call('preferences', session.browserPreferences);
+          })
+          .catchError((Object error) {
+            if (mounted) showError(context, error);
+          });
+    }
+
     try {
-      await showModalBottomSheet<void>(
-        context: context,
-        constraints: const BoxConstraints(maxWidth: 760),
-        isScrollControlled: true,
-        builder: (context) => StatefulBuilder(
+      await _showReaderPanel(
+        'Text Settings',
+        (context, close) => StatefulBuilder(
           builder: (context, update) {
             final session = _session!, p = EpubPreferences.fromJson(draft);
             Future<void> apply(String key, dynamic value) async {
@@ -1275,6 +1748,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                   'advancedLayout': true,
               });
               draft = next.toJson();
+              preview();
               update(() {});
             }
 
@@ -1313,6 +1787,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               String value,
               Map<String, String> choices,
             ) => ReaderOptionPicker(
+              key: ValueKey('epub-$key'),
               title: title,
               value: value,
               choices: choices,
@@ -1321,22 +1796,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             return ReaderSafeArea(
               child: ReaderOptionsPanel(
                 title: 'Text Settings',
+                onClose: close,
+                fill: true,
                 children: [
-                  ReaderOptionGroup(
-                    title: 'Reading',
-                    children: [
-                      picker('epub.reading_flow', 'flow', p.flow, {
-                        'paged': 'Paged',
-                        'scrolled': 'Vertical',
-                      }),
-                      if (!_verticalWriting)
-                        picker('Columns', 'columns', '${p.columns}', {
-                          '0': 'Automatic',
-                          '1': '1',
-                          '2': '2',
-                        }),
-                    ],
-                  ),
                   if (_fixedLayout)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
@@ -1363,6 +1825,58 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           76,
                           75,
                         ),
+                      ],
+                    ),
+                  ReaderOptionGroup(
+                    title: 'Appearance',
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 5,
+                          children: [
+                            for (final (value, label, color) in const [
+                              ('system', 'System', Color(0xff8193ab)),
+                              ('white', 'white', Color(0xfffafafa)),
+                              ('black', 'black', Color(0xff1c1c1c)),
+                              ('sepia', 'sepia', Color(0xffe9d7b7)),
+                              ('green', 'Green', Color(0xffc8e8d2)),
+                              ('quiet', 'Quiet', Color(0xffe2e1dd)),
+                            ])
+                              ChoiceChip(
+                                selected: p.theme == value,
+                                label: Text(tr(context, label)),
+                                avatar: CircleAvatar(backgroundColor: color),
+                                onSelected: (_) => apply('theme', value),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  ReaderOptionGroup(
+                    title: 'Reading',
+                    children: [
+                      picker('epub.reading_flow', 'flow', p.flow, {
+                        'paged': 'Paged',
+                        'scrolled': 'Vertical',
+                      }),
+                      if (!_verticalWriting)
+                        picker('Columns', 'columns', '${p.columns}', {
+                          '0': 'Automatic',
+                          '1': '1',
+                          '2': '2',
+                        }),
+                    ],
+                  ),
+                  if (!_fixedLayout)
+                    ReaderOptionGroup(
+                      title: 'Page layout',
+                      children: [
                         slider(
                           'Line Height',
                           'lineHeight',
@@ -1459,19 +1973,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       ],
                     ),
                   ReaderOptionGroup(
-                    title: 'Appearance',
-                    children: [
-                      picker('Theme', 'theme', p.theme, {
-                        'system': 'System',
-                        'white': 'white',
-                        'sepia': 'sepia',
-                        'black': 'black',
-                        'quiet': 'Quiet',
-                        'green': 'Green',
-                      }),
-                    ],
-                  ),
-                  ReaderOptionGroup(
                     title: 'Page Turn',
                     children: [
                       SwitchListTile.adaptive(
@@ -1494,6 +1995,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         motion: p.motion,
                         onChanged: (motion) {
                           draft = {...draft, ...motion.toJson()};
+                          preview();
                           update(() {});
                         },
                       ),
@@ -1530,7 +2032,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         'epubDefault',
                         p.toJson(),
                       );
-                      Navigator.pop(context);
+                      close();
                     },
                     child: Text(tr(context, 'Use as Default')),
                   ),
@@ -1539,30 +2041,14 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             );
           },
         ),
+        heightFraction: .5,
+        withHeader: false,
       );
     } finally {
-      await suspended;
-      if (mounted) setState(() => _settingsHidden = false);
-      // Keep panel scrolling and slider input independent of chapter layout.
-      // The offstage native browser may suspend RAF; restore its presentation
-      // before applying the final draft once, rather than reflowing invisibly.
-      try {
-        if (mounted) {
-          await WidgetsBinding.instance.endOfFrame;
-          if (jsonEncode(draft) != original) {
-            final session = _session!;
-            session.setPreferences(EpubPreferences.fromJson(draft));
-            await session.prepareFont();
-            if (mounted) await _call('preferences', session.browserPreferences);
-          }
-        }
-      } catch (error) {
-        if (mounted) showError(context, error);
-      } finally {
-        await _call('suspendInput', false);
-        _settingsOpen = false;
-        _scheduleControlsHide();
-      }
+      preview();
+      await pending;
+      _settingsOpen = false;
+      if (mounted) _scheduleControlsHide();
     }
   }
 
@@ -1576,6 +2062,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
+        disableContextMenu: true,
         // Retain texture composition where supported. Huawei Android 10 needs
         // hybrid composition to deliver visible frames; diagnostic builds can
         // explicitly compare both paths without changing saved preferences.
@@ -1654,6 +2141,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     if (!_closed.isCompleted) _closed.complete();
     if (!_browserClosed.isCompleted) _browserClosed.complete();
     _chromeTimer?.cancel();
+    _selectionEvent.dispose();
+    _panelFocus.dispose();
+    _sidePanelClosed?.complete();
     _session?.removeListener(_changed);
     unawaited(_session?.close() ?? Future.value());
     super.dispose();
@@ -1666,23 +2156,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     }
   }
 
-  bool _readerKey(KeyEvent event) {
-    assert(() {
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-          event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        debugPrint(
-          'EPUB paging key: current=${ModalRoute.of(context)?.isCurrent}, options=$_settingsOpen, key=${event.logicalKey.keyLabel}',
-        );
-      }
-      return true;
-    }());
-    return _key(event) == KeyEventResult.handled;
-  }
+  bool _readerKey(KeyEvent event) => _key(event) == KeyEventResult.handled;
 
   KeyEventResult _key(KeyEvent event) {
     if (!Platform.isWindows ||
         event is KeyUpEvent ||
-        _settingsOpen ||
+        _panelFocus.hasFocus ||
         ModalRoute.of(context)?.isCurrent != true) {
       return KeyEventResult.ignored;
     }
@@ -1727,9 +2206,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     } else if (key == LogicalKeyboardKey.f11) {
       _toggleFullscreen();
     } else if (key == LogicalKeyboardKey.escape) {
-      if (_selection?.isNotEmpty == true) {
-        setState(() => _selection = '');
+      if (_selectionEvent.value.isNotEmpty) {
+        _selectionEvent.value = {};
         unawaited(_call('clearSelection'));
+      } else if (_sidePanel != null) {
+        _closeSidePanel();
       } else if (!_controls || _fullscreen) {
         _showControls();
       } else {
@@ -1782,6 +2263,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         child: Theme(
           data: _readerTheme!,
           child: Scaffold(
+            resizeToAvoidBottomInset: false,
             backgroundColor: background,
             body: MouseRegion(
               onHover: (event) {
@@ -1797,327 +2279,413 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               child: ReaderSafeArea(
                 top: true,
                 bottom: true,
-                child: Column(
+                child: Row(
                   children: [
-                    if (_error != null)
-                      MaterialBanner(
-                        content: Text(_error!),
-                        actions: [
-                          TextButton(
-                            onPressed: () => _restartBrowser(manual: true),
-                            child: Text(tr(context, 'Retry')),
-                          ),
-                          TextButton(
-                            onPressed: () => setState(() => _error = null),
-                            child: Text(tr(context, 'Close')),
-                          ),
-                        ],
-                      ),
                     Expanded(
-                      key: const ValueKey('epub-surface-slot'),
-                      child: Stack(
-                        fit: StackFit.expand,
+                      child: Column(
                         children: [
-                          if (_recoveryFailed)
-                            FailureView(
-                              error: tr(context, 'reader.recoveryFailed'),
-                              retry: () => _restartBrowser(manual: true),
-                            )
-                          else if (!_recovering)
-                            // Retain the browser and its viewport while removing
-                            // its native surface from modal composition. Android
-                            // 10 hybrid WebViews otherwise force costly copies
-                            // beneath every scrolling frame of the settings.
-                            Offstage(
-                              offstage: _settingsHidden,
-                              child: RepaintBoundary(
-                                child: _readerView(session),
-                              ),
+                          if (_error != null)
+                            MaterialBanner(
+                              content: Text(_error!),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      _restartBrowser(manual: true),
+                                  child: Text(tr(context, 'Retry')),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      setState(() => _error = null),
+                                  child: Text(tr(context, 'Close')),
+                                ),
+                              ],
                             ),
-                          if (_controls)
-                            Positioned(
-                              top: 8,
-                              left: 12,
-                              right: 12,
-                              child: Row(
-                                children: [
-                                  ReaderCapsule(
-                                    background: background,
-                                    foreground: foreground,
-                                    child: IconButton(
-                                      tooltip: tr(context, 'Close'),
-                                      onPressed: () => Navigator.pop(context),
-                                      icon: const Icon(CupertinoIcons.xmark),
+                          Expanded(
+                            key: const ValueKey('epub-surface-slot'),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (_recoveryFailed)
+                                  FailureView(
+                                    error: tr(context, 'reader.recoveryFailed'),
+                                    retry: () => _restartBrowser(manual: true),
+                                  )
+                                else if (!_recovering)
+                                  RepaintBoundary(child: _readerView(session)),
+                                if (_controls)
+                                  Positioned(
+                                    top: 8,
+                                    left: 12,
+                                    right: 12,
+                                    child: Row(
+                                      children: [
+                                        ReaderCapsule(
+                                          background: background,
+                                          foreground: foreground,
+                                          child: IconButton(
+                                            tooltip: tr(context, 'Close'),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            icon: const Icon(
+                                              CupertinoIcons.xmark,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Align(
+                                            alignment: Alignment.center,
+                                            child: ReaderCapsule(
+                                              background: background,
+                                              foreground: foreground,
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 14,
+                                                      vertical: 10,
+                                                    ),
+                                                child: Text(
+                                                  epubOverlayText(
+                                                    context,
+                                                    session,
+                                                    'controlsHeaderCenter',
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Flexible(
+                                          flex: 7,
+                                          child: ReaderCapsule(
+                                            background: background,
+                                            foreground: foreground,
+                                            child: SingleChildScrollView(
+                                              scrollDirection: Axis.horizontal,
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (widget.incognito)
+                                                    const Icon(
+                                                      CupertinoIcons.eye_slash,
+                                                    ),
+                                                  if (session.auxiliary)
+                                                    IconButton(
+                                                      tooltip: tr(
+                                                        context,
+                                                        'Back to Reading',
+                                                      ),
+                                                      onPressed: () => _call(
+                                                        'closeAuxiliary',
+                                                      ),
+                                                      icon: const Icon(
+                                                        CupertinoIcons
+                                                            .arrow_uturn_left,
+                                                      ),
+                                                    ),
+                                                  if (Platform.isWindows) ...[
+                                                    IconButton(
+                                                      tooltip: tr(
+                                                        context,
+                                                        'Search',
+                                                      ),
+                                                      onPressed: _search,
+                                                      icon: const Icon(
+                                                        Icons.search,
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      tooltip: tr(
+                                                        context,
+                                                        'Bookmarks and annotations',
+                                                      ),
+                                                      onPressed:
+                                                          widget.incognito
+                                                          ? null
+                                                          : _bookmarks,
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .sticky_note_2_outlined,
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      tooltip: tr(
+                                                        context,
+                                                        'Text Settings',
+                                                      ),
+                                                      onPressed: _settings,
+                                                      icon: const Icon(
+                                                        Icons.text_fields,
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      tooltip: tr(
+                                                        context,
+                                                        'Toggle Bookmark',
+                                                      ),
+                                                      onPressed:
+                                                          widget.incognito
+                                                          ? null
+                                                          : () => session
+                                                                .toggleBookmark(
+                                                                  '',
+                                                                ),
+                                                      icon: Icon(
+                                                        session.hasCurrentBookmark
+                                                            ? Icons.bookmark
+                                                            : Icons
+                                                                  .bookmark_add_outlined,
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      tooltip: tr(
+                                                        context,
+                                                        _fullscreen
+                                                            ? 'Exit Full Screen'
+                                                            : 'Full Screen',
+                                                      ),
+                                                      onPressed:
+                                                          _toggleFullscreen,
+                                                      icon: const Icon(
+                                                        CupertinoIcons
+                                                            .arrow_up_left_arrow_down_right,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                  PopupMenuButton<String>(
+                                                    onOpened: () =>
+                                                        _chromeTimer?.cancel(),
+                                                    onCanceled:
+                                                        _scheduleControlsHide,
+                                                    onSelected: (v) =>
+                                                        switch (v) {
+                                                          'fullscreen' =>
+                                                            _toggleFullscreen(),
+                                                          'contents' =>
+                                                            _contents(),
+                                                          'search' => _search(),
+                                                          'kindlePosition' =>
+                                                            _checkKindlePosition(
+                                                              force: true,
+                                                            ),
+                                                          'bookmarks' =>
+                                                            _bookmarks(),
+                                                          _ => _settings(),
+                                                        },
+                                                    itemBuilder: (_) => [
+                                                      for (final entry in {
+                                                        'contents':
+                                                            'Table of Contents',
+                                                        if (widget
+                                                                .repository
+                                                                .profile
+                                                                .isKindle &&
+                                                            !widget.incognito)
+                                                          'kindlePosition': 'Go to latest Kindle position',
+                                                        if (!Platform
+                                                            .isWindows) ...{
+                                                          'search': 'Search',
+                                                          'bookmarks': 'Bookmarks and annotations',
+                                                          'settings':
+                                                              'Text Settings',
+                                                        },
+                                                        if (!Platform.isWindows)
+                                                          'fullscreen':
+                                                              _fullscreen
+                                                              ? 'Exit Full Screen'
+                                                              : 'Full Screen',
+                                                      }.entries)
+                                                        PopupMenuItem(
+                                                          value: entry.key,
+                                                          child: Text(
+                                                            tr(
+                                                              context,
+                                                              entry.value,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
+                                if (!_controls) ...[
+                                  Positioned(
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: EpubReadingOverlay(
+                                      session: session,
+                                      header: true,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: EpubReadingOverlay(
+                                      session: session,
+                                      header: false,
+                                    ),
+                                  ),
+                                ],
+                                if (_controls)
+                                  Positioned(
+                                    bottom: 8,
+                                    left: 20,
+                                    right: 20,
                                     child: Align(
-                                      alignment: Alignment.center,
-                                      child: ReaderCapsule(
-                                        background: background,
-                                        foreground: foreground,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 10,
-                                          ),
-                                          child: Text(
-                                            epubOverlayText(
-                                              context,
-                                              session,
-                                              'controlsHeaderCenter',
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                      alignment: Alignment.bottomCenter,
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 360,
+                                        ),
+                                        child: ReaderCapsule(
+                                          background: background,
+                                          foreground: foreground,
+                                          child: Row(
+                                            children: [
+                                              IconButton(
+                                                tooltip: tr(
+                                                  context,
+                                                  'Previous Page',
+                                                ),
+                                                onPressed: () => _turn(-1),
+                                                icon: const Icon(
+                                                  CupertinoIcons.chevron_left,
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: TextButton(
+                                                  style: TextButton.styleFrom(
+                                                    foregroundColor: foreground,
+                                                  ),
+                                                  onPressed: _quickNavigation,
+                                                  child: Text(
+                                                    epubOverlayText(
+                                                      context,
+                                                      session,
+                                                      'controlsFooterCenter',
+                                                    ),
+                                                    key: const ValueKey(
+                                                      'epub-position',
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (session.atEnd &&
+                                                  widget.onNextBook != null)
+                                                IconButton(
+                                                  tooltip: tr(
+                                                    context,
+                                                    'Next Book',
+                                                  ),
+                                                  icon: const Icon(
+                                                    Icons.skip_next,
+                                                  ),
+                                                  onPressed: widget.onNextBook,
+                                                ),
+                                              IconButton(
+                                                tooltip: tr(
+                                                  context,
+                                                  'Next Page',
+                                                ),
+                                                onPressed: () => _turn(1),
+                                                icon: const Icon(
+                                                  CupertinoIcons.chevron_right,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  ReaderCapsule(
-                                    background: background,
-                                    foreground: foreground,
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (widget.incognito)
-                                          const Icon(CupertinoIcons.eye_slash),
-                                        if (session.auxiliary)
-                                          IconButton(
-                                            tooltip: tr(
-                                              context,
-                                              'Back to Reading',
-                                            ),
-                                            onPressed: () =>
-                                                _call('closeAuxiliary'),
-                                            icon: const Icon(
-                                              CupertinoIcons.arrow_uturn_left,
-                                            ),
-                                          ),
-                                        if (Platform.isWindows)
-                                          IconButton(
-                                            tooltip: tr(
-                                              context,
-                                              _fullscreen
-                                                  ? 'Exit Full Screen'
-                                                  : 'Full Screen',
-                                            ),
-                                            onPressed: _toggleFullscreen,
-                                            icon: const Icon(
-                                              CupertinoIcons
-                                                  .arrow_up_left_arrow_down_right,
-                                            ),
-                                          ),
-                                        PopupMenuButton<String>(
-                                          onOpened: () {
-                                            _chromeTimer?.cancel();
-                                            _actionSelection = _selection;
-                                            _actionRange = _selectionRange;
-                                          },
-                                          onCanceled: _scheduleControlsHide,
-                                          onSelected: (v) => switch (v) {
-                                            'fullscreen' => _toggleFullscreen(),
-                                            'contents' => _contents(),
-                                            'search' => _search(),
-                                            'searchSelection' => _search(
-                                              _actionSelection ?? '',
-                                            ),
-                                            'dictionary' => _dictionary(
-                                              _actionSelection ?? '',
-                                            ),
-                                            'highlight' => _annotate(
-                                              _actionRange,
-                                            ),
-                                            'note' => _annotate(
-                                              _actionRange,
-                                              note: true,
-                                            ),
-                                            'kindlePosition' =>
-                                              _checkKindlePosition(force: true),
-                                            'bookmarks' => _bookmarks(
-                                              _actionSelection,
-                                            ),
-                                            'translate' => _translateSelection(
-                                              _actionSelection,
-                                            ),
-                                            _ => _settings(),
-                                          },
-                                          itemBuilder: (_) => [
-                                            for (final entry in {
-                                              'contents': 'Table of Contents',
-                                              'search': 'Search',
-                                              if (widget
-                                                      .repository
-                                                      .profile
-                                                      .isKindle &&
-                                                  !widget.incognito)
-                                                'kindlePosition': 'Go to latest Kindle position',
-                                              'bookmarks':
-                                                  'Bookmarks and annotations',
-                                              if (_selection
-                                                      ?.trim()
-                                                      .isNotEmpty ==
-                                                  true)
-                                                'searchSelection':
-                                                    'Search Selection',
-                                              if (dictionaryWord(
-                                                    _selection ?? '',
-                                                  ) !=
-                                                  null)
-                                                'dictionary': 'Dictionary',
-                                              if (_selectionRange['rangeCfi'] !=
-                                                      null &&
-                                                  !widget.incognito) ...{
-                                                'highlight': 'Highlight',
-                                                'note': 'Add Note',
-                                              },
-                                              if (_selection
-                                                      ?.trim()
-                                                      .isNotEmpty ==
-                                                  true)
-                                                'translate':
-                                                    'Translate Selected Text',
-                                              if (!Platform.isWindows)
-                                                'fullscreen': _fullscreen
-                                                    ? 'Exit Full Screen'
-                                                    : 'Full Screen',
-                                              'settings': 'Text Settings',
-                                            }.entries)
-                                              PopupMenuItem(
-                                                value: entry.key,
-                                                child: Text(
-                                                  tr(context, entry.value),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
+                                if (!_controls &&
+                                    object(
+                                          widget.repository.store
+                                              .setting<dynamic>('epubOverlay'),
+                                        )['showsReaderProgressBar'] ==
+                                        true)
+                                  Positioned(
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: LinearProgressIndicator(
+                                      value:
+                                          (session.chapter +
+                                              session.progression) /
+                                          session.document.chapters.length,
+                                      minHeight: 3,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          if (!_controls) ...[
-                            Positioned(
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              child: EpubReadingOverlay(
-                                session: session,
-                                header: true,
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: EpubReadingOverlay(
-                                session: session,
-                                header: false,
-                              ),
-                            ),
-                          ],
-                          if (_controls)
-                            Positioned(
-                              bottom: 8,
-                              left: 20,
-                              right: 20,
-                              child: Align(
-                                alignment: Alignment.bottomCenter,
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 360,
-                                  ),
-                                  child: ReaderCapsule(
-                                    background: background,
-                                    foreground: foreground,
-                                    child: Row(
-                                      children: [
-                                        IconButton(
-                                          tooltip: tr(context, 'Previous Page'),
-                                          onPressed: () => _turn(-1),
-                                          icon: const Icon(
-                                            CupertinoIcons.chevron_left,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: TextButton(
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: foreground,
-                                            ),
-                                            onPressed: _quickNavigation,
-                                            child: Text(
-                                              epubOverlayText(
-                                                context,
-                                                session,
-                                                'controlsFooterCenter',
-                                              ),
-                                              key: const ValueKey(
-                                                'epub-position',
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                        ),
-                                        if (session.atEnd &&
-                                            widget.onNextBook != null)
-                                          IconButton(
-                                            tooltip: tr(context, 'Next Book'),
-                                            icon: const Icon(Icons.skip_next),
-                                            onPressed: widget.onNextBook,
-                                          ),
-                                        IconButton(
-                                          tooltip: tr(context, 'Next Page'),
-                                          onPressed: () => _turn(1),
-                                          icon: const Icon(
-                                            CupertinoIcons.chevron_right,
-                                          ),
-                                        ),
-                                      ],
+                                if (session.layoutBusy &&
+                                    session.ready &&
+                                    !_recovering)
+                                  const Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: LinearProgressIndicator(
+                                      minHeight: 2,
                                     ),
                                   ),
-                                ),
-                              ),
-                            ),
-                          if (!_controls &&
-                              object(
-                                    widget.repository.store.setting<dynamic>(
-                                      'epubOverlay',
+                                if (session.ready)
+                                  ValueListenableBuilder(
+                                    valueListenable: _selectionEvent,
+                                    builder: (context, selection, _) =>
+                                        selection.isEmpty
+                                        ? const SizedBox.shrink()
+                                        : _contextActions(selection),
+                                  ),
+                                if (!session.ready && !_recoveryFailed)
+                                  ColoredBox(
+                                    color: background,
+                                    child: const Center(
+                                      child:
+                                          CircularProgressIndicator.adaptive(),
                                     ),
-                                  )['showsReaderProgressBar'] ==
-                                  true)
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: LinearProgressIndicator(
-                                value:
-                                    (session.chapter + session.progression) /
-                                    session.document.chapters.length,
-                                minHeight: 3,
-                              ),
+                                  ),
+                              ],
                             ),
-                          if (session.layoutBusy &&
-                              session.ready &&
-                              !_recovering)
-                            const Align(
-                              alignment: Alignment.bottomCenter,
-                              child: LinearProgressIndicator(minHeight: 2),
-                            ),
-                          if (!session.ready && !_recoveryFailed)
-                            ColoredBox(
-                              color: background,
-                              child: const Center(
-                                child: CircularProgressIndicator.adaptive(),
-                              ),
-                            ),
+                          ),
                         ],
                       ),
                     ),
+                    if (_sidePanel case final WidgetBuilder builder)
+                      Focus(
+                        focusNode: _panelFocus,
+                        child: SizedBox(
+                          width: min(
+                            352,
+                            MediaQuery.sizeOf(context).width * .48,
+                          ),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                  color: Theme.of(context).dividerColor,
+                                ),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 1),
+                              child: Builder(builder: builder),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

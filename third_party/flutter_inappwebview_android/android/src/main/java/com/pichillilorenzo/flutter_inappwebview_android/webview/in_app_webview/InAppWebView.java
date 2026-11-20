@@ -1562,6 +1562,9 @@ final public class InAppWebView extends InputAwareWebView implements InAppWebVie
 
   @Override
   public ActionMode startActionMode(ActionMode.Callback callback) {
+    if (customSettings.disableContextMenu) {
+      return super.startActionMode(selectionWithoutToolbar(callback));
+    }
     if (customSettings.useHybridComposition && !customSettings.disableContextMenu && (contextMenu == null || contextMenu.keySet().size() == 0)) {
       return super.startActionMode(callback);
     }
@@ -1571,10 +1574,53 @@ final public class InAppWebView extends InputAwareWebView implements InAppWebVie
   @RequiresApi(api = Build.VERSION_CODES.M)
   @Override
   public ActionMode startActionMode(ActionMode.Callback callback, int type) {
+    if (customSettings.disableContextMenu) {
+      return super.startActionMode(selectionWithoutToolbar(callback), type);
+    }
     if (customSettings.useHybridComposition && !customSettings.disableContextMenu && (contextMenu == null || contextMenu.keySet().size() == 0)) {
       return super.startActionMode(callback, type);
     }
     return rebuildActionMode(super.startActionMode(callback, type), callback);
+  }
+
+  // Keep Chromium's selection and drag handles alive. Finishing the action
+  // mode also clears the range before the Dart reader can offer its own menu.
+  private ActionMode.Callback selectionWithoutToolbar(final ActionMode.Callback callback) {
+    return new ActionMode.Callback2() {
+      @Override
+      public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+        boolean created = callback.onCreateActionMode(mode, menu);
+        menu.clear();
+        return created;
+      }
+
+      @Override
+      public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+        boolean changed = callback.onPrepareActionMode(mode, menu);
+        boolean hasItems = menu.size() != 0;
+        menu.clear();
+        return changed || hasItems;
+      }
+
+      @Override
+      public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+        return false;
+      }
+
+      @Override
+      public void onDestroyActionMode(ActionMode mode) {
+        callback.onDestroyActionMode(mode);
+      }
+
+      @Override
+      public void onGetContentRect(ActionMode mode, View view, android.graphics.Rect outRect) {
+        if (callback instanceof ActionMode.Callback2) {
+          ((ActionMode.Callback2) callback).onGetContentRect(mode, view, outRect);
+        } else {
+          super.onGetContentRect(mode, view, outRect);
+        }
+      }
+    };
   }
 
   public ActionMode rebuildActionMode(

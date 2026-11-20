@@ -1048,11 +1048,27 @@ class _LibraryManagementState extends State<LibraryManagement> {
     }
   }
 
+  Future<void> _upload([String? library]) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => KomgaUploadPage(
+          repository: widget.repository,
+          initialLibrary: library,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(tr(context, 'Library Management')),
       actions: [
+        IconButton(
+          tooltip: tr(context, 'Add to Komga'),
+          onPressed: widget.repository.offline ? null : _upload,
+          icon: const Icon(Icons.cloud_upload_outlined),
+        ),
         IconButton(
           tooltip: tr(context, 'Add Library'),
           onPressed: widget.repository.offline ? null : _edit,
@@ -1073,6 +1089,10 @@ class _LibraryManagementState extends State<LibraryManagement> {
               onTap: () => _edit(object(value)),
               trailing: PopupMenuButton<String>(
                 onSelected: (action) async {
+                  if (action == 'upload') {
+                    await _upload(text(object(value)['id']));
+                    return;
+                  }
                   if (action == 'edit') {
                     await _edit(object(value));
                     return;
@@ -1114,6 +1134,7 @@ class _LibraryManagementState extends State<LibraryManagement> {
                 },
                 itemBuilder: (_) => [
                   for (final e in {
+                    if (!widget.repository.offline) 'upload': 'Add to Komga',
                     'edit': 'Edit Library',
                     'scan': 'Scan',
                     'deep-scan': 'Deep Scan',

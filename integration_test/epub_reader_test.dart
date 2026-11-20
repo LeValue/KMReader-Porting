@@ -402,10 +402,7 @@ void main() {
           final saved = object(store.cached(profile.id, 'epub:${book.id}'));
           expect(repository.pendingCount, 1);
           Future<void> openSettings() async {
-            await tester.tap(find.byType(PopupMenuButton<String>).first);
-            await tester.pumpAndSettle();
-            await tester.tap(find.text('Text Settings').last);
-            await tester.pumpAndSettle();
+            await openEpubTextSettings(tester);
           }
 
           Future<void> closeSettings() async {
@@ -431,14 +428,7 @@ void main() {
               object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
               saved['cfi'],
             );
-            expect(
-              object(store.cached(profile.id, 'epub:${book.id}'))['fontSize'],
-              19,
-              reason:
-                  'The open sheet edits a local draft without hidden reflows',
-            );
             expect(find.text('Text Settings'), findsWidgets);
-            await closeSettings();
             await waitFor(
               () =>
                   object(
@@ -446,6 +436,9 @@ void main() {
                       )['fontSize'] !=
                       19 &&
                   find.byType(CircularProgressIndicator).evaluate().isEmpty,
+            );
+            await browser.callAsyncJavaScript(
+              functionBody: 'await reader.whenIdle(); return true;',
             );
             final liveFont = await browser.callAsyncJavaScript(
               functionBody: "return parseFloat(getComputedStyle(document.querySelector('#viewer iframe').contentDocument.body).fontSize);",
@@ -460,7 +453,8 @@ void main() {
                     .toDouble(),
                 .1,
               ),
-              reason: 'Closing the sheet must apply the final typography to the live book',
+              reason:
+                  'The open panel must apply typography to the visible page',
             );
             expect(
               object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
@@ -473,28 +467,30 @@ void main() {
               isTrue,
               reason: 'An explicit typography adjustment must override publisher typography',
             );
+            await closeSettings();
           }
           for (final flow
               in layout == 'reflowable' ? ['Vertical', 'Paged'] : <String>[]) {
             await openSettings();
+            final flowControl = find.byKey(const ValueKey('epub-flow'));
+            await tester.scrollUntilVisible(
+              flowControl,
+              180,
+              scrollable: find.byType(Scrollable).last,
+            );
             await tester.tap(
               find.text(flow == 'Vertical' ? 'Paged' : 'Vertical').last,
             );
             await tester.pumpAndSettle();
             await tester.tap(find.text(flow).last);
             await tester.pumpAndSettle();
-            expect(
-              object(store.cached(profile.id, 'epub:${book.id}'))['flow'],
-              flow == 'Vertical' ? 'paged' : 'scrolled',
-              reason: 'Flow changes must wait for closing the settings too',
-            );
-            await closeSettings();
             await waitFor(
               () =>
                   object(store.cached(profile.id, 'epub:${book.id}'))['flow'] ==
                       (flow == 'Vertical' ? 'scrolled' : 'paged') &&
                   find.byType(CircularProgressIndicator).evaluate().isEmpty,
             );
+            await closeSettings();
             expect(
               object(store.cached(profile.id, 'epub:${book.id}'))['cfi'],
               saved['cfi'],
@@ -590,11 +586,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
       expect(find.byTooltip('Next Page'), findsOneWidget);
-      await tester.tap(find.byType(PopupMenuButton<String>).first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Text Settings').last);
-      // Opening the sheet awaits a WebView command. Flutter animation settling
-      // alone does not wait for that asynchronous native reply.
+      await openEpubTextSettings(tester);
       for (var attempt = 0; attempt < 100; attempt++) {
         await tester.pump(const Duration(milliseconds: 100));
         if (find.byType(Scrollable).evaluate().isNotEmpty) break;
