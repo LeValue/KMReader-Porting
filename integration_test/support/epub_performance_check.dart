@@ -665,6 +665,36 @@ void verifyNativeEpubPerformance() {
       await tester.tap(find.byType(BackButton).last);
       await tester.pumpAndSettle();
       await visibleText();
+      if (Platform.isAndroid) {
+        final view = find.byType(InAppWebView, skipOffstage: false);
+        final viewport = tester.getSize(view);
+        final anchorBeforeKeyboard = await js(
+          'return reader.position().start.cfi;',
+        );
+        await js(
+          'selectionParagraph.ownerDocument.getSelection().selectAllChildren(selectionParagraph);return true;',
+        );
+        await waitFor(() => find.text('Add Note').evaluate().isNotEmpty);
+        await tester.tap(find.text('Add Note'));
+        await tester.pumpAndSettle();
+        try {
+          tester.view.viewInsets = FakeViewPadding(
+            bottom: 220 * tester.view.devicePixelRatio,
+          );
+          await tester.pumpAndSettle();
+          expect(tester.getSize(view), viewport);
+          expect(find.text('Save').hitTestable(), findsOneWidget);
+          expect(find.byType(TextFormField).last.hitTestable(), findsOneWidget);
+          expect(
+            await js('return reader.position().start.cfi;'),
+            anchorBeforeKeyboard,
+          );
+          await tester.tap(find.text('Cancel'));
+        } finally {
+          tester.view.resetViewInsets();
+          await tester.pumpAndSettle();
+        }
+      }
       {
         final channel = MethodChannel(
           'com.pichillilorenzo/custom_platform_view_${controller()!.getViewId()}',

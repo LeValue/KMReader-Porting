@@ -2279,6 +2279,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               child: ReaderSafeArea(
                 top: true,
                 bottom: true,
+                maintainBottomViewPadding: true,
                 child: Row(
                   children: [
                     Expanded(
