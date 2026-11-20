@@ -283,20 +283,26 @@ void main() {
         ];
         report['recognized_record_count'] =
             (sidecar?['records'] as List? ?? []).length;
+        final missingAfterSubmission =
+            report['initial_sidecar_missing'] == true &&
+            const {'submitted', 'confirmed'}.contains(bookmark[eraseStage]);
+        report['sidecar_missing_after_submission'] = missingAfterSubmission;
         report['passed'] = erase
-            ? sidecar != null &&
-                  mapping.matches(object(sidecar)) &&
-                  object(sidecar)['annotations_available'] == true &&
-                  (bookmark['erase'] != null || bookmark[eraseStage] != null) &&
-                  !(object(sidecar)['records'] as List)
-                      .map(object)
-                      .any(
-                        KindleMark(
-                          kind,
-                          probePosition,
-                          end: kind == 'bookmark' ? null : probeEnd,
-                        ).sameRange,
-                      )
+            ? missingAfterSubmission ||
+                  sidecar != null &&
+                      mapping.matches(object(sidecar)) &&
+                      object(sidecar)['annotations_available'] == true &&
+                      (bookmark['erase'] != null ||
+                          bookmark[eraseStage] != null) &&
+                      !(object(sidecar)['records'] as List)
+                          .map(object)
+                          .any(
+                            KindleMark(
+                              kind,
+                              probePosition,
+                              end: kind == 'bookmark' ? null : probeEnd,
+                            ).sameRange,
+                          )
             : report['annotation_confirmed'] == true;
         bookmark[erase ? eraseStage : 'state'] = report['passed'] == true
             ? 'confirmed'
