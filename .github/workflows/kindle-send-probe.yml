@@ -84,7 +84,7 @@ jobs:
           $build = Get-Content artifacts/kindle-probe-worker/data/flutter_assets/assets/build/source.json -Raw | ConvertFrom-Json
           git fetch --no-tags origin $build.source
           if ($LASTEXITCODE -ne 0) { throw 'Cannot verify native worker source' }
-          git diff --exit-code $build.source $env:GITHUB_SHA -- tool/kindle_personal tool/kindle_android tool/kindle_personal_cli.py third_party
+          git diff --exit-code $build.source $env:GITHUB_SHA -- tool/kindle_personal tool/kindle_android tool/kindle_personal_cli.py tool/build_kindle_worker.ps1 third_party ':(exclude)third_party/flutter_inappwebview_android' ':(exclude)third_party/flutter_inappwebview_windows'
           if ($LASTEXITCODE -ne 0) { throw 'Conversion worker source mismatch' }
       - run: ./tool/setup_local_flutter.ps1
       - name: Resolve locked source dependencies
