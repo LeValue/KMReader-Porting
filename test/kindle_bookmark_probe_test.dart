@@ -88,9 +88,7 @@ void main() {
           }
         }
 
-        if (erase &&
-            (fixtureName != 'annotations' ||
-                bookmark['state'] != 'confirmed')) {
+        if (erase && fixtureName != 'annotation-removal') {
           throw const KindleFailure('bookmark_probe_erase_scope');
         }
         final transport = _BookmarkProbeClient(id, kind, erase, report);
@@ -221,7 +219,10 @@ void main() {
         if (!confirmed(sidecar) && bookmark.isEmpty) {
           await submit('state', 'create');
         }
-        if (erase && confirmed(sidecar) && bookmark['erase'] == null) {
+        if (erase &&
+            mapping.matches(object(sidecar)) &&
+            confirmed(sidecar) &&
+            bookmark['erase'] == null) {
           await submit('erase', 'delete');
         }
         report['annotation_confirmed'] = confirmed(sidecar);
@@ -263,7 +264,15 @@ void main() {
                   mapping.matches(object(sidecar)) &&
                   object(sidecar)['annotations_available'] == true &&
                   bookmark['erase'] != null &&
-                  !confirmed(sidecar)
+                  !(object(sidecar)['records'] as List)
+                      .map(object)
+                      .any(
+                        KindleMark(
+                          kind,
+                          probePosition,
+                          end: kind == 'bookmark' ? null : probeEnd,
+                        ).sameRange,
+                      )
             : report['annotation_confirmed'] == true;
         bookmark[erase ? 'erase' : 'state'] = report['passed'] == true
             ? 'confirmed'
