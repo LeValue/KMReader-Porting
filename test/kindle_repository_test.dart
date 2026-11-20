@@ -171,6 +171,13 @@ void main() {
               mark.localName,
               isIn(['last_read', 'bookmark', 'highlight', 'note']),
             );
+            if (mark.getAttribute('action') == 'delete' &&
+                mark.localName == 'note') {
+              final original = annotations.singleWhere(
+                (record) => record['annotationId'] == mark.getAttribute('id'),
+              );
+              expect(mark.innerText, kindleNoteText(original));
+            }
             if (confirm) {
               final sent = int.parse(mark.getAttribute('begin')!);
               if (mark.localName != 'last_read') {
@@ -179,12 +186,14 @@ void main() {
                 final type = 'kindle.${mark.localName}';
                 final end = mark.getAttribute('end');
                 if (action == 'delete') {
-                  expect(mark.innerText, isEmpty);
+                  final annotationId = mark.getAttribute('id');
                   annotations.removeWhere(
                     (record) =>
                         record['type'] == type &&
                         '${record['startPosition']}' == '$sent' &&
-                        '${record['endPosition']}' == '$end',
+                        '${record['endPosition']}' == '$end' &&
+                        (annotationId == null ||
+                            record['annotationId'] == annotationId),
                   );
                 } else {
                   annotations.add({
@@ -880,6 +889,30 @@ void main() {
       }
     },
   );
+
+  test('deleting the last cloud note confirms a missing sidecar', () async {
+    annotations = [
+      {
+        'type': 'kindle.note',
+        'annotationId': 'last-note',
+        'startPosition': '12',
+        'endPosition': '15',
+        'text': 'Synthetic note',
+      },
+    ];
+    missingSidecar = true;
+    final session = await EpubSession.open(repo, book, publication);
+    try {
+      session.removeAnnotation(session.bookmarks.single);
+      await repo.sync();
+      expect(writes, 1);
+      expect(repo.pendingCount, 0);
+      expect(session.bookmarks, isEmpty);
+      expect(repo.syncFailure, isNull);
+    } finally {
+      await session.close();
+    }
+  });
 
   test('Kindle imports only matching-edition annotations and replaces remote deletions', () async {
     annotations = [
