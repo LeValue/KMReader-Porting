@@ -6,6 +6,29 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 43 / public candidate 13 — EPUB reader and Komga management
+
+Packaged source `8b5fe532e9a6b3d5af58ea5107ab9eff6df01716`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.13).
+
+- The Android API 35 emulator used the same synthetic EPUB, native WebView,
+  viewport and turn sequence in the order 42, 43, 43, 42. The fraction of WebView
+  frame intervals above 25 ms changed from **40.8%** to
+  **41.1%**. The 95th-percentile turn completion changed
+  from **1169.8 ms** to **1111.7 ms**,
+  and median completion from **537.55 ms** to
+  **537.35 ms**. The comparison covers the two renderer
+  scripts in the same application shell. Earlier runs showed variation in the
+  slowest turns and in the fraction of long frame intervals. Physical devices
+  remain to be tested.
+- A generated personal Kindle EPUB confirmed highlight deletion by sidecar
+  readback. [Highlight check](https://github.com/LeValue/KMReader-Porting/actions/runs/44825381076).
+  The generated note was also absent on a separate read-only check after the
+  addressed deletion. [Note check](https://github.com/LeValue/KMReader-Porting/actions/runs/44827584824).
+- A temporary Komga 1.30.1 instance confirmed library enrollment, folder browsing
+  and creation, two uploads and a single scan.
+- The Android certificate matches the previous candidate. All **711** Windows
+  files match CI. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44830271620) · [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44832332148)
+
 ## Build 42 / public candidate 12 — Kindle reader and annotations
 
 Packaged source `0f9d3f2ecd0b33db34c0b990de05cc37aa9066ee`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.12).
