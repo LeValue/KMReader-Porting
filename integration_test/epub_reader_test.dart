@@ -421,7 +421,7 @@ void main() {
             expect(find.byKey(const ValueKey('epub-fontSize')), findsNothing);
             await closeSettings();
           } else {
-            final slider = find.byType(Slider).first;
+            final slider = await showEpubFontSizeSlider(tester);
             await tester.drag(slider, const Offset(80, 0));
             await tester.pumpAndSettle();
             expect(

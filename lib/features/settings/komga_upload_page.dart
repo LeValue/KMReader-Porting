@@ -627,7 +627,7 @@ class _State extends State<KomgaUploadPage> {
                       value: 'rename',
                       child: Text(tr(context, 'Filename')),
                     ),
-                  if (!row.uploaded && row.file == null)
+                  if (!row.uploaded && row.operation != null)
                     PopupMenuItem(
                       value: 'pick',
                       child: Text(tr(context, 'Select original file')),
