@@ -129,7 +129,8 @@ void verifyAndroidEpubComparison() {
                 functionBody: '''
             await reader.seek({href:'one.xhtml',progression:.85});
             const initial=reader.position().start.cfi;
-            const frameTimes=[], turnTimes=[], positions=new Set(), chapters=new Set();
+            const frameTimes=[], turnTimes=[], positions=new Set();
+            const chapters=new Set([reader.position().start.index]);
             let running=true, previous;
             function sample(now) {
               if (!running) return;
