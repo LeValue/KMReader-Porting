@@ -130,26 +130,34 @@ void main() {
       await waitFor('offer after resume', () => offer.evaluate().isNotEmpty);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Go to position'));
-      await waitFor('confirmed navigation', () => saved()?['chapter'] == 1);
+      await waitFor(
+        'confirmed navigation',
+        () =>
+            saved()?['chapter'] == 1 && repository.appliedOffsets.contains(300),
+      );
       final confirmed = saved()!['cfi'];
 
       store.setSetting('kindleAutoResume:${repository.profile.id}', true);
       repository.offset = 800;
       resumeApp();
-      await waitFor('automatic navigation', () => saved()?['cfi'] != confirmed);
+      await waitFor(
+        'automatic navigation',
+        () =>
+            saved()?['cfi'] != confirmed &&
+            repository.appliedOffsets.contains(800),
+      );
       expect(offer, findsNothing);
 
       final automatic = saved()!['cfi'];
       store.setSetting('kindleAutoResume:${repository.profile.id}', false);
-      repository.offset = 35;
+      repository.forcedOffset = 35;
       final menu = find.byType(PopupMenuButton<String>);
       if (menu.evaluate().isEmpty) {
         final dynamic state = tester.state(find.byType(BrowserEpubReader));
         final browser = state.browserController as InAppWebViewController;
         await browser.evaluateJavascript(
           source: '''
-          document.querySelector('iframe')?.contentDocument
-            ?.dispatchEvent(new KeyboardEvent('keydown', {key:' ', bubbles:true}));
+          document.dispatchEvent(new KeyboardEvent('keydown', {key:' ', bubbles:true}));
         ''',
         );
       }
@@ -157,7 +165,12 @@ void main() {
       await tester.tap(menu);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Go to latest Kindle position'));
-      await waitFor('forced navigation', () => saved()?['cfi'] != automatic);
+      await waitFor(
+        'forced navigation',
+        () =>
+            saved()?['cfi'] != automatic &&
+            repository.appliedOffsets.contains(35),
+      );
       expect(repository.forcedReads, 1);
       expect(offer, findsNothing);
       expect(repository.pendingCount, 0);
@@ -805,7 +818,9 @@ class _KindleResumeFixture extends Repository {
       );
 
   int offset = 12, writes = 0, forcedReads = 0;
+  int? forcedOffset;
   final retainedOffers = <int>[];
+  final appliedOffsets = <int>[];
 
   @override
   Future<Json?> externalDocumentPosition(Book book, File file) =>
@@ -818,13 +833,18 @@ class _KindleResumeFixture extends Repository {
       'href': 'two.xhtml',
       'id': 'mapped',
       'position': 100,
-      'offset': offset,
+      'offset': force ? forcedOffset ?? offset : offset,
     };
   }
 
   @override
   void keepDocumentPosition(Book book, Json offer, int? position) {
     retainedOffers.add(integer(offer['position']) + integer(offer['offset']));
+  }
+
+  @override
+  void externalDocumentPositionApplied(Book book, Json locator) {
+    appliedOffsets.add(integer(locator['offset']));
   }
 
   @override
