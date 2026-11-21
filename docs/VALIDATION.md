@@ -10,15 +10,18 @@ the visibility at the time; the repository and current previews are public.
 
 Runtime source `4937b928eeb9e06d8b43f4873c5b7fb61303dc5b`.
 The probe alternated the old and new `reader.js` in ABBA order in the same
-renderer. It used a generated, justified EPUB with illustrations, six trusted
-pointer drags per case and version, and separate runs for one column and
-two columns. Times start at the trusted release event. A late interval exceeds
-1.5 times the measured idle animation-frame cadence.
+renderer. It used a generated, justified EPUB with illustrations and separate
+runs for one and two columns. Desktop runs used six trusted pointer drags per
+case and version. The Android emulator used four per case and version. Times
+start at the trusted release event. A late interval exceeds 1.5 times the
+measured idle animation-frame cadence.
 
 | Renderer and turn | Release → first motion, median / p95 (ms) | Release → stable, median / p95 (ms) | Late intervals |
 | --- | --- | --- | --- |
 | Windows WebView2, forward chapter | 74.9 / 79.9 → 5.1 / 9.6 | 155.2 / 163.5 → 85.8 / 89.8 | 0.0% → 1.3% |
 | Windows WebView2, backward chapter | 76.0 / 85.8 → 4.1 / 5.5 | 155.9 / 169.3 → 87.7 / 92.1 | 3.7% → 0.0% |
+| Android API 35 emulator, forward chapter | 694.5 / 1113.8 → 40.1 / 50.6 | 1310.7 / 1600.6 → 1002.0 / 1068.9 | 50.0% → 53.2% |
+| Android API 35 emulator, backward chapter | 586.9 / 775.3 → 38.0 / 40.3 | 1549.5 / 1764.0 → 993.2 / 1095.5 | 43.2% → 50.0% |
 | Chromium software renderer, forward chapter | 979.4 / 1148.0 → 538.9 / 636.3 | 1066.6 / 1162.3 → 685.6 / 766.2 | 33.8% → 24.1% |
 | Chromium software renderer, backward chapter | 951.7 / 1007.9 → 511.1 / 527.2 | 1085.5 / 1125.1 → 649.7 / 675.8 | 39.7% → 23.5% |
 
@@ -26,6 +29,13 @@ two columns. Times start at the trusted release event. A late interval exceeds
   two-page spread. The slight increase in late intervals in the forward case
   was absent in the first run. Running again without a chapter change also
   improved the release and stabilization times. [Raw WebView2 measurements](https://github.com/LeValue/KMReader-Porting/actions/runs/44902141976)
+- The Android emulator used 393 × 760 at 1.5× with one column and touch drags.
+  The tested flat strip had the same text pixels on both sides of the handoff.
+  The canceled gesture retained its CFI. The share of late intervals rose,
+  with their total count dropping from 39 to 25 forward and from 35 to 23
+  backward. The median destination-ready time rose from 499 to 987 ms forward
+  and from 464 to 958 ms backward. The fold could already move while the
+  destination loaded. [Android emulator measurements](https://github.com/LeValue/KMReader-Porting/actions/runs/44918965833)
 - The Chromium software run used trusted touch events at 393 × 760 and 1.5×.
   In the flat area, excluding the fold, the line counts matched and the
   maximum measured displacement fell from 2.10–2.11 to 1.03–1.36 physical
@@ -38,6 +48,11 @@ two columns. Times start at the trusted release event. A late interval exceeds
   turns, the fractional alignment test and the 3× compact snapshot test
   passed in the browser. The reported personal EPUB and a physical Android
   phone still need a run.
+
+The eight CI jobs passed on the packaged source, including 36 Android device
+tests and 33 Windows native tests with one explicit skip. Verification covered the signed
+universal APK, the update manifest and all 711 entries in the downloaded
+Windows archive. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44917649615) · [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44918826337) · [Candidate download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.15)
 
 ## After build 44 — offline parity and annotation refinement
 
