@@ -964,7 +964,7 @@ class KMReaderPageSnapshot {
   }
   const renderedAnnotations = new Map();
   const noteHitAreas = new WeakMap();
-  function kindlePoint(contents, value) {
+  function kindlePoint(contents, value, end = false) {
     if (!value || !Number.isSafeInteger(value.offset) || value.offset < 0) return null;
     const element = contents.document.getElementById(String(value.id));
     if (!element || Number(element.dataset.kmreaderKindlePosition) !== value.position || value.offset > Number(element.dataset.kmreaderKindleLength) || Number(element.dataset.kmreaderKindleLength) !== [...element.textContent].length) return null;
@@ -972,10 +972,16 @@ class KMReaderPageSnapshot {
     const walker = contents.document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const characters = [...node.data]; last = node;
-      if (remaining <= characters.length) return [node, characters.slice(0, remaining).join('').length];
+      if (remaining < characters.length || end && remaining === characters.length) {
+        return [node, characters.slice(0, remaining).join('').length];
+      }
       remaining -= characters.length;
     }
     return last && remaining === 0 ? [last, last.length] : null;
+  }
+  function highlightStyle(mark) {
+    return {fill:/^#[0-9a-f]{6}$/i.test(mark.color)?mark.color:'#e6b72d',
+      'fill-opacity':'.24','mix-blend-mode':'multiply'};
   }
   function drawKindleAnnotations() {
     if (!rendition) return;
@@ -987,7 +993,7 @@ class KMReaderPageSnapshot {
           if (!cfi) continue;
           // Epub.js uses a separate SVG overlay. Publication text nodes and
           // their original position markers are never replaced or wrapped.
-          rendition.annotations.highlight(cfi, {}, null, 'kmreader-kindle-highlight', {fill:'#e6b72d','fill-opacity':'.24','mix-blend-mode':'multiply'});
+          rendition.annotations.highlight(cfi, {}, null, 'kmreader-kindle-highlight', highlightStyle(mark));
           renderedAnnotations.set(mark.id,cfi);
           captureRevision++;capturePages.clear();
         } catch (_) { /* Unsupported annotation ranges remain navigable in the list. */ }
@@ -998,11 +1004,22 @@ class KMReaderPageSnapshot {
     if (typeof mark.rangeCfi === 'string' && mark.rangeCfi.startsWith('epubcfi(')) {
       return new ePub.CFI(mark.rangeCfi).spinePos === contents.sectionIndex ? mark.rangeCfi : null;
     }
-    if (!mark.endLocator || mark.locator?.href !== mark.endLocator.href) return null;
-
-    const start=kindlePoint(contents,mark.locator),end=kindlePoint(contents,mark.endLocator);
-    if(!start||!end)return null;
-    const range=contents.document.createRange();range.setStart(...start);range.setEnd(...end);
+    const start=kindlePoint(contents,mark.locator);
+    if(!start)return null;
+    const end=mark.locator.href===mark.endLocator?.href&&kindlePoint(contents,mark.endLocator,true);
+    const range=contents.document.createRange();range.setStart(...start);
+    if(end)range.setEnd(...end);
+    if(range.collapsed&&mark.type==='kindle.note'){
+      // Point notes made in Kindle still need a mouse/touch target when no
+      // accompanying highlight exists. Use one complete glyph at the anchor.
+      const [node,offset]=start;
+      const next=Array.from(node.data.slice(offset))[0];
+      if(next)range.setEnd(node,offset+next.length);
+      else {
+        const previous=Array.from(node.data.slice(0,offset)).at(-1);
+        if(previous)range.setStart(node,offset-previous.length);
+      }
+    }
     return range.collapsed?null:contents.cfiFromRange(range);
   }
   function updateKindleAnnotations(value) {
@@ -1736,19 +1753,33 @@ class KMReaderPageSnapshot {
       ...[...document.querySelectorAll('#viewer iframe')].map(f=>{const b=f.getBoundingClientRect();return [b.x,b.y,b.width,b.height].join(',');})].join('|');
   }
   function previewShift(delta){
-    if(preferences.flow!=='paged'||rendition?.manager?.settings.axis!=='horizontal'||isFixedLayout())return null;
+    const manager=rendition?.manager;
+    if(preferences.flow!=='paged'||manager?.settings.axis!=='horizontal'||isFixedLayout())return null;
     const frames=[...document.querySelectorAll('#viewer iframe')];
     if(frames.length!==1)return null;
-    const physical=(delta>0)!==(config.direction==='rtl')?1:-1;
-    const shift=-physical*innerWidth,bounds=frames[0].getBoundingClientRect();
-    return bounds.left+shift<=1&&bounds.right+shift>=innerWidth-1?shift:null;
+    const {scrollLeft,scrollWidth,clientWidth,offsetWidth}=manager.container;
+    const step=manager.layout.delta, rtl=config.direction==='rtl';
+    if(!(step>0))return null;
+    const max=scrollWidth-clientWidth;
+    const negative=rtl&&manager.settings.rtlScrollType!=='default';
+    const crossing=rtl
+      ? negative ? delta>0 ? scrollLeft-step<=-scrollWidth : scrollLeft>=0
+        : delta>0 ? scrollLeft<=0 : scrollLeft+offsetWidth>=scrollWidth
+      : delta>0 ? scrollLeft+offsetWidth+step>scrollWidth : scrollLeft<=0;
+    if(crossing)return null;
+    // Match DefaultManager's move, including partial end spreads and native
+    // viewport rounding. innerWidth is the texture width, not the scroll step.
+    const target=Math.max(negative?-max:0,Math.min(negative?0:max,
+      scrollLeft+delta*step*(rtl?-1:1)));
+    return scrollLeft-target;
   }
   async function preparePreview(delta){
-    const origin=previewOrigin();
-    if(curlPreview?.origin===origin&&curlPreview.pages.has(delta))return {before:curlPreview.before,after:curlPreview.pages.get(delta)};
+    const origin=previewOrigin(),shift=previewShift(delta),revision=captureRevision;
+    if(curlPreview?.origin===origin&&curlPreview.pages.has(delta))
+      return {before:curlPreview.before,after:curlPreview.pages.get(delta),shift,revision};
     const [before,after]=await Promise.all([captureSheet(),previewImage(delta)]);
     if(origin!==previewOrigin())return null;
-    return after?{before,after}:null;
+    return after?{before,after,shift,revision}:null;
   }
   function previewImage(delta){
     const shift=previewShift(delta);
@@ -1784,7 +1815,7 @@ class KMReaderPageSnapshot {
         for(const mark of config.annotations||[]){
           try {
             const cfi=annotationRange(view.contents,mark);
-            if(cfi)view.highlight(cfi,{},null,'kmreader-kindle-highlight',{fill:'#e6b72d','fill-opacity':'.24','mix-blend-mode':'multiply'});
+            if(cfi)view.highlight(cfi,{},null,'kmreader-kindle-highlight',highlightStyle(mark));
           } catch (_) { /* A malformed mark must not block the chapter preview. */ }
         }
         if(disposed||revision!==captureRevision||rendition?.manager!==manager)return null;
@@ -1910,6 +1941,8 @@ class KMReaderPageSnapshot {
       const saved = anchor || location?.start?.cfi;
       const originalManager=rendition.manager,originalDocuments=rendition.getContents().map(c=>c.document);
       const originalScroll={x:originalManager.container.scrollLeft,y:originalManager.container.scrollTop};
+      const sourceFrame=document.querySelector('#viewer iframe');
+      const sourceLeft=sourceFrame?.getBoundingClientRect().left;
       interactiveNavigation = true;
       let moved=false;
       try {
@@ -1938,6 +1971,26 @@ class KMReaderPageSnapshot {
           state.effect=await transitionMove(delta,preferences.transition,contact.y/innerHeight);
           moved=true;
           state.progress=0;
+        }
+        if(commit&&!moved&&preview&&state.effect){
+          // Keep the preview during pointer capture. Once released, match the
+          // actual destination before the sheet settles, even when the next
+          // chapter's temporary iframe had different responsive geometry.
+          await (delta>0?next():previous());moved=true;
+          const actual=sourceFrame?.isConnected?sourceFrame.getBoundingClientRect().left-sourceLeft:null;
+          if(preview.shift===null||actual===null||Math.abs(actual-preview.shift)>.125||preview.revision!==captureRevision){
+            const after=await timeout(captureSheet().catch(()=>null),300);
+            if(after&&!state.effect.stopped&&!state.invalidated){
+              try {
+                if(state.effect.surface){
+                  state.effect.surface.upload(preview.before,after,innerWidth,innerHeight);
+                  state.effect.update(state.effect.progress);
+                }else if(state.effect.previewLayer?.lastElementChild){
+                  state.effect.previewLayer.lastElementChild.src=after.src;
+                }
+              } catch (_) { state.effect.fail(); }
+            }
+          }
         }
         const duration = Math.min(300, Math.max(80, (Number(preferences.animationDuration) || 380) *
           (commit ? 1 - (state.effect?.progress||0) : (state.effect?.progress||0))));

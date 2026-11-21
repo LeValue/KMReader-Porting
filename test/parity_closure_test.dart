@@ -14,6 +14,81 @@ import 'package:kmreader/core/store.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
+  test('offline preparation requires complete fresh pages and prunes only on success', () async {
+    final root = Directory.systemTemp.createTempSync('parity-snapshot-');
+    final store = LocalStore(sqlite3.openInMemory());
+    const profile = ServerProfile(
+      id: 'one',
+      name: 'Fixture',
+      url: 'https://example.invalid',
+      email: '',
+      authentication: Authentication.apiKey,
+    );
+    var unavailable = false, repeated = false, requests = 0;
+    final repo = Repository(
+      profile: profile,
+      store: store,
+      directory: root,
+      api: KomgaApi(
+        Uri.parse(profile.url),
+        authentication: Authentication.apiKey,
+        credential: '',
+        client: MockClient((request) async {
+          requests++;
+          if (request.url.path != '/api/v1/books/list')
+            return http.Response('[]', 200);
+          if (unavailable) return http.Response('', 503);
+          final page = int.parse(request.url.queryParameters['page']!);
+          return http.Response(
+            jsonEncode({
+              'content': [
+                {'id': repeated || page == 0 ? 'book' : 'next'},
+              ],
+              'last': page == 1,
+              'totalElements': 2,
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+    addTearDown(() async {
+      await repo.stopDownloadWork();
+      store.close();
+      root.deleteSync(recursive: true);
+    });
+    await repo.catalog('books', size: 200, force: true);
+    store.cacheBooks('one', [
+      CatalogItem('books', {'id': 'retained'}),
+    ]);
+    store.cacheBooks('two', [
+      CatalogItem('books', {'id': 'unrelated'}),
+    ]);
+    store.recordProgress('one', 'book', {'page': 12}, pending: false);
+    unavailable = true;
+    await repo.prepareOfflineCatalog();
+    expect(repo.offlineMetadataComplete, isFalse);
+    expect(repo.metadataIndexError, isNotNull);
+    expect(store.offlineCatalog.count('one', 'books'), 2);
+    unavailable = false;
+    repeated = true;
+    await repo.prepareOfflineCatalog();
+    expect(repo.offlineMetadataComplete, isFalse);
+    expect(store.offlineCatalog.count('one', 'books'), 2);
+    repeated = false;
+    await repo.prepareOfflineCatalog();
+    expect(repo.offlineMetadataComplete, isTrue);
+    expect(repo.metadataIndexError, isNull);
+    expect(object(store.cached('one', 'book:book'))['readProgress'], isNull);
+    final before = requests;
+    repo.setOffline(true);
+    final offline = await repo.catalog('books');
+    expect(offline.items.map((item) => item.id), ['book', 'next']);
+    expect(offline.items.first.book.progress['page'], 12);
+    expect(store.offlineCatalog.count('two', 'books'), 1);
+    expect(requests, before);
+  });
+
   test('all upstream catalog and progress event families are mapped; unknown messages cannot refresh', () {
     for (final (prefix, kind, field) in [
       ('Library', 'libraries', 'libraryId'),

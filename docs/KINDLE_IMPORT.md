@@ -119,12 +119,12 @@ EPUB are queued offline and verified by reading them back from Amazon. An
 ambiguous response triggers readback without resubmission. The queue is scoped
 to the personal document and its edition.
 
-Build 43 can delete a mapped Kindle highlight or note from an editable
-personal EPUB. The app keeps the removal pending until Amazon confirms that
-the mark is absent. Deleting a note preserves its highlight. Deleting a
-highlight with a note removes both. The real-account tests used one generated
-document and confirmed both kinds of removal. Cloud note editing and interactive
-sync verification on a second device remain open.
+In an editable personal EPUB with a verified Kindle mapping, deleting a note
+also removes its linked highlight. Deleting a highlight removes the notes linked
+to it. The app keeps each removal pending until Amazon confirms that the mark is
+absent. The build 43 real-account tests used one generated document and confirmed
+both kinds of removal individually. Cloud note editing and interactive sync
+verification on a second device remain open.
 [Highlight test](https://github.com/LeValue/KMReader-Porting/actions/runs/44825381076) ·
 [Independent note readback](https://github.com/LeValue/KMReader-Porting/actions/runs/44827584824)
 

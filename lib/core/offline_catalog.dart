@@ -82,6 +82,7 @@ class OfflineCatalog {
     String sort = 'metadata.titleSort,asc',
   }) {
     final sql = _OfflineSql(kind);
+    final onDeck = kind == 'books' && path == '/api/v1/books/ondeck';
     final clauses = ['c.server=?', 'c.kind=?'];
     final args = <Object?>[server, kind];
     if (libraryId != null) {
@@ -149,13 +150,9 @@ class OfflineCatalog {
             args.addAll(ids);
           }
         }
-      } else if (path.endsWith('/books/ondeck')) {
-        clauses.add("${sql.readStatus}='UNREAD'");
-        clauses.add(
-          "EXISTS(SELECT 1 FROM catalog_records r WHERE r.server=c.server AND r.kind='books' AND json_extract(r.value,'\$.seriesId')=json_extract(c.value,'\$.seriesId') AND json_extract(r.value,'\$.readProgress.completed')=1)",
-        );
-      } else if (!RegExp(r'^/api/v1/(books|series)/(list|new|updated)$')
-          .hasMatch(path)) {
+      } else if (!onDeck &&
+          !RegExp(r'^/api/v1/(books|series)/(list|new|updated)$')
+              .hasMatch(path)) {
         throw const ApiFailure(
           'This list must be opened online before it can be used offline.',
           offline: true,
@@ -163,11 +160,44 @@ class OfflineCatalog {
       }
     }
     final where = clauses.join(' AND ');
-    final from =
+    const from =
         'catalog_records c LEFT JOIN progress p ON p.server=c.server AND p.book=c.id AND c.kind=\'books\'';
+    // Rank eligible series before paginating or applying display filters.
+    final deck = onDeck
+        ? '''
+      WITH reading AS (
+        SELECT c.id, ${sql.field('seriesId')} AS series_id,
+               ${sql.field('libraryId')} AS library_id,
+               ${sql.field('numberSort')} AS number_sort,
+               ${sql.readStatus} AS status, julianday(${sql.readDate}) AS read_date
+        FROM $from
+        WHERE c.server=? AND c.kind='books' AND ${sql.field('seriesId')}<>''
+          AND coalesce(${sql.field('deleted')},0)=0
+      ), ranked AS (
+        SELECT id, status,
+               max(CASE WHEN status='READ' THEN read_date END) OVER series AS recent,
+               max(status='READ') OVER series AS completed,
+               max(status='IN_PROGRESS') OVER series AS started,
+               row_number() OVER (
+                 PARTITION BY library_id, series_id, status
+                 ORDER BY number_sort, id
+               ) AS position
+        FROM reading
+        WINDOW series AS (PARTITION BY library_id, series_id)
+      ), deck AS (
+        SELECT id, recent FROM ranked
+        WHERE status='UNREAD' AND completed=1 AND started=0 AND position=1
+      )
+      '''
+        : '';
+    final source = onDeck ? '$from JOIN deck ON deck.id=c.id' : from;
+    final filters = [if (onDeck) server, ...args];
     final total = integer(
       db
-          .select('SELECT count(*) AS n FROM $from WHERE $where', args)
+          .select(
+            '${deck}SELECT count(*) AS n FROM $source WHERE $where',
+            filters,
+          )
           .first['n'],
     );
     final order = <String>[];
@@ -179,17 +209,18 @@ class OfflineCatalog {
       orderArgs.addAll(listOrder);
     }
     for (final part
-        in listOrder == null ? serverSort(kind, sort) : <String>[]) {
+        in listOrder == null && !onDeck ? serverSort(kind, sort) : <String>[]) {
       final pieces = part.split(',');
       final expression = sql.sortField(pieces.first);
       order.add('$expression ${pieces.last == 'desc' ? 'DESC' : 'ASC'}');
     }
+    if (onDeck) order.add('deck.recent DESC');
     order.add('c.id ASC');
     size = size.clamp(1, 1000);
     page = page.clamp(0, 1 << 30);
     final records = db.select(
-      'SELECT c.value FROM $from WHERE $where ORDER BY ${order.join(',')} LIMIT ? OFFSET ?',
-      [...args, ...orderArgs, size, page * size],
+      '${deck}SELECT c.value FROM $source WHERE $where ORDER BY ${order.join(',')} LIMIT ? OFFSET ?',
+      [...filters, ...orderArgs, size, page * size],
     );
     return CatalogPage(
       records
@@ -207,13 +238,43 @@ class _OfflineSql {
   _OfflineSql(this.kind);
   final String kind;
   final args = <Object?>[];
+  static const _remoteProgress = "json_extract(c.value,'\$.readProgress')";
+  static const _localEpubTotal =
+      "json_extract(p.value,'\$.progression.locator.locations.totalProgression')";
+  static const _useLocalProgress =
+      '''
+    p.value IS NOT NULL AND (
+      p.pending=1 OR NOT coalesce(
+        julianday(json_extract(c.value,'\$.readProgress.lastModified')) >
+        julianday(json_extract(p.value,'\$.lastModified')), 0
+      )
+    ) AND (
+      coalesce(json_extract(p.value,'\$.kind'),'')<>'epub' OR
+      typeof($_localEpubTotal) IN ('real','integer')
+    )
+    ''';
+  static const _bookProgress =
+      '''
+    CASE WHEN NOT ($_useLocalProgress) THEN $_remoteProgress
+         WHEN json_extract(p.value,'\$.reset')=1 THEN NULL
+         WHEN json_extract(p.value,'\$.kind')='epub' THEN
+           json_object('completed',$_localEpubTotal>=1,'page',1)
+         ELSE p.value END
+    ''';
+
+  String get readDate =>
+      '''
+    CASE WHEN $_useLocalProgress THEN
+      CASE WHEN NOT coalesce(json_extract(p.value,'\$.reset'),0) THEN
+        coalesce(json_extract(p.value,'\$.readDate'),json_extract(p.value,'\$.lastModified')) END
+    ELSE coalesce(json_extract($_remoteProgress,'\$.readDate'),json_extract($_remoteProgress,'\$.lastModified')) END
+    ''';
+
   String get readStatus {
     if (kind == 'series') {
       return "CASE WHEN coalesce(json_extract(c.value,'\$.booksReadCount'),0)>=coalesce(json_extract(c.value,'\$.booksCount'),1) THEN 'READ' WHEN coalesce(json_extract(c.value,'\$.booksInProgressCount'),0)>0 OR coalesce(json_extract(c.value,'\$.booksReadCount'),0)>0 THEN 'IN_PROGRESS' ELSE 'UNREAD' END";
     }
-    const local =
-        "CASE WHEN json_extract(p.value,'\$.reset')=1 THEN NULL WHEN json_extract(p.value,'\$.kind')='epub' THEN json_extract(c.value,'\$.readProgress') ELSE coalesce(json_extract(p.value,'\$'),json_extract(c.value,'\$.readProgress')) END";
-    return "CASE WHEN json_extract($local,'\$.completed')=1 THEN 'READ' WHEN coalesce(json_extract($local,'\$.page'),0)>0 THEN 'IN_PROGRESS' ELSE 'UNREAD' END";
+    return "CASE WHEN json_extract($_bookProgress,'\$.completed')=1 THEN 'READ' WHEN coalesce(json_extract($_bookProgress,'\$.page'),0)>0 THEN 'IN_PROGRESS' ELSE 'UNREAD' END";
   }
 
   String field(String name) {
@@ -252,9 +313,7 @@ class _OfflineSql {
       return '${field(name.split('.').last)} COLLATE NOCASE';
     }
     if (name == 'metadata.numberSort') return field('numberSort');
-    if (name == 'readProgress.readDate') {
-      return "coalesce(json_extract(p.value,'\$.lastModified'),json_extract(c.value,'\$.readProgress.readDate'))";
-    }
+    if (name == 'readProgress.readDate') return 'julianday($readDate)';
     if (RegExp(
       r'^(created|lastModified|fileSize|booksCount|booksReadCount|booksInProgressCount|name|url|metadata\.(releaseDate|publisher|ageRating)|media\.pagesCount)$',
     ).hasMatch(name)) {

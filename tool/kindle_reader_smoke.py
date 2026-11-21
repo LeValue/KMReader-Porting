@@ -77,6 +77,20 @@ with sync_playwright() as p:
       const doc=document.querySelector('#viewer iframe').contentDocument;
       return doc.defaultView.getComputedStyle(doc.body).cursor!=='pointer';
     }'''), 'Note cursor stayed enabled outside the annotation'
+    page.evaluate('''() => reader.annotations([{
+      id:'kindle:point-note',type:'kindle.note',color:'#f09546',
+      locator:{href:'one.xhtml',id:'mapped',position:100,offset:4}
+    }])''')
+    page.wait_for_function("() => document.querySelector('.kmreader-kindle-highlight')?.getAttribute('fill') === '#f09546'")
+    page.evaluate('''() => {
+      const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument;
+      const marker=document.querySelector('.kmreader-kindle-highlight rect').getBoundingClientRect();
+      const box=frame.getBoundingClientRect();
+      doc.elementFromPoint(marker.x-box.x+marker.width/2,marker.y-box.y+marker.height/2)
+        .dispatchEvent(new MouseEvent('click',{bubbles:true,
+          clientX:marker.x-box.x+marker.width/2,clientY:marker.y-box.y+marker.height/2}));
+    }''')
+    page.wait_for_function("() => events.some(e=>e.type==='openNote'&&e.id==='kindle:point-note')")
     assert page.evaluate('''async ({cfi,href}) => {
       await reader.whenIdle();
       const frame=document.querySelector('#viewer iframe'), before=reader.position().start.cfi;

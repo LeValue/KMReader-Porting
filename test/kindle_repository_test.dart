@@ -840,6 +840,7 @@ void main() {
   );
 
   test('notes and highlights persist at the exact selected range', () async {
+    repo.setOffline(true);
     final session = await EpubSession.open(repo, book, publication);
     const range = 'epubcfi(/6/2!/4/2,:2,:5)';
     final selection = {
@@ -850,7 +851,7 @@ void main() {
       'kindleStart': 12,
       'kindleEnd': 15,
     };
-    expect(session.saveAnnotation(selection), isTrue);
+    expect(session.saveAnnotation(selection, color: '#e05c98'), isTrue);
     expect(session.saveAnnotation(selection, note: 'Original note'), isTrue);
     expect(session.saveAnnotation({...selection, 'text': ''}), isFalse);
     await session.close();
@@ -862,8 +863,9 @@ void main() {
         (a) => a['type'] == 'kindle.note',
       );
       expect(note['label'], 'Updated note');
+      expect(note['color'], '#e05c98');
       reopened.removeAnnotation(note);
-      expect(reopened.readerAnnotations.single['type'], 'kindle.highlight');
+      expect(reopened.readerAnnotations, isEmpty);
     } finally {
       await reopened.close();
     }
@@ -898,22 +900,29 @@ void main() {
   });
 
   test(
-    'cloud note deletion stays hidden until readback and does not replay',
+    'an imported point note deletes only its linked colored highlight',
     () async {
       final note = <String, dynamic>{
         'type': 'kindle.note',
         'annotationId': 'note-to-delete',
+        'startPosition': '13',
+        'text': 'Synthetic note',
+      };
+      final linked = {
+        'type': 'kindle.highlight',
+        'annotationId': 'linked-highlight',
         'startPosition': '12',
         'endPosition': '15',
-        'text': 'Synthetic note',
+        'highlightColor': 'Orange',
       };
       annotations = [
         note,
+        linked,
         {
           'type': 'kindle.highlight',
           'annotationId': 'keep-highlight',
-          'startPosition': '12',
-          'endPosition': '15',
+          'startPosition': '20',
+          'endPosition': '23',
         },
       ];
       final session = await EpubSession.open(repo, book, publication);
@@ -922,21 +931,27 @@ void main() {
           (mark) => mark['type'] == 'kindle.note',
         );
         expect(session.canRemoveAnnotation(cloud), isTrue);
+        final renderedNote = session.readerAnnotations.firstWhere(
+          (mark) => mark['type'] == 'kindle.note',
+        );
+        expect(renderedNote['color'], '#f09546');
+        expect(renderedNote['locator']['offset'], 2);
+        expect(renderedNote['endLocator']['offset'], 5);
         confirm = false;
         session.removeAnnotation(cloud);
-        expect(session.readerAnnotations.single['type'], 'kindle.highlight');
+        expect(session.readerAnnotations.single['id'], 'kindle:keep-highlight');
         await repo.sync();
-        expect(writes, 1);
-        expect(repo.pendingCount, 1);
-        annotations.remove(note);
+        expect(writes, 2);
+        expect(repo.pendingCount, 2);
+        annotations.removeWhere((mark) => mark == note || mark == linked);
         await repo.sync();
-        expect(writes, 1);
+        expect(writes, 2);
         expect(repo.pendingCount, 0);
-        annotations.add(note); // delayed read from a stale replica
+        annotations.addAll([note, linked]); // delayed read from a stale replica
         await repo.externalDocumentPosition(book, publication);
         expect(
-          repo.documentAnnotations(book).single['type'],
-          'kindle.highlight',
+          repo.documentAnnotations(book).single['id'],
+          'kindle:keep-highlight',
         );
       } finally {
         await session.close();

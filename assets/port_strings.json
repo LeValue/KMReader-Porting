@@ -36,6 +36,17 @@
   "Delete this annotation?": {"en": "Delete this annotation?", "it": "Eliminare questa annotazione?"},
   "Search results": {"en": "results", "it": "risultati"},
   "Bookmarks and annotations": {"en": "Bookmarks and annotations", "it": "Segnalibri e annotazioni"},
+  "Filters": {"en": "Filters", "it": "Filtri"},
+  "Type": {"en": "Type", "it": "Tipo"},
+  "Color": {"en": "Color", "it": "Colore"},
+  "All": {"en": "All", "it": "Tutto"},
+  "All chapters": {"en": "All chapters", "it": "Tutti i capitoli"},
+  "Highlight color": {"en": "Highlight color", "it": "Colore dell’evidenziatore"},
+  "Yellow": {"en": "Yellow", "it": "Giallo"},
+  "Aqua": {"en": "Aqua", "it": "Acqua"},
+  "Pink": {"en": "Pink", "it": "Rosa"},
+  "Orange": {"en": "Orange", "it": "Arancione"},
+  "Delete the note and its highlight?": {"en": "Delete the note and its highlight?", "it": "Eliminare la nota e la sua evidenziazione?"},
   "Bookmark": {"en": "Bookmark", "it": "Segnalibro"},
   "Bookmarks": {"en": "Bookmarks", "it": "Segnalibri"},
   "Toggle Bookmark": {"en": "Toggle Bookmark", "it": "Aggiungi o rimuovi segnalibro"},
@@ -460,6 +471,10 @@
   "Cached Books Only": {
     "en": "Cached Books Only",
     "it": "Solo libri in cache"
+  },
+  "The catalog changed during preparation. Try again.": {
+    "en": "The catalog changed during preparation. Try again.",
+    "it": "Il catalogo è cambiato durante la preparazione. Riprova."
   },
   "All Events Loaded": {
     "en": "All Events Loaded",

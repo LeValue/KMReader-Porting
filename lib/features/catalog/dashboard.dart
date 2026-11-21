@@ -268,6 +268,15 @@ class _DashboardState extends State<Dashboard> {
                           ),
                         ],
                       ),
+                      if (repository.offline &&
+                          !repository.offlineMetadataComplete)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            tr(context, 'Cached Books Only'),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                     ],
                   ),
                 ),
