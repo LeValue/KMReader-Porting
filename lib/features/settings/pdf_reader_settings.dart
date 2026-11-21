@@ -13,7 +13,7 @@ class PdfReaderSettingsPage extends StatelessWidget {
   Json _defaults(LocalStore value) =>
       object(value.setting<dynamic>('pdfDefault'));
   bool _native(LocalStore value) =>
-      value.setting<bool>('useNativePdfReader') != false;
+      value.setting<bool>('useNativePdfReader') == true;
   @override
   Widget build(BuildContext context) => PreferencePage(
     title: 'PDF Reader',
@@ -22,10 +22,9 @@ class PdfReaderSettingsPage extends StatelessWidget {
       PreferenceSpec(
         'useNativePdfReader',
         'Use Native PDF Reader',
-        true,
-        captionValue: (value) => _native(value)
-            ? 'Native PDF Reader uses the system PDF engine and works best for text-heavy PDF books.'
-            : 'PDF books open with DIVINA Reader. Recommended for comic and manga PDFs, especially when offline-downloaded pages are rendered as images.',
+        false,
+        captionValue: (value) =>
+            _native(value) ? 'The native PDF view supports selectable text.' : 'PDFs open in the comics reader with search and a table of contents.',
       ),
       PreferenceSpec(
         'rtl',
@@ -90,7 +89,7 @@ class PdfReaderSettingsPage extends StatelessWidget {
               'dual-continuous':
                   'Scrolls through two-page spreads continuously.',
             }[_defaults(value)['presentation']] ??
-            'Uses dual-page continuous mode in landscape and single-page paged mode in portrait.',
+            'Uses two pages in landscape and one page in portrait.',
       ),
       PreferenceSpec(
         'coverSolo',
@@ -136,14 +135,13 @@ class PdfReaderSettingsPage extends StatelessWidget {
         'pdfOfflineRenderQuality',
         'Render Quality',
         'balanced',
-        section: 'Offline DIVINA Rendering',
+        section: 'PDF Page Rendering',
         visible: (value) => !_native(value),
         choices: {
           for (final quality in PdfRasterQuality.values)
             quality.name: quality.label,
         },
-        caption:
-            'Used for offline-downloaded PDF books rendered by DIVINA Reader.',
+        caption: 'Image quality for PDF pages in the comics reader.',
       ),
     ],
   );

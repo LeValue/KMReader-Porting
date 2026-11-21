@@ -450,6 +450,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     _session!.darkEnvironment = Theme.of(context).brightness == Brightness.dark;
     await _call('open', {
       ..._session!.configuration(_nonce),
+      'androidSelection': Platform.isAndroid,
       // A renderer that has just died must restore the readable publication
       // before attempting the same graphics path again. Keep saved preferences.
       if (_recoveries > 0) 'disableMotion': true,
@@ -795,7 +796,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<List<Json>> _searchBook(String query) async {
-    _activeSearchQuery = query;
+    if (!Platform.isWindows && _sidePanelTitle == 'Search') {
+      setState(() => _activeSearchQuery = query);
+    } else {
+      _activeSearchQuery = query;
+    }
     final value = await _call('search', query);
     final decoded = value is String ? jsonDecode(value) : value;
     return (decoded as List? ?? []).map(object).toList();
@@ -981,41 +986,62 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             LayoutBuilder(
               builder: (context, bounds) {
                 final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+                final top = _searchPanelCompact && _searchPanelAtTop;
+                final search = _sidePanelTitle == 'Search';
+                final height = search
+                    ? _searchPanelCompact
+                          ? 48.0
+                          : _activeSearchQuery.isEmpty || keyboard > 0
+                          ? 62.0
+                          : bounds.maxHeight * .56
+                    : bounds.maxHeight * .50;
                 return Align(
-                  alignment: _searchPanelCompact && _searchPanelAtTop
-                      ? Alignment.topCenter
-                      : Alignment.bottomCenter,
+                  alignment: top ? Alignment.topCenter : Alignment.bottomCenter,
                   child: Padding(
-                    padding: EdgeInsets.only(bottom: keyboard),
+                    padding: EdgeInsets.only(bottom: top ? 0 : keyboard),
                     child: Semantics(
                       container: true,
                       child: SizedBox(
                         width: min(620, bounds.maxWidth),
-                        height: _searchPanelCompact
-                            ? 52
-                            : min(
-                                bounds.maxHeight * .52,
-                                max(145, bounds.maxHeight - keyboard),
-                              ),
-                        child: _searchPanelCompact
-                            ? Material(
-                                elevation: 6,
-                                child: EpubPanelHeader(
-                                  title: 'Search',
-                                  close: _closeSidePanel,
-                                  trailing: IconButton(
-                                    tooltip: tr(context, 'Search results'),
-                                    icon: const Icon(Icons.expand_less),
-                                    onPressed: () => setState(
-                                      () => _searchPanelCompact = false,
+                        height: min(
+                          height,
+                          max(0.0, bounds.maxHeight - keyboard),
+                        ),
+                        child: Material(
+                          elevation: 6,
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(top ? 0 : 16),
+                            bottom: Radius.circular(top ? 16 : 0),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: _searchPanelCompact
+                              ? Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextButton.icon(
+                                        onPressed: () => setState(
+                                          () => _searchPanelCompact = false,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.search,
+                                          size: 18,
+                                        ),
+                                        label: Text(tr(context, 'Search')),
+                                      ),
                                     ),
-                                  ),
+                                    IconButton(
+                                      tooltip: tr(context, 'Close'),
+                                      onPressed: _closeSidePanel,
+                                      icon: const Icon(Icons.close, size: 20),
+                                    ),
+                                  ],
+                                )
+                              : Builder(
+                                  key: ValueKey(_sidePanelTitle),
+                                  builder: panel,
                                 ),
-                              )
-                            : Material(
-                                elevation: 6,
-                                child: Builder(builder: panel),
-                              ),
+                        ),
                       ),
                     ),
                   ),
@@ -1156,7 +1182,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return;
     }
     final generation = ++_searchGeneration;
+    final desktop = Platform.isWindows;
     var query = initial.trim(), submitted = query;
+    final input = TextEditingController(text: query);
     Future<List<Json>>? request = query.isEmpty ? null : _searchBook(query);
     await _showReaderPanel(
       'Search',
@@ -1169,42 +1197,80 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               submitted = value;
               request = _searchBook(value);
             });
+            if (!desktop) FocusScope.of(context).unfocus();
+          }
+
+          void edit(String value) {
+            final cleared = value.trim().isEmpty && submitted.isNotEmpty;
+            update(() {
+              query = value;
+              if (cleared) {
+                submitted = '';
+                request = null;
+              }
+            });
+            if (cleared) {
+              if (desktop) {
+                _activeSearchQuery = '';
+              } else {
+                setState(() => _activeSearchQuery = '');
+              }
+              unawaited(_call('clearSearch'));
+            }
           }
 
           return Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+            padding: desktop
+                ? const EdgeInsets.fromLTRB(14, 14, 14, 6)
+                : const EdgeInsets.fromLTRB(10, 7, 5, 7),
             child: Column(
               children: [
-                TextFormField(
-                  initialValue: query,
-                  autofocus: initial.isEmpty && request == null,
-                  textInputAction: TextInputAction.search,
-                  onChanged: (value) {
-                    query = value;
-                    if (value.trim().isEmpty) {
-                      _activeSearchQuery = '';
-                      update(() {
-                        submitted = '';
-                        request = null;
-                      });
-                      unawaited(_call('clearSearch'));
-                    }
-                  },
-                  decoration: InputDecoration(
-                    labelText: tr(context, 'Search'),
-                    suffixIcon: IconButton(
-                      tooltip: tr(context, 'Search'),
-                      onPressed: submit,
-                      icon: const Icon(Icons.search),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: input,
+                        autofocus: desktop && initial.isEmpty,
+                        textInputAction: TextInputAction.search,
+                        onChanged: edit,
+                        decoration: InputDecoration(
+                          hintText: tr(context, 'Search in book'),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          prefixIcon: IconButton(
+                            tooltip: tr(context, 'Search'),
+                            onPressed: submit,
+                            icon: const Icon(Icons.search, size: 20),
+                          ),
+                          suffixIcon: query.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: tr(context, 'Clear'),
+                                  onPressed: () {
+                                    input.clear();
+                                    edit('');
+                                  },
+                                  icon: const Icon(Icons.clear, size: 18),
+                                ),
+                        ),
+                        onSubmitted: (_) => submit(),
+                      ),
                     ),
-                  ),
-                  onFieldSubmitted: (_) {
-                    submit();
-                    if (!Platform.isWindows) FocusScope.of(context).unfocus();
-                  },
+                    if (!desktop)
+                      IconButton(
+                        tooltip: tr(context, 'Close'),
+                        onPressed: close,
+                        icon: const Icon(Icons.close, size: 20),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                if (request != null)
+                if (request != null &&
+                    (desktop ||
+                        MediaQuery.viewInsetsOf(context).bottom == 0)) ...[
+                  const SizedBox(height: 9),
                   Expanded(
                     child: FutureBuilder(
                       future: request,
@@ -1311,13 +1377,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       },
                     ),
                   ),
+                ],
               ],
             ),
           );
         },
       ),
+      withHeader: desktop,
       inline: true,
     );
+    await WidgetsBinding.instance.endOfFrame;
+    input.dispose();
     if (mounted && generation == _searchGeneration) await _call('clearSearch');
   }
 
@@ -1351,6 +1421,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     );
     return EpubSelectionMenu(
       anchor: anchor,
+      touch: !Platform.isWindows,
       actions: [
         if (selected.trim().isNotEmpty) ...[
           action(
@@ -2103,7 +2174,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
 
   Future<void> _settings() async {
     if (_settingsOpen) {
-      if (Platform.isWindows && _sidePanelTitle == 'Text Settings') {
+      if (_sidePanelTitle == 'Text Settings') {
         _closeSidePanel();
       }
       return;
@@ -2200,11 +2271,13 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               onChanged: (v) => apply(key, v),
             );
             return ReaderSafeArea(
+              top: false,
               child: ReaderOptionsPanel(
                 title: 'Text Settings',
                 onClose: close,
                 fill: true,
                 useAppPalette: true,
+                compact: !Platform.isWindows,
                 children: [
                   if (_fixedLayout)
                     Padding(
@@ -2448,7 +2521,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             );
           },
         ),
-        heightFraction: .5,
+        inline: true,
         withHeader: false,
       );
     } finally {

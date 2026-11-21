@@ -18,11 +18,12 @@ class ReaderOptionsPanel extends StatelessWidget {
     this.onClose,
     this.fill = false,
     this.useAppPalette = false,
+    this.compact = false,
   });
   final String title;
   final List<Widget> children;
   final VoidCallback? onClose;
-  final bool fill, useAppPalette;
+  final bool fill, useAppPalette, compact;
   @override
   Widget build(BuildContext context) {
     final app = Theme.of(context);
@@ -64,7 +65,7 @@ class ReaderOptionsPanel extends StatelessWidget {
           ),
         );
       }
-      rows.add(const SizedBox(height: 22));
+      rows.add(SizedBox(height: compact ? 10 : 22));
     }
     return Theme(
       data: theme,
@@ -77,14 +78,19 @@ class ReaderOptionsPanel extends StatelessWidget {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(22, 12, 12, 10),
+                padding: compact
+                    ? const EdgeInsets.fromLTRB(16, 0, 4, 0)
+                    : const EdgeInsets.fromLTRB(22, 12, 12, 10),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         tr(context, title),
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                        style:
+                            (compact
+                                    ? app.textTheme.titleSmall
+                                    : app.textTheme.titleLarge)
+                                ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
                     IconButton(
@@ -101,7 +107,9 @@ class ReaderOptionsPanel extends StatelessWidget {
                   scrollCacheExtent: const ScrollCacheExtent.pixels(120),
                   itemCount: rows.length,
                   itemBuilder: (_, index) => rows[index],
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  padding: compact
+                      ? const EdgeInsets.fromLTRB(12, 4, 12, 16)
+                      : const EdgeInsets.fromLTRB(20, 20, 20, 28),
                 ).withWheelScrolling(),
               ),
             ],

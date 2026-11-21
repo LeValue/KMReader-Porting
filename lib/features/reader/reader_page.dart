@@ -56,6 +56,7 @@ class ReaderPage extends StatefulWidget {
     this.rasterPages,
     this.onNextBook,
     this.initialPreferences,
+    this.documentNavigation,
   });
   final Repository repository;
   final Book book;
@@ -64,6 +65,11 @@ class ReaderPage extends StatefulWidget {
   final RasterPages? rasterPages;
   final ReaderPreferences? initialPreferences;
   final Future<void> Function()? onNextBook;
+  final ({
+    Future<int?> Function(BuildContext) search,
+    Future<int?> Function(BuildContext) outline,
+  })?
+  documentNavigation;
   @override
   State<ReaderPage> createState() => _ReaderPageState();
 }
@@ -1142,6 +1148,11 @@ class _ReaderPageState extends State<ReaderPage>
     _settled();
   }
 
+  Future<void> _documentJump(Future<int?> Function(BuildContext) open) async {
+    final page = await open(context);
+    if (mounted && page != null) _go(page);
+  }
+
   void _configure(ReaderPreferences preferences) {
     _stopPageFlight();
     _curl.currentState?.cancelGesture();
@@ -2146,6 +2157,18 @@ class _ReaderPageState extends State<ReaderPage>
                             onCanceled: _scheduleControlsHide,
                             onSelected: (value) {
                               switch (value) {
+                                case 'documentSearch':
+                                  unawaited(
+                                    _documentJump(
+                                      widget.documentNavigation!.search,
+                                    ),
+                                  );
+                                case 'documentOutline':
+                                  unawaited(
+                                    _documentJump(
+                                      widget.documentNavigation!.outline,
+                                    ),
+                                  );
                                 case 'fullscreen':
                                   _toggleFullscreen();
                                 case 'ocr':
@@ -2156,6 +2179,16 @@ class _ReaderPageState extends State<ReaderPage>
                               _scheduleControlsHide();
                             },
                             itemBuilder: (_) => [
+                              if (widget.documentNavigation != null) ...[
+                                PopupMenuItem(
+                                  value: 'documentSearch',
+                                  child: Text(tr(context, 'Search in book')),
+                                ),
+                                PopupMenuItem(
+                                  value: 'documentOutline',
+                                  child: Text(tr(context, 'Table of Contents')),
+                                ),
+                              ],
                               PopupMenuItem(
                                 value: 'settings',
                                 child: Text(tr(context, 'Reader Settings')),

@@ -551,6 +551,7 @@ class KMReaderPageSnapshot {
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
   let searchTerm = '', searchGeneration = 0;
+  let touchSelection;
   const searchRanges = new WeakMap();
   let renditionSpineHooks = [], operationQueue = Promise.resolve(), turnAnimation, sheetEffect, gesture;
   let interactiveNavigation = false, suppressClickUntil = 0, inputSuspended = false;
@@ -589,6 +590,8 @@ class KMReaderPageSnapshot {
   const colors = () => /^#[a-f0-9]{6}$/i.test(preferences.backgroundColor || '') && /^#[a-f0-9]{6}$/i.test(preferences.textColor || '') ? [preferences.backgroundColor, preferences.textColor] : preferences.theme === 'black' ? ['#1c1c1e', '#e8e4dc'] : preferences.theme === 'white' ? ['#ffffff', '#262321'] : ['#efe5d0', '#262321'];
   const isFixedLayout = () => Boolean(book && (book.package?.metadata.layout === 'pre-paginated' || book.displayOptions?.fixedLayout === 'true'));
   const verticalWriting = () => Boolean(rendition?.manager?.writingMode?.startsWith('vertical'));
+  const localTouchSelection = doc => config?.androidSelection && preferences.flow === 'paged' &&
+    !isFixedLayout() && !doc.defaultView?.getComputedStyle(doc.body || doc.documentElement).writingMode.startsWith('vertical');
   const spreadPreference = value => verticalWriting() ? 'none' : value.columns === 1 ? 'none' : value.columns === 2 ? 'always'
     : isFixedLayout() && book.package?.metadata.spread === 'none' ? 'none'
     : isFixedLayout() && book.package?.metadata.spread === 'both' ? 'always' : 'auto';
@@ -699,7 +702,10 @@ class KMReaderPageSnapshot {
       ${preferences.advancedLayout === false ? '' : `p{margin-block-end:${preferences.paragraphSpacing}em !important;text-indent:${preferences.indent}em !important;} body{letter-spacing:${preferences.letterSpacing}em !important;word-spacing:${preferences.wordSpacing}em !important;}`}
       pre{white-space:pre-wrap !important;overflow-wrap:anywhere !important;max-inline-size:100%;box-sizing:border-box;}
       ::selection{background:rgba(75,135,230,.38);color:inherit;}img,svg,video{max-width:100% !important;object-fit:contain;}a{color:${preferences.theme === 'black' ? '#9fc6ff' : '#235a9c'};}`;
-    const resolvedCss=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}'+searchStyle;
+    const selectionStyle=localTouchSelection(document)
+      ? 'html,body,body *{-webkit-user-select:none!important;user-select:none!important}::highlight(kmreader-selection){background:#4b87e660;color:inherit;}'
+      : '';
+    const resolvedCss=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}'+searchStyle+selectionStyle;
     if (sheet.textContent !== resolvedCss) sheet.textContent = resolvedCss;
   }
   async function stable(contents) {
@@ -1105,7 +1111,11 @@ class KMReaderPageSnapshot {
       if(records.some(record=>record.type!=='attributes'))textIndexes.delete(doc);
     });
     mutations.observe(doc.body,{subtree:true,childList:true,characterData:true,attributes:true});
-    contentDisposers.set(doc,()=>{mutations.disconnect();clearTimeout(doc._selectionReport);textIndexes.delete(doc);});
+    let pressTimer;
+    contentDisposers.set(doc,()=>{
+      mutations.disconnect();clearTimeout(doc._selectionReport);clearTimeout(pressTimer);textIndexes.delete(doc);
+      if(touchSelection?.contents===contents)clearTouchSelection();
+    });
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
@@ -1136,6 +1146,7 @@ class KMReaderPageSnapshot {
     doc.addEventListener('keydown', readerKey);
     doc.addEventListener('contextmenu', event => {
       event.preventDefault();
+      if(localTouchSelection(doc)&&event.pointerType!=='mouse')return;
       clearTimeout(doc._selectionReport);
       reportSelection(contents, event);
     });
@@ -1150,6 +1161,17 @@ class KMReaderPageSnapshot {
       }
       if (inputSuspended) { event.preventDefault(); return; }
       const p = point(event);
+      if(event.pointerType==='touch'&&localTouchSelection(doc)){
+        clearTimeout(pressTimer);
+        if(touchSelection){clearTouchSelection();suppressClickUntil=Date.now()+400;}
+        if(!event.target.closest?.('a[href]')){
+          pressTimer=setTimeout(()=>{
+            if(!active()||!contact||inputSuspended||gesture)return;
+            const range=wordRange(doc,event.clientX,event.clientY);
+            if(range){contact=null;selectTouchRange(contents,range);}
+          },450);
+        }
+      }
       let textHit = false;
       if (event.pointerType === 'mouse') {
         interruptMouse(event);
@@ -1192,6 +1214,7 @@ class KMReaderPageSnapshot {
       if (!contact || event.pointerId !== contact.id || preferences.flow !== 'paged' || auxiliary ||
           !doc.getSelection().isCollapsed) return;
       const p = point(event), dx = p.x - contact.x, dy = p.y - contact.y;
+      if(Math.hypot(dx,dy)>8)clearTimeout(pressTimer);
       if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.3 || Date.now() - contact.time > 550) return;
       if (preferences.followGesture !== false && motionAllowed(preferences.transition) && KMReaderSheetEffect.supported(preferences.transition)) {
         event.preventDefault();
@@ -1200,6 +1223,8 @@ class KMReaderPageSnapshot {
       }
     }, {passive:false});
     doc.addEventListener('pointerup', event => {
+      clearTimeout(pressTimer);
+      if(touchSelection?.contents===contents){suppressClickUntil=Date.now()+400;return;}
       if (gesture?.pointer === event.pointerId) { event.preventDefault(); gesture.update(point(event)); gesture.release(); contact = null; return; }
       if (!contact || event.pointerId !== contact.id) return;
       const p = point(event), dx = p.x - contact.x, dy = p.y - contact.y;
@@ -1210,7 +1235,7 @@ class KMReaderPageSnapshot {
       }
       contact = null;
     }, {passive:false});
-    doc.addEventListener('pointercancel', () => { contact = null; cancelGesture(); });
+    doc.addEventListener('pointercancel', () => { clearTimeout(pressTimer);contact = null; cancelGesture(); });
     doc.addEventListener('wheel', noteUserMove, {passive: true});
     let reflowQueued = false;
     const resourceChanged = () => {
@@ -1228,6 +1253,7 @@ class KMReaderPageSnapshot {
     }, true);
     if (doc.fonts) doc.fonts.addEventListener('loadingdone', resourceChanged);
     doc.addEventListener('selectionchange', () => {
+      if(localTouchSelection(doc))return;
       clearTimeout(doc._selectionReport);
       doc._selectionReport = setTimeout(() => {
         try { reportSelection(contents); } catch (_) { send('selection', {text:''}); }
@@ -1258,18 +1284,119 @@ class KMReaderPageSnapshot {
     while ((text = walker.nextNode())) last = text;
     return last ? [last, last.length] : [node, offset];
   }
-  function reportSelection(contents, click) {
+  const wordSegmenter=typeof Intl.Segmenter==='function'?new Intl.Segmenter(undefined,{granularity:'word'}):null;
+  function wordRange(doc,x,y) {
+    const caret=doc.caretRangeFromPoint(x,y);
+    const node=caret?.startContainer;
+    if(node?.nodeType!==Node.TEXT_NODE)return;
+    const offset=caret.startOffset;
+    // Treat apostrophes inside words as part of the token. The range uses DOM
+    // UTF-16 offsets and retains the last character for annotations.
+    const words=wordSegmenter?.segment(node.data);
+    const candidates=words
+      ? [words.containing(offset),words.containing(offset-1)].filter(word=>word?.segment.trim())
+      : [...node.data.matchAll(/[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}\p{N}]+)*|[^\s]/gu)]
+          .map(match=>({index:match.index,segment:match[0]}));
+    for(const {index,segment} of candidates){
+      const end=index+segment.length;
+      if(offset<index||offset>end)continue;
+      caret.setStart(node,index);caret.setEnd(node,end);
+      if([...caret.getClientRects()].some(r=>x>=r.left-1&&x<=r.right+1&&y>=r.top&&y<=r.bottom))return caret;
+    }
+  }
+  function clearTouchSelection(report=true) {
+    const selection=touchSelection;
+    if(!selection)return;
+    touchSelection=null;
+    selection.contents.window?.CSS?.highlights?.delete('kmreader-selection');
+    selection.layer.remove();
+    if(report)send('selection',{text:''});
+  }
+  function selectTouchRange(contents,range) {
+    clearTouchSelection(false);
+    contents.document.getSelection()?.removeAllRanges();
+    const layer=document.createElement('div');
+    layer.className='touch-selection';
+    layer.setAttribute('aria-hidden','true');
+    const marks=document.createElement('div');
+    layer.append(marks);
+    const selection=touchSelection={contents,range,layer,marks,handles:[]};
+    for(const end of [false,true]){
+      const handle=document.createElement('div');
+      handle.className='touch-selection-handle';
+      layer.append(handle);selection.handles.push(handle);
+      let pointer,grab;
+      handle.addEventListener('pointerdown',event=>{
+        if(pointer!==undefined||!event.isPrimary)return;
+        event.preventDefault();
+        pointer=event.pointerId;
+        const rect=handle.getBoundingClientRect();
+        grab={x:event.clientX-rect.left-rect.width/2,y:event.clientY-rect.top+4};
+        handle.setPointerCapture(pointer);
+        send('selection',{text:''});
+      });
+      handle.addEventListener('pointermove',event=>{
+        if(event.pointerId!==pointer||touchSelection!==selection)return;
+        const doc=contents.document,box=doc.defaultView.frameElement?.getBoundingClientRect();
+        if(!box)return;
+        const x=Math.min(innerWidth-1,Math.max(1,event.clientX-grab.x))-box.left;
+        const y=Math.min(innerHeight-1,Math.max(1,event.clientY-grab.y))-box.top;
+        const caret=doc.caretRangeFromPoint(x,y);
+        if(!caret||caret.startContainer.nodeType!==Node.TEXT_NODE)return;
+        const candidate=selection.range.cloneRange();
+        if(end)candidate.setEnd(caret.startContainer,caret.startOffset);
+        else candidate.setStart(caret.startContainer,caret.startOffset);
+        if(candidate.collapsed)return;
+        selection.range=candidate;paintTouchSelection(selection);
+      });
+      const finish=event=>{
+        if(event.pointerId!==pointer)return;
+        pointer=undefined;
+        if(touchSelection===selection)reportSelection(contents,null,selection.range);
+      };
+      handle.addEventListener('pointerup',finish);
+      handle.addEventListener('pointercancel',finish);
+      handle.addEventListener('lostpointercapture',finish);
+    }
+    document.body.append(layer);
+    paintTouchSelection(selection);
+    reportSelection(contents,null,range);
+  }
+  function paintTouchSelection(selection) {
+    const {contents,range,handles,marks}=selection;
+    const frame=contents.window.frameElement;
+    if(!frame)return;
+    const box=frame.getBoundingClientRect();
+    const rects=[...range.getClientRects()].filter(r=>r.width>0&&r.height>0);
+    const highlights=contents.window.CSS?.highlights;
+    if(highlights)highlights.set('kmreader-selection',new contents.window.Highlight(range));
+    else marks.replaceChildren(...rects.map(rect=>{
+      const mark=document.createElement('div');
+      mark.style.cssText=`left:${box.left+rect.left}px;top:${box.top+rect.top}px;width:${rect.width}px;height:${rect.height}px`;
+      return mark;
+    }));
+    for(let i=0;i<handles.length;i++){
+      const edge=range.cloneRange();
+      edge.collapse(i===0);
+      const rect=edge.getClientRects()[0];
+      const x=box.left+(rect?.left??0),y=box.top+(rect?.bottom??0);
+      // Leave handles offscreen when a range crosses the visible column edge.
+      handles[i].hidden=!rect||x<0||x>innerWidth||y<0||y>innerHeight;
+      handles[i].style.transform=`translate(${x}px,${y}px)`;
+    }
+  }
+  function reportSelection(contents, click, touchRange) {
     const doc = contents.document, frame = doc.defaultView?.frameElement;
     if (inputSuspended || !frame?.isConnected || !document.getElementById('viewer').contains(frame)) return;
     const selected = doc.getSelection();
-    const text = selected && !selected.isCollapsed ? selected.toString().slice(0,16000) : '';
+    const text = (touchRange?.toString() ?? (selected && !selected.isCollapsed ? selected.toString() : '')).slice(0,16000);
     if (!text.trim() && !click) {
       if (!rendition?.getContents().some(c => c.document !== doc && c.document.getSelection()?.toString().trim())) send('selection', {text:''});
       return;
     }
     const frameBounds = frame.getBoundingClientRect();
     const value = {text, context: !!click};
-    const range = text.trim() ? selected.getRangeAt(0).cloneRange() : null;
+    const range = text.trim() ? (touchRange || selected.getRangeAt(0)).cloneRange() : null;
     if (range) {
       // Preserve the exclusive endpoint, including the last selected glyph.
       const start = textBoundary(range.startContainer, range.startOffset, false);
@@ -1288,8 +1415,9 @@ class KMReaderPageSnapshot {
     // Transmit viewport fractions. Flutter positions the menu inside its
     // reader surface even when the OS window has moved or changed DPI.
     const bounds = click ? {left:click.clientX,right:click.clientX,top:click.clientY,bottom:click.clientY} : range.getBoundingClientRect();
-    value.anchor = [(bounds.left+frameBounds.left)/innerWidth, (bounds.top+frameBounds.top)/innerHeight,
-      (bounds.right+frameBounds.left)/innerWidth, (bounds.bottom+frameBounds.top)/innerHeight];
+    const fraction=(offset,size)=>Math.max(0,Math.min(1,offset/size));
+    value.anchor = [fraction(bounds.left+frameBounds.left,innerWidth), fraction(bounds.top+frameBounds.top,innerHeight),
+      fraction(bounds.right+frameBounds.left,innerWidth), fraction(bounds.bottom+frameBounds.top,innerHeight)];
     send('selection', value);
   }
 
@@ -1297,6 +1425,7 @@ class KMReaderPageSnapshot {
     if (inputSuspended || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
     const doc = event.currentTarget;
     if (event.target.closest?.('input,textarea,select,[contenteditable=true]')) return;
+    if(event.key==='Escape'&&touchSelection){clearTouchSelection();event.preventDefault();return;}
     const hasSelection = !doc.getSelection()?.isCollapsed;
     if (event.key === 'Escape' && hasSelection) {
       doc.getSelection()?.removeAllRanges();
@@ -1375,6 +1504,7 @@ class KMReaderPageSnapshot {
     } finally { layoutJobs--; restoring = layoutJobs > 0; position(false); if (!restoring) { send('layout', {active:false}); warmCurl(); } }
   }
   function setPreferences(value) {
+    clearTouchSelection();
     cancelGesture();
     // Flow changes replace the manager. Keep rapid preference updates ordered
     // so an older reflow cannot destroy a newer rendition or restore its CFI.
@@ -1436,6 +1566,7 @@ class KMReaderPageSnapshot {
     else {const fixed=fixedViewportLocation();if(fixed)location=fixed;}
   }
   async function advance(delta) {
+    clearTouchSelection();
     refreshViewportLocation();
     const beforeCfi=location?.start?.cfi;
     const sectionIndex=location?.start?.index??rendition.getContents()[0]?.sectionIndex??0;
@@ -1497,12 +1628,14 @@ class KMReaderPageSnapshot {
     finally { restoring = false; userMove = false; position(true); if(!interactiveNavigation)warmCurl(); }
   }
   async function display(target, changed = true) {
+    clearTouchSelection();
     if (auxiliary) closeAuxiliary();
     restoring = true;
     try { await displayStable(target); }
     finally { restoring = false; userMove = false; position(changed); warmCurl(); }
   }
   async function seek(value) {
+    clearTouchSelection();
     if (auxiliary) closeAuxiliary();
     await waitForLayout();
     restoring = true;
@@ -2228,6 +2361,7 @@ class KMReaderPageSnapshot {
     else warmCurl();
   }
   function onResize() {
+    clearTouchSelection(false);
     send('selection', {text:''});
     cancelCurlWarm();
     cancelGesture();
@@ -2386,6 +2520,7 @@ class KMReaderPageSnapshot {
     send('auxiliary', {active: false});
   }
   async function openAuxiliary(url) {
+    clearTouchSelection();
     closeAuxiliary();
     auxiliary = document.createElement('iframe'); auxiliary.id = 'auxiliary';
     auxiliary.sandbox = 'allow-same-origin'; auxiliary.style.display = 'block';
@@ -2419,14 +2554,20 @@ class KMReaderPageSnapshot {
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
     suspendInput: value => {
       inputSuspended=!!value;cancelCurlWarm();cancelGesture();cancelTurnAnimation();
+      clearTouchSelection();
       for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();
       if(inputSuspended)return true;
       // Android delivers native surface bounds/focus after the sheet closes.
       // Settle that delivery once here, ahead of queued turns, not per page.
       return enqueue(async()=>{await tick();await waitForLayout();warmCurl();return true;});
     },
-    selectedText: () => (rendition?.getContents()||[]).map(c=>c.document.getSelection()?.toString()||'').find(text=>text.trim())||'',
-    clearSelection: () => {for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();return true;},
+    selectedText: () => touchSelection?.range.toString() ||
+      (rendition?.getContents()||[]).map(c=>c.document.getSelection()?.toString()||'').find(text=>text.trim())||'',
+    clearSelection: () => {
+      clearTouchSelection();
+      for(const c of rendition?.getContents()||[]) c.document.getSelection()?.removeAllRanges();
+      return true;
+    },
     position: () => location, layoutReady,
     whenIdle: () => enqueue(waitForLayout), destroy: () => {
       disposed = true; cancelGesture(); clearTimeout(relocationTimer); clearTimeout(resizeTimer); clearTimeout(captureIdle);if(captureIdleJob)window.cancelIdleCallback?.(captureIdleJob);captureRevision++;capturePages.clear();captureResources.clear();captureResourceSizes.clear();captureResourceBytes=0;boundaryPreviews.clear();curlPreview=null;captureMarkup=new WeakMap();

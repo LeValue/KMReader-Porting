@@ -4,9 +4,9 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:koni_archive/io.dart';
 import 'package:path/path.dart' as p;
 
 import '../features/reader/raster_pages.dart';
@@ -41,6 +41,18 @@ class LocalLibrary extends Repository {
   @override
   bool get offlineMetadataComplete => true;
   static const scope = 'device-library';
+  static const extensions = [
+    'epub',
+    'pdf',
+    'cbz',
+    'cbr',
+    'cb7',
+    'cbt',
+    'zip',
+    'rar',
+    '7z',
+    'tar',
+  ];
   Directory get root => Directory(p.join(directory.path, scope, 'originals'));
   List<Book> get books => store.db
       .select('SELECT value FROM local_books ORDER BY rowid DESC')
@@ -106,9 +118,12 @@ class LocalLibrary extends Repository {
   }
 
   Future<Book> _importFile(XFile source) async {
-    final extension = p.extension(source.name).toLowerCase();
-    if (!['.epub', '.pdf', '.cbz', '.zip'].contains(extension)) {
-      throw const FormatException('Supported files: EPUB, PDF, CBZ, ZIP.');
+    final suffix = p.extension(source.name).toLowerCase();
+    final extension = suffix.isEmpty ? '' : suffix.substring(1);
+    if (!extensions.contains(extension)) {
+      throw const FormatException(
+        'Supported files: EPUB, PDF, CBZ, CBR, CB7, CBT, ZIP, RAR, 7Z, TAR.',
+      );
     }
     await root.create(recursive: true);
     final temporary = File(
@@ -157,45 +172,69 @@ class LocalLibrary extends Repository {
   }
 }
 
-Json _inspectLocal(String file, String extension) {
-  final input = InputFileStream(file);
-  try {
-    if (extension == '.pdf') {
-      if (!String.fromCharCodes(input.readBytes(5).toUint8List())
-          .startsWith('%PDF-')) {
+Future<Json> _inspectLocal(String file, String extension) async {
+  if (extension == 'pdf') {
+    final input = await File(file).open();
+    try {
+      if (String.fromCharCodes(await input.read(5)) != '%PDF-') {
         throw const FormatException('Invalid PDF file.');
       }
       return {'profile': 'PDF', 'count': 0};
+    } finally {
+      await input.close();
     }
-    final archive = ZipDecoder().decodeStream(input);
-    if (extension == '.epub') {
-      final document = EpubDocument.open(file);
-      try {
-        return {
-          'profile': 'EPUB',
-          'count': document.chapters.length,
-          if (document.title.isNotEmpty) 'title': document.title,
-        };
-      } finally {
-        document.close();
+  }
+  if (extension == 'epub') {
+    final document = EpubDocument.open(file);
+    try {
+      return {
+        'profile': 'EPUB',
+        'count': document.chapters.length,
+        if (document.title.isNotEmpty) 'title': document.title,
+      };
+    } finally {
+      document.close();
+    }
+  }
+  try {
+    final archive = await _openComic(file);
+    try {
+      final images = _comicEntries(archive);
+      if (images.isEmpty) {
+        throw const FormatException(
+          'This archive has no readable image pages.',
+        );
       }
+      if (images.any((image) => image.isEncrypted)) {
+        throw const FormatException('This comic archive requires a password.');
+      }
+      return {'profile': 'DIVINA', 'count': images.length};
+    } finally {
+      await archive.close();
     }
-    final images = _comicEntries(archive);
-    if (images.isEmpty) {
-      throw const FormatException('This archive has no readable image pages.');
-    }
-    return {'profile': 'DIVINA', 'count': images.length};
-  } finally {
-    input.closeSync();
+  } on ArchiveException {
+    throw const FormatException('Invalid or unsupported comic archive.');
   }
 }
 
-List<ArchiveFile> _comicEntries(Archive archive) =>
-    archive.files
+const _maxComicPage = 64 * 1024 * 1024;
+
+Future<Archive> _openComic(String path) => openArchiveFile(
+  path,
+  options: const ArchiveReadOptions(
+    maxEntryCount: 10000,
+    maxEntrySize: _maxComicPage,
+    maxContainerDecodeSize: 256 * 1024 * 1024,
+  ),
+);
+
+List<ArchiveEntry> _comicEntries(Archive archive) =>
+    archive.entries
         .where(
           (file) =>
               file.isFile &&
-              !file.name
+              !file.pathEscapedRoot &&
+              !file.path
                   .split('/')
                   .any((part) => part.startsWith('.') || part == '__MACOSX') &&
               [
@@ -205,10 +244,10 @@ List<ArchiveFile> _comicEntries(Archive archive) =>
                 '.webp',
                 '.gif',
                 '.bmp',
-              ].contains(p.extension(file.name).toLowerCase()),
+              ].contains(p.extension(file.path).toLowerCase()),
         )
         .toList()
-      ..sort((a, b) => _natural(a.name, b.name));
+      ..sort((a, b) => _natural(a.path, b.path));
 
 int _natural(String a, String b) {
   final chunks = RegExp(r'\d+|\D+');
@@ -231,7 +270,7 @@ int _natural(String a, String b) {
   return length == 0 ? a.compareTo(b) : length;
 }
 
-/// ZIP indexing and inflate run off the UI isolate. Pages are read on demand,
+/// Comic archive indexing and decoding run off the UI isolate. Pages are read on demand,
 /// never extracted to caller-provided filesystem paths.
 class LocalComicPages implements RasterPages {
   LocalComicPages(this.file);
@@ -264,19 +303,19 @@ class LocalComicPages implements RasterPages {
   }
 }
 
-Uint8List _readComicPage(String path, int number) {
-  final input = InputFileStream(path);
+Future<Uint8List> _readComicPage(String path, int number) async {
+  final archive = await _openComic(path);
   try {
-    final entries = _comicEntries(ZipDecoder().decodeStream(input));
+    final entries = _comicEntries(archive);
     if (number < 1 || number > entries.length) {
       throw RangeError.range(number, 1, entries.length);
     }
     final entry = entries[number - 1];
-    if (entry.size > 64 * 1024 * 1024) {
+    if (entry.uncompressedSize > _maxComicPage) {
       throw const FormatException('Comic page exceeds 64 MiB.');
     }
-    return Uint8List.fromList(entry.content);
+    return await archive.readBytes(entry, maxSize: _maxComicPage);
   } finally {
-    input.closeSync();
+    await archive.close();
   }
 }

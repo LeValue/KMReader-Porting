@@ -418,7 +418,6 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         final store = LocalStore(sqlite3.openInMemory());
-        store.setSetting('useNativePdfReader', false);
         store.setSetting('pdfOfflineRenderQuality', 'compact');
         store.setSetting(
           'readerDefault',
@@ -483,6 +482,20 @@ void main() {
         expect(find.byType(PdfViewer), findsNothing);
         expect(find.text('3 / 5'), findsOneWidget);
         expect(repo.pendingCount, 0);
+        if (incognito) {
+          await tester.tap(find.byTooltip('Reader Settings'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 350));
+          expect(find.text('Table of Contents'), findsOneWidget);
+          await tester.tap(find.text('Search in book'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.enterText(find.byType(TextField), 'KMReader page 2');
+          await tester.testTextInput.receiveAction(TextInputAction.search);
+          await until(tester, () => find.text('Page 2').evaluate().isNotEmpty);
+          await tester.tap(find.text('Page 2'));
+          await until(tester, () => find.text('2 / 5').evaluate().isNotEmpty);
+        }
         tester.widget<Slider>(find.byType(Slider)).onChanged!(5);
         await until(
           tester,
@@ -534,6 +547,11 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: PdfReaderSettingsPage(store: store)),
       );
+      expect(find.text('Balanced (3072 px)'), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(SwitchListTile, 'Use Native PDF Reader'),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Balanced (3072 px)'), findsNothing);
       await tester.tap(
         find.widgetWithText(SwitchListTile, 'Use Native PDF Reader'),
@@ -638,6 +656,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         final store = LocalStore(sqlite3.openInMemory());
+        store.setSetting('useNativePdfReader', true);
         const profile = ServerProfile(
           id: 'pdf',
           name: 'Fixture',
@@ -728,6 +747,22 @@ void main() {
           );
           await until(tester, () => find.text('2 / 5').evaluate().isNotEmpty);
           await tester.pumpAndSettle();
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          await until(tester, () => find.text('1 / 5').evaluate().isNotEmpty);
+          await tester.pumpAndSettle();
+          final cover = native.controller!.visibleRect;
+          final bounds = tester.getRect(find.byType(PdfViewer));
+          await tester.dragFrom(bounds.center, const Offset(12, 0));
+          await tester.pumpAndSettle();
+          expect(native.controller!.visibleRect, cover);
+          await tester.flingFrom(
+            bounds.centerLeft + const Offset(24, 0),
+            Offset(bounds.width * .84, 0),
+            2400,
+          );
+          await until(tester, () => find.text('2 / 5').evaluate().isNotEmpty);
+          await tester.pumpAndSettle();
+          expect(find.text('2 / 5'), findsOneWidget);
           await tester.tap(find.text('2 / 5'));
           await tester.pumpAndSettle();
           await tester.enterText(find.byType(TextFormField), '3');
@@ -735,7 +770,7 @@ void main() {
           await until(tester, () => find.text('3 / 5').evaluate().isNotEmpty);
           await tester.pumpAndSettle();
           if (find.byTooltip('PDF Settings').evaluate().isEmpty) {
-            await tester.tapAt(tester.getCenter(find.byType(PdfViewer)));
+            await tester.sendKeyEvent(LogicalKeyboardKey.space);
             await tester.pumpAndSettle();
           }
         }

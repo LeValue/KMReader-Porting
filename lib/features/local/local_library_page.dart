@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
@@ -26,12 +28,16 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
   LocalLibrary get library => widget.app.localLibrary;
   Future<void> _import() async {
     final files = await openFiles(
-      acceptedTypeGroups: const [
-        XTypeGroup(
-          label: 'EPUB / PDF / CBZ / ZIP',
-          extensions: ['epub', 'pdf', 'cbz', 'zip'],
-        ),
-      ],
+      // Android providers can label CB7/CBR as generic binary files.
+      // Validate the selected format when reading it instead.
+      acceptedTypeGroups: Platform.isAndroid
+          ? const []
+          : const [
+              XTypeGroup(
+                label: 'EPUB / PDF / Comics',
+                extensions: LocalLibrary.extensions,
+              ),
+            ],
     );
     if (!mounted || files.isEmpty) return;
     setState(() => _importing = true);
@@ -121,7 +127,7 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
                     child: Text(
                       tr(
                         context,
-                        'Import EPUB, PDF or CBZ/ZIP files from this device.',
+                        'Import EPUB, PDF or comic archives (CBZ, CBR, CB7, CBT).',
                       ),
                     ),
                   ),

@@ -61,11 +61,26 @@ class PdfRasterPages implements RasterPages {
     if (refresh) _cache.remove(number);
     final cached = _cache[number];
     if (cached != null) return Future.value(cached);
-    final result = _tail.then((_) => _render(number));
+    final result = _withDocument(() => _render(number));
     _pending[number] = result;
-    _tail = result.then<void>((_) {}, onError: (Object _) {});
     return result.whenComplete(() => _pending.remove(number));
   }
+
+  Future<T> _withDocument<T>(Future<T> Function() read) {
+    final result = _tail.then((_) {
+      if (_closed) throw StateError('PDF reader closed.');
+      return read();
+    });
+    _tail = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  Future<List<PdfOutlineNode>> outline() => _withDocument(document.loadOutline);
+
+  Future<String> textForPage(int number) => _withDocument(() async {
+    final text = await document.pages[number - 1].loadText();
+    return text?.fullText ?? '';
+  });
 
   Future<Uint8List> _render(int number) async {
     if (_closed) throw StateError('PDF reader closed.');
