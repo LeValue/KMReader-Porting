@@ -752,10 +752,11 @@ class _SettingsSection extends StatelessWidget {
                         : const Icon(Icons.manage_search),
                     title: Text(tr(context, 'Prepare Offline Catalog')),
                     subtitle: Text(
-                      repository.metadataIndexError ??
-                          (repository.metadataIndexing
-                              ? '${repository.metadataIndexed} ${tr(context, 'items')}'
-                              : ('${repository.store.offlineCatalog.count(repository.profile.id, 'books')} ${tr(context, 'Books')} • ${repository.store.offlineCatalog.count(repository.profile.id, 'series')} ${tr(context, 'Series')}')),
+                      repository.metadataIndexError != null
+                          ? tr(context, repository.metadataIndexError!)
+                          : (repository.metadataIndexing
+                                ? '${repository.metadataIndexed} ${tr(context, 'items')}'
+                                : ('${repository.store.offlineCatalog.count(repository.profile.id, 'books')} ${tr(context, 'Books')} • ${repository.store.offlineCatalog.count(repository.profile.id, 'series')} ${tr(context, 'Series')}')),
                     ),
                     trailing: repository.metadataIndexing
                         ? IconButton(

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 
 import '../api.dart';
+import '../annotation_colors.dart';
 import '../models.dart';
 import '../repository.dart';
 import '../store.dart';
@@ -187,6 +188,11 @@ class KindleRepository extends Repository {
         'locator': locator,
         'kindleStart': position,
         'kindleEnd': ?end,
+        'color':
+            ?(annotationColor(record['color']) ??
+            annotationColor(record['highlightColor']) ??
+            annotationColor(record['style'])),
+        if (type == 'kindle.highlight' && note.isNotEmpty) 'excerpt': note,
         if (endLocator != null)
           'endLocator': {
             ...endLocator,
@@ -259,12 +265,12 @@ class KindleRepository extends Repository {
     final type = text(annotation['type']);
     if (start is! int) return null;
     if (type == 'kindle.bookmark') return KindleMark('bookmark', start);
-    if (end is! int) return null;
     if (!const {'kindle.note', 'kindle.highlight'}.contains(type)) return null;
+    if (end is! int && (end != null || type != 'kindle.note')) return null;
     return KindleMark(
       type.substring('kindle.'.length),
       start,
-      end: end,
+      end: end as int?,
       note: type == 'kindle.note' ? text(annotation['label']) : null,
     );
   }
@@ -293,7 +299,9 @@ class KindleRepository extends Repository {
         mapping == null ||
         !(present ? mark.valid : mark.deletable) ||
         mapping.locator(mark.start) == null ||
-        mark.end != null && mapping.locator(mark.end! - 1) == null) {
+        mark.end != null &&
+            mark.end! > mark.start &&
+            mapping.locator(mark.end! - 1) == null) {
       return;
     }
     final key = _annotationKey(book.id, mark.type, mark.start, mark.end);
@@ -442,7 +450,7 @@ class KindleRepository extends Repository {
                     note: kindleNoteText(candidate),
                   )
                 : mark;
-            if (mark.type == 'note' && !deleteMark.valid) {
+            if (mark.type == 'note' && !deleteMark.hasValidNote) {
               throw const KindleFailure('annotation_invalid');
             }
             _setAnnotationEdit(entry.key, {

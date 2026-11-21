@@ -50,24 +50,25 @@ final class KindleMark {
 
   bool get deletable =>
       start >= 0 &&
-      (type == 'bookmark'
-          ? end == null
-          : end != null &&
-                end! > start &&
-                const {'highlight', 'note'}.contains(type));
+      switch (type) {
+        'bookmark' => end == null,
+        'highlight' => end != null && end! > start,
+        'note' => end == null || end! >= start,
+        _ => false,
+      };
+
+  bool get hasValidNote =>
+      note != null &&
+      note!.isNotEmpty &&
+      note!.length <= 4000 &&
+      !RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]').hasMatch(note!);
 
   bool get valid =>
       start >= 0 &&
       switch (type) {
         'bookmark' => end == null && note == null,
         'highlight' => end != null && end! > start && note == null,
-        'note' =>
-          end != null &&
-              end! > start &&
-              note != null &&
-              note!.isNotEmpty &&
-              note!.length <= 4000 &&
-              !RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]').hasMatch(note!),
+        'note' => end != null && end! > start && hasValidNote,
         _ => false,
       };
 
@@ -724,7 +725,7 @@ class KindleClient {
     final addressedNote = erase && mark.type == 'note';
     if (!(erase ? mark.deletable : mark.valid) ||
         (addressedNote
-            ? annotationId?.isNotEmpty != true || !mark.valid
+            ? annotationId?.isNotEmpty != true || !mark.hasValidNote
             : annotationId != null)) {
       throw const KindleFailure('annotation_invalid');
     }

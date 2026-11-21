@@ -577,19 +577,7 @@ class Repository extends ChangeNotifier {
     final fetched = data is Map || data is List
         ? _fetchedGenerations[data]
         : null;
-    var restored = false;
-    if (fetched != null) {
-      for (final item in parsed.items) {
-        final token = '$kind:${item.id}';
-        if (_removed.contains(token) &&
-            fetched >= (_removalGenerations[token] ?? 0)) {
-          _removed.remove(token);
-          _removalGenerations.remove(token);
-          restored = true;
-        }
-      }
-    }
-    if (restored) store.setSetting('removed:${profile.id}', _removed.toList());
+    if (fetched != null) _restoreListedItems(parsed.items, fetched);
     final kept = parsed.items
         .where((item) => !_removed.contains('$kind:${item.id}'))
         .toList();
@@ -618,6 +606,19 @@ class Repository extends ChangeNotifier {
     );
   }
 
+  void _restoreListedItems(Iterable<CatalogItem> items, int generation) {
+    var restored = false;
+    for (final item in items) {
+      final token = '${item.kind}:${item.id}';
+      if (generation >= (_removalGenerations[token] ?? 0) &&
+          _removed.remove(token)) {
+        _removalGenerations.remove(token);
+        restored = true;
+      }
+    }
+    if (restored) store.setSetting('removed:${profile.id}', _removed.toList());
+  }
+
   bool metadataIndexing = false;
   int metadataIndexed = 0;
   bool _cancelMetadata = false;
@@ -629,8 +630,9 @@ class Repository extends ChangeNotifier {
   Future<void> prepareOfflineCatalog() async {
     if (metadataIndexing || offline || _disposed) return;
     metadataIndexing = true;
-    store.setSetting('offlineCatalogSnapshot:${profile.id}', {
-      ...object(store.setting<dynamic>('offlineCatalogSnapshot:${profile.id}')),
+    final snapshotKey = 'offlineCatalogSnapshot:${profile.id}';
+    store.setSetting(snapshotKey, {
+      ...object(store.setting<dynamic>(snapshotKey)),
       'inProgress': true,
       'complete': false,
     });
@@ -638,17 +640,31 @@ class Repository extends ChangeNotifier {
     _cancelMetadata = false;
     metadataIndexError = null;
     changed();
+    final generation = _invalidationGeneration;
+    bool stopped() => _disposed || _cancelMetadata || offline;
+    const changedCatalog = ApiFailure(
+      'The catalog changed during preparation. Try again.',
+    );
     try {
-      await get('/api/v1/libraries', force: true);
+      const librariesPath = '/api/v1/libraries';
+      final libraries = await api.request(librariesPath);
+      if (stopped()) return;
+      if (libraries is! List) throw changedCatalog;
+      final librariesKey = jsonEncode([librariesPath, 'GET', null, null]);
+      store.cache(profile.id, librariesKey, libraries);
+      _queryValues.put(librariesKey, libraries);
+      _stampQuery(librariesKey, generation);
+      final seenByKind = <String, Set<String>>{};
       for (final kind in ['series', 'books', 'collections', 'readlists']) {
-        final seen = <String>{};
+        final seen = seenByKind[kind] = <String>{};
+        int? total;
         for (var page = 0; ; page++) {
-          if (_disposed || _cancelMetadata || offline) return;
-          final chunk = await catalog(
+          if (stopped()) return;
+          // The snapshot must use fresh server pages and raw book metadata.
+          final chunk = await api.catalog(
             kind,
             page: page,
             size: 200,
-            force: true,
             path: ['collections', 'readlists'].contains(kind)
                 ? '/api/v1/$kind'
                 : null,
@@ -656,38 +672,63 @@ class Repository extends ChangeNotifier {
                 ? 'metadata.titleSort,asc'
                 : 'name,asc',
           );
-          if (_disposed) return;
-          store.cacheItems(profile.id, chunk.items);
-          seen.addAll(chunk.items.map((v) => v.id));
+          if (stopped()) return;
+          total ??= chunk.total;
+          if (generation != _invalidationGeneration ||
+              chunk.total != total ||
+              chunk.items.any(
+                (item) => item.id.isEmpty || !seen.add(item.id),
+              ) ||
+              seen.length > total ||
+              (chunk.last ? seen.length != total : chunk.items.isEmpty)) {
+            throw changedCatalog;
+          }
+          _restoreListedItems(chunk.items, generation);
+          store.cacheItems(
+            profile.id,
+            chunk.items.where((item) => !_removed.contains('$kind:${item.id}')),
+          );
           metadataIndexed += chunk.items.length;
           changed();
-          if (chunk.last || chunk.items.isEmpty) break;
-        }
-        if (_cancelMetadata || _disposed || offline) return;
-        final obsolete = store.db
-            .select(
-              'SELECT id FROM catalog_records WHERE server=? AND kind=?',
-              [profile.id, kind],
-            )
-            .map((r) => r['id'] as String)
-            .where((id) => !seen.contains(id))
-            .toList();
-        for (final id in obsolete) {
-          store.offlineCatalog.remove(profile.id, kind, id);
+          if (chunk.last) break;
         }
       }
-      store.setSetting('offlineCatalogSnapshot:${profile.id}', {
-        'modified': DateTime.now().toUtc().toIso8601String(),
-        'items': metadataIndexed,
-        'inProgress': false,
-        'complete': true,
+      if (stopped()) return;
+      if (generation != _invalidationGeneration) throw changedCatalog;
+      store.transaction(() {
+        for (final entry in seenByKind.entries) {
+          final obsolete = store.db.select(
+            'SELECT id FROM catalog_records WHERE server=? AND kind=?',
+            [profile.id, entry.key],
+          );
+          for (final row in obsolete) {
+            final id = row['id'] as String;
+            if (!entry.value.contains(id)) {
+              store.offlineCatalog.remove(profile.id, entry.key, id);
+            }
+          }
+        }
+        store.setSetting(snapshotKey, {
+          'modified': DateTime.now().toUtc().toIso8601String(),
+          'items': metadataIndexed,
+          'inProgress': false,
+          'complete': true,
+        });
       });
       localCatalogChanged();
     } catch (error) {
       if (!_disposed) metadataIndexError = error.toString();
     } finally {
       metadataIndexing = false;
-      if (!_disposed) changed();
+      if (!_disposed) {
+        final snapshot = object(store.setting<dynamic>(snapshotKey));
+        if (snapshot['inProgress'] == true) {
+          store.setSetting(snapshotKey, {...snapshot, 'inProgress': false});
+          localCatalogChanged();
+        } else {
+          changed();
+        }
+      }
     }
   }
 

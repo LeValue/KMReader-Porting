@@ -110,6 +110,7 @@ figure{width:65%;margin:0;break-after:column} img,svg{width:100%;height:auto}
 <figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 132">
 <image href="blue.svg" width="240" height="132"/></svg></figure>
 <p>${List.filled(120, 'Synthetic text follows the illustrations.').join(' ')}</p>
+<figure style="break-before:column;break-after:auto"><img src="pink.svg" alt="Chapter-end illustration"/></figure>
 </body></html>
 '''),
         for (final (name, color) in [('pink', '#c700b0'), ('blue', '#006ed2')])

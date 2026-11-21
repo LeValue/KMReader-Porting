@@ -22,10 +22,19 @@ with sync_playwright() as playwright:
     page = browser.new_page(viewport={'width': 430, 'height': 640}, device_scale_factor=2)
     page.goto(url)
     page.evaluate('''() => {
-      const start=KMReaderSheetEffect.prototype.start;
+      const render=ePub.Book.prototype.renderTo,start=KMReaderSheetEffect.prototype.start;
+      ePub.Book.prototype.renderTo=function(...args){return window.artworkRendition=render.apply(this,args);};
+      window.artworkScroll=()=>artworkRendition.manager.container.scrollLeft;
       KMReaderSheetEffect.prototype.start=function(...args){
         window.captureArtwork=this.capture;
+        window.artworkPreview=args[1]?.after;
         return start.apply(this,args);
+      };
+      window.encodeArtwork=image=>{
+        const canvas=document.createElement('canvas');
+        canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+        canvas.getContext('2d').drawImage(image,0,0);
+        return canvas.toDataURL('image/png').split(',')[1];
       };
     }''')
     page.evaluate('config => reader.open(config)', config)
@@ -40,12 +49,7 @@ with sync_playwright() as playwright:
             page.evaluate('reader.next()' if len(measured) == 1 else 'reader.previous()')
         page.evaluate('reader.whenIdle()')
         live = Image.open(io.BytesIO(page.screenshot()))
-        texture = page.evaluate('''async () => {
-          const image=await captureArtwork(), canvas=document.createElement('canvas');
-          canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
-          canvas.getContext('2d').drawImage(image,0,0);
-          return canvas.toDataURL('image/png').split(',')[1];
-        }''')
+        texture = page.evaluate('async () => encodeArtwork(await captureArtwork())')
         snapshot = Image.open(io.BytesIO(base64.b64decode(texture)))
         assert snapshot.size == live.size, (snapshot.size, live.size)
         live_bounds, texture_bounds = bounds(live, color), bounds(snapshot, color)
@@ -54,4 +58,32 @@ with sync_playwright() as playwright:
             name, live_bounds, texture_bounds)
         measured.append((name, live_bounds, texture_bounds))
     assert measured[0] == measured[2], measured
+    page.evaluate('reader.suspendInput(false)')
+    for chapter, start, end, color in [(None, 426, 140, (0, 110, 210)),
+                                      (None, 4, 290, (199, 0, 176)),
+                                      ('two.xhtml', 4, 290, (199, 0, 176))]:
+        if chapter:
+            page.evaluate('chapter => reader.display(chapter, false)', chapter)
+            page.evaluate('reader.whenIdle()')
+        page.evaluate('window.artworkPreview=null')
+        saved = page.evaluate('[reader.position().start.href, artworkScroll()]')
+        page.mouse.move(start, 340)
+        page.mouse.down()
+        page.mouse.move(end, 340, steps=12)
+        page.wait_for_function('() => window.artworkPreview && document.getElementById("page-gesture")')
+        assert page.evaluate('[reader.position().start.href, artworkScroll()]') == saved, 'The drag moved the live page before release'
+        texture = page.evaluate('encodeArtwork(artworkPreview)')
+        during = Image.open(io.BytesIO(base64.b64decode(texture)))
+        page.mouse.up()
+        page.wait_for_function('() => !document.getElementById("page-gesture")')
+        page.evaluate('reader.whenIdle()')
+        destination = page.evaluate('[reader.position().start.href, artworkScroll()]')
+        assert destination != saved, 'The mouse drag did not move the page'
+        if chapter:
+            assert destination[0] == 'one.xhtml', destination
+        live = Image.open(io.BytesIO(page.screenshot()))
+        actual, preview = bounds(live, color), bounds(during, color)
+        assert actual and preview, (actual, preview)
+        assert max(abs(a - b) for a, b in zip(actual, preview)) <= 2, (actual, preview)
+        measured.append(('mouse drag', actual, preview))
     print(json.dumps(measured))

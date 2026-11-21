@@ -63,9 +63,6 @@ class _EpubDesktopPanelsState extends State<EpubDesktopPanels>
     bool current() => mounted && request == _request;
     final animate = !MediaQuery.disableAnimationsOf(context);
     try {
-      // Opening slides over the original publication. The WebView receives a
-      // single new width after the panel arrives, preserving the CFI once.
-      if (open && animate) await _slide.forward().orCancel;
       final oldWidth = _viewportWidth;
       final frame = animate && _layoutOpen != open
           ? await widget.capture()
@@ -83,7 +80,9 @@ class _EpubDesktopPanelsState extends State<EpubDesktopPanels>
       previousPage?.dispose();
       _fade.value = frame == null ? 1 : 0;
       if (!animate) _slide.value = open ? 1 : 0;
-      final closing = !open && animate ? _slide.reverse() : null;
+      // Resize once, concurrently with the panel. The frozen image covers the
+      // still-visible edge until the sidebar reaches it.
+      final moving = animate ? _slide.animateTo(open ? 1 : 0) : null;
       if (frame != null) {
         // The live WebView reflows behind its own last rendered frame.
         await WidgetsBinding.instance.endOfFrame;
@@ -92,7 +91,7 @@ class _EpubDesktopPanelsState extends State<EpubDesktopPanels>
         if (!current()) return;
         await _fade.forward().orCancel;
       }
-      await closing?.orCancel;
+      await moving?.orCancel;
       if (!current()) return;
       setState(() {
         _page?.dispose();
@@ -112,51 +111,68 @@ class _EpubDesktopPanelsState extends State<EpubDesktopPanels>
     super.dispose();
   }
 
+  Widget? _cover() {
+    final page = _page;
+    if (page == null) return null;
+    Widget snapshot(Alignment alignment) => ClipRect(
+      child: OverflowBox(
+        alignment: alignment,
+        minWidth: _pageWidth,
+        maxWidth: _pageWidth,
+        child: RawImage(image: page, fit: BoxFit.fill),
+      ),
+    );
+    return IgnorePointer(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: FadeTransition(
+              opacity: ReverseAnimation(_fade),
+              child: snapshot(Alignment.topLeft),
+            ),
+          ),
+          if (_pageWidth > _viewportWidth)
+            Positioned(
+              left: _viewportWidth,
+              width: _pageWidth - _viewportWidth,
+              top: 0,
+              bottom: 0,
+              child: snapshot(Alignment.topRight),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final width = math.min(352.0, constraints.maxWidth * .48);
       final inset = _layoutOpen ? width : 0.0;
       _viewportWidth = constraints.maxWidth - inset;
-      return Stack(
-        children: [
-          Positioned.fill(
-            right: inset,
-            child: widget.reader(
-              _page == null
-                  ? null
-                  : IgnorePointer(
-                      child: FadeTransition(
-                        opacity: ReverseAnimation(_fade),
-                        child: ClipRect(
-                          child: OverflowBox(
-                            alignment: Alignment.topLeft,
-                            minWidth: _pageWidth,
-                            maxWidth: _pageWidth,
-                            child: RawImage(image: _page, fit: BoxFit.fill),
-                          ),
-                        ),
-                      ),
-                    ),
-            ),
-          ),
-          if (_retainedPanel case final Widget panel)
-            Positioned(
-              top: 0,
-              bottom: 0,
-              right: 0,
-              width: width,
-              child: SlideTransition(
-                position: Tween(begin: const Offset(1, 0), end: Offset.zero)
-                    .chain(CurveTween(curve: Curves.easeInOutCubic))
-                    .animate(_slide),
-                child: IgnorePointer(
-                  ignoring: widget.panel == null,
-                  child: panel,
+      return ClipRect(
+        child: Stack(
+          children: [
+            Positioned.fill(right: inset, child: widget.reader(_cover())),
+            if (_retainedPanel case final Widget panel)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 0,
+                width: width,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(1, 0), end: Offset.zero)
+                      .chain(CurveTween(curve: Curves.easeInOutCubic))
+                      .animate(_slide),
+                  child: IgnorePointer(
+                    ignoring: widget.panel == null,
+                    child: panel,
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       );
     },
   );
@@ -211,6 +227,7 @@ class EpubAnnotationTile extends StatelessWidget {
     this.delete,
     this.noteLabel,
     this.openNote,
+    this.accent,
   });
 
   final IconData icon;
@@ -219,6 +236,7 @@ class EpubAnnotationTile extends StatelessWidget {
   final VoidCallback open;
   final VoidCallback? delete, openNote;
   final String? noteLabel;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
@@ -230,93 +248,159 @@ class EpubAnnotationTile extends StatelessWidget {
               colors.primary.withValues(alpha: .10),
               colors.surface,
             )
-          : colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: selected
-              ? colors.primary.withValues(alpha: .4)
-              : theme.dividerColor,
+          : Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      clipBehavior: Clip.hardEdge,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: accent == null
+              ? null
+              : BorderDirectional(start: BorderSide(color: accent!, width: 3)),
         ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Semantics(
-                  selected: selected,
-                  child: InkWell(
-                    onTap: open,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(13, 12, 10, 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(icon, size: 19, color: colors.onSurfaceVariant),
-                          const SizedBox(width: 11),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(label, style: theme.textTheme.labelLarge),
-                                if (chapter.isNotEmpty)
-                                  Text(
-                                    chapter,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                if (body.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    body,
-                                    maxLines: 4,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Semantics(
+                    selected: selected,
+                    child: InkWell(
+                      onTap: open,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 9, 8, 7),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 17,
+                              color: accent ?? colors.onSurfaceVariant,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    label,
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  if (chapter.isNotEmpty)
+                                    Text(
+                                      chapter,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: colors.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  if (body.isNotEmpty) ...[
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      body,
+                                      maxLines: 4,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              if (delete != null)
-                IconButton(
-                  tooltip: tr(context, 'Delete'),
-                  onPressed: delete,
-                  icon: const Icon(Icons.delete_outline, size: 19),
-                ),
-            ],
-          ),
-          if (noteLabel != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(36, 0, 10, 6),
-              child: TextButton.icon(
-                style: TextButton.styleFrom(
-                  alignment: AlignmentDirectional.centerStart,
-                ),
-                onPressed: openNote,
-                icon: const Icon(Icons.edit_note, size: 19),
-                label: Text(
-                  noteLabel!,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+                if (delete != null)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 18),
+                    onSelected: (_) => delete!(),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(tr(context, 'Delete')),
+                      ),
+                    ],
+                  ),
+              ],
             ),
-        ],
+            if (noteLabel != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(32, 0, 8, 5),
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    alignment: AlignmentDirectional.centerStart,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: openNote,
+                  icon: const Icon(Icons.edit_note, size: 19),
+                  label: Text(
+                    noteLabel!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class EpubAnnotationFilterGrid<T> extends StatelessWidget {
+  const EpubAnnotationFilterGrid({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.select,
+  });
+
+  final List<({T value, String label, Color? color})> options;
+  final T selected;
+  final ValueChanged<T> select;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) {
+      const gap = 6.0;
+      final columns = bounds.maxWidth < 190
+          ? 1
+          : bounds.maxWidth >= 560
+          ? 4
+          : 2;
+      final width = (bounds.maxWidth - (columns - 1) * gap) / columns;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap,
+        children: [
+          for (final option in options)
+            SizedBox(
+              width: width,
+              child: ChoiceChip(
+                avatar: option.color == null
+                    ? null
+                    : Icon(Icons.circle, size: 10, color: option.color),
+                label: Text(
+                  option.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                selected: selected == option.value,
+                showCheckmark: false,
+                onSelected: (_) => select(option.value),
+              ),
+            ),
+        ],
+      );
+    },
+  );
 }
 
 class _SelectionPosition extends SingleChildLayoutDelegate {

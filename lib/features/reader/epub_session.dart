@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/annotation_colors.dart';
 import '../../core/models.dart';
 import '../../core/page_motion.dart';
 import '../../core/repository.dart';
@@ -12,6 +13,68 @@ import 'progress_gate.dart';
 import 'custom_fonts.dart';
 import 'epub_host.dart';
 import 'epub_page_index.dart';
+
+class EpubAnnotationLinks {
+  EpubAnnotationLinks(Iterable<Json> marks, int Function(String) chapterFor) {
+    Object chapterOf(Json mark) {
+      final href = text(mark['href']);
+      final index = chapterFor(href);
+      return index >= 0 ? index : href;
+    }
+
+    final byRange = <(Object, Object), Json>{};
+    final byChapter = <Object, List<Json>>{};
+    for (final mark in marks) {
+      if (EpubSession.markType(mark) != 'kindle.highlight') continue;
+      final chapter = chapterOf(mark);
+      byRange[(chapter, EpubSession.markRange(mark))] = mark;
+      (byChapter[chapter] ??= []).add(mark);
+    }
+    for (final note in marks) {
+      if (EpubSession.markType(note) != 'kindle.note') continue;
+      final chapter = chapterOf(note);
+      var highlight = byRange[(chapter, EpubSession.markRange(note))];
+      final start = note['kindleStart'], end = note['kindleEnd'];
+      // Kindle may store a note as a point inside a separate highlight.
+      if (highlight == null && start is int && (end == null || end == start)) {
+        final candidates = (byChapter[chapter] ?? []).where(
+          (mark) =>
+              mark['kindleStart'] is int &&
+              mark['kindleEnd'] is int &&
+              start >= (mark['kindleStart'] as int) &&
+              start < (mark['kindleEnd'] as int),
+        );
+        final exact = candidates.where((mark) => mark['kindleStart'] == start);
+        highlight = exact.length == 1
+            ? exact.single
+            : candidates.length == 1
+            ? candidates.single
+            : null;
+      }
+      if (highlight != null) {
+        _highlights[note['id']] = highlight;
+        (_notes[highlight['id']] ??= []).add(note);
+      }
+    }
+  }
+
+  final _highlights = <Object?, Json>{};
+  final _notes = <Object?, List<Json>>{};
+
+  Json? highlightFor(Json note) => _highlights[note['id']];
+  List<Json> notesFor(Json highlight) => _notes[highlight['id']] ?? const [];
+
+  String colorFor(Json mark) =>
+      annotationColor(highlightFor(mark)?['color']) ??
+      annotationColor(mark['color']) ??
+      defaultAnnotationColor;
+
+  List<Json> relatedTo(Json mark) => switch (EpubSession.markType(mark)) {
+    'kindle.note' => [?highlightFor(mark)],
+    'kindle.highlight' => notesFor(mark),
+    _ => const [],
+  };
+}
 
 class EpubPreferences {
   const EpubPreferences({
@@ -331,15 +394,24 @@ class EpubSession extends ChangeNotifier {
   }
 
   List<Json> get readerAnnotations {
-    final byRange = <Object, Json>{};
-    for (final mark in bookmarks) {
-      if (mark['rangeCfi'] == null && mark['endLocator'] == null) continue;
-      final range = markRange(mark);
-      if (!byRange.containsKey(range) || markType(mark) == 'kindle.note') {
-        byRange[range] = mark;
-      }
-    }
-    return byRange.values.toList();
+    final marks = bookmarks;
+    final links = EpubAnnotationLinks(marks, chapterFor);
+    return [
+      for (final mark in marks)
+        if (mark['rangeCfi'] != null ||
+            markType(mark) != 'kindle.bookmark' && mark['locator'] is Map)
+          if (links.highlightFor(mark) == null)
+            if (links.notesFor(mark).firstOrNull case final Json note)
+              {
+                ...note,
+                'rangeCfi': ?mark['rangeCfi'],
+                'locator': ?mark['locator'],
+                'endLocator': ?mark['endLocator'],
+                'color': links.colorFor(mark),
+              }
+            else
+              mark,
+    ];
   }
 
   bool isCurrentBookmark(Json mark) =>
@@ -725,7 +797,7 @@ class EpubSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool saveAnnotation(Json selection, {String? note}) {
+  bool saveAnnotation(Json selection, {String? note, String? color}) {
     if (incognito || repository.closed) return false;
     final start = text(selection['cfi']), range = text(selection['rangeCfi']);
     final index = chapterFor(text(selection['href']));
@@ -755,6 +827,7 @@ class EpubSession extends ChangeNotifier {
       'href': document.chapters[index].path,
       'label': body ?? excerpt,
       'excerpt': excerpt,
+      'color': ?annotationColor(color ?? selection['color']),
       'created': DateTime.now().toUtc().toIso8601String(),
       if (startPosition is int &&
           endPosition is int &&
@@ -794,16 +867,12 @@ class EpubSession extends ChangeNotifier {
 
   void removeAnnotation(Json mark) {
     if (!canRemoveAnnotation(mark)) return;
-    final range = markRange(mark);
     final related = [
       mark,
-      if (markType(mark) == 'kindle.highlight')
-        ...bookmarks.where(
-          (value) =>
-              markType(value) == 'kindle.note' &&
-              markRange(value) == range &&
-              canRemoveAnnotation(value),
-        ),
+      ...EpubAnnotationLinks(
+        bookmarks,
+        chapterFor,
+      ).relatedTo(mark).where(canRemoveAnnotation),
     ];
     repository.store.transaction(() {
       final values = _localAnnotations

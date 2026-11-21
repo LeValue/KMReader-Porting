@@ -740,6 +740,7 @@ class KomgaApi {
   Future<CatalogPage> catalog(
     String kind, {
     int page = 0,
+    int size = 40,
     String? search,
     String sort = 'metadata.titleSort,asc',
     Json? condition,
@@ -755,7 +756,7 @@ class KomgaApi {
               if (search != null && search.isNotEmpty) 'fullTextSearch': search,
             }
           : null,
-      query: {'page': page, 'size': 40, 'sort': sortQuery(kind, sort)},
+      query: {'page': page, 'size': size, 'sort': sortQuery(kind, sort)},
     ),
   );
   Future<Book> book(String id) async =>

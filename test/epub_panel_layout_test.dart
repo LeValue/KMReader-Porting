@@ -13,6 +13,7 @@ void main() {
       var captures = 0;
       final laidOut = <int>[];
       var settled = Completer<void>();
+      final captured = Completer<void>();
       final open = ValueNotifier(false);
       addTearDown(open.dispose);
       await tester.pumpWidget(
@@ -34,6 +35,7 @@ void main() {
                   ),
                   capture: () async {
                     captures++;
+                    await captured.future;
                     final recording = ui.PictureRecorder();
                     Canvas(recording).drawColor(Colors.white, BlendMode.src);
                     final picture = recording.endRecording();
@@ -57,26 +59,27 @@ void main() {
       final pageRegion = tester.getRect(find.byKey(page));
       open.value = true;
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 110));
       expect(tester.getRect(find.byKey(page)), pageRegion);
+      expect(captures, 1);
+      captured.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 75));
       final openingPanel = tester.getRect(find.byKey(panel));
-      expect(openingPanel.left, lessThan(pageRegion.right));
-      expect(openingPanel.right, greaterThan(pageRegion.right));
-      expect(captures, 0);
-      await tester.pump(const Duration(milliseconds: 150));
-      await tester.pump();
-      await tester.pump();
       final resized = tester.getRect(find.byKey(page));
       expect(resized.width, lessThan(pageRegion.width));
+      expect(openingPanel.left, greaterThan(resized.right));
+      expect(openingPanel.left, lessThan(pageRegion.right));
+      expect(openingPanel.right, greaterThan(pageRegion.right));
+      expect(laidOut, [720]);
+      expect(find.byType(RawImage), findsNWidgets(2));
+      settled.complete();
+      await tester.pumpAndSettle();
       expect(
         tester.getRect(find.byKey(panel)).left,
         closeTo(resized.right, .1),
       );
       expect(captures, 1);
-      expect(laidOut, [720]);
-      expect(find.byType(RawImage), findsOneWidget);
-      settled.complete();
-      await tester.pumpAndSettle();
       expect(find.byType(RawImage), findsNothing);
 
       settled = Completer<void>();
@@ -92,4 +95,50 @@ void main() {
       expect(find.byType(RawImage), findsNothing);
     },
   );
+
+  testWidgets('the annotation filters stay in aligned rows after selection', (
+    tester,
+  ) async {
+    final selection = ValueNotifier('Tutto');
+    addTearDown(selection.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 330,
+            child: ValueListenableBuilder(
+              valueListenable: selection,
+              builder: (_, selected, _) => EpubAnnotationFilterGrid<String>(
+                options: [
+                  for (final title in [
+                    'Tutto',
+                    'Segnalibri',
+                    'Evidenziazioni',
+                    'Note',
+                  ])
+                    (value: title, label: title, color: null),
+                ],
+                selected: selected,
+                select: (value) => selection.value = value,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    List<Rect> positions() => tester
+        .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+        .map((chip) => tester.getRect(find.byWidget(chip)))
+        .toList();
+    final before = positions();
+    expect(before[0].width, before[1].width);
+    expect(before[0].top, before[1].top);
+    expect(before[0].left, before[2].left);
+    expect(before[1].left, before[3].left);
+    expect(before[2].top, greaterThan(before[0].bottom));
+    await tester.tap(find.text('Evidenziazioni'));
+    await tester.pumpAndSettle();
+    expect(selection.value, 'Evidenziazioni');
+    expect(positions(), before);
+  });
 }

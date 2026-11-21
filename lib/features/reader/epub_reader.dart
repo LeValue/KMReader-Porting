@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/annotation_colors.dart';
 import '../../core/models.dart';
 import '../../core/external_links.dart';
 import '../../core/repository.dart';
@@ -1368,6 +1369,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return;
     }
     String? body;
+    String? color;
     if (note) {
       var value = previous;
       body = await showDialog<String>(
@@ -1433,10 +1435,46 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         ),
       );
       if (body?.isNotEmpty != true) return;
+    } else {
+      color = await showDialog<String>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(tr(dialog, 'Highlight color')),
+          scrollable: true,
+          content: SizedBox(
+            width: 320,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final entry in annotationColors.entries)
+                  ChoiceChip(
+                    label: Text(tr(dialog, entry.key)),
+                    avatar: Icon(
+                      Icons.circle,
+                      size: 12,
+                      color: _annotationInk(entry.value),
+                    ),
+                    selected:
+                        entry.value == annotationColor(selection['color']),
+                    showCheckmark: false,
+                    onSelected: (_) => Navigator.pop(dialog, entry.value),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (color == null) return;
     }
     if (!mounted || !identical(session, _session)) return;
-    if (session.saveAnnotation(selection, note: body)) _annotationsChanged();
+    if (session.saveAnnotation(selection, note: body, color: color)) {
+      _annotationsChanged();
+    }
   }
+
+  Color _annotationInk(String hex) =>
+      Color(0xff000000 | int.parse(hex.substring(1), radix: 16));
 
   Future<void> _quickNavigation() async {
     final session = _session!;
@@ -1588,6 +1626,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Future<void> _bookmarks() async {
     final session = _session!;
     var filter = 'all';
+    String? color;
+    var chapterFilter = -1;
+    var filtersOpen = false;
     (String, Object)? selected;
     (String, Object) markKey(Json mark) =>
         (EpubSession.markType(mark), EpubSession.markRange(mark));
@@ -1602,22 +1643,49 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           builder: (context, update) {
             final marks = session.bookmarks;
             final active = session.currentBookmark;
-            final highlights = {
+            final links = EpubAnnotationLinks(marks, session.chapterFor);
+            final markChapters = {
               for (final mark in marks)
-                if (EpubSession.markType(mark) == 'kindle.highlight')
-                  EpubSession.markRange(mark): mark,
+                text(mark['href']): session.chapterFor(text(mark['href'])),
             };
-            final notes = {
+            final chapters = {
+              for (final index in markChapters.values)
+                if (index >= 0) index: session.document.chapters[index].title,
+            };
+            const types = {
+              'all': 'All',
+              'kindle.bookmark': 'Bookmarks',
+              'kindle.highlight': 'Highlights',
+              'kindle.note': 'Notes',
+            };
+            final inks = {
               for (final mark in marks)
-                if (EpubSession.markType(mark) == 'kindle.note')
-                  EpubSession.markRange(mark): mark,
+                if (EpubSession.markType(mark) != 'kindle.bookmark')
+                  links.colorFor(mark): links.colorFor(mark),
+              for (final entry in annotationColors.entries)
+                entry.value: tr(context, entry.key),
             };
+            final selectedChapter = chapters.containsKey(chapterFilter)
+                ? chapterFilter
+                : -1;
+            final selectedInk = inks.containsKey(color) ? color : null;
             final visible =
                 marks.where((mark) {
                   final type = EpubSession.markType(mark);
+                  if (selectedChapter >= 0 &&
+                      markChapters[text(mark['href'])] != selectedChapter) {
+                    return false;
+                  }
+                  if (selectedInk != null &&
+                      (type == 'kindle.bookmark' ||
+                          links.colorFor(mark) != selectedInk)) {
+                    return false;
+                  }
                   if (filter != 'all') return type == filter;
-                  return type != 'kindle.note' ||
-                      !highlights.containsKey(EpubSession.markRange(mark));
+                  final highlight = links.highlightFor(mark);
+                  return highlight == null ||
+                      links.notesFor(highlight).firstOrNull?['id'] !=
+                          mark['id'];
                 }).toList()..sort((a, b) {
                   final chapter = session
                       .chapterFor(text(a['href']))
@@ -1631,6 +1699,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                EpubPanelHeader(
+                  title: 'Bookmarks and annotations',
+                  close: close,
+                  trailing: IconButton(
+                    tooltip: tr(context, 'Filters'),
+                    isSelected: filtersOpen,
+                    icon: const Icon(Icons.tune),
+                    selectedIcon: const Icon(Icons.filter_list_off),
+                    onPressed: () => update(() => filtersOpen = !filtersOpen),
+                  ),
+                ),
                 if (!Platform.isWindows)
                   ListTile(
                     leading: Icon(
@@ -1647,41 +1726,101 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         ? null
                         : () => session.toggleBookmark(''),
                   ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-                  child: Wrap(
-                    spacing: 6,
-                    children: [
-                      for (final entry in const {
-                        'all': 'All',
-                        'kindle.bookmark': 'Bookmarks',
-                        'kindle.highlight': 'Highlights',
-                        'kindle.note': 'Notes',
-                      }.entries)
-                        ChoiceChip(
-                          label: Text(tr(context, entry.value)),
-                          selected: filter == entry.key,
-                          onSelected: (_) => update(() => filter = entry.key),
-                        ),
-                    ],
+                if (filtersOpen)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: min(
+                        325,
+                        MediaQuery.sizeOf(context).height * .42,
+                      ),
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            tr(context, 'Type'),
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          EpubAnnotationFilterGrid<String>(
+                            options: [
+                              for (final entry in types.entries)
+                                (
+                                  value: entry.key,
+                                  label:
+                                      '${tr(context, entry.value)} (${entry.key == 'all' ? marks.length : marks.where((mark) => EpubSession.markType(mark) == entry.key).length})',
+                                  color: null,
+                                ),
+                            ],
+                            selected: filter,
+                            select: (value) => update(() => filter = value),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            tr(context, 'Color'),
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          EpubAnnotationFilterGrid<String?>(
+                            options: [
+                              (
+                                value: null,
+                                label: tr(context, 'All'),
+                                color: null,
+                              ),
+                              for (final entry in inks.entries)
+                                (
+                                  value: entry.key,
+                                  label: entry.value,
+                                  color: _annotationInk(entry.key),
+                                ),
+                            ],
+                            selected: selectedInk,
+                            select: (value) => update(() => color = value),
+                          ),
+                          if (chapters.length > 1) ...[
+                            const SizedBox(height: 8),
+                            DropdownButton<int>(
+                              isExpanded: true,
+                              value: selectedChapter,
+                              onChanged: (value) =>
+                                  update(() => chapterFilter = value ?? -1),
+                              items: [
+                                DropdownMenuItem(
+                                  value: -1,
+                                  child: Text(tr(context, 'All chapters')),
+                                ),
+                                for (final entry in chapters.entries)
+                                  DropdownMenuItem(
+                                    value: entry.key,
+                                    child: Text(
+                                      entry.value,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
-                ),
                 Expanded(
                   child: visible.isEmpty
                       ? Center(child: Text(tr(context, 'No annotations')))
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
                           itemCount: visible.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
+                          separatorBuilder: (_, _) => const Divider(height: 9),
                           itemBuilder: (context, i) {
                             final mark = visible[i];
                             final type = EpubSession.markType(mark);
-                            final range = EpubSession.markRange(mark);
                             final note = type == 'kindle.note'
                                 ? mark
-                                : notes[range];
-                            final highlight = highlights[range];
+                                : links.notesFor(mark).firstOrNull;
+                            final highlight = type == 'kindle.note'
+                                ? links.highlightFor(mark)
+                                : mark;
                             final chapter = session.chapterFor(
                               text(mark['href']),
                             );
@@ -1701,6 +1840,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                 mark['rangeCfi'] != null;
                             return EpubAnnotationTile(
                               key: ValueKey(key),
+                              accent: isBookmark
+                                  ? null
+                                  : _annotationInk(links.colorFor(mark)),
                               icon: isBookmark
                                   ? Icons.bookmark_outline
                                   : note == null
@@ -1758,6 +1900,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         ),
       ),
       dedicated: true,
+      withHeader: false,
     );
   }
 
@@ -1828,18 +1971,15 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Future<void> _deleteMark(Json mark) async {
     final session = _session!;
     if (!session.canRemoveAnnotation(mark)) return;
-    final withNote =
-        EpubSession.markType(mark) == 'kindle.highlight' &&
-        session.bookmarks.any(
-          (value) =>
-              EpubSession.markType(value) == 'kindle.note' &&
-              EpubSession.markRange(value) == EpubSession.markRange(mark),
-        );
+    final hasRelated = EpubAnnotationLinks(
+      session.bookmarks,
+      session.chapterFor,
+    ).relatedTo(mark).any(session.canRemoveAnnotation);
     if (!await confirm(
           context,
           'Delete',
-          withNote
-              ? 'Delete the highlight and its note?'
+          hasRelated
+              ? 'Delete the note and its highlight?'
               : 'Delete this annotation?',
         ) ||
         !mounted) {
@@ -2474,6 +2614,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         key: const ValueKey('epub-surface-slot'),
                         child: Stack(
                           fit: StackFit.expand,
+                          clipBehavior: pageCover == null
+                              ? Clip.hardEdge
+                              : Clip.none,
                           children: [
                             if (_recoveryFailed)
                               FailureView(
