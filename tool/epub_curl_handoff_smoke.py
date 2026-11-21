@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.request import urlopen
 
 from PIL import Image
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError, sync_playwright
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,7 +71,7 @@ TRACE = r'''() => {
   };
   window.probeWarm=()=>warmed;
   window.probeArm=hold=>{
-    sample=window.probeSample={hold,frames:[],raf:[],uploads:0,decodes:0,trusted:false};
+    sample=window.probeSample={hold,frames:[],raf:[],uploads:0,decodes:0,trusted:false,input:{}};
     const initial=sample;
     function up(event){
       if(sample!==initial||sample.release!==undefined)return;
@@ -91,6 +91,11 @@ TRACE = r'''() => {
     window.addEventListener('pointerup',up,{capture:true,once:true});
     for(const content of probeRendition.getContents()){
       content.document.addEventListener('pointerup',up,{capture:true,once:true});
+      for(const type of ['pointerdown','pointermove','pointercancel']){
+        content.document.addEventListener(type,event=>{
+          if(sample===initial)sample.input[type]=[event.pointerType,Math.round(event.clientX),Math.round(event.clientY)];
+        },{capture:true,once:true});
+      }
     }
   };
   window.probePosition=()=>({cfi:reader.position().start.cfi,href:reader.position().start.href});
@@ -188,7 +193,8 @@ def drag(page, cdp, case, touch, hold=False, cancel=False):
     page.evaluate('hold=>probeArm(hold)', hold)
     w, h = page.evaluate('[innerWidth,innerHeight]')
     backward = case.endswith('back')
-    start, end = (8, w*.42) if backward else (w-8, w*.58)
+    inset = 16 if touch else 8
+    start, end = (inset, w*.42) if backward else (w-inset, w*.58)
     y = h * .52
 
     def touch_event(kind, x):
@@ -202,7 +208,13 @@ def drag(page, cdp, case, touch, hold=False, cancel=False):
         page.mouse.move(start, y)
         page.mouse.down()
         page.mouse.move(end, y, steps=9)
-    page.wait_for_function('probeEffect?.ready&&probeEffect.progress>.15')
+    try:
+        page.wait_for_function('probeEffect?.ready&&probeEffect.progress>.15')
+    except TimeoutError as error:
+        state = page.evaluate('''()=>({input:probeSample.input,shield:!!document.querySelector('#page-gesture'),
+          ready:probeEffect?.ready,progress:probeEffect?.progress,viewport:[innerWidth,innerHeight,devicePixelRatio],
+          visual:[visualViewport.width, visualViewport.height, visualViewport.scale]})''')
+        raise RuntimeError(f'Curl did not follow the {case} drag: {state}') from error
     assert page.evaluate('probeSample.preview && !!document.querySelector("#page-gesture")')
     assert page.evaluate('probePosition()') == before
     if cancel:
@@ -337,6 +349,7 @@ def android_apk(root, package):
           android.webkit.WebView.setWebContentsDebuggingEnabled(true);
           android.webkit.WebView web = new android.webkit.WebView(this);
           web.getSettings().setJavaScriptEnabled(true);
+          web.getSettings().setUseWideViewPort(true);
           web.setWebViewClient(new android.webkit.WebViewClient());
           setContentView(web);
           web.loadUrl(getIntent().getStringExtra("origin"));
@@ -419,6 +432,8 @@ def run(args):
         if endpoint:
             cdp.send('Emulation.setDeviceMetricsOverride', {'width': args.width, 'height': args.height,
                       'deviceScaleFactor': args.dpr, 'mobile': args.touch})
+            if args.touch:
+                cdp.send('Emulation.setTouchEmulationEnabled', {'enabled': True, 'maxTouchPoints': 1})
         cdp.send('Emulation.setEmulatedMedia', {'features':[{'name':'prefers-reduced-motion','value':'no-preference'}]})
         ages = {}
         for label in 'ABBA':
