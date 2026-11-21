@@ -1721,7 +1721,7 @@ class KMReaderPageSnapshot {
       // Lay text out on the output pixel grid before rasterizing. Scaling a
       // CSS-pixel foreignObject through the SVG viewBox can quantize its text
       // twice and give fractional-density devices a different baseline.
-      root.style.setProperty('zoom',scale*(Number(htmlStyle.zoom)||1),'important');
+      if(scale!==1)root.style.setProperty('zoom',scale*(Number(htmlStyle.zoom)||1),'important');
       const artwork=[...root.querySelectorAll('img,svg,image')];
       if(!isFixedLayout())KMReaderPageSnapshot.compact(root,doc,clip,cached);
       root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
@@ -1760,15 +1760,19 @@ class KMReaderPageSnapshot {
   }
   async function captureSheet(shift=0,sourceFrames){
     const width=innerWidth,height=innerHeight,grid=KMReaderCurlSurface.rasterGeometry(width,height),revision=captureRevision;
+    // Integer viewBox scaling matches the native raster directly. Only
+    // fractional densities need to lay out the clone on the output grid.
+    const layoutScale=Number.isInteger(grid.scale)?1:grid.scale;
     const frames=sourceFrames||[...document.querySelectorAll('#viewer iframe')].filter(f=>{const b=f.getBoundingClientRect();return b.right>0&&b.left<width&&b.bottom>0&&b.top<height;});
-    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift,grid.scale),annotations:annotationMarkup(frame,shift)};}));
+    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift,layoutScale),annotations:annotationMarkup(frame,shift)};}));
     if(!parts.length)throw Error('No visible publication');
     const key=JSON.stringify([grid.pixelWidth,grid.pixelHeight,grid.scale,...parts.map(p=>[p.markup.id,p.box.x,p.box.y])]);
     if(capturePages.has(key)){const value=capturePages.get(key);capturePages.delete(key);capturePages.set(key,value);return value;}
     const task=(async()=>{
-      const scale=grid.scale;
+      const scale=layoutScale;
       const layers=await Promise.all(parts.map(async({box,markup,annotations})=>`<foreignObject x="${box.x*scale}" y="${box.y*scale}" width="${box.width*scale}" height="${box.height*scale}">${await markup.work}</foreignObject>${annotations?`<g transform="scale(${scale})">${annotations}</g>`:''}`));
-      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${grid.pixelWidth}" height="${grid.pixelHeight}"><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
+      const viewBox=scale===1?` viewBox="0 0 ${grid.width} ${grid.height}"`:'';
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${grid.pixelWidth}" height="${grid.pixelHeight}"${viewBox}><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
       if(svg.length>8*1024*1024)throw Error('Page texture exceeds markup budget');
       const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await image.decode();
       if(disposed||revision!==captureRevision)throw Error('Stale page texture');return image;
