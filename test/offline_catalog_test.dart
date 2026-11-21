@@ -78,6 +78,78 @@ void main() {
     );
   });
 
+  test('offline sort choices support series, file size, download dates and stable mixed pages', () {
+    final first = {
+      ...book('first', 'First', number: 2),
+      'seriesId': 'z-series',
+      'seriesTitle': 'Adventure',
+      'sizeBytes': 510,
+    };
+    final second = {
+      ...book('second', 'Second', number: 10),
+      'seriesId': 'z-series',
+      'seriesTitle': 'Adventure',
+      'sizeBytes': 450,
+    };
+    final third = {
+      ...book('third', 'Third'),
+      'seriesId': 'a-series',
+      'seriesTitle': 'Zoology',
+      'sizeBytes': 900,
+    };
+    store.cacheItems('a', [
+      for (final dto in [third, second, first]) CatalogItem('books', dto),
+      CatalogItem('series', {
+        'id': 'z-series',
+        'fileLastModified': '2026-11-10',
+        'booksMetadata': {'releaseDate': '2025-02-01'},
+      }),
+      CatalogItem('series', {
+        'id': 'a-series',
+        'fileLastModified': '2026-11-02',
+        'booksMetadata': {'releaseDate': '2026-02-01'},
+      }),
+      CatalogItem('readlists', {
+        'id': 'readlist',
+        'name': 'Fixture',
+        'bookIds': ['second'],
+      }),
+    ]);
+    store.saveDownload('a', Book(second), 'ready');
+    store.saveDownload('a', Book(third), 'cancelled');
+    store.saveDownload('b', Book(third), 'ready');
+    Iterable<String> ordered(
+      String kind,
+      String sort, {
+      int size = 40,
+      int page = 0,
+      String? path,
+    }) => store.offlineCatalog
+        .query('a', kind, sort: sort, size: size, page: page, path: path)
+        .items
+        .map((item) => item.id);
+    expect(ordered('books', 'series,asc|metadata.numberSort,asc'), [
+      'first',
+      'second',
+      'third',
+    ]);
+    expect(ordered('books', 'fileSize,desc'), ['third', 'first', 'second']);
+    expect(ordered('books', 'downloadAt,desc'), ['second', 'first', 'third']);
+    expect(ordered('series', 'downloadAt,desc').first, 'z-series');
+    expect(
+      ordered('series', 'booksMetadata.releaseDate,desc').first,
+      'a-series',
+    );
+    expect(ordered('series', 'fileLastModified,desc').first, 'z-series');
+    expect([
+      for (var page = 0; page < 2; page++)
+        ...ordered('series', 'random,asc', size: 1, page: page),
+    ], ordered('series', 'random,asc'));
+    expect(ordered('readlists', 'name,asc', path: '/api/v1/readlists'), [
+      'readlist',
+    ]);
+  });
+
   test(
     'On Deck selects the next unread volume per idle series before pagination',
     () {

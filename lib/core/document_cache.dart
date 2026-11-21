@@ -293,20 +293,30 @@ class DocumentCache {
     });
   }
 
-  Future<void> trim({bool clear = false}) async {
+  Stream<(File, FileStat)> _files() async* {
     if (_closed || !await directory.exists()) return;
-    final files = <(File, FileStat)>[];
-    var total = 0;
-    await for (final entity in directory.list()) {
+    await for (final entity in directory.list(followLinks: false)) {
       if (entity is! File ||
           !['.pdf', '.epub'].contains(p.extension(entity.path))) {
         continue;
       }
       final stat = await entity.stat();
-      if (stat.type != FileSystemEntityType.file) continue;
-      files.add((entity, stat));
-      total += stat.size;
+      if (stat.type == FileSystemEntityType.file) yield (entity, stat);
     }
+  }
+
+  Future<({int bytes, int removableBytes})> usage() async {
+    var bytes = 0, removableBytes = 0;
+    await for (final (file, stat) in _files()) {
+      bytes += stat.size;
+      if (!_active.containsKey(file.path)) removableBytes += stat.size;
+    }
+    return (bytes: bytes, removableBytes: removableBytes);
+  }
+
+  Future<void> trim({bool clear = false}) async {
+    final files = await _files().toList();
+    var total = files.fold(0, (bytes, entry) => bytes + entry.$2.size);
     files.sort((a, b) => a.$2.modified.compareTo(b.$2.modified));
     for (final entry in files) {
       if (!clear && total <= budget) break;

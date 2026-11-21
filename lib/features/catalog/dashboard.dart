@@ -298,7 +298,7 @@ class _DashboardState extends State<Dashboard> {
                       )
                     else
                       _DashboardSection(
-                        key: ValueKey('$title:$library'),
+                        key: ValueKey('$title:$library:${repository.offline}'),
                         repository: repository,
                         title: title,
                         libraryIds: libraries,
@@ -355,7 +355,10 @@ class _DashboardSection extends StatelessWidget {
           (cardKind == 'horizontal' ? 122 : cardWidth(context) * 1.5 + 64) + 84,
       child: const Center(child: CircularProgressIndicator.adaptive()),
     ),
-    revision: repository.contentRevision + repository.cacheRevision,
+    revision:
+        repository.contentRevision +
+        repository.cacheRevision +
+        (repository.offline ? repository.progressRevision : 0),
     load: () => repository.catalog(
       kind,
       sort: sort,
@@ -432,6 +435,7 @@ class _DashboardSection extends StatelessWidget {
                           condition: condition,
                           libraryIds: libraryIds,
                           initialSort: sort,
+                          searchEnabled: title != 'dashboard.onDeck',
                         ),
                       ),
                     ),

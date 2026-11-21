@@ -24,7 +24,7 @@ void main() {
       email: '',
       authentication: Authentication.apiKey,
     );
-    var unavailable = false, repeated = false, requests = 0;
+    var unavailable = false, repeated = false, malformed = false, requests = 0;
     final repo = Repository(
       profile: profile,
       store: store,
@@ -35,9 +35,11 @@ void main() {
         credential: '',
         client: MockClient((request) async {
           requests++;
-          if (request.url.path != '/api/v1/books/list')
+          if (request.url.path != '/api/v1/books/list') {
             return http.Response('[]', 200);
+          }
           if (unavailable) return http.Response('', 503);
+          if (malformed) return http.Response('{"last":true}', 200);
           final page = int.parse(request.url.queryParameters['page']!);
           return http.Response(
             jsonEncode({
@@ -76,6 +78,11 @@ void main() {
     expect(repo.offlineMetadataComplete, isFalse);
     expect(store.offlineCatalog.count('one', 'books'), 2);
     repeated = false;
+    malformed = true;
+    await repo.prepareOfflineCatalog();
+    expect(repo.offlineMetadataComplete, isFalse);
+    expect(store.offlineCatalog.count('one', 'books'), 2);
+    malformed = false;
     await repo.prepareOfflineCatalog();
     expect(repo.offlineMetadataComplete, isTrue);
     expect(repo.metadataIndexError, isNull);

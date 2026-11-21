@@ -9,6 +9,20 @@ import 'models.dart';
 /// FTS searches metadata values, with all SQL values passed as parameters.
 class OfflineCatalog {
   OfflineCatalog(this.db) {
+    db.createFunction(
+      functionName: 'catalog_random_key',
+      argumentCount: const AllowedArgumentCount(1),
+      deterministic: true,
+      function: (args) {
+        var hash = 0xcbf29ce484222325;
+        for (final byte in utf8.encode(args.single as String)) {
+          hash = (hash ^ byte) * 0x100000001b3;
+        }
+        // SQLite compares signed integers. Shift the sign bit to retain the
+        // unsigned order of the stable hash used by the reference browser.
+        return hash ^ 0x8000000000000000;
+      },
+    );
     db.execute('''CREATE TABLE IF NOT EXISTS catalog_records(
       server TEXT NOT NULL,kind TEXT NOT NULL,id TEXT NOT NULL,value TEXT NOT NULL,
       search TEXT NOT NULL, UNIQUE(server,kind,id))''');
@@ -151,6 +165,8 @@ class OfflineCatalog {
           }
         }
       } else if (!onDeck &&
+          !(const {'collections', 'readlists'}.contains(kind) &&
+              path == '/api/v1/$kind') &&
           !RegExp(r'^/api/v1/(books|series)/(list|new|updated)$')
               .hasMatch(path)) {
         throw const ApiFailure(
@@ -208,19 +224,34 @@ class OfflineCatalog {
       );
       orderArgs.addAll(listOrder);
     }
-    for (final part
-        in listOrder == null && !onDeck ? serverSort(kind, sort) : <String>[]) {
+    final sortParts = listOrder == null && !onDeck
+        ? serverSort(kind, sort)
+        : <String>[];
+    for (final part in sortParts) {
       final pieces = part.split(',');
       final expression = sql.sortField(pieces.first);
       order.add('$expression ${pieces.last == 'desc' ? 'DESC' : 'ASC'}');
     }
     if (onDeck) order.add('deck.recent DESC');
     order.add('c.id ASC');
+    final byDownload = sortParts.any(
+      (part) => part.split(',').first == 'downloadAt',
+    );
+    final downloadJoin = byDownload
+        ? '''
+      LEFT JOIN (
+        SELECT ${kind == 'series' ? "json_extract(value,'\$.book.seriesId')" : 'book'} AS item,
+               max(julianday(json_extract(value,'\$.time'))) AS completed_at
+        FROM downloads WHERE server=? AND json_extract(value,'\$.status')='ready'
+        GROUP BY item
+      ) download_dates ON download_dates.item=c.id
+      '''
+        : '';
     size = size.clamp(1, 1000);
     page = page.clamp(0, 1 << 30);
     final records = db.select(
-      '${deck}SELECT c.value FROM $source WHERE $where ORDER BY ${order.join(',')} LIMIT ? OFFSET ?',
-      [...filters, ...orderArgs, size, page * size],
+      '${deck}SELECT c.value FROM $source $downloadJoin WHERE $where ORDER BY ${order.join(',')} LIMIT ? OFFSET ?',
+      [if (byDownload) server, ...filters, ...orderArgs, size, page * size],
     );
     return CatalogPage(
       records
@@ -290,11 +321,12 @@ class _OfflineSql {
       'mediaProfile' => "json_extract(c.value,'\$.media.mediaProfile')",
       'mediaStatus' => "json_extract(c.value,'\$.media.status')",
       'ageRating' ||
-      'numberSort' ||
       'releaseDate' ||
       'publisher' ||
       'language' ||
       'complete' => "json_extract(c.value,'\$.metadata.$name')",
+      'numberSort' =>
+        "CAST(json_extract(c.value,'\$.metadata.numberSort') AS REAL)",
       _ => throw ApiFailure(
         'This filter is unavailable offline: $name',
         offline: true,
@@ -314,8 +346,16 @@ class _OfflineSql {
     }
     if (name == 'metadata.numberSort') return field('numberSort');
     if (name == 'readProgress.readDate') return 'julianday($readDate)';
+    if (name == 'series') {
+      return "coalesce(nullif(json_extract(c.value,'\$.seriesTitle'),''),${field('seriesId')}) COLLATE NOCASE";
+    }
+    if (name == 'fileSize') {
+      return "coalesce(json_extract(c.value,'\$.sizeBytes'),json_extract(c.value,'\$.fileSize'))";
+    }
+    if (name == 'downloadAt') return 'download_dates.completed_at';
+    if (name == 'random') return 'catalog_random_key(c.id)';
     if (RegExp(
-      r'^(created|lastModified|fileSize|booksCount|booksReadCount|booksInProgressCount|name|url|metadata\.(releaseDate|publisher|ageRating)|media\.pagesCount)$',
+      r'^(created|lastModified|fileLastModified|booksCount|booksReadCount|booksInProgressCount|name|url|metadata\.(releaseDate|publisher|ageRating)|booksMetadata\.releaseDate|media\.pagesCount)$',
     ).hasMatch(name)) {
       return "json_extract(c.value,'\$.$name')";
     }

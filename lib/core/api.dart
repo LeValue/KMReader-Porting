@@ -745,9 +745,8 @@ class KomgaApi {
     String sort = 'metadata.titleSort,asc',
     Json? condition,
     String? path,
-  }) async => CatalogPage.parse(
-    kind,
-    await request(
+  }) async {
+    final response = await request(
       path ?? '/api/v1/$kind/list',
       method: path == null ? 'POST' : 'GET',
       body: path == null
@@ -757,8 +756,17 @@ class KomgaApi {
             }
           : null,
       query: {'page': page, 'size': size, 'sort': sortQuery(kind, sort)},
-    ),
-  );
+    );
+    if (response is! List &&
+        !(response is Map &&
+            response['content'] is List &&
+            response['last'] is bool &&
+            response['totalElements'] is int)) {
+      throw const FormatException('Invalid catalog page');
+    }
+    return CatalogPage.parse(kind, response);
+  }
+
   Future<Book> book(String id) async =>
       Book(object(await request('/api/v1/books/${Uri.encodeComponent(id)}')));
   void close() {

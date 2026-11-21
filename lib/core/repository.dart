@@ -483,6 +483,7 @@ class Repository extends ChangeNotifier {
     String? libraryId,
     List<String>? libraryIds,
   }) async {
+    final onDeck = path == '/api/v1/books/ondeck';
     if (libraryIds != null && libraryIds.isNotEmpty) {
       condition = {
         'allOf': [
@@ -562,10 +563,11 @@ class Repository extends ChangeNotifier {
           'library_id': libraryIds.toSet().toList()..sort()
         else
           'library_id': ?libraryId,
-        if (!(path?.contains('/readlists/') == true &&
-            path?.endsWith('/books') == true))
+        if (!onDeck &&
+            !(path?.contains('/readlists/') == true &&
+                path?.endsWith('/books') == true))
           'sort': sortQuery(kind, sort),
-        if (path != null && search != null && search.isNotEmpty)
+        if (path != null && !onDeck && search != null && search.isNotEmpty)
           'search': search,
       },
       cacheFirst: true,
@@ -717,7 +719,11 @@ class Repository extends ChangeNotifier {
       });
       localCatalogChanged();
     } catch (error) {
-      if (!_disposed) metadataIndexError = error.toString();
+      if (!_disposed) {
+        metadataIndexError = error is FormatException
+            ? changedCatalog.message
+            : error.toString();
+      }
     } finally {
       metadataIndexing = false;
       if (!_disposed) {
@@ -1319,6 +1325,7 @@ class Repository extends ChangeNotifier {
   }
 
   void setOffline(bool value) {
+    final sourceChanged = _offline != value;
     _offline = value;
     store.setSetting('offline:${profile.id}', value);
     if (offline) {
@@ -1331,7 +1338,11 @@ class Repository extends ChangeNotifier {
       resumeDownloads();
     }
     onDownloadQueueChanged?.call();
-    changed();
+    if (sourceChanged) {
+      localCatalogChanged();
+    } else {
+      changed();
+    }
   }
 
   Future<void> applyEventPreferences() async {
