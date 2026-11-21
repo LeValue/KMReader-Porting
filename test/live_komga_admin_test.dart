@@ -56,6 +56,9 @@ void main() {
         ]);
         await admin.createFolder(library, '', 'Publisher');
         await admin.createFolder(library, 'Publisher', 'New Series');
+        expect((await admin.komgaFolders(library, 'Publisher'))['folders'], [
+          'New Series',
+        ]);
         expect((await admin.folders(library, 'Publisher'))['folders'], [
           'New Series',
         ]);

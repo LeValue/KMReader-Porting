@@ -323,14 +323,17 @@ class KMReaderSheetEffect {
       try{
         this.surface=KMReaderCurlSurface.shared??=new KMReaderCurlSurface();
         this.surface.effect=this;
-        const [before,afterPreview]=await this.wait(Promise.all([preview?.before||this.capture(),preview?.after,this.surface.whenReady()]));
+        const [before,afterPreview]=await this.wait(Promise.all([preview?.before||this.capture(),preview?.after])).catch(()=>[]);
+        if(!before){const cancelled=this.stopped;this.stop();if(!cancelled){moved=true;await move();}return false;}
+        await this.wait(this.surface.whenReady());
         if(this.stopped)return false;
         if(afterPreview){
           this.surface.upload(before,afterPreview,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);this.ready=true;return true;
         }
         this.surface.upload(before,null,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
         moved=true;await move();
-        const after=await this.wait(this.capture());if(this.stopped)return false;
+        const after=await this.wait(this.capture()).catch(()=>null);
+        if(!after||this.stopped){this.stop();return false;}
         this.surface.upload(before,after,this.width,this.height);this.update(0);this.ready=true;return true;
       }catch(_){const cancelled=this.stopped&&!this.failed;if(cancelled)this.stop();else this.fail();if(!moved&&!cancelled)await move();return false;}
     }
@@ -960,6 +963,7 @@ class KMReaderPageSnapshot {
     return null;
   }
   const renderedAnnotations = new Map();
+  const noteHitAreas = new WeakMap();
   function kindlePoint(contents, value) {
     if (!value || !Number.isSafeInteger(value.offset) || value.offset < 0) return null;
     const element = contents.document.getElementById(String(value.id));
@@ -1002,9 +1006,26 @@ class KMReaderPageSnapshot {
     return range.collapsed?null:contents.cfiFromRange(range);
   }
   function updateKindleAnnotations(value) {
+    if(JSON.stringify(value)===JSON.stringify(config.annotations||[]))return true;
     for(const cfi of renderedAnnotations.values())rendition?.annotations.remove(cfi,'highlight');
     renderedAnnotations.clear();config.annotations=value;captureRevision++;capturePages.clear();
     drawKindleAnnotations();return true;
+  }
+  function noteAt(contents,x,y) {
+    const doc=contents.document;
+    let cached=noteHitAreas.get(doc);
+    if(cached?.revision!==captureRevision){
+      const areas=[];
+      for(const mark of config.annotations||[]){
+        if(mark.type!=='kindle.note')continue;
+        try{
+          const cfi=annotationRange(contents,mark),range=cfi&&new ePub.CFI(cfi).toRange(doc);
+          if(range)areas.push({mark,rects:[...range.getClientRects()]});
+        }catch(_){ /* A deleted publication range cannot receive input. */ }
+      }
+      cached={revision:captureRevision,areas};noteHitAreas.set(doc,cached);
+    }
+    return cached.areas.find(({rects})=>rects.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom))?.mark;
   }
   function annotationMarkup(frame,shift){
     return [...frame.parentElement.querySelectorAll('svg')].filter(svg=>svg.querySelector('.kmreader-kindle-highlight')).map(svg=>{
@@ -1057,16 +1078,7 @@ class KMReaderPageSnapshot {
     }
     doc.addEventListener('click', event => {
       if (inputSuspended || Date.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); return; }
-      const note = doc.getSelection()?.isCollapsed && (config.annotations || []).find(mark => {
-        if (mark.type !== 'kindle.note') return false;
-        try {
-          const cfi = annotationRange(contents, mark);
-          const range = cfi && new ePub.CFI(cfi).toRange(doc);
-          return range && [...range.getClientRects()].some(r =>
-            event.clientX >= r.left && event.clientX <= r.right &&
-            event.clientY >= r.top && event.clientY <= r.bottom);
-        } catch (_) { return false; }
-      });
+      const note = doc.getSelection()?.isCollapsed && noteAt(contents,event.clientX,event.clientY);
       if (note) {
         event.preventDefault(); event.stopImmediatePropagation();
         send('openNote', {id: note.id});
@@ -1124,8 +1136,19 @@ class KMReaderPageSnapshot {
       }
     }, {passive:false});
     doc.addEventListener('dragstart', event => { if (preferences.flow === 'paged') event.preventDefault(); });
+    let noteCursor;
+    const setNoteCursor=active=>{
+      if(active&&!noteCursor){
+        noteCursor=doc.createElementNS('http://www.w3.org/1999/xhtml','style');
+        noteCursor.textContent='* {cursor:pointer!important}';
+        doc.head.append(noteCursor);
+      }
+      if(noteCursor?.sheet?.disabled===active)noteCursor.sheet.disabled=!active;
+    };
+    doc.documentElement.addEventListener('pointerleave',()=>setNoteCursor(false));
     doc.addEventListener('pointermove', event => {
       if (gesture?.pointer === event.pointerId) { event.preventDefault(); gesture.update(point(event)); return; }
+      if(event.pointerType==='mouse')setNoteCursor(!inputSuspended&&!!noteAt(contents,event.clientX,event.clientY));
       if (!contact || event.pointerId !== contact.id || preferences.flow !== 'paged' || auxiliary ||
           !doc.getSelection().isCollapsed) return;
       const p = point(event), dx = p.x - contact.x, dy = p.y - contact.y;
@@ -1160,7 +1183,9 @@ class KMReaderPageSnapshot {
         if (active()) await preserve(() => Promise.resolve());
       }).catch(error => send('error', {message: String(error)}));
     };
-    for (const image of doc.images) image.addEventListener('load', resourceChanged);
+    doc.addEventListener('load', event => {
+      if(event.target.matches?.('img,image'))resourceChanged();
+    }, true);
     if (doc.fonts) doc.fonts.addEventListener('loadingdone', resourceChanged);
     doc.addEventListener('selectionchange', () => {
       clearTimeout(doc._selectionReport);
@@ -1169,6 +1194,7 @@ class KMReaderPageSnapshot {
       }, 100);
     });
     doc.addEventListener('scroll', () => {
+      noteHitAreas.delete(doc);
       if (!doc.getSelection()?.isCollapsed) {
         clearTimeout(doc._selectionReport);
         doc._selectionReport = setTimeout(() => reportSelection(contents), 120);
@@ -1450,6 +1476,38 @@ class KMReaderPageSnapshot {
       if (target && location?.start) location.start.cfi = target;
     } finally { restoring = false; userMove = false; position(true); warmCurl(); }
   }
+  async function jumpToBookmark(value) {
+    await waitForLayout();
+    if(!auxiliary){
+      if(value.cfi===anchor)return false;
+      let target;
+      if(value.cfi){
+        try{target=new ePub.CFI(value.cfi);}
+        catch(_){return false;}
+      }
+      for(const contents of rendition.getContents()){
+        const section=book.spine.get(contents.sectionIndex);
+        if(target ? target.spinePos!==contents.sectionIndex : section?.href!==value.href)continue;
+        const doc=contents.document,frame=doc.defaultView?.frameElement?.getBoundingClientRect();
+        if(!frame)continue;
+        try{
+          let range;
+          if(target)range=target.toRange(doc);
+          else {
+            const point=kindlePoint(contents,value.locator);
+            if(!point)continue;
+            range=doc.createRange();range.setStart(...point);range.collapse(true);
+          }
+          if([...range.getClientRects()].some(r=>r.height>0&&
+            frame.left+r.left>=-.5&&frame.left+r.left<innerWidth&&
+            frame.top+r.bottom>0&&frame.top+r.top<innerHeight))return false;
+        }catch(_){ /* Fall back to the normal locator navigation. */ }
+      }
+    }
+    if(value.cfi)await display(value.cfi);
+    else await seek(value);
+    return true;
+  }
   async function resumeKindle(value) {
     if (!config.kindlePositions || auxiliary || interactiveNavigation || disposed) return null;
     await waitForLayout();
@@ -1576,22 +1634,35 @@ class KMReaderPageSnapshot {
     for(const match of matches)text=text.replace(match[0],`url("${await embeddedResource(match[2],base)}")`);
     return text;
   }
-  async function cssSheet(sheet,base){
-    const rules=[...sheet.cssRules];
-    return (await Promise.all(rules.map(rule=>rule.styleSheet?cssSheet(rule.styleSheet,rule.styleSheet.href||base):embedCss(rule.cssText,sheet.href||base)))).join('\n');
+  async function cssSheet(sheet,base,view){
+    if(sheet.disabled||sheet.media?.mediaText&&!view.matchMedia(sheet.media.mediaText).matches)return '';
+    const url=sheet.href||base;
+    async function activeRules(rules){
+      return (await Promise.all([...rules].map(async rule=>{
+        if(rule.styleSheet){
+          return rule.media.mediaText&&!view.matchMedia(rule.media.mediaText).matches?'':cssSheet(rule.styleSheet,url,view);
+        }
+        if(rule.type===CSSRule.MEDIA_RULE)return view.matchMedia(rule.conditionText).matches?activeRules(rule.cssRules):'';
+        if(rule.type===CSSRule.SUPPORTS_RULE)return view.CSS.supports(rule.conditionText)?activeRules(rule.cssRules):'';
+        return embedCss(rule.cssText,url);
+      }))).join('\n');
+    }
+    return activeRules(sheet.cssRules);
   }
   async function sheetMarkup(frame,shift=0){
     const doc=frame.contentDocument,box=frame.getBoundingClientRect();
     const signature=[captureRevision,box.width,box.height,doc.body.getAttribute('style'),doc.documentElement.getAttribute('style')].join('|');
     let cached=captureMarkup.get(doc);
     if(cached?.signature!==signature){
-      const images=[...doc.images].map(image=>{
+      const artwork=[...doc.querySelectorAll('img,svg,image')].map(image=>{
         const style=doc.defaultView.getComputedStyle(image);
-        return {url:image.currentSrc||image.src,width:style.width,height:style.height,
-          boxSizing:style.boxSizing,objectFit:style.objectFit,objectPosition:style.objectPosition};
+        return {url:image.currentSrc||image.src||image.getAttribute('href')||image.getAttributeNS('http://www.w3.org/1999/xlink','href'),
+          width:style.width,height:style.height,boxSizing:style.boxSizing,
+          objectFit:style.objectFit,objectPosition:style.objectPosition,
+          rect:image.getBoundingClientRect()};
       });
-      const css=Promise.all([...doc.styleSheets].map(sheet=>cssSheet(sheet,doc.baseURI))).then(rules=>rules.join('\n'));
-      cached={signature,id:++captureSerial,pages:new Map(),images,css};
+      const css=Promise.all([...doc.styleSheets].map(sheet=>cssSheet(sheet,doc.baseURI,doc.defaultView))).then(rules=>rules.join('\n'));
+      cached={signature,id:++captureSerial,pages:new Map(),artwork,css};
       captureMarkup.set(doc,cached);
     }
     const clip={left:-box.x-shift,right:innerWidth-box.x-shift,top:-box.y,bottom:innerHeight-box.y};
@@ -1600,25 +1671,35 @@ class KMReaderPageSnapshot {
     const value={signature,id:cached.id+':'+pageKey};
     value.work=(async()=>{
       const root=doc.documentElement.cloneNode(true);
+      const artwork=[...root.querySelectorAll('img,svg,image')];
       if(!isFixedLayout())KMReaderPageSnapshot.compact(root,doc,clip,cached);
       root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
       const css=await cached.css;
       const style=doc.createElement('style');style.textContent=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}*{caret-color:transparent!important}::selection{background:transparent!important}';root.querySelector('head').append(style);
-      await Promise.all([...root.querySelectorAll('img')].map(async(img,i)=>{
-        const image=cached.images[i];
-        if(!image)return;
-        if(image.url)img.setAttribute('src',await embeddedResource(image.url,doc.baseURI));
-        img.removeAttribute('srcset'); img.removeAttribute('sizes'); img.removeAttribute('loading');
-        // Match the laid-out publication, including picture/srcset choices.
-        // Re-resolving percentages or intrinsic dimensions in an SVG image
-        // can otherwise lay out the same illustration at a different size.
-        for(const [key,value] of [['width',image.width],['height',image.height],
-          ['box-sizing',image.boxSizing],['object-fit',image.objectFit],['object-position',image.objectPosition],
-          ['max-width','none'],['max-height','none'],['min-width','0'],['min-height','0'],
-          ['animation','none'],['transition','none']]) img.style.setProperty(key,value,'important');
+      await Promise.all(artwork.map(async(element,i)=>{
+        const image=cached.artwork[i],r=image.rect,tag=element.localName;
+        const visible=r.right>clip.left-32&&r.left<clip.right+32&&r.bottom>clip.top-32&&r.top<clip.bottom+32;
+        if(tag==='img'){
+          element.removeAttribute('srcset');element.removeAttribute('sizes');element.removeAttribute('loading');
+          if(visible&&image.url)element.setAttribute('src',await embeddedResource(image.url,doc.baseURI));
+          else element.removeAttribute('src');
+        }else if(tag==='image'){
+          element.removeAttributeNS('http://www.w3.org/1999/xlink','href');
+          if(visible&&image.url)element.setAttribute('href',await embeddedResource(image.url,doc.baseURI));
+          else element.removeAttribute('href');
+          return;
+        }
+        // Keep the original layout boxes, even for artwork several pages
+        // away. Only paint and embed images close to the captured viewport.
+        if(image.width.endsWith('px')&&image.height.endsWith('px')){
+          for(const [key,value] of [['width',image.width],['height',image.height],
+            ['box-sizing',image.boxSizing],['object-fit',image.objectFit],['object-position',image.objectPosition],
+            ['max-width','none'],['max-height','none'],['min-width','0'],['min-height','0'],
+            ['animation','none'],['transition','none']])element.style.setProperty(key,value,'important');
+          if(!visible)element.style.setProperty('visibility','hidden','important');
+        }
       }));
       for(const source of root.querySelectorAll('picture source')) source.remove();
-      await Promise.all([...root.querySelectorAll('image')].map(async(img)=>{const url=img.getAttribute('href')||img.getAttributeNS('http://www.w3.org/1999/xlink','href');if(url){const data=await embeddedResource(url,doc.baseURI);img.setAttribute('href',data);img.removeAttributeNS('http://www.w3.org/1999/xlink','href');}}));
       root.querySelector('body').style.setProperty('overflow','visible','important');root.style.setProperty('overflow','visible','important');
       root.setAttribute('xmlns','http://www.w3.org/1999/xhtml');root.style.width=box.width+'px';root.style.height=box.height+'px';
       return new XMLSerializer().serializeToString(root);
@@ -2126,6 +2207,17 @@ class KMReaderPageSnapshot {
   }
   window.reader = {open: value => enqueue(() => open(value)), next: () => enqueue(next), previous: () => enqueue(previous),
     seek: value => enqueue(() => seek(value)),
+    jumpToBookmark: value => enqueue(() => jumpToBookmark(value)),
+    viewportBeforeResize: () => enqueue(async()=>{
+      cancelGesture();cancelTurnAnimation();
+      await waitForLayout();await tick();
+      return innerWidth;
+    }),
+    viewportSettled: async previousWidth => {
+      const end=performance.now()+500;
+      while(!disposed&&innerWidth===previousWidth&&performance.now()<end)await tick();
+      return enqueue(async()=>{await waitForLayout();await tick();return true;});
+    },
     resumeKindle: value => enqueue(() => resumeKindle(value)),
     annotations: updateKindleAnnotations,
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),

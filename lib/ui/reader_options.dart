@@ -17,13 +17,16 @@ class ReaderOptionsPanel extends StatelessWidget {
     required this.children,
     this.onClose,
     this.fill = false,
+    this.useAppPalette = false,
   });
   final String title;
   final List<Widget> children;
   final VoidCallback? onClose;
-  final bool fill;
+  final bool fill, useAppPalette;
   @override
   Widget build(BuildContext context) {
+    final app = Theme.of(context);
+    final theme = useAppPalette ? app : settingsTheme(app);
     // Each control is a separate sliver child. A long text section must not
     // build, lay out and repaint as one enormous card on Android.
     final rows = <Widget>[];
@@ -44,7 +47,7 @@ class ReaderOptionsPanel extends StatelessWidget {
       for (var i = 0; i < child.children.length; i++) {
         rows.add(
           Material(
-            color: settingsTheme(Theme.of(context)).cardColor,
+            color: theme.cardColor,
             borderRadius: BorderRadius.vertical(
               top: i == 0 ? const Radius.circular(16) : Radius.zero,
               bottom: i == child.children.length - 1
@@ -64,9 +67,9 @@ class ReaderOptionsPanel extends StatelessWidget {
       rows.add(const SizedBox(height: 22));
     }
     return Theme(
-      data: settingsTheme(Theme.of(context)),
+      data: theme,
       child: ColoredBox(
-        color: settingsTheme(Theme.of(context)).scaffoldBackgroundColor,
+        color: theme.scaffoldBackgroundColor,
         child: SizedBox(
           height: fill
               ? null

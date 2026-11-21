@@ -95,6 +95,51 @@ void main() {
     final bootstrap = await (await client.getUrl(host.reader)).close();
     expect(await utf8.decoder.bind(bootstrap).join(), contains('epub.min.js'));
   });
+  test('responsive artwork stays aligned in forward and reverse curl textures', () async {
+    final file = fixture(
+      directory,
+      resources: {
+        'OPS/one.xhtml': utf8.encode('''
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Artwork</title>
+<style>
+figure{width:65%;margin:0;break-after:column} img,svg{width:100%;height:auto}
+@media(min-resolution:2dppx){figure{margin-left:43px}}
+</style></head><body>
+<figure><picture><source media="(min-resolution:2dppx)" srcset="pink.svg"/>
+<img src="blue.svg" alt="Synthetic rectangle"/></picture></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 132">
+<image href="blue.svg" width="240" height="132"/></svg></figure>
+<p>${List.filled(120, 'Synthetic text follows the illustrations.').join(' ')}</p>
+</body></html>
+'''),
+        for (final (name, color) in [('pink', '#c700b0'), ('blue', '#006ed2')])
+          'OPS/$name.svg': utf8.encode(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="132"><rect width="240" height="132" fill="$color"/></svg>',
+          ),
+      },
+    );
+    final host = await EpubHost.openFile(file.path);
+    try {
+      final result = await Process.run('python3', [
+        'tool/epub_artwork_smoke.py',
+        host.reader.toString(),
+        jsonEncode({
+          'url': host.publication.toString(),
+          'preferences': EpubPreferences.fromJson({
+            'theme': 'white',
+            'transition': 'curl',
+            'columns': 1,
+          }).toJson(),
+          'nonce': 'artwork',
+          'direction': 'ltr',
+          'href': 'one.xhtml',
+        }),
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    } finally {
+      await host.close();
+    }
+  }, skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1');
   test('browser session persists user CFI navigation but excludes reflow and incognito', () async {
     final store = LocalStore(sqlite3.openInMemory());
     const profile = ServerProfile(

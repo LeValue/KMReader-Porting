@@ -50,9 +50,11 @@ final class KindleMark {
 
   bool get deletable =>
       start >= 0 &&
-      end != null &&
-      end! > start &&
-      const {'highlight', 'note'}.contains(type);
+      (type == 'bookmark'
+          ? end == null
+          : end != null &&
+                end! > start &&
+                const {'highlight', 'note'}.contains(type));
 
   bool get valid =>
       start >= 0 &&

@@ -66,8 +66,10 @@ Apri **Aggiungi a Komga** da **Gestione libreria** o dal menu di una libreria.
 Scegli la cartella della serie, oppure creala dalla cartella aperta. Seleziona i
 file del lotto e controlla nomi, dimensioni ed esito di ciascuno. Un conflitto di
 nome permette di cambiare il nome del file in coda. L’app conserva le ricevute e
-chiede a Komga di indicizzare insieme i file caricati. Le versioni precedenti del
-servizio accettano il percorso relativo digitato e indicizzano i file singolarmente.
+chiede a Komga di indicizzare insieme i file caricati. Con le versioni precedenti
+del servizio, KMReader elenca le cartelle tramite Komga. Una nuova cartella viene
+creata al primo caricamento e i file vengono indicizzati singolarmente. Se
+Komga non può elencare le cartelle, si può inserire il percorso relativo.
 
 Per abilitare la registrazione dal modulo **Nuova libreria**, aggiorna
 `server.py` sul server, configura le radici autorizzate e riavvia
