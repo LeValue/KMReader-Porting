@@ -6,6 +6,39 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 45 — interactive EPUB curl handoff
+
+Runtime source `4937b928eeb9e06d8b43f4873c5b7fb61303dc5b`.
+The probe alternated the old and new `reader.js` in ABBA order in the same
+renderer. It used a generated, justified EPUB with illustrations, six trusted
+pointer drags per case and version, and separate runs for one column and
+two columns. Times start at the trusted release event. A late interval exceeds
+1.5 times the measured idle animation-frame cadence.
+
+| Renderer and turn | Release → first motion, median / p95 (ms) | Release → stable, median / p95 (ms) | Late intervals |
+| --- | --- | --- | --- |
+| Windows WebView2, forward chapter | 74.9 / 79.9 → 5.1 / 9.6 | 155.2 / 163.5 → 85.8 / 89.8 | 0.0% → 1.3% |
+| Windows WebView2, backward chapter | 76.0 / 85.8 → 4.1 / 5.5 | 155.9 / 169.3 → 87.7 / 92.1 | 3.7% → 0.0% |
+| Chromium software renderer, forward chapter | 979.4 / 1148.0 → 538.9 / 636.3 | 1066.6 / 1162.3 → 685.6 / 766.2 | 33.8% → 24.1% |
+| Chromium software renderer, backward chapter | 951.7 / 1007.9 → 511.1 / 527.2 | 1085.5 / 1125.1 → 649.7 / 675.8 | 39.7% → 23.5% |
+
+- The WebView2 run used 1000 × 720, effective scale 1, and mouse drags in a
+  two-page spread. The slight increase in late intervals in the forward case
+  was absent in the first run. Running again without a chapter change also
+  improved the release and stabilization times. [Raw WebView2 measurements](https://github.com/LeValue/KMReader-Porting/actions/runs/44902141976)
+- The Chromium software run used trusted touch events at 393 × 760 and 1.5×.
+  In the flat area, excluding the fold, the line counts matched and the
+  maximum measured displacement fell from 2.10–2.11 to 1.03–1.36 physical
+  pixels. The separate two-page software run kept the same line counts, with
+  maximum displacement of 1.79 physical pixels. WebView2 measured
+  0.07 pixels forward and 0.05 backward. Chromium timings describe the
+  software-rendered test host.
+- No texture decode or GPU upload was recorded after release in the new curl
+  path. The reversal gesture retained the original CFI. Artwork, chapter
+  turns, the fractional alignment test and the 3× compact snapshot test
+  passed in the browser. The reported personal EPUB and a physical Android
+  phone still need a run.
+
 ## After build 44 — offline parity and annotation refinement
 
 - The targeted host suite passed 83 tests. It checks On Deck order across pages and libraries,
