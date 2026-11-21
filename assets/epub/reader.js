@@ -9,6 +9,11 @@ class KMReaderCurlSurface {
     // Match native glyph resolution on phones without unbounded texture memory.
     return Math.max(1,Math.min(devicePixelRatio||1,4,Math.sqrt(32*1024*1024/(width*height*4))));
   }
+  static rasterGeometry(width,height){
+    const scale=this.rasterScale(width,height);
+    const pixelWidth=Math.round(width*scale),pixelHeight=Math.round(height*scale);
+    return {scale,pixelWidth,pixelHeight,width:pixelWidth/scale,height:pixelHeight/scale};
+  }
   constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'page-curl-surface';
@@ -175,10 +180,10 @@ class KMReaderCurlSurface {
   }
   upload(before,after,width,height) {
     if(this.disposed||this.gl.isContextLost())throw Error('Curl surface unavailable');
-    const gl=this.gl,dpr=KMReaderCurlSurface.rasterScale(width,height);
-    const pixelWidth=Math.round(width*dpr),pixelHeight=Math.round(height*dpr);
+    const gl=this.gl,grid=KMReaderCurlSurface.rasterGeometry(width,height);
+    const {pixelWidth,pixelHeight}=grid;
     // Rounded bitmap dimensions must not stretch CSS glyph coordinates.
-    this.width=pixelWidth/dpr;this.height=pixelHeight/dpr;
+    this.width=grid.width;this.height=grid.height;
     this.canvas.style.width=this.width+'px';this.canvas.style.height=this.height+'px';
     if(this.canvas.width!==pixelWidth)this.canvas.width=pixelWidth;
     if(this.canvas.height!==pixelHeight)this.canvas.height=pixelHeight;
@@ -1684,9 +1689,9 @@ class KMReaderPageSnapshot {
     }
     return activeRules(sheet.cssRules);
   }
-  async function sheetMarkup(frame,shift=0){
+  async function sheetMarkup(frame,shift=0,scale=1){
     const doc=frame.contentDocument,box=frame.getBoundingClientRect();
-    const signature=[captureRevision,box.width,box.height,doc.body.getAttribute('style'),doc.documentElement.getAttribute('style')].join('|');
+    const signature=[captureRevision,box.width,box.height,scale,doc.body.getAttribute('style'),doc.documentElement.getAttribute('style')].join('|');
     let cached=captureMarkup.get(doc);
     if(cached?.signature!==signature){
       const artwork=[...doc.querySelectorAll('img,svg,image')].map(image=>{
@@ -1713,6 +1718,10 @@ class KMReaderPageSnapshot {
       for(const name of ['width','height','font-family','font-size','line-height','letter-spacing','word-spacing']){
         root.style.setProperty(name,htmlStyle.getPropertyValue(name),'important');
       }
+      // Lay text out on the output pixel grid before rasterizing. Scaling a
+      // CSS-pixel foreignObject through the SVG viewBox can quantize its text
+      // twice and give fractional-density devices a different baseline.
+      root.style.setProperty('zoom',scale*(Number(htmlStyle.zoom)||1),'important');
       const artwork=[...root.querySelectorAll('img,svg,image')];
       if(!isFixedLayout())KMReaderPageSnapshot.compact(root,doc,clip,cached);
       root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
@@ -1750,21 +1759,22 @@ class KMReaderPageSnapshot {
     return value;
   }
   async function captureSheet(shift=0,sourceFrames){
-    const width=innerWidth,height=innerHeight,dpr=KMReaderCurlSurface.rasterScale(width,height),revision=captureRevision;
+    const width=innerWidth,height=innerHeight,grid=KMReaderCurlSurface.rasterGeometry(width,height),revision=captureRevision;
     const frames=sourceFrames||[...document.querySelectorAll('#viewer iframe')].filter(f=>{const b=f.getBoundingClientRect();return b.right>0&&b.left<width&&b.bottom>0&&b.top<height;});
-    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift),annotations:annotationMarkup(frame,shift)};}));
+    const parts=await Promise.all(frames.map(async frame=>{const r=frame.getBoundingClientRect();return {box:{x:r.x+shift,y:r.y,width:r.width,height:r.height},markup:await sheetMarkup(frame,shift,grid.scale),annotations:annotationMarkup(frame,shift)};}));
     if(!parts.length)throw Error('No visible publication');
-    const key=JSON.stringify([width,height,dpr,...parts.map(p=>[p.markup.id,p.box.x,p.box.y])]);
+    const key=JSON.stringify([grid.pixelWidth,grid.pixelHeight,grid.scale,...parts.map(p=>[p.markup.id,p.box.x,p.box.y])]);
     if(capturePages.has(key)){const value=capturePages.get(key);capturePages.delete(key);capturePages.set(key,value);return value;}
     const task=(async()=>{
-      const layers=await Promise.all(parts.map(async({box,markup,annotations})=>`<foreignObject x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}">${await markup.work}</foreignObject>${annotations}`));
-      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width*dpr)}" height="${Math.round(height*dpr)}" viewBox="0 0 ${Math.round(width*dpr)/dpr} ${Math.round(height*dpr)/dpr}"><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
+      const scale=grid.scale;
+      const layers=await Promise.all(parts.map(async({box,markup,annotations})=>`<foreignObject x="${box.x*scale}" y="${box.y*scale}" width="${box.width*scale}" height="${box.height*scale}">${await markup.work}</foreignObject>${annotations?`<g transform="scale(${scale})">${annotations}</g>`:''}`));
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${grid.pixelWidth}" height="${grid.pixelHeight}"><rect width="100%" height="100%" fill="${colors()[0]}"/>${layers.join('')}</svg>`;
       if(svg.length>8*1024*1024)throw Error('Page texture exceeds markup budget');
       const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await image.decode();
       if(disposed||revision!==captureRevision)throw Error('Stale page texture');return image;
     })();capturePages.set(key,task);task.catch(()=>capturePages.delete(key));
     // Four screen-sized textures at most; document markup is shared per chapter.
-    const limit=Math.max(2,Math.min(4,Math.floor(64*1024*1024/(width*height*dpr*dpr*4))));
+    const limit=Math.max(2,Math.min(4,Math.floor(64*1024*1024/(grid.pixelWidth*grid.pixelHeight*4))));
     while(capturePages.size>limit)capturePages.delete(capturePages.keys().next().value);
     return task;
   }
@@ -1774,7 +1784,7 @@ class KMReaderPageSnapshot {
   }
   function previewOrigin(){
     const manager=rendition?.manager;
-    return [captureRevision,innerWidth,innerHeight,manager?.container.scrollLeft,manager?.container.scrollTop,
+    return [captureRevision,innerWidth,innerHeight,devicePixelRatio,manager?.container.scrollLeft,manager?.container.scrollTop,
       ...[...document.querySelectorAll('#viewer iframe')].map(f=>{const b=f.getBoundingClientRect();return [b.x,b.y,b.width,b.height].join(',');})].join('|');
   }
   function previewShift(delta){
@@ -1794,8 +1804,9 @@ class KMReaderPageSnapshot {
     if(crossing)return null;
     // Match DefaultManager's move, including partial end spreads and native
     // viewport rounding. innerWidth is the texture width, not the scroll step.
+    const dpr=window.devicePixelRatio||1;
     const target=Math.max(negative?-max:0,Math.min(negative?0:max,
-      scrollLeft+delta*step*(rtl?-1:1)));
+      Math.round((scrollLeft+delta*step*(rtl?-1:1))*dpr)/dpr));
     return scrollLeft-target;
   }
   async function preparePreview(delta){
@@ -1813,7 +1824,7 @@ class KMReaderPageSnapshot {
     if(preferences.flow!=='paged'||isFixedLayout()||verticalWriting()||views?.length!==1)return Promise.resolve(null);
     const section=delta>0?views[0].section.next():views[0].section.prev();
     if(!section)return Promise.resolve(null);
-    const revision=captureRevision,key=[revision,section.index,delta,innerWidth,innerHeight].join('|');
+    const revision=captureRevision,key=[revision,section.index,delta,previewOrigin()].join('|');
     if(boundaryPreviews.has(key))return boundaryPreviews.get(key);
     // Render only the adjacent boundary page in an isolated, temporary view.
     // The input's live iframe, location and manager stay untouched. Retain the
@@ -1827,7 +1838,12 @@ class KMReaderPageSnapshot {
       const previewSection=new section.constructor({...section,linear:section.linear?'yes':'no'},section.hooks);
       const view=new IframeView(previewSection,{...manager.viewSettings,layout});
       const holder=document.createElement('div');
-      holder.style.cssText=`position:fixed;left:0;top:0;width:${innerWidth}px;height:${innerHeight}px;overflow:hidden;opacity:0;pointer-events:none;contain:strict;direction:${config.direction==='rtl'?'rtl':'ltr'}`;
+      const viewport=manager.container.getBoundingClientRect();
+      holder.className=manager.container.className;
+      holder.style.cssText=manager.container.style.cssText;
+      Object.assign(holder.style,{position:'fixed',left:`${viewport.left}px`,top:`${viewport.top}px`,
+        width:`${viewport.width}px`,height:`${viewport.height}px`,overflow:'hidden',
+        opacity:'0',pointerEvents:'none'});
       holder.setAttribute('aria-hidden','true');holder.append(view.element);document.body.append(holder);
       try{
         await view.display(manager.request);
@@ -1837,6 +1853,7 @@ class KMReaderPageSnapshot {
           doc.documentElement.dir='rtl';layout.format(view.contents,section,view.axis);view.expand();
         }
         await stable([view.contents]);
+        updateSearchHighlights(view.contents);
         for(const mark of config.annotations||[]){
           try {
             const cfi=annotationRange(view.contents,mark);
@@ -1844,9 +1861,13 @@ class KMReaderPageSnapshot {
           } catch (_) { /* A malformed mark must not block the chapter preview. */ }
         }
         if(disposed||revision!==captureRevision||rendition?.manager!==manager)return null;
-        const bounds=view.iframe.getBoundingClientRect(),rtl=config.direction==='rtl';
-        const shift=(delta>0)!==rtl?-bounds.left:innerWidth-bounds.right;
-        return await captureSheet(shift,[view.iframe]);
+        // Mimic DefaultManager.prev() in a real scrollport. The browser does
+        // the same clamping and physical-pixel snapping as the live view.
+        if(delta<0){
+          holder.scrollLeft=config.direction!=='rtl'?holder.scrollWidth-layout.delta:
+            manager.settings.rtlScrollType==='default'?0:layout.delta-holder.scrollWidth;
+        }
+        return await captureSheet(0,[view.iframe]);
       }finally{
         // A format/load failure can leave Contents alive before display()
         // sets displayed. Destroy its observers on that partial path too.
@@ -1997,32 +2018,44 @@ class KMReaderPageSnapshot {
           moved=true;
           state.progress=0;
         }
-        if(commit&&!moved&&preview&&state.effect){
+        const settle=()=>{
+          const duration=Math.min(300,Math.max(80,(Number(preferences.animationDuration)||380)*
+            (commit?1-(state.effect?.progress||0):state.effect?.progress||0)));
+          return state.effect?.animateTo(commit?1:0,duration,{velocity:velocity/state.effect.dragWidth});
+        };
+        let flight;
+        if(commit&&!moved&&preview&&state.effect?.surface){
+          const effect=state.effect;
+          // Pin both prepared pages while the live iframe changes. Resume
+          // the fold immediately, including while a new chapter lays out.
+          // The prepared back remains the reverse face on a two-page spread.
+          effect.livePage=-1;
+          try{effect.update(effect.progress);}catch(_){effect.fail();}
+          flight=settle();
+          await (delta>0?next():previous());moved=true;
+          // The next curl frame reveals the ready WebView with the same mesh
+          // and shadow. If settling already finished, removing the opaque
+          // preview below makes the same handoff without another GPU draw.
+          if(!effect.stopped&&!state.invalidated)effect.livePage=1;
+        }else if(commit&&!moved&&preview&&state.effect){
           // Keep the preview during pointer capture. Once released, match the
           // actual destination before the sheet settles, even when the next
           // chapter's temporary iframe had different responsive geometry.
-          if(state.effect.surface){state.effect.livePage=-1;state.effect.update(state.effect.progress);}
           await (delta>0?next():previous());moved=true;
-          if(state.effect.surface){state.effect.livePage=1;state.effect.update(state.effect.progress);}
           const actual=sourceFrame?.isConnected?sourceFrame.getBoundingClientRect().left-sourceLeft:null;
           if(preview.shift===null||actual===null||Math.abs(actual-preview.shift)>.125||preview.revision!==captureRevision){
             const after=await timeout(captureSheet().catch(()=>null),300);
             if(after&&!state.effect.stopped&&!state.invalidated){
               try {
-                if(state.effect.surface){
-                  state.effect.surface.upload(preview.before,after,innerWidth,innerHeight);
-                  state.effect.update(state.effect.progress);
-                }else if(state.effect.previewLayer?.lastElementChild){
+                if(state.effect.previewLayer?.lastElementChild){
                   state.effect.previewLayer.lastElementChild.src=after.src;
                 }
               } catch (_) { state.effect.fail(); }
             }
           }
         }
-        const duration = Math.min(300, Math.max(80, (Number(preferences.animationDuration) || 380) *
-          (commit ? 1 - (state.effect?.progress||0) : (state.effect?.progress||0))));
         if (!disposed) {
-          await state.effect?.animateTo(commit ? 1 : 0, duration, {velocity:velocity/(innerWidth/(rendition.manager?.layout?.divisor===2?2:1))});
+          await (flight??settle());
         }
         commit = commit && !state.invalidated;
         if(!disposed&&commit&&!moved){await (delta>0?next():previous());moved=true;}
