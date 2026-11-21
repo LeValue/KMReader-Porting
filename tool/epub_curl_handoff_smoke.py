@@ -425,7 +425,8 @@ def run(args):
         page = (browser.contexts[0].pages[0] if endpoint else browser.new_page(viewport={'width': args.width, 'height': args.height},
                 device_scale_factor=args.dpr, has_touch=args.touch, is_mobile=args.touch))
         cdp = page.context.new_cdp_session(page)
-        cases = ['page-forward', 'chapter-forward', 'chapter-back', 'page-back']
+        chapter_cases = ['chapter-forward', 'chapter-back']
+        cases = chapter_cases if args.chapter_turns else ['page-forward', *chapter_cases, 'page-back']
         metrics = {label:{case:[] for case in cases} for label in 'AB'}
         pixels = {}
         if args.origin:
@@ -454,7 +455,7 @@ def run(args):
         for label in 'AB':
             configure(page, origin, label, args.columns)
             drag(page, cdp, 'page-forward', args.touch, cancel=True)
-            pixels[label] = [compare_pixels(page, cdp, case, args.touch) for case in ('chapter-forward','chapter-back')]
+            pixels[label] = [compare_pixels(page, cdp, case, args.touch) for case in chapter_cases]
         result = {'engine': engine, 'browser': browser.version,
                   'viewport': page.evaluate('[innerWidth,innerHeight,devicePixelRatio]'),
                   'columns': args.columns, 'input': 'touch' if args.touch else 'mouse',
@@ -482,6 +483,7 @@ if __name__ == '__main__':
     parser.add_argument('--columns', type=int, choices=[1,2], default=1)
     parser.add_argument('--repetitions', type=int, default=3)
     parser.add_argument('--touch', action='store_true')
+    parser.add_argument('--chapter-turns', action='store_true', help='Time only turns across chapter boundaries')
     parser.add_argument('--engine', default='Chromium desktop')
     parser.add_argument('--cdp')
     parser.add_argument('--webview2', action='store_true')
