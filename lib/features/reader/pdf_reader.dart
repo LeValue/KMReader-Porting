@@ -58,6 +58,7 @@ class _PdfReaderState extends State<PdfReader> {
   bool _needsReflow = false;
   int? _pendingStep;
   bool _openingNext = false, _controls = true;
+  bool _zoomed = false;
   int _passwordAttempts = 0;
   Timer? _snapTimer;
   final _pointers = <int>{};
@@ -170,6 +171,7 @@ class _PdfReaderState extends State<PdfReader> {
         await _goTo(page, record: false, duration: Duration.zero);
       } finally {
         _reconfiguring = false;
+        _zoomChanged();
         _resumeNavigation();
       }
     });
@@ -184,18 +186,25 @@ class _PdfReaderState extends State<PdfReader> {
     page = page.clamp(1, _controller.pageCount);
     _focusedPage = page;
     _navigating = true;
+    _snapTimer?.cancel();
     if (MediaQuery.disableAnimationsOf(context)) duration = Duration.zero;
     try {
       final slot = _layout?.slots[page - 1];
-      if (slot != null) {
-        await _controller.goToArea(
-          rect: slot,
-          anchor: PdfPageAnchor.all,
-          duration: duration,
-        );
-      } else {
-        await _controller.goToPage(pageNumber: page, duration: duration);
-      }
+      Future<void> move(Duration time) => slot != null
+          ? _controller.goToArea(
+              rect: slot,
+              anchor: PdfPageAnchor.all,
+              duration: time,
+            )
+          : _controller.goToPage(pageNumber: page, duration: time);
+      // A native interaction can cancel pdfrx's animation ticker and
+      // leave its future pending. Settle the intended slot on interruption.
+      await move(duration).timeout(
+        duration + const Duration(milliseconds: 120),
+        onTimeout: () async {
+          if (mounted && _controller.isReady) await move(Duration.zero);
+        },
+      );
       if (!mounted) return;
       setState(() => _page = page);
       if (record && !widget.incognito && _progressGate.allows(page)) {
@@ -203,6 +212,7 @@ class _PdfReaderState extends State<PdfReader> {
       }
     } finally {
       _navigating = false;
+      _zoomChanged();
       _resumeNavigation();
     }
   }
@@ -291,6 +301,14 @@ class _PdfReaderState extends State<PdfReader> {
     return _controller.currentZoom <= fit * 1.05;
   }
 
+  void _zoomChanged() {
+    if (!mounted || !_ready || !_paged || _navigating || _reconfiguring) {
+      return;
+    }
+    final zoomed = !_isAtFit(_focusedPage);
+    if (_zoomed != zoomed) setState(() => _zoomed = zoomed);
+  }
+
   void _startPageDrag(PointerDownEvent event) {
     _pointers.add(event.pointer);
     if (_pointers.length != 1) {
@@ -328,9 +346,9 @@ class _PdfReaderState extends State<PdfReader> {
         axis.abs() >= threshold &&
         axis.abs() > other.abs()) {
       final forward = axis < 0 != (!_preferences.vertical && _preferences.rtl);
-      unawaited(_step(forward ? 1 : -1, from: drag.page));
-    } else {
-      unawaited(_goTo(drag.page, record: false));
+      scheduleMicrotask(() {
+        if (mounted) unawaited(_step(forward ? 1 : -1, from: drag.page));
+      });
     }
   }
 
@@ -470,6 +488,7 @@ class _PdfReaderState extends State<PdfReader> {
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_zoomChanged);
     _controls =
         widget.repository.store.setting<bool>('autoFullscreenOnOpen') != true;
     _page = widget.book.completed
@@ -506,6 +525,7 @@ class _PdfReaderState extends State<PdfReader> {
   @override
   void dispose() {
     _snapTimer?.cancel();
+    _controller.removeListener(_zoomChanged);
     _searcher?.dispose();
     super.dispose();
   }
@@ -639,6 +659,10 @@ class _PdfReaderState extends State<PdfReader> {
                       controller: _controller,
                       initialPageNumber: _page,
                       params: PdfViewerParams(
+                        // The native canvas may pan while zoomed or in
+                        // continuous layout. At fit, the pointer listener
+                        // owns page gestures so pdfrx cannot start a fling.
+                        panEnabled: !_paged || _zoomed,
                         sizeDelegateProvider:
                             const PdfViewerSizeDelegateProviderLegacy(
                               useAlternativeFitScaleAsMinScale: false,
@@ -712,7 +736,9 @@ class _PdfReaderState extends State<PdfReader> {
                         scrollHorizontallyByMouseWheel:
                             _paged && !_preferences.vertical,
                         onInteractionStart: (_) => _snapTimer?.cancel(),
-                        onInteractionEnd: (_) => _snap(),
+                        onInteractionEnd: (_) {
+                          if (_zoomed) _snap();
+                        },
                         pagePaintCallbacks: [
                           if (_searcher != null)
                             _searcher!.pageTextMatchPaintCallback,

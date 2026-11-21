@@ -78,7 +78,7 @@ class _DocumentReaderState extends State<DocumentReader> {
         );
       }
       return book.format == 'pdf'
-          ? widget.repository.store.setting<bool>('useNativePdfReader') == false
+          ? widget.repository.store.setting<bool>('useNativePdfReader') != true
                 ? PdfRasterReader(
                     file: snapshot.data!,
                     repository: widget.repository,

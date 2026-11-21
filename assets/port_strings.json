@@ -58,6 +58,12 @@
   "Go to latest Kindle position": {"en": "Go to latest Kindle position", "it": "Vai all’ultima posizione Kindle"},
   "Kindle position unavailable": {"en": "Kindle position unavailable", "it": "Posizione Kindle al momento non disponibile"},
   "Search Selection": {"en": "Search Selection", "it": "Cerca il testo selezionato"},
+  "Search in book": {"en": "Search in book", "it": "Cerca nel libro"},
+  "Translate Selected Text": {"en": "Translate Selected Text", "it": "Traduci il testo selezionato"},
+  "The native PDF view supports selectable text.": {"en": "The native PDF view supports selectable text.", "it": "Il lettore PDF nativo permette di selezionare il testo."},
+  "PDFs open in the comics reader with search and a table of contents.": {"en": "PDFs open in the comics reader with search and a table of contents.", "it": "I PDF si aprono nel lettore dei fumetti, con ricerca e indice."},
+  "PDF Page Rendering": {"en": "PDF Page Rendering", "it": "Rendering delle pagine PDF"},
+  "Image quality for PDF pages in the comics reader.": {"en": "Image quality for PDF pages in the comics reader.", "it": "Qualità delle pagine PDF nel lettore dei fumetti."},
   "Search unavailable": {"en": "Search unavailable", "it": "Ricerca non disponibile"},
   "Dictionary": {"en": "Dictionary", "it": "Dizionario"},
   "Dictionary definition unavailable": {"en": "Dictionary definition unavailable", "it": "Definizione non disponibile"},
@@ -1722,9 +1728,9 @@
     "en": "No local books yet",
     "it": "Non hai ancora importato libri"
   },
-  "Import EPUB, PDF or CBZ/ZIP files from this device.": {
-    "en": "Import EPUB, PDF or CBZ/ZIP files from this device.",
-    "it": "Importa file EPUB, PDF o CBZ/ZIP da questo dispositivo."
+  "Import EPUB, PDF or comic archives (CBZ, CBR, CB7, CBT).": {
+    "en": "Import EPUB, PDF or comic archives (CBZ, CBR, CB7, CBT).",
+    "it": "Importa EPUB, PDF o archivi di fumetti (CBZ, CBR, CB7, CBT)."
   },
   "Remove Local Book": {
     "en": "Remove Local Book",

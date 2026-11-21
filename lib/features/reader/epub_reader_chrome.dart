@@ -183,32 +183,46 @@ class EpubSelectionMenu extends StatelessWidget {
     super.key,
     required this.anchor,
     required this.actions,
+    this.touch = false,
   });
 
   final Rect anchor;
   final List<({String label, IconData icon, VoidCallback invoke})> actions;
+  final bool touch;
 
   @override
   Widget build(BuildContext context) => CustomSingleChildLayout(
-    delegate: _SelectionPosition(anchor),
+    delegate: _SelectionPosition(anchor, touch),
     child: Material(
       elevation: 8,
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(6),
-        child: Wrap(
-          spacing: 2,
-          runSpacing: 2,
-          children: [
-            for (final action in actions)
-              TextButton.icon(
-                onPressed: action.invoke,
-                icon: Icon(action.icon, size: 18),
-                label: Text(tr(context, action.label)),
-              ),
-          ],
+        padding: EdgeInsets.all(touch ? 3 : 6),
+        child: LayoutBuilder(
+          builder: (context, bounds) {
+            final iconsOnly = touch && bounds.maxWidth < 460;
+            return Wrap(
+              spacing: 2,
+              runSpacing: 2,
+              children: [
+                for (final action in actions)
+                  if (iconsOnly)
+                    IconButton(
+                      tooltip: tr(context, action.label),
+                      onPressed: action.invoke,
+                      icon: Icon(action.icon, size: 20),
+                    )
+                  else
+                    TextButton.icon(
+                      onPressed: action.invoke,
+                      icon: Icon(action.icon, size: 18),
+                      label: Text(tr(context, action.label)),
+                    ),
+              ],
+            );
+          },
         ),
       ),
     ),
@@ -404,15 +418,19 @@ class EpubAnnotationFilterGrid<T> extends StatelessWidget {
 }
 
 class _SelectionPosition extends SingleChildLayoutDelegate {
-  const _SelectionPosition(this.anchor);
+  const _SelectionPosition(this.anchor, this.touch);
   final Rect anchor;
+  final bool touch;
   static const gap = 8.0;
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
       BoxConstraints.loose(
         Size(
-          math.max(0, math.min(440, constraints.maxWidth - gap * 2)),
+          math.max(
+            0,
+            math.min(touch ? 540 : 440, constraints.maxWidth - gap * 2),
+          ),
           math.max(0, constraints.maxHeight - gap * 2),
         ),
       );
@@ -429,15 +447,19 @@ class _SelectionPosition extends SingleChildLayoutDelegate {
       gap,
       math.max(gap, size.width - childSize.width - gap),
     );
-    final below = rect.bottom + gap, above = rect.top - childSize.height - gap;
-    final y = (below + childSize.height <= size.height - gap ? below : above)
-        .clamp(gap, math.max(gap, size.height - childSize.height - gap));
+    final below = rect.bottom + (touch ? 26 : gap);
+    final above = rect.top - childSize.height - gap;
+    final fitsBelow = below + childSize.height <= size.height - gap;
+    final y = (touch && above >= gap || !fitsBelow ? above : below).clamp(
+      gap,
+      math.max(gap, size.height - childSize.height - gap),
+    );
     return Offset(x.toDouble(), y.toDouble());
   }
 
   @override
   bool shouldRelayout(_SelectionPosition oldDelegate) =>
-      oldDelegate.anchor != anchor;
+      oldDelegate.anchor != anchor || oldDelegate.touch != touch;
 }
 
 class EpubPanelHeader extends StatelessWidget {

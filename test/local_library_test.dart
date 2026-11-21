@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -71,6 +72,28 @@ void main() {
     },
   );
   test(
+    'local CBR pages use natural order and skip auxiliary entries',
+    () async {
+      // A generated RAR4 archive with stored entries in the order 10, 2, 1.
+      final file = File('${directory.path}/issue.cbr')
+        ..writeAsBytesSync(
+          base64Decode(
+            'UmFyIRoHAM+QcwAADQAAAAAAAAABBHQAgCYAAQAAAAEAAAAAkwbXMgAAAAAUMAYAAAAAADEwLnBuZw'
+            'q1WHQAgCUAAQAAAAEAAAAAoY4MPAAAAAAUMAUAAAAAADIucG5nAiWPdACAJQABAAAAAQAAAAAb3wWl'
+            'AAAAABQwBQAAAAAAMS5wbmcBZI10AIAwAAEAAAABAAAAAG/fuQYAAAAAFDAQAAAAAABfX01BQ09T'
+            'WC8uXzEucG5nYwSwewAABwA=',
+          ),
+        );
+      final book = await library.importFile(XFile(file.path));
+      expect(book.format, 'comic');
+      expect(book.pages, 3);
+      final pages = LocalComicPages(library.bookFile(book));
+      expect(await pages.page(1), [1]);
+      expect(await pages.page(2), [2]);
+      expect(await pages.page(3), [10]);
+    },
+  );
+  test(
     'EPUB and PDF copies remain readable after original files are removed',
     () async {
       final epub = fixture(directory);
@@ -106,7 +129,7 @@ void main() {
       );
       expect(library.books, isEmpty);
       expect(library.root.listSync(), isEmpty);
-      final rar = File('${directory.path}/unsupported.cbr')
+      final rar = File('${directory.path}/invalid.cbr')
         ..writeAsStringSync('Rar!');
       await expectLater(
         library.importFile(XFile(rar.path)),

@@ -630,11 +630,32 @@ void verifyNativeEpubPerformance() {
           return true;
         """);
       // The reader shows an application menu directly at the selection.
-      final selected = await js("""
+      Future<Object?> selectReaderText() => js("""
           const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument,b=frame.getBoundingClientRect();
           const paragraph=[...doc.querySelectorAll('p')].find(p=>[...p.getClientRects()].some(r=>r.right+b.left>0&&r.left+b.left<innerWidth&&r.bottom+b.top>0&&r.top+b.top<innerHeight));
+          if(${Platform.isAndroid}){
+            const node=doc.createTreeWalker(paragraph,NodeFilter.SHOW_TEXT).nextNode();
+            const range=doc.createRange();
+            for(const word of node.data.matchAll(/[a-z]+/gi)){
+              range.setStart(node,word.index);range.setEnd(node,word.index+word[0].length);
+              const rect=range.getClientRects()[0];
+              if(!rect||rect.left+b.left<0||rect.right+b.left>innerWidth||rect.top+b.top<0||rect.bottom+b.top>innerHeight)continue;
+              const locator=reader.position().start.cfi;
+              const scroll=[doc.scrollingElement.scrollLeft,doc.scrollingElement.scrollTop];
+              const touch={pointerId:7,pointerType:'touch',isPrimary:true,bubbles:true,clientX:(rect.left+rect.right)/2,clientY:(rect.top+rect.bottom)/2};
+              node.parentElement.dispatchEvent(new PointerEvent('pointerdown',touch));
+              await new Promise(resolve=>setTimeout(resolve,510));
+              node.parentElement.dispatchEvent(new PointerEvent('pointerup',touch));
+              if(reader.selectedText()!==word[0])throw Error('Touch must select exactly one word');
+              if(reader.position().start.cfi!==locator||scroll[0]!==doc.scrollingElement.scrollLeft||scroll[1]!==doc.scrollingElement.scrollTop)
+                throw Error('Touch selection moved the paginated text');
+              return word[0];
+            }
+            throw Error('No visible word for touch selection');
+          }
           window.selectionParagraph=paragraph;doc.getSelection().selectAllChildren(paragraph);return paragraph.textContent;
         """);
+      final selected = await selectReaderText();
       final dynamic selectionState = tester.state(
         find.byType(BrowserEpubReader),
       );
@@ -652,10 +673,14 @@ void verifyNativeEpubPerformance() {
         );
         await waitFor(() => selectionState.selectedText == selected);
       }
+      Finder selectionAction(String label) =>
+          find.byTooltip(label).evaluate().isNotEmpty
+          ? find.byTooltip(label)
+          : find.text(label);
       await waitFor(
-        () => find.text('Translate Selected Text').evaluate().isNotEmpty,
+        () => selectionAction('Translate Selected Text').evaluate().isNotEmpty,
       );
-      await tester.tap(find.text('Translate Selected Text'));
+      await tester.tap(selectionAction('Translate Selected Text'));
       await tester.pumpAndSettle();
       expect(find.text(selected as String), findsOneWidget);
       await tester.tap(find.byType(BackButton).last);
@@ -667,11 +692,9 @@ void verifyNativeEpubPerformance() {
         final anchorBeforeKeyboard = await js(
           'return reader.position().start.cfi;',
         );
-        await js(
-          'selectionParagraph.ownerDocument.getSelection().selectAllChildren(selectionParagraph);return true;',
-        );
-        await waitFor(() => find.text('Add Note').evaluate().isNotEmpty);
-        await tester.tap(find.text('Add Note'));
+        await selectReaderText();
+        await waitFor(() => selectionAction('Add Note').evaluate().isNotEmpty);
+        await tester.tap(selectionAction('Add Note'));
         await tester.pumpAndSettle();
         try {
           tester.view.viewInsets = FakeViewPadding(

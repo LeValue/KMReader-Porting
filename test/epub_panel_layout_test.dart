@@ -6,6 +6,53 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/epub_reader_chrome.dart';
 
 void main() {
+  testWidgets('the touch selection menu fits a narrow reader', (tester) async {
+    var invoked = '';
+    const labels = [
+      'Copy',
+      'Highlight',
+      'Dictionary',
+      'Add Note',
+      'Search',
+      'Translate',
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 320,
+            height: 420,
+            child: EpubSelectionMenu(
+              touch: true,
+              anchor: const Rect.fromLTRB(.43, .52, .57, .57),
+              actions: [
+                for (final label in labels)
+                  (
+                    label: label,
+                    icon: Icons.edit,
+                    invoke: () => invoked = label,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final material = find
+        .descendant(
+          of: find.byType(EpubSelectionMenu),
+          matching: find.byType(Material),
+        )
+        .first;
+    expect(tester.getSize(material).width, lessThanOrEqualTo(320));
+    expect(tester.getSize(material).height, lessThanOrEqualTo(110));
+    for (final label in labels) {
+      expect(find.byTooltip(label).hitTestable(), findsOneWidget);
+    }
+    await tester.tap(find.byTooltip('Copy'));
+    expect(invoked, 'Copy');
+  });
+
   testWidgets(
     'desktop panel slides over the page and reflows behind its snapshot',
     (tester) async {
