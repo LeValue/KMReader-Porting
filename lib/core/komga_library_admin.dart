@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 
 import 'api.dart';
 import 'models.dart';
@@ -51,6 +52,52 @@ class KomgaLibraryAdmin {
           body: {'parent': parent, 'name': name},
         )
         .then(object);
+  }
+
+  Future<Json> komgaFolders(String library, String parent) async {
+    requireAdmin();
+    final detail = object(
+      await repository.api.request(
+        '/api/v1/libraries/${Uri.encodeComponent(library)}',
+      ),
+    );
+    final root = text(detail['root']);
+    final paths = p.Context(
+      style: root.startsWith('/') ? p.Style.posix : p.Style.windows,
+    );
+    if (!paths.isAbsolute(root)) {
+      throw const ApiFailure('The server returned an unexpected response.');
+    }
+    final parts = parent.isEmpty ? const <String>[] : parent.split('/');
+    for (final part in parts) {
+      validateComponent(part);
+    }
+    final directory = paths.normalize(paths.joinAll([root, ...parts]));
+    if (!paths.equals(root, directory) && !paths.isWithin(root, directory)) {
+      throw const ApiFailure('Invalid folder or filename');
+    }
+    final listing = object(
+      await repository.api.request(
+        '/api/v1/filesystem',
+        method: 'POST',
+        body: {'path': directory, 'showFiles': false},
+      ),
+    );
+    final names = <String>{};
+    for (final entry in (listing['directories'] as List? ?? []).map(object)) {
+      final name = text(entry['name']);
+      try {
+        validateComponent(name);
+      } on ApiFailure {
+        continue;
+      }
+      final child = paths.normalize(paths.join(directory, name));
+      if (paths.equals(paths.dirname(child), directory) &&
+          paths.equals(child, text(entry['path']))) {
+        names.add(name);
+      }
+    }
+    return {'folders': names.toList()..sort()};
   }
 
   Future<void> enrollLibrary(String library) async {

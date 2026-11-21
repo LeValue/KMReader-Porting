@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show mapEquals;
@@ -780,6 +781,208 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     return (decoded as List? ?? []).map(object).toList();
   }
 
+  Future<(ui.Image, int)?> _capturePageBeforeResize() async {
+    final browser = _browser;
+    if (browser == null || _session?.ready != true || _recovering) return null;
+    try {
+      final width =
+          (await browser
+                  .callAsyncJavaScript(
+                    functionBody: 'return await reader.viewportBeforeResize();',
+                  )
+                  .timeout(const Duration(milliseconds: 160)))
+              ?.value;
+      if (width is! num) return null;
+      final bytes = await browser.takeScreenshot().timeout(
+        const Duration(milliseconds: 220),
+      );
+      if (bytes == null || !mounted || _browser != browser) return null;
+      return (await decodeImageFromList(bytes), width.toInt());
+    } catch (_) {
+      // The sidebar still works while WebView2 recreates its surface.
+      return null;
+    }
+  }
+
+  Widget _readerToolbar(
+    EpubSession session,
+    Color background,
+    Color foreground,
+  ) {
+    final activeBookmark = session.currentBookmark;
+    Widget sidePanelButton(String title, IconData icon, VoidCallback? open) =>
+        IconButton(
+          tooltip: tr(context, title),
+          icon: Icon(icon),
+          isSelected: _sidePanelTitle == title,
+          style: IconButton.styleFrom(
+            backgroundColor: _sidePanelTitle == title
+                ? foreground.withValues(alpha: .15)
+                : Colors.transparent,
+          ),
+          onPressed: open,
+        );
+    return LayoutBuilder(
+      builder: (context, bounds) => Row(
+        children: [
+          ReaderCapsule(
+            background: background,
+            foreground: foreground,
+            child: IconButton(
+              tooltip: tr(context, 'Close'),
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(CupertinoIcons.xmark),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: ReaderCapsule(
+                background: background,
+                foreground: foreground,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: Text(
+                    epubOverlayText(context, session, 'controlsHeaderCenter'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: max(0, bounds.maxWidth - 110),
+            ),
+            child: ReaderCapsule(
+              background: background,
+              foreground: foreground,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (session.auxiliary)
+                      IconButton(
+                        tooltip: tr(context, 'Back to Reading'),
+                        onPressed: () => _call('closeAuxiliary'),
+                        icon: const Icon(CupertinoIcons.arrow_uturn_left),
+                      ),
+                    if (Platform.isWindows) ...[
+                      sidePanelButton('Search', Icons.search, _search),
+                      sidePanelButton(
+                        'Bookmarks and annotations',
+                        Icons.sticky_note_2_outlined,
+                        widget.incognito ? null : _bookmarks,
+                      ),
+                      sidePanelButton(
+                        'Text Settings',
+                        Icons.text_fields,
+                        _settings,
+                      ),
+                      IconButton(
+                        tooltip: tr(context, 'Toggle Bookmark'),
+                        onPressed:
+                            widget.incognito ||
+                                !session.ready ||
+                                activeBookmark != null &&
+                                    !session.canRemoveAnnotation(activeBookmark)
+                            ? null
+                            : () => session.toggleBookmark(''),
+                        isSelected: activeBookmark != null,
+                        icon: const Icon(Icons.bookmark_add_outlined),
+                        selectedIcon: const Icon(Icons.bookmark),
+                      ),
+                      IconButton(
+                        tooltip: tr(
+                          context,
+                          _fullscreen ? 'Exit Full Screen' : 'Full Screen',
+                        ),
+                        onPressed: _toggleFullscreen,
+                        icon: const Icon(
+                          CupertinoIcons.arrow_up_left_arrow_down_right,
+                        ),
+                      ),
+                    ],
+                    PopupMenuButton<String>(
+                      onOpened: () => _chromeTimer?.cancel(),
+                      onCanceled: _scheduleControlsHide,
+                      onSelected: (v) => switch (v) {
+                        'fullscreen' => _toggleFullscreen(),
+                        'contents' => _contents(),
+                        'search' => _search(),
+                        'kindlePosition' => _checkKindlePosition(force: true),
+                        'bookmarks' => _bookmarks(),
+                        _ => _settings(),
+                      },
+                      itemBuilder: (_) => [
+                        for (final entry in {
+                          'contents': 'Table of Contents',
+                          if (widget.repository.profile.isKindle &&
+                              !widget.incognito)
+                            'kindlePosition': 'Go to latest Kindle position',
+                          if (!Platform.isWindows) ...{
+                            'search': 'Search',
+                            'bookmarks': 'Bookmarks and annotations',
+                            'settings': 'Text Settings',
+                            'fullscreen': _fullscreen
+                                ? 'Exit Full Screen'
+                                : 'Full Screen',
+                          },
+                        }.entries)
+                          PopupMenuItem(
+                            value: entry.key,
+                            child: Text(tr(context, entry.value)),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _readerLayout(Widget Function(Widget?) reader) {
+    if (!Platform.isWindows) return reader(null);
+    return EpubDesktopPanels(
+      reader: reader,
+      panel: _sidePanel == null
+          ? null
+          : Focus(
+              focusNode: _panelFocus,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: Theme.of(context).dividerColor),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 1),
+                  child: Builder(
+                    key: ValueKey(_sidePanelTitle),
+                    builder: _sidePanel!,
+                  ),
+                ),
+              ),
+            ),
+      capture: _capturePageBeforeResize,
+      settle: (width) async {
+        await _call(
+          'viewportSettled',
+          width,
+        ).timeout(const Duration(milliseconds: 1200), onTimeout: () => null);
+      },
+    );
+  }
+
   void _closeSidePanel() {
     final closed = _sidePanelClosed;
     if (closed == null) return;
@@ -806,7 +1009,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     Widget panel(BuildContext context, VoidCallback close) => Theme(
       data: theme,
       child: Material(
-        color: theme.colorScheme.surface,
+        color: theme.scaffoldBackgroundColor,
         child: withHeader
             ? Column(
                 children: [
@@ -1385,6 +1588,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Future<void> _bookmarks() async {
     final session = _session!;
     var filter = 'all';
+    (String, Object)? selected;
+    (String, Object) markKey(Json mark) =>
+        (EpubSession.markType(mark), EpubSession.markRange(mark));
     await _showReaderPanel(
       'Bookmarks and annotations',
       (context, close) => ListenableBuilder(
@@ -1395,6 +1601,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         builder: (context, _) => StatefulBuilder(
           builder: (context, update) {
             final marks = session.bookmarks;
+            final active = session.currentBookmark;
             final highlights = {
               for (final mark in marks)
                 if (EpubSession.markType(mark) == 'kindle.highlight')
@@ -1432,7 +1639,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           : Icons.bookmark_add_outlined,
                     ),
                     title: Text(tr(context, 'Toggle Bookmark')),
-                    onTap: widget.incognito
+                    onTap:
+                        widget.incognito ||
+                            !session.ready ||
+                            active != null &&
+                                !session.canRemoveAnnotation(active)
                         ? null
                         : () => session.toggleBookmark(''),
                   ),
@@ -1479,116 +1690,64 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                               highlight?['excerpt'],
                               text(mark['excerpt']),
                             );
-                            return DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerLow,
-                                border: Border(
-                                  left: BorderSide(
-                                    color: isBookmark
-                                        ? Theme.of(context).colorScheme.primary
-                                        : const Color(0xffd7a92d),
-                                    width: 3,
-                                  ),
-                                ),
+                            final title = chapter < 0
+                                ? ''
+                                : session.document.chapters[chapter].title;
+                            final markLabel = text(mark['label']);
+                            final key = markKey(mark);
+                            final canAddNote =
+                                !isBookmark &&
+                                note == null &&
+                                mark['rangeCfi'] != null;
+                            return EpubAnnotationTile(
+                              key: ValueKey(key),
+                              icon: isBookmark
+                                  ? Icons.bookmark_outline
+                                  : note == null
+                                  ? Icons.highlight_outlined
+                                  : Icons.sticky_note_2_outlined,
+                              label: tr(
+                                context,
+                                isBookmark
+                                    ? 'Bookmark'
+                                    : type == 'kindle.note'
+                                    ? 'Note'
+                                    : 'Annotation highlight',
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 4, 4, 8),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          isBookmark
-                                              ? Icons.bookmark_outline
-                                              : note == null
-                                              ? Icons.highlight_outlined
-                                              : Icons.sticky_note_2_outlined,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            chapter < 0
-                                                ? tr(
-                                                    context,
-                                                    'Bookmarks and annotations',
-                                                  )
-                                                : session
-                                                      .document
-                                                      .chapters[chapter]
-                                                      .title,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelMedium,
-                                          ),
-                                        ),
-                                        if (session.canRemoveAnnotation(mark))
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.delete_outline,
-                                            ),
-                                            tooltip: tr(context, 'Delete'),
-                                            onPressed: () => _deleteMark(mark),
-                                          ),
-                                      ],
-                                    ),
-                                    TextButton(
-                                      style: TextButton.styleFrom(
-                                        alignment:
-                                            AlignmentDirectional.centerStart,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 8,
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        if (!Platform.isWindows) close();
-                                        unawaited(_jumpToAnnotation(mark));
-                                      },
-                                      child: Text(
-                                        excerpt.isNotEmpty
-                                            ? excerpt
-                                            : text(mark['label']),
-                                        maxLines: 4,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (note != null)
-                                      TextButton.icon(
-                                        style: TextButton.styleFrom(
-                                          alignment:
-                                              AlignmentDirectional.centerStart,
-                                        ),
-                                        onPressed: () => _openNote(note),
-                                        icon: const Icon(Icons.notes),
-                                        label: Text(
-                                          text(note['label']),
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      )
-                                    else if (!isBookmark &&
-                                        mark['rangeCfi'] != null)
-                                      TextButton.icon(
-                                        style: TextButton.styleFrom(
-                                          alignment:
-                                              AlignmentDirectional.centerStart,
-                                        ),
-                                        onPressed: () => _annotate({
-                                          ...mark,
-                                          'text': excerpt,
-                                        }, note: true),
-                                        icon: const Icon(Icons.edit_note),
-                                        label: Text(tr(context, 'Add Note')),
-                                      ),
-                                  ],
-                                ),
-                              ),
+                              chapter: title,
+                              body: isBookmark
+                                  ? markLabel == title
+                                        ? ''
+                                        : markLabel
+                                  : excerpt,
+                              selected:
+                                  selected == key ||
+                                  selected == null &&
+                                      session.isCurrentBookmark(mark),
+                              open: () {
+                                if (Platform.isWindows) {
+                                  update(() => selected = key);
+                                } else {
+                                  close();
+                                }
+                                unawaited(_jumpToAnnotation(mark));
+                              },
+                              delete: session.canRemoveAnnotation(mark)
+                                  ? () => _deleteMark(mark)
+                                  : null,
+                              noteLabel: note != null
+                                  ? text(note['label'])
+                                  : canAddNote
+                                  ? tr(context, 'Add Note')
+                                  : null,
+                              openNote: note != null
+                                  ? () => _openNote(note)
+                                  : canAddNote
+                                  ? () => _annotate({
+                                      ...mark,
+                                      'text': excerpt,
+                                    }, note: true)
+                                  : null,
                             );
                           },
                         ).withWheelScrolling(),
@@ -1603,8 +1762,21 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<void> _jumpToAnnotation(Json mark) async {
+    final session = _session!;
+    if (EpubSession.markType(mark) == 'kindle.bookmark') {
+      final chapter = session.chapterFor(text(mark['href']));
+      if (chapter < 0 ||
+          session.isCurrentBookmark(mark) && !session.auxiliary) {
+        return;
+      }
+      await _call('jumpToBookmark', {
+        'href': session.relativeHref(session.document.chapters[chapter].path),
+        'cfi': ?mark['cfi'],
+        'locator': ?mark['locator'],
+      });
+      return;
+    }
     if (mark['locator'] is Map && mark['cfi'] == null) {
-      final session = _session!;
       final chapter = session.chapterFor(text(mark['href']));
       if (chapter < 0) return;
       await _call('seek', {
@@ -1798,6 +1970,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                 title: 'Text Settings',
                 onClose: close,
                 fill: true,
+                useAppPalette: true,
                 children: [
                   if (_fixedLayout)
                     Padding(
@@ -2280,414 +2453,179 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                 top: true,
                 bottom: true,
                 maintainBottomViewPadding: true,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          if (_error != null)
-                            MaterialBanner(
-                              content: Text(_error!),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      _restartBrowser(manual: true),
-                                  child: Text(tr(context, 'Retry')),
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      setState(() => _error = null),
-                                  child: Text(tr(context, 'Close')),
-                                ),
-                              ],
+                child: _readerLayout(
+                  (pageCover) => Column(
+                    children: [
+                      if (_error != null)
+                        MaterialBanner(
+                          content: Text(_error!),
+                          actions: [
+                            TextButton(
+                              onPressed: () => _restartBrowser(manual: true),
+                              child: Text(tr(context, 'Retry')),
                             ),
-                          Expanded(
-                            key: const ValueKey('epub-surface-slot'),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                if (_recoveryFailed)
-                                  FailureView(
-                                    error: tr(context, 'reader.recoveryFailed'),
-                                    retry: () => _restartBrowser(manual: true),
-                                  )
-                                else if (!_recovering)
-                                  RepaintBoundary(child: _readerView(session)),
-                                if (_controls)
-                                  Positioned(
-                                    top: 8,
-                                    left: 12,
-                                    right: 12,
-                                    child: Row(
-                                      children: [
-                                        ReaderCapsule(
-                                          background: background,
-                                          foreground: foreground,
-                                          child: IconButton(
-                                            tooltip: tr(context, 'Close'),
-                                            onPressed: () =>
-                                                Navigator.pop(context),
+                            TextButton(
+                              onPressed: () => setState(() => _error = null),
+                              child: Text(tr(context, 'Close')),
+                            ),
+                          ],
+                        ),
+                      Expanded(
+                        key: const ValueKey('epub-surface-slot'),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (_recoveryFailed)
+                              FailureView(
+                                error: tr(context, 'reader.recoveryFailed'),
+                                retry: () => _restartBrowser(manual: true),
+                              )
+                            else if (!_recovering)
+                              RepaintBoundary(child: _readerView(session)),
+                            ?pageCover,
+                            if (_controls)
+                              Positioned(
+                                top: 8,
+                                left: 12,
+                                right: 12,
+                                child: _readerToolbar(
+                                  session,
+                                  background,
+                                  foreground,
+                                ),
+                              ),
+                            if (!_controls) ...[
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: EpubReadingOverlay(
+                                  session: session,
+                                  header: true,
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: EpubReadingOverlay(
+                                  session: session,
+                                  header: false,
+                                ),
+                              ),
+                            ],
+                            if (_controls)
+                              Positioned(
+                                bottom: 8,
+                                left: 20,
+                                right: 20,
+                                child: Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 360,
+                                    ),
+                                    child: ReaderCapsule(
+                                      background: background,
+                                      foreground: foreground,
+                                      child: Row(
+                                        children: [
+                                          IconButton(
+                                            tooltip: tr(
+                                              context,
+                                              'Previous Page',
+                                            ),
+                                            onPressed: () => _turn(-1),
                                             icon: const Icon(
-                                              CupertinoIcons.xmark,
+                                              CupertinoIcons.chevron_left,
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Align(
-                                            alignment: Alignment.center,
-                                            child: ReaderCapsule(
-                                              background: background,
-                                              foreground: foreground,
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 14,
-                                                      vertical: 10,
-                                                    ),
-                                                child: Text(
-                                                  epubOverlayText(
-                                                    context,
-                                                    session,
-                                                    'controlsHeaderCenter',
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
+                                          Expanded(
+                                            child: TextButton(
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: foreground,
                                               ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Flexible(
-                                          flex: 7,
-                                          child: ReaderCapsule(
-                                            background: background,
-                                            foreground: foreground,
-                                            child: SingleChildScrollView(
-                                              scrollDirection: Axis.horizontal,
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  if (widget.incognito)
-                                                    const Icon(
-                                                      CupertinoIcons.eye_slash,
-                                                    ),
-                                                  if (session.auxiliary)
-                                                    IconButton(
-                                                      tooltip: tr(
-                                                        context,
-                                                        'Back to Reading',
-                                                      ),
-                                                      onPressed: () => _call(
-                                                        'closeAuxiliary',
-                                                      ),
-                                                      icon: const Icon(
-                                                        CupertinoIcons
-                                                            .arrow_uturn_left,
-                                                      ),
-                                                    ),
-                                                  if (Platform.isWindows) ...[
-                                                    IconButton(
-                                                      tooltip: tr(
-                                                        context,
-                                                        'Search',
-                                                      ),
-                                                      onPressed: _search,
-                                                      icon: const Icon(
-                                                        Icons.search,
-                                                      ),
-                                                    ),
-                                                    IconButton(
-                                                      tooltip: tr(
-                                                        context,
-                                                        'Bookmarks and annotations',
-                                                      ),
-                                                      onPressed:
-                                                          widget.incognito
-                                                          ? null
-                                                          : _bookmarks,
-                                                      icon: const Icon(
-                                                        Icons
-                                                            .sticky_note_2_outlined,
-                                                      ),
-                                                    ),
-                                                    IconButton(
-                                                      tooltip: tr(
-                                                        context,
-                                                        'Text Settings',
-                                                      ),
-                                                      onPressed: _settings,
-                                                      icon: const Icon(
-                                                        Icons.text_fields,
-                                                      ),
-                                                    ),
-                                                    IconButton(
-                                                      tooltip: tr(
-                                                        context,
-                                                        'Toggle Bookmark',
-                                                      ),
-                                                      onPressed:
-                                                          widget.incognito
-                                                          ? null
-                                                          : () => session
-                                                                .toggleBookmark(
-                                                                  '',
-                                                                ),
-                                                      icon: Icon(
-                                                        session.hasCurrentBookmark
-                                                            ? Icons.bookmark
-                                                            : Icons
-                                                                  .bookmark_add_outlined,
-                                                      ),
-                                                    ),
-                                                    IconButton(
-                                                      tooltip: tr(
-                                                        context,
-                                                        _fullscreen
-                                                            ? 'Exit Full Screen'
-                                                            : 'Full Screen',
-                                                      ),
-                                                      onPressed:
-                                                          _toggleFullscreen,
-                                                      icon: const Icon(
-                                                        CupertinoIcons
-                                                            .arrow_up_left_arrow_down_right,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                  PopupMenuButton<String>(
-                                                    onOpened: () =>
-                                                        _chromeTimer?.cancel(),
-                                                    onCanceled:
-                                                        _scheduleControlsHide,
-                                                    onSelected: (v) =>
-                                                        switch (v) {
-                                                          'fullscreen' =>
-                                                            _toggleFullscreen(),
-                                                          'contents' =>
-                                                            _contents(),
-                                                          'search' => _search(),
-                                                          'kindlePosition' =>
-                                                            _checkKindlePosition(
-                                                              force: true,
-                                                            ),
-                                                          'bookmarks' =>
-                                                            _bookmarks(),
-                                                          _ => _settings(),
-                                                        },
-                                                    itemBuilder: (_) => [
-                                                      for (final entry in {
-                                                        'contents':
-                                                            'Table of Contents',
-                                                        if (widget
-                                                                .repository
-                                                                .profile
-                                                                .isKindle &&
-                                                            !widget.incognito)
-                                                          'kindlePosition': 'Go to latest Kindle position',
-                                                        if (!Platform
-                                                            .isWindows) ...{
-                                                          'search': 'Search',
-                                                          'bookmarks': 'Bookmarks and annotations',
-                                                          'settings':
-                                                              'Text Settings',
-                                                        },
-                                                        if (!Platform.isWindows)
-                                                          'fullscreen':
-                                                              _fullscreen
-                                                              ? 'Exit Full Screen'
-                                                              : 'Full Screen',
-                                                      }.entries)
-                                                        PopupMenuItem(
-                                                          value: entry.key,
-                                                          child: Text(
-                                                            tr(
-                                                              context,
-                                                              entry.value,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                if (!_controls) ...[
-                                  Positioned(
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: EpubReadingOverlay(
-                                      session: session,
-                                      header: true,
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: EpubReadingOverlay(
-                                      session: session,
-                                      header: false,
-                                    ),
-                                  ),
-                                ],
-                                if (_controls)
-                                  Positioned(
-                                    bottom: 8,
-                                    left: 20,
-                                    right: 20,
-                                    child: Align(
-                                      alignment: Alignment.bottomCenter,
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 360,
-                                        ),
-                                        child: ReaderCapsule(
-                                          background: background,
-                                          foreground: foreground,
-                                          child: Row(
-                                            children: [
-                                              IconButton(
-                                                tooltip: tr(
+                                              onPressed: _quickNavigation,
+                                              child: Text(
+                                                epubOverlayText(
                                                   context,
-                                                  'Previous Page',
+                                                  session,
+                                                  'controlsFooterCenter',
                                                 ),
-                                                onPressed: () => _turn(-1),
-                                                icon: const Icon(
-                                                  CupertinoIcons.chevron_left,
+                                                key: const ValueKey(
+                                                  'epub-position',
                                                 ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.center,
                                               ),
-                                              Expanded(
-                                                child: TextButton(
-                                                  style: TextButton.styleFrom(
-                                                    foregroundColor: foreground,
-                                                  ),
-                                                  onPressed: _quickNavigation,
-                                                  child: Text(
-                                                    epubOverlayText(
-                                                      context,
-                                                      session,
-                                                      'controlsFooterCenter',
-                                                    ),
-                                                    key: const ValueKey(
-                                                      'epub-position',
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    textAlign: TextAlign.center,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (session.atEnd &&
-                                                  widget.onNextBook != null)
-                                                IconButton(
-                                                  tooltip: tr(
-                                                    context,
-                                                    'Next Book',
-                                                  ),
-                                                  icon: const Icon(
-                                                    Icons.skip_next,
-                                                  ),
-                                                  onPressed: widget.onNextBook,
-                                                ),
-                                              IconButton(
-                                                tooltip: tr(
-                                                  context,
-                                                  'Next Page',
-                                                ),
-                                                onPressed: () => _turn(1),
-                                                icon: const Icon(
-                                                  CupertinoIcons.chevron_right,
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
-                                        ),
+                                          if (session.atEnd &&
+                                              widget.onNextBook != null)
+                                            IconButton(
+                                              tooltip: tr(context, 'Next Book'),
+                                              icon: const Icon(Icons.skip_next),
+                                              onPressed: widget.onNextBook,
+                                            ),
+                                          IconButton(
+                                            tooltip: tr(context, 'Next Page'),
+                                            onPressed: () => _turn(1),
+                                            icon: const Icon(
+                                              CupertinoIcons.chevron_right,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                                if (!_controls &&
-                                    object(
-                                          widget.repository.store
-                                              .setting<dynamic>('epubOverlay'),
-                                        )['showsReaderProgressBar'] ==
-                                        true)
-                                  Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: LinearProgressIndicator(
-                                      value:
-                                          (session.chapter +
-                                              session.progression) /
-                                          session.document.chapters.length,
-                                      minHeight: 3,
-                                    ),
-                                  ),
-                                if (session.layoutBusy &&
-                                    session.ready &&
-                                    !_recovering)
-                                  const Align(
-                                    alignment: Alignment.bottomCenter,
-                                    child: LinearProgressIndicator(
-                                      minHeight: 2,
-                                    ),
-                                  ),
-                                if (session.ready)
-                                  ValueListenableBuilder(
-                                    valueListenable: _selectionEvent,
-                                    builder: (context, selection, _) =>
-                                        selection.isEmpty
-                                        ? const SizedBox.shrink()
-                                        : _contextActions(selection),
-                                  ),
-                                if (!session.ready && !_recoveryFailed)
-                                  ColoredBox(
-                                    color: background,
-                                    child: const Center(
-                                      child:
-                                          CircularProgressIndicator.adaptive(),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_sidePanel case final WidgetBuilder builder)
-                      Focus(
-                        focusNode: _panelFocus,
-                        child: SizedBox(
-                          width: min(
-                            352,
-                            MediaQuery.sizeOf(context).width * .48,
-                          ),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                left: BorderSide(
-                                  color: Theme.of(context).dividerColor,
                                 ),
                               ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 1),
-                              child: Builder(builder: builder),
-                            ),
-                          ),
+                            if (!_controls &&
+                                object(
+                                      widget.repository.store.setting<dynamic>(
+                                        'epubOverlay',
+                                      ),
+                                    )['showsReaderProgressBar'] ==
+                                    true)
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: LinearProgressIndicator(
+                                  value:
+                                      (session.chapter + session.progression) /
+                                      session.document.chapters.length,
+                                  minHeight: 3,
+                                ),
+                              ),
+                            if (session.layoutBusy &&
+                                session.ready &&
+                                !_recovering)
+                              const Align(
+                                alignment: Alignment.bottomCenter,
+                                child: LinearProgressIndicator(minHeight: 2),
+                              ),
+                            if (session.ready)
+                              ValueListenableBuilder(
+                                valueListenable: _selectionEvent,
+                                builder: (context, selection, _) =>
+                                    selection.isEmpty
+                                    ? const SizedBox.shrink()
+                                    : _contextActions(selection),
+                              ),
+                            if (!session.ready && !_recoveryFailed)
+                              ColoredBox(
+                                color: background,
+                                child: const Center(
+                                  child: CircularProgressIndicator.adaptive(),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

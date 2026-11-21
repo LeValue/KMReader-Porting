@@ -324,7 +324,7 @@ class EpubSession extends ChangeNotifier {
   static String markType(Json mark) => text(mark['type'], 'kindle.bookmark');
 
   static Object markRange(Json mark) {
-    if (mark['kindleStart'] case final int start) {
+    if ((mark['kindleStart'] ?? mark['kindlePosition']) case final int start) {
       return (start, mark['kindleEnd']);
     }
     return mark['rangeCfi'] ?? mark['id'] ?? mark['cfi'] ?? mark;
@@ -342,17 +342,17 @@ class EpubSession extends ChangeNotifier {
     return byRange.values.toList();
   }
 
-  bool get hasCurrentBookmark =>
-      !incognito &&
+  bool isCurrentBookmark(Json mark) =>
       cfi.isNotEmpty &&
-      bookmarks.any(
-        (mark) =>
-            markType(mark) == 'kindle.bookmark' &&
-            (mark['cfi'] == cfi ||
-                kindlePosition != null &&
-                    (mark['kindlePosition'] ?? mark['kindleStart']) ==
-                        kindlePosition),
-      );
+      markType(mark) == 'kindle.bookmark' &&
+      (mark['cfi'] == cfi ||
+          kindlePosition != null &&
+              (mark['kindlePosition'] ?? mark['kindleStart']) ==
+                  kindlePosition);
+
+  Json? get currentBookmark => bookmarks.where(isCurrentBookmark).firstOrNull;
+
+  bool get hasCurrentBookmark => currentBookmark != null;
 
   static Future<EpubSession> open(
     Repository repository,
@@ -699,24 +699,11 @@ class EpubSession extends ChangeNotifier {
 
   void toggleBookmark(String label) {
     if (cfi.isEmpty || incognito || repository.closed) return;
+    if (currentBookmark case final Json bookmark) {
+      removeAnnotation(bookmark);
+      return;
+    }
     final values = _localAnnotations;
-    final index = values.indexWhere(
-      (v) => v['cfi'] == cfi && v['rangeCfi'] == null,
-    );
-    if (index >= 0) {
-      removeAnnotation(values[index]);
-      return;
-    }
-    if (kindlePosition != null &&
-        bookmarks.any(
-          (mark) =>
-              mark['type'] == 'kindle.bookmark' &&
-              integer(object(mark['locator'])['position']) +
-                      integer(object(mark['locator'])['offset']) ==
-                  kindlePosition,
-        )) {
-      return;
-    }
     repository.store.transaction(() {
       final position = kindlePosition;
       _writeAnnotations([

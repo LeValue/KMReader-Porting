@@ -47,6 +47,7 @@ void main() {
   var resourceRequests = 0;
   List<Json> annotations = [];
   Completer<void>? delayedSidecar, sidecarStarted;
+  Completer<void>? bookmarkDeleteSent, releaseBookmarkDelete;
   setUp(() async {
     root = Directory.systemTemp.createTempSync('kindle-native-');
     store = LocalStore(sqlite3.open('${root.path}/store.sqlite'));
@@ -71,6 +72,8 @@ void main() {
     expiredRequests = 0;
     delayedSidecar = null;
     sidecarStarted = null;
+    bookmarkDeleteSent = null;
+    releaseBookmarkDelete = null;
     writes = 0;
     confirm = true;
     missingSidecar = false;
@@ -171,6 +174,12 @@ void main() {
               mark.localName,
               isIn(['last_read', 'bookmark', 'highlight', 'note']),
             );
+            if (mark.localName == 'bookmark' &&
+                mark.getAttribute('action') == 'delete' &&
+                releaseBookmarkDelete != null) {
+              bookmarkDeleteSent!.complete();
+              await releaseBookmarkDelete!.future;
+            }
             if (mark.getAttribute('action') == 'delete' &&
                 mark.localName == 'note') {
               final original = annotations.singleWhere(
@@ -782,6 +791,51 @@ void main() {
       await repo.sync();
       expect(writes, 1);
       expect(repo.pendingCount, 0);
+    },
+  );
+
+  test(
+    'a synced bookmark can be toggled while its erasure is in flight',
+    () async {
+      annotations = [
+        {
+          'type': 'kindle.bookmark',
+          'annotationId': 'downloaded-bookmark',
+          'startPosition': '54',
+        },
+      ];
+      bookmarkDeleteSent = Completer<void>();
+      releaseBookmarkDelete = Completer<void>();
+      final session = await EpubSession.open(repo, book, publication);
+      try {
+        session.receive({
+          'type': 'position',
+          'kindlePosition': 54,
+          'cfi': 'epubcfi(/6/2!/4/2:44)',
+          'href': 'one.xhtml',
+          'progression': .1,
+        });
+        expect(session.hasCurrentBookmark, isTrue);
+        session.toggleBookmark('');
+        expect(session.hasCurrentBookmark, isFalse);
+        await bookmarkDeleteSent!.future.timeout(const Duration(seconds: 3));
+        for (final present in [true, false, true]) {
+          session.toggleBookmark('');
+          expect(session.hasCurrentBookmark, present);
+        }
+        releaseBookmarkDelete!.complete();
+        await repo.sync();
+        await repo.sync();
+        expect(writes, 2);
+        expect(annotations.single['type'], 'kindle.bookmark');
+        expect(repo.pendingCount, 0);
+        expect(session.hasCurrentBookmark, isTrue);
+      } finally {
+        if (!releaseBookmarkDelete!.isCompleted) {
+          releaseBookmarkDelete!.complete();
+        }
+        await session.close();
+      }
     },
   );
 

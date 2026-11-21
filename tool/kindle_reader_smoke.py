@@ -62,6 +62,35 @@ with sync_playwright() as p:
       return complete.toString()==='old' && painted.right+.5>=frame.left+finalGlyph.right;
     }''', selected['rangeCfi']), 'Highlight did not reach its exclusive endpoint'
     page.wait_for_function("() => events.some(e=>e.type==='openNote'&&e.id==='local-note')")
+    x, y = page.evaluate('''cfi => {
+      const frame=document.querySelector('#viewer iframe'),doc=frame.contentDocument;
+      const r=new ePub.CFI(cfi).toRange(doc).getBoundingClientRect(), box=frame.getBoundingClientRect();
+      return [box.x+(r.left+r.right)/2,box.y+(r.top+r.bottom)/2];
+    }''', selected['rangeCfi'])
+    page.mouse.move(x, y)
+    assert page.evaluate('''([x,y]) => {
+      const f=document.querySelector('#viewer iframe'),b=f.getBoundingClientRect(),d=f.contentDocument;
+      return d.defaultView.getComputedStyle(d.elementFromPoint(x-b.x, y-b.y)).cursor==='pointer';
+    }''', [x,y]), 'Notes must show the pointer cursor'
+    page.mouse.move(4, 4)
+    assert page.evaluate('''() => {
+      const doc=document.querySelector('#viewer iframe').contentDocument;
+      return doc.defaultView.getComputedStyle(doc.body).cursor!=='pointer';
+    }'''), 'Note cursor stayed enabled outside the annotation'
+    assert page.evaluate('''async ({cfi,href}) => {
+      await reader.whenIdle();
+      const frame=document.querySelector('#viewer iframe'), before=reader.position().start.cfi;
+      const moved=await reader.jumpToBookmark({href,cfi});
+      const movedByKindle=await reader.jumpToBookmark({href,locator:{id:'mapped',position:100,offset:5}});
+      return moved===false && movedByKindle===false && before===reader.position().start.cfi &&
+        frame===document.querySelector('#viewer iframe');
+    }''', {'cfi': selected['cfi'], 'href': 'one.xhtml'}), 'Visible bookmark reloaded the page'
+    before_resize = page.evaluate("reader.position().start.cfi")
+    for previous, width in [(390, 310), (310, 390)]:
+        assert page.evaluate('reader.viewportBeforeResize()') == previous
+        page.set_viewport_size({'width': width, 'height': 780})
+        page.evaluate('width => reader.viewportSettled(width)', previous)
+        assert page.evaluate("reader.position().start.cfi") == before_resize, 'Sidebar reflow moved the reader'
     assert original == page.evaluate("document.querySelector('iframe').contentDocument.body.textContent")
     page.evaluate("reader.annotations([{id:'synthetic-highlight', type:'kindle.highlight', locator:{href:'one.xhtml',id:'mapped',position:100,offset:2},endLocator:{href:'one.xhtml',id:'mapped',position:100,offset:15}}])")
     page.wait_for_function("() => !!document.querySelector('.kmreader-kindle-highlight')")

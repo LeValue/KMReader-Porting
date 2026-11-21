@@ -225,6 +225,16 @@ class KindleRepository extends Repository {
     store.cache(profile.id, 'kindle:annotation-outbox', pending);
   }
 
+  void _scheduleAnnotationSync() {
+    // Start after the local annotation transaction commits.
+    unawaited(
+      Future<void>(() async {
+        await _syncWork;
+        if (!closed && !offline) await sync();
+      }),
+    );
+  }
+
   @override
   void documentBookmark(Book book, int position, {required bool present}) =>
       _queueAnnotation(book, KindleMark('bookmark', position), present);
@@ -246,8 +256,10 @@ class KindleRepository extends Repository {
 
   KindleMark? _editableMark(Json annotation) {
     final start = annotation['kindleStart'], end = annotation['kindleEnd'];
-    if (start is! int || end is! int) return null;
     final type = text(annotation['type']);
+    if (start is! int) return null;
+    if (type == 'kindle.bookmark') return KindleMark('bookmark', start);
+    if (end is! int) return null;
     if (!const {'kindle.note', 'kindle.highlight'}.contains(type)) return null;
     return KindleMark(
       type.substring('kindle.'.length),
@@ -275,25 +287,27 @@ class KindleRepository extends Repository {
   }) {
     final mapping = _mapping;
     if (closed ||
-        present && !kindleAnnotationsEnabled ||
+        !kindleAnnotationsEnabled ||
         book.json['kindleType'] != 'PDOC' ||
         _mappedBook != book.id ||
         mapping == null ||
-        !(present ? mark.valid : mark.valid || mark.deletable) ||
+        !(present ? mark.valid : mark.deletable) ||
         mapping.locator(mark.start) == null ||
         mark.end != null && mapping.locator(mark.end! - 1) == null) {
       return;
     }
     final key = _annotationKey(book.id, mark.type, mark.start, mark.end);
     final existing = object(_annotationOutbox[key]);
-    if (present && existing['submitted'] == true) return;
-    if (!present && !mark.deletable) {
-      if (existing.isNotEmpty && existing['submitted'] != true) {
-        _setAnnotationEdit(key, null);
-        changed();
-      }
+    if (mark.type == 'bookmark' &&
+        existing['erase'] == true &&
+        existing['submitted'] == true) {
+      // The current write must be read back before sending the opposite
+      // intent. Repeated toggles update the desired state without replaying it.
+      _setAnnotationEdit(key, {...existing, 'restore': present});
+      changed();
       return;
     }
+    if (present && existing['submitted'] == true) return;
     final erase = !present;
     final known = documentAnnotations(book)
         .where(
@@ -332,13 +346,7 @@ class KindleRepository extends Repository {
       _allowNewAnnotation(book.id, key);
     }
     changed();
-    // Start after the local annotation transaction commits.
-    unawaited(
-      Future<void>(() async {
-        await _syncWork;
-        if (!closed && !offline) await sync();
-      }),
-    );
+    _scheduleAnnotationSync();
   }
 
   Future<void> _syncAnnotations() async {
@@ -466,7 +474,21 @@ class KindleRepository extends Repository {
           if (erase) {
             _reconcileRemoval(id, entry.key, latest['cloudId'] as String?);
           }
-          _setAnnotationEdit(entry.key, null);
+          if (erase && latest['restore'] == true) {
+            _allowNewAnnotation(id, entry.key);
+            _setAnnotationEdit(
+              entry.key,
+              latest
+                ..remove('erase')
+                ..remove('restore')
+                ..remove('cloudId')
+                ..remove('submitted')
+                ..remove('settleAfter'),
+            );
+            _scheduleAnnotationSync();
+          } else {
+            _setAnnotationEdit(entry.key, null);
+          }
         }
         final mapping = _mapping;
         if (_mappedBook == id && mapping != null && sidecar != null) {

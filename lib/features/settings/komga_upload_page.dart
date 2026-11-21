@@ -11,6 +11,7 @@ import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
+import '../../ui/wheel_scroll.dart';
 
 class KomgaUploadPage extends StatefulWidget {
   const KomgaUploadPage({
@@ -50,19 +51,23 @@ class _State extends State<KomgaUploadPage> {
   late final admin = KomgaLibraryAdmin(widget.repository);
   String get journalKey => 'komgaUpload:${widget.repository.profile.id}';
   final _manualFolder = TextEditingController();
+  final _folderScroll = AppScrollController(),
+      _queueScroll = AppScrollController();
   final _queue = <_Upload>[];
   List<Json> _libraries = [];
   List<String> _folders = [];
   Json _capabilities = {};
-  String? _library, _folderNext, _message;
+  String? _library, _folderNext, _message, _folderError, _folderToCreate;
   String _folder = '';
   int _maxBytes = 0, _folderRevision = 0;
   bool _busy = false, _loadingFolders = false, _configured = false;
   Completer<void>? _cancel;
 
-  bool get _hasBrowser => _capabilities['folders'] == true;
+  bool get _canCreateFolder => _capabilities['folders'] == true;
   bool get _batchScan => _capabilities['batch_scan'] == true;
-  String get _destination => _hasBrowser ? _folder : _manualFolder.text.trim();
+  String get _destination =>
+      _folderToCreate ??
+      (_folderError == null ? _folder : _manualFolder.text.trim());
 
   @override
   void initState() {
@@ -102,6 +107,8 @@ class _State extends State<KomgaUploadPage> {
   void dispose() {
     if (_cancel?.isCompleted == false) _cancel!.complete();
     _manualFolder.dispose();
+    _folderScroll.dispose();
+    _queueScroll.dispose();
     super.dispose();
   }
 
@@ -130,7 +137,7 @@ class _State extends State<KomgaUploadPage> {
         _folder = '';
         _manualFolder.clear();
       }
-      if (_hasBrowser) await _loadFolders();
+      await _loadFolders();
       for (final row in _queue.where(
         (row) => row.operation != null && !row.uploaded,
       )) {
@@ -154,19 +161,29 @@ class _State extends State<KomgaUploadPage> {
     final request = ++_folderRevision, parent = _folder;
     setState(() {
       _loadingFolders = true;
-      if (!more) _folders = [];
+      _folderError = null;
+      if (!more) {
+        _folders = [];
+        _folderNext = null;
+        if (_folderScroll.hasClients) _folderScroll.jumpTo(0);
+      }
     });
     try {
-      final page = await admin.folders(
-        library,
-        parent,
-        after: more ? _folderNext : null,
-      );
+      final page = _canCreateFolder
+          ? await admin.folders(
+              library,
+              parent,
+              after: more ? _folderNext : null,
+            )
+          : await admin.komgaFolders(library, parent);
       if (!mounted || request != _folderRevision) return;
       _folders.addAll((page['folders'] as List).cast<String>());
       _folderNext = page['next'] as String?;
     } catch (error) {
-      if (mounted && request == _folderRevision) _message = '$error';
+      if (mounted && request == _folderRevision) {
+        _folderError = '$error';
+        _manualFolder.text = _folder;
+      }
     } finally {
       if (mounted && request == _folderRevision) {
         setState(() => _loadingFolders = false);
@@ -176,7 +193,7 @@ class _State extends State<KomgaUploadPage> {
 
   Future<void> _openFolder(String path) async {
     _folder = path;
-    _message = null;
+    _folderToCreate = null;
     await _loadFolders();
   }
 
@@ -188,6 +205,16 @@ class _State extends State<KomgaUploadPage> {
     try {
       KomgaLibraryAdmin.validateComponent(result);
       final parent = _folder;
+      if (!_canCreateFolder) {
+        if (_folders.contains(result)) {
+          await _openFolder(parent.isEmpty ? result : '$parent/$result');
+          return;
+        }
+        setState(
+          () => _folderToCreate = parent.isEmpty ? result : '$parent/$result',
+        );
+        return;
+      }
       setState(() => _busy = true);
       final dto = await admin.createFolder(library, parent, result);
       if (!mounted) return;
@@ -410,6 +437,16 @@ class _State extends State<KomgaUploadPage> {
         }
       }
       if (mounted && !cancel.isCompleted) await _scanCompleted();
+      if (mounted &&
+          _folderToCreate == folder &&
+          _queue.any(
+            (row) =>
+                row.uploaded &&
+                row.operation?['library'] == library &&
+                row.operation?['folder'] == folder,
+          )) {
+        await _openFolder(folder);
+      }
     } catch (error) {
       if (mounted) setState(() => _message = '$error');
     } finally {
@@ -504,13 +541,18 @@ class _State extends State<KomgaUploadPage> {
                       setState(() {
                         _library = value;
                         _folder = '';
+                        _folderToCreate = null;
                         _manualFolder.clear();
                       });
-                      if (_hasBrowser) unawaited(_loadFolders());
+                      unawaited(_loadFolders());
                     },
             ),
             const SizedBox(height: 12),
-            if (_hasBrowser) ...[
+            if (_folderError == null) ...[
+              Text(
+                tr(context, 'Series folder'),
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
               Wrap(
                 spacing: 6,
                 children: [
@@ -528,17 +570,35 @@ class _State extends State<KomgaUploadPage> {
                 ],
               ),
               if (_loadingFolders) const LinearProgressIndicator(),
-              if (!_loadingFolders && _folders.isEmpty)
+              if (!_loadingFolders && _folders.isEmpty && _library != null)
                 Text(tr(context, 'No subfolders')),
-              for (final folder in _folders)
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.folder_outlined),
-                  title: Text(folder),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _busy
-                      ? null
-                      : () => _openFolder([...parts, folder].join('/')),
+              if (_folders.isNotEmpty)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: Scrollbar(
+                    controller: _folderScroll,
+                    child: ListView.builder(
+                      controller: _folderScroll,
+                      shrinkWrap: true,
+                      itemCount: _folders.length,
+                      itemBuilder: (context, index) {
+                        final folder = _folders[index];
+                        return ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.folder_outlined),
+                          title: Text(
+                            folder,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: _busy
+                              ? null
+                              : () => _openFolder([...parts, folder].join('/')),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               if (_folderNext != null)
                 TextButton(
@@ -550,11 +610,30 @@ class _State extends State<KomgaUploadPage> {
               OutlinedButton.icon(
                 icon: const Icon(Icons.create_new_folder_outlined),
                 label: Text(tr(context, 'New folder')),
-                onPressed: _busy || text(_library).isEmpty
+                onPressed: _busy || _loadingFolders || text(_library).isEmpty
                     ? null
                     : _createFolder,
               ),
-            ] else
+              if (_folderToCreate case final String folder)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.create_new_folder_outlined),
+                  title: Text(folder),
+                  subtitle: Text(
+                    tr(
+                      context,
+                      'Folder will be created with the first upload.',
+                    ),
+                  ),
+                  trailing: IconButton(
+                    tooltip: tr(context, 'Cancel'),
+                    icon: const Icon(Icons.close),
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() => _folderToCreate = null),
+                  ),
+                ),
+            ] else ...[
               TextField(
                 controller: _manualFolder,
                 enabled: !_busy,
@@ -563,13 +642,25 @@ class _State extends State<KomgaUploadPage> {
                   labelText: tr(context, 'Series folder'),
                 ),
               ),
+              const SizedBox(height: 8),
+              Text(
+                tr(
+                  context,
+                  'Folder listing is unavailable. You can enter a relative path.',
+                ),
+              ),
+              TextButton(
+                onPressed: _busy ? null : _loadFolders,
+                child: Text(tr(context, 'Retry')),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _queueCard() => Card(
+  Widget _queueCard(double maxListHeight) => Card(
     child: Padding(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -588,83 +679,113 @@ class _State extends State<KomgaUploadPage> {
             icon: const Icon(Icons.upload_file),
             label: Text(tr(context, 'Choose files')),
           ),
-          for (final row in _queue) ...[
-            const Divider(),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(
-                row.uploaded
-                    ? Icons.check_circle_outline
-                    : Icons.description_outlined,
+          if (_queue.isNotEmpty)
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxListHeight),
+              child: Scrollbar(
+                controller: _queueScroll,
+                child: ListView.builder(
+                  key: const ValueKey('komga-upload-queue'),
+                  controller: _queueScroll,
+                  shrinkWrap: true,
+                  itemCount: _queue.length,
+                  itemBuilder: (context, index) => _queueRow(_queue[index]),
+                ),
               ),
-              title: Text(row.name),
-              subtitle: Text(
-                [
-                  if (row.size != null) _size(row.size!),
-                  if (row.operation != null) text(row.operation?['folder']),
-                  if (row.uploaded)
-                    tr(
-                      context,
-                      row.scanned ? 'Scan requested' : 'File uploaded',
-                    ),
-                  if (row.error != null) tr(context, row.error!),
-                ].join(' · '),
-              ),
-              trailing: PopupMenuButton<String>(
-                enabled: !_busy,
-                onSelected: (action) async {
-                  if (action == 'rename') await _rename(row);
-                  if (action == 'pick') await _pick(original: row);
-                  if (action == 'status') await _action(() => _status(row));
-                  if (action == 'remove' && mounted) {
-                    setState(() => _queue.remove(row));
-                    _persist();
-                  }
-                },
-                itemBuilder: (_) => [
-                  if (row.operation == null || row.canRename)
-                    PopupMenuItem(
-                      value: 'rename',
-                      child: Text(tr(context, 'Filename')),
-                    ),
-                  if (!row.uploaded && row.operation != null)
-                    PopupMenuItem(
-                      value: 'pick',
-                      child: Text(tr(context, 'Select original file')),
-                    ),
-                  if (!row.uploaded && row.operation != null)
-                    PopupMenuItem(
-                      value: 'status',
-                      child: Text(tr(context, 'Check upload status')),
-                    ),
-                  if (row.operation == null || row.scanned)
-                    PopupMenuItem(
-                      value: 'remove',
-                      child: Text(tr(context, 'Remove from queue')),
-                    ),
-                ],
-              ),
-            ),
-            if (row.progress != null)
-              LinearProgressIndicator(value: row.progress),
-          ],
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _busy || !_canSend ? null : _send,
-            icon: const Icon(Icons.cloud_upload_outlined),
-            label: Text(tr(context, 'Upload to Komga')),
-          ),
-          if (_cancel?.isCompleted == false)
-            TextButton(
-              onPressed: () => setState(() => _cancel!.complete()),
-              child: Text(tr(context, 'Cancel upload')),
-            ),
-          if (_queue.any((row) => row.uploaded && !row.scanned))
-            TextButton(
-              onPressed: _busy ? null : () => _action(_scanCompleted),
-              child: Text(tr(context, 'Scan library')),
             ),
         ],
+      ),
+    ),
+  );
+
+  Widget _queueRow(_Upload row) => Column(
+    children: [
+      const Divider(),
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(
+          row.uploaded
+              ? Icons.check_circle_outline
+              : Icons.description_outlined,
+        ),
+        title: Text(row.name),
+        subtitle: Text(
+          [
+            if (row.size != null) _size(row.size!),
+            if (row.operation != null) text(row.operation?['folder']),
+            if (row.uploaded)
+              tr(context, row.scanned ? 'Scan requested' : 'File uploaded'),
+            if (row.error != null) tr(context, row.error!),
+          ].join(' · '),
+        ),
+        trailing: PopupMenuButton<String>(
+          enabled: !_busy,
+          onSelected: (action) async {
+            if (action == 'rename') await _rename(row);
+            if (action == 'pick') await _pick(original: row);
+            if (action == 'status') await _action(() => _status(row));
+            if (action == 'remove' && mounted) {
+              setState(() => _queue.remove(row));
+              _persist();
+            }
+          },
+          itemBuilder: (_) => [
+            if (row.operation == null || row.canRename)
+              PopupMenuItem(
+                value: 'rename',
+                child: Text(tr(context, 'Filename')),
+              ),
+            if (!row.uploaded && row.operation != null)
+              PopupMenuItem(
+                value: 'pick',
+                child: Text(tr(context, 'Select original file')),
+              ),
+            if (!row.uploaded && row.operation != null)
+              PopupMenuItem(
+                value: 'status',
+                child: Text(tr(context, 'Check upload status')),
+              ),
+            if (row.operation == null || row.scanned)
+              PopupMenuItem(
+                value: 'remove',
+                child: Text(tr(context, 'Remove from queue')),
+              ),
+          ],
+        ),
+      ),
+      if (row.progress != null) LinearProgressIndicator(value: row.progress),
+    ],
+  );
+
+  Widget _footer() => SafeArea(
+    top: false,
+    minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+    child: Align(
+      heightFactor: 1,
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1098),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton.icon(
+              onPressed: _busy || !_canSend ? null : _send,
+              icon: const Icon(Icons.cloud_upload_outlined),
+              label: Text(tr(context, 'Upload to Komga')),
+            ),
+            if (_cancel?.isCompleted == false)
+              TextButton(
+                onPressed: () => setState(() => _cancel!.complete()),
+                child: Text(tr(context, 'Cancel upload')),
+              ),
+            if (_queue.any((row) => row.uploaded && !row.scanned))
+              TextButton(
+                onPressed: _busy ? null : () => _action(_scanCompleted),
+                child: Text(tr(context, 'Scan library')),
+              ),
+          ],
+        ),
       ),
     ),
   );
@@ -672,6 +793,7 @@ class _State extends State<KomgaUploadPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(tr(context, 'Add to Komga'))),
+    bottomNavigationBar: _configured ? _footer() : null,
     body: LayoutBuilder(
       builder: (context, box) => Center(
         child: ConstrainedBox(
@@ -705,12 +827,15 @@ class _State extends State<KomgaUploadPage> {
                   children: [
                     Expanded(child: _destinationCard()),
                     const SizedBox(width: 12),
-                    Expanded(flex: 2, child: _queueCard()),
+                    Expanded(
+                      flex: 2,
+                      child: _queueCard(min(420, max(96, box.maxHeight - 165))),
+                    ),
                   ],
                 )
               else ...[
                 _destinationCard(),
-                _queueCard(),
+                _queueCard(min(300, max(96, box.maxHeight * .45))),
               ],
             ],
           ),
