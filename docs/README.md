@@ -1,7 +1,7 @@
 # Documentation
 
-Public preview: **1.0.0 candidate 14, build 44** for Android and Windows.
-[Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.14)
+Public preview: **1.0.0 candidate 15, build 45** for Android and Windows.
+[Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.15)
 · [Release notes](releases/v1.0.0.md) · [Report an issue](https://github.com/LeValue/KMReader-Porting/issues)
 
 Stable 1.0 and full upstream parity are still in progress. Most general guides
