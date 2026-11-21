@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/media_cache.dart';
+import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
 import '../../ui/section_scroll_view.dart';
@@ -17,14 +19,47 @@ class CacheSettingsPage extends StatefulWidget {
   State<CacheSettingsPage> createState() => _CacheSettingsPageState();
 }
 
+typedef _StorageUsage = ({
+  List<MediaCacheStats> images,
+  int documentBytes,
+  int removableDocumentBytes,
+  int offlineBytes,
+});
+
 class _CacheSettingsPageState extends State<CacheSettingsPage> {
-  late Future<List<MediaCacheStats>> _stats;
+  late Future<_StorageUsage> _stats;
   Timer? _trim;
   bool _busy = false;
-  Future<List<MediaCacheStats>> _load() async => [
-    await widget.repository.mediaCache.stats(MediaCacheKind.pages),
-    await widget.repository.mediaCache.stats(MediaCacheKind.covers),
-  ];
+  Future<_StorageUsage> _load() async {
+    final repository = widget.repository;
+    final offlineBytes = repository.store
+        .downloads(repository.profile.id)
+        .where((item) => item['status'] == 'ready')
+        .fold(0, (bytes, item) => bytes + integer(item['size']));
+    final images = await Future.wait([
+      for (final kind in MediaCacheKind.values)
+        repository.mediaCache.stats(kind),
+    ]);
+    final documents = await repository.documents.usage();
+    return (
+      images: images,
+      documentBytes: documents.bytes,
+      removableDocumentBytes: documents.removableBytes,
+      offlineBytes: offlineBytes,
+    );
+  }
+
+  String _size(BuildContext context, int? bytes) {
+    if (bytes == null) return '…';
+    const mib = 1024 * 1024;
+    final gb = bytes >= 1024 * mib;
+    final format = NumberFormat.decimalPatternDigits(
+      locale: Localizations.localeOf(context).toString(),
+      decimalDigits: 1,
+    );
+    return '${format.format(bytes / (gb ? 1024 * mib : mib))} ${gb ? 'GB' : 'MB'}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +108,30 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
     }
   }
 
+  Future<void> _clearDocuments() async {
+    if (!await confirm(
+          context,
+          'Clear Temporary Documents',
+          'Downloaded books and open documents are kept.',
+        ) ||
+        !mounted) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await widget.repository.documents.trim(clear: true);
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _stats = _load();
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => SettingsScaffold(
     title: 'Cache',
@@ -83,7 +142,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
         icon: const Icon(Icons.refresh),
       ),
     ],
-    body: FutureBuilder<List<MediaCacheStats>>(
+    body: FutureBuilder(
       future: _stats,
       builder: (context, snapshot) => SectionScrollView(
         padding: const EdgeInsets.all(22),
@@ -93,6 +152,13 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
             child: Text(tr(context, 'settings.cache.scope')),
           ),
           if (snapshot.hasError) Text('${snapshot.error}'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.download_done),
+              title: Text(tr(context, 'Completed Downloads')),
+              trailing: Text(_size(context, snapshot.data?.offlineBytes)),
+            ),
+          ),
           for (final kind in MediaCacheKind.values) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 0, 10),
@@ -149,9 +215,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
                   ListTile(
                     title: Text(tr(context, 'Cached Size')),
                     trailing: Text(
-                      snapshot.hasData
-                          ? '${(snapshot.data![kind.index].bytes / 1024 / 1024).toStringAsFixed(1)} MB'
-                          : '…',
+                      _size(context, snapshot.data?.images[kind.index].bytes),
                     ),
                   ),
                   const Divider(indent: 20, endIndent: 20),
@@ -166,7 +230,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
                     ),
                     trailing: Text(
                       snapshot.hasData
-                          ? '${snapshot.data![kind.index].entries}'
+                          ? '${snapshot.data!.images[kind.index].entries}'
                           : '…',
                     ),
                   ),
@@ -240,26 +304,20 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
             ],
           ),
           ListTile(
+            title: Text(tr(context, 'Cached Documents')),
+            trailing: Text(_size(context, snapshot.data?.documentBytes)),
+          ),
+          ListTile(
             title: Text(tr(context, 'Clear Temporary Documents')),
             subtitle: Text(
               tr(context, 'Downloaded books and open documents are kept.'),
             ),
-            onTap: _busy
+            trailing: Text(
+              _size(context, snapshot.data?.removableDocumentBytes),
+            ),
+            onTap: _busy || snapshot.data?.removableDocumentBytes == 0
                 ? null
-                : () async {
-                    if (!await confirm(
-                      context,
-                      'Clear Temporary Documents',
-                      'Downloaded books and open documents are kept.',
-                    )) {
-                      return;
-                    }
-                    try {
-                      await widget.repository.documents.trim(clear: true);
-                    } catch (error) {
-                      if (context.mounted) showError(context, error);
-                    }
-                  },
+                : _clearDocuments,
           ),
         ],
       ),

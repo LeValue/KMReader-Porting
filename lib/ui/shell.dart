@@ -3,6 +3,7 @@ import '../features/local/local_library_page.dart';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../core/app_controller.dart';
 import '../core/models.dart';
@@ -273,7 +274,16 @@ class _AppShellState extends State<AppShell> {
                             content: Text(
                               repository.offline
                                   ? tr(context, 'Offline Mode')
-                                  : '${repository.pendingCount} ${tr(context, 'changes waiting to sync')}',
+                                  : tr(
+                                      context,
+                                      'Pending changes ({count})',
+                                    ).replaceAll(
+                                      '{count}',
+                                      NumberFormat.decimalPattern(
+                                        Localizations.localeOf(context)
+                                            .toString(),
+                                      ).format(repository.pendingCount),
+                                    ),
                             ),
                             leading: Icon(
                               repository.offline
@@ -283,10 +293,20 @@ class _AppShellState extends State<AppShell> {
                             actions: [
                               TextButton(
                                 onPressed: () {
-                                  repository.setOffline(false);
-                                  repository.sync();
+                                  if (repository.offline) {
+                                    repository.setOffline(false);
+                                  } else {
+                                    repository.sync();
+                                  }
                                 },
-                                child: Text(tr(context, 'Reconnect')),
+                                child: Text(
+                                  tr(
+                                    context,
+                                    repository.offline
+                                        ? 'Reconnect'
+                                        : 'Sync Progress',
+                                  ),
+                                ),
                               ),
                             ],
                           )

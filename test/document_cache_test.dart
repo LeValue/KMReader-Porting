@@ -86,14 +86,17 @@ void main() {
     expect(gets, 1);
     expect(heads, 1);
     expect(leases[0].file.path, leases[1].file.path);
+    expect(await cache.usage(), (bytes: 3, removableBytes: 0));
     await cache.trim(clear: true);
     expect(await leases.first.file.exists(), true);
     leases.first.close();
     await cache.trim(clear: true);
     expect(await leases.last.file.exists(), true);
     leases.last.close();
+    expect(await cache.usage(), (bytes: 3, removableBytes: 3));
     await cache.trim(clear: true);
     expect(await leases.first.file.exists(), false);
+    expect(await cache.usage(), (bytes: 0, removableBytes: 0));
     await expectLater(open(offline: true), throwsA(isA<ApiFailure>()));
   });
   test('conditional refresh prepares an immutable new version without changing an open document', () async {

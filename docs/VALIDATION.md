@@ -6,6 +6,23 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## After build 44 — offline parity and annotation refinement
+
+- The targeted host suite passed 83 tests. It checks On Deck order across pages and libraries,
+  pending EPUB progress and reset precedence, unsupported or interrupted
+  catalog responses, offline download-date sorting, and document cache leases.
+  The test fixtures cover multiple accounts without accessing personal data.
+- The Komga 1.29.1 integration passed with synthetic CBZ, EPUB and PDF files.
+  It prepared the offline index with a live server, then checked offline
+  search and membership order in a downloaded reading list.
+- The EPUB browser checks use generated artwork and note ranges. The curl
+  texture and the settled page agree within two physical pixels, including
+  reverse mouse drags across a chapter boundary.
+- The Windows Kindle runtime probe stopped before opening a document because
+  the original journaled fixture was absent from the cloud catalog. The
+  alternate annotation fixture also failed its exact identity check. Both
+  probes performed zero annotation writes. [Runtime probe](https://github.com/LeValue/KMReader-Porting/actions/runs/44894787047) · [Exact-fixture probe](https://github.com/LeValue/KMReader-Porting/actions/runs/44895651737)
+
 ## Build 44 / public candidate 14 — reader panels and artwork
 
 Packaged source `d40d8add38f6196d70385fb62a647955c41e65e6`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.14).

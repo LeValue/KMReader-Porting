@@ -226,6 +226,17 @@ L'interfaccia del caricamento Komga limita gli aggiornamenti del progresso a cir
 10 al secondo, mantenendo l'aggiornamento finale. Non sono misure di FPS o mAh.
 [Copertura e dettagli delle prove](COVER_PARITY.md).
 
+## Interventi successivi alla build 44
+
+| ID | Implementazione | Evidenza e accettazione residua |
+|---|---|---|
+| F-01.a | L'indice offline ordina per serie e numero, dimensione effettiva del file, data di download completato, data di uscita e modifica file della serie. L'ordine casuale delle serie è stabile tra le pagine. | Confronto con `BookSortField.swift`, `SeriesSortField.swift` e `DatabaseOperator+Series.swift` del riferimento. [Regressioni offline](../test/offline_catalog_test.dart). Resta il confronto delle altre operazioni di catalogo su backend supportati. |
+| F-02.a | On Deck offline mostra il primo volume da leggere per serie con almeno un completamento e nessuna lettura in corso. Usa il progresso locale effettivo e ordina per lettura più recente. La preparazione richiede pagine fresche e coerenti. Dashboard e catalogo segnalano un indice parziale. | Confronto con `fetchDashboardOfflineOnDeckBookIds` del riferimento. [On Deck e paginazione](../test/offline_catalog_test.dart) · [Interruzioni, risposte malformate e scope account](../test/parity_closure_test.dart). Restano le liste speciali delle estensioni e l'accettazione dopo riavvio nativo. |
+| F-07.d | La schermata Cache indica separatamente spazio dei download completati, documenti temporanei e spazio recuperabile. La pulizia rispetta le sorgenti in uso. | [Quote, documenti aperti e pulizia](../test/document_cache_test.dart). Restano le prove a spazio esaurito e ripresa in background sulle app installate. |
+| F-12.a | Filtri e colori delle annotazioni, stato della preparazione, spazio e modifiche in attesa di sincronizzazione sono localizzati nelle dieci lingue. Le aggiunte conservano le traduzioni già presenti nelle altre lingue. | `assets/port_strings.json` e `lib/ui/strings.dart`. Resta la revisione dei flussi precedenti e l'accettazione con caratteri grandi e lettori di schermo. |
+
+I pacchetti della candidata 14 precedono questi interventi. Il [registro di validazione](VALIDATION.md) riporta le prove del ramo di lavoro.
+
 ## AT — Accettazione su piattaforme e backend reali
 
 Registrare per ogni prova commit, piattaforma/dispositivo, OS/runtime, dati di

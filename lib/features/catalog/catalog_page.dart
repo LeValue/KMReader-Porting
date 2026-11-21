@@ -114,6 +114,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   String _query = '', _sort = 'metadata.titleSort,asc', _readStatus = '';
   bool _list = false;
   bool _selecting = false, _acting = false;
+  late bool _offline;
   final _selection = <String, CatalogItem>{};
   CatalogFilter _advanced = CatalogFilter();
   int _contentRevision = 0, _progressRevision = 0, _cacheRevision = 0;
@@ -142,13 +143,29 @@ class _CatalogPageViewState extends State<CatalogPageView> {
 
   void _repositoryChanged() {
     if (!mounted) return;
-    if (_contentRevision != widget.repository.contentRevision ||
+    final offline = widget.repository.offline;
+    if (_offline != offline) {
+      _offline = offline;
+      if (!offline && _sort.startsWith('downloadAt,')) {
+        _sort = widget.initialSort ?? 'metadata.titleSort,asc';
+      }
+    }
+    final progressChanged =
+        _progressRevision != widget.repository.progressRevision;
+    final refreshReading =
+        offline &&
+        progressChanged &&
+        (_sort.startsWith('readProgress.readDate,') ||
+            widget.path == '/api/v1/books/ondeck' ||
+            jsonEncode(_effectiveCondition).contains('"readStatus"'));
+    _progressRevision = widget.repository.progressRevision;
+    if (refreshReading ||
+        _contentRevision != widget.repository.contentRevision ||
         _cacheRevision != widget.repository.cacheRevision) {
       _contentRevision = widget.repository.contentRevision;
       _cacheRevision = widget.repository.cacheRevision;
       _load(reset: true);
-    } else if (_progressRevision != widget.repository.progressRevision) {
-      _progressRevision = widget.repository.progressRevision;
+    } else if (progressChanged) {
       setState(() {});
     }
   }
@@ -161,6 +178,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     widget.repository.browse.addListener(_browseChanged);
     _contentRevision = widget.repository.contentRevision;
     _progressRevision = widget.repository.progressRevision;
+    _offline = widget.repository.offline;
     widget.repository.catalogChanges.addListener(_repositoryChanged);
     if (widget.kind == 'readlists' || widget.kind == 'collections') {
       _sort = 'name,asc';
@@ -194,6 +212,10 @@ class _CatalogPageViewState extends State<CatalogPageView> {
           widget.repository.browse[BrowseOption.ignoreSearchFilters];
       old.repository.catalogChanges.removeListener(_repositoryChanged);
       widget.repository.catalogChanges.addListener(_repositoryChanged);
+      _offline = widget.repository.offline;
+      if (!_offline && _sort.startsWith('downloadAt,')) {
+        _sort = widget.initialSort ?? 'metadata.titleSort,asc';
+      }
     }
     if (old.repository != widget.repository ||
         old.kind != widget.kind ||
@@ -692,6 +714,9 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                                     'name,asc': 'bookSort.fileName',
                                     'media.pagesCount,desc':
                                         'bookSort.pageCount',
+                                    if (_offline)
+                                      'downloadAt,desc':
+                                          'bookSort.downloadDate',
                                   } else ...{
                                     'booksMetadata.releaseDate,desc':
                                         'series.sortField.releaseDate',
@@ -702,6 +727,9 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                                     'booksCount,desc':
                                         'series.sortField.booksCount',
                                     'random,asc': 'series.sortField.random',
+                                    if (_offline)
+                                      'downloadAt,desc':
+                                          'series.sortField.downloadDate',
                                   },
                                 })
                           .entries)

@@ -1,4 +1,5 @@
 {
+  "Pending changes ({count})": {"en":"Pending changes ({count})","it":"Modifiche da sincronizzare ({count})","de":"Ausstehende Änderungen ({count})","fr":"Modifications en attente ({count})","ja":"同期を待機中の変更（{count} 件）","ko":"동기화 대기 중인 변경 사항 ({count}개)","zh-Hans":"待同步的更改（{count} 项）","zh-Hant":"待同步的變更（{count} 項）","ru":"Ожидают синхронизации ({count})","es":"Cambios pendientes ({count})"},
   "Android could not read the update certificates. Try installing the official APK from the release page.": {"en": "Android could not read the update certificates. Try installing the official APK from the release page.", "it": "Android non riesce a leggere i certificati dell’aggiornamento. Prova a installare l’APK ufficiale dalla pagina della release."},
   "Windows could not start the update helper. Open the release page to update manually.": {"en": "Windows could not start the update helper. Open the release page to update manually.", "it": "Windows non riesce ad avviare il programma di aggiornamento. Apri la pagina della release per aggiornare manualmente."},
   "Preparing the Windows update...": {"en": "Preparing the Windows update...", "it": "Preparazione dell’aggiornamento Windows…"},
@@ -36,17 +37,17 @@
   "Delete this annotation?": {"en": "Delete this annotation?", "it": "Eliminare questa annotazione?"},
   "Search results": {"en": "results", "it": "risultati"},
   "Bookmarks and annotations": {"en": "Bookmarks and annotations", "it": "Segnalibri e annotazioni"},
-  "Filters": {"en": "Filters", "it": "Filtri"},
-  "Type": {"en": "Type", "it": "Tipo"},
-  "Color": {"en": "Color", "it": "Colore"},
-  "All": {"en": "All", "it": "Tutto"},
-  "All chapters": {"en": "All chapters", "it": "Tutti i capitoli"},
-  "Highlight color": {"en": "Highlight color", "it": "Colore dell’evidenziatore"},
-  "Yellow": {"en": "Yellow", "it": "Giallo"},
-  "Aqua": {"en": "Aqua", "it": "Acqua"},
-  "Pink": {"en": "Pink", "it": "Rosa"},
-  "Orange": {"en": "Orange", "it": "Arancione"},
-  "Delete the note and its highlight?": {"en": "Delete the note and its highlight?", "it": "Eliminare la nota e la sua evidenziazione?"},
+  "Filters": {"en":"Filters","it":"Filtri","de":"Filter","fr":"Filtres","ja":"フィルター","ko":"필터","zh-Hans":"筛选","zh-Hant":"篩選","ru":"Фильтры","es":"Filtros"},
+  "Type": {"en":"Type","it":"Tipo","de":"Typ","fr":"Type","ja":"種類","ko":"유형","zh-Hans":"类型","zh-Hant":"類型","ru":"Тип","es":"Tipo"},
+  "Color": {"en":"Color","it":"Colore","de":"Farbe","fr":"Couleur","ja":"色","ko":"색상","zh-Hans":"颜色","zh-Hant":"顏色","ru":"Цвет","es":"Color"},
+  "All": {"en":"All","it":"Tutto","de":"Alle","fr":"Tout","ja":"すべて","ko":"전체","zh-Hans":"全部","zh-Hant":"全部","ru":"Все","es":"Todo"},
+  "All chapters": {"en":"All chapters","it":"Tutti i capitoli","de":"Alle Kapitel","fr":"Tous les chapitres","ja":"すべての章","ko":"모든 장","zh-Hans":"所有章节","zh-Hant":"所有章節","ru":"Все главы","es":"Todos los capítulos"},
+  "Highlight color": {"en":"Highlight color","it":"Colore dell’evidenziatore","de":"Markierungsfarbe","fr":"Couleur du surlignage","ja":"ハイライトの色","ko":"하이라이트 색상","zh-Hans":"高亮颜色","zh-Hant":"醒目提示色彩","ru":"Цвет выделения","es":"Color de resaltado"},
+  "Yellow": {"en":"Yellow","it":"Giallo","de":"Gelb","fr":"Jaune","ja":"黄色","ko":"노랑","zh-Hans":"黄色","zh-Hant":"黃色","ru":"Жёлтый","es":"Amarillo"},
+  "Aqua": {"en":"Aqua","it":"Acqua","de":"Türkis","fr":"Turquoise","ja":"水色","ko":"청록색","zh-Hans":"青色","zh-Hant":"青色","ru":"Бирюзовый","es":"Turquesa"},
+  "Pink": {"en":"Pink","it":"Rosa","de":"Rosa","fr":"Rose","ja":"ピンク","ko":"분홍","zh-Hans":"粉色","zh-Hant":"粉紅色","ru":"Розовый","es":"Rosa"},
+  "Orange": {"en":"Orange","it":"Arancione","de":"Orange","fr":"Orange","ja":"オレンジ","ko":"주황","zh-Hans":"橙色","zh-Hant":"橙色","ru":"Оранжевый","es":"Naranja"},
+  "Delete the note and its highlight?": {"en":"Delete the note and its highlight?","it":"Eliminare la nota e la sua evidenziazione?","de":"Notiz und zugehörige Markierung löschen?","fr":"Supprimer la note et son surlignage ?","ja":"メモと関連するハイライトを削除しますか？","ko":"메모와 연결된 하이라이트를 삭제할까요?","zh-Hans":"要删除笔记及其高亮吗？","zh-Hant":"要刪除筆記及其醒目提示嗎？","ru":"Удалить заметку и связанное выделение?","es":"¿Eliminar la nota y su resaltado?"},
   "Bookmark": {"en": "Bookmark", "it": "Segnalibro"},
   "Bookmarks": {"en": "Bookmarks", "it": "Segnalibri"},
   "Toggle Bookmark": {"en": "Toggle Bookmark", "it": "Aggiungi o rimuovi segnalibro"},
@@ -468,14 +469,8 @@
     "en": "Reading by Day",
     "it": "Lettura per giorno"
   },
-  "Cached Books Only": {
-    "en": "Cached Books Only",
-    "it": "Solo libri in cache"
-  },
-  "The catalog changed during preparation. Try again.": {
-    "en": "The catalog changed during preparation. Try again.",
-    "it": "Il catalogo è cambiato durante la preparazione. Riprova."
-  },
+  "Cached Books Only": {"en":"Cached Books Only","it":"Solo libri in cache","de":"Nur zwischengespeicherte Bücher","fr":"Livres en cache uniquement","ja":"キャッシュ済みの本のみ","ko":"캐시된 책만","zh-Hans":"仅显示已缓存的书籍","zh-Hant":"僅顯示已快取的書籍","ru":"Только книги из кэша","es":"Solo libros en caché"},
+  "The catalog changed during preparation. Try again.": {"en":"The catalog changed during preparation. Try again.","it":"Il catalogo è cambiato durante la preparazione. Riprova.","de":"Der Katalog wurde während der Vorbereitung geändert. Versuche es erneut.","fr":"Le catalogue a changé pendant la préparation. Réessayez.","ja":"準備中にカタログが変更されました。もう一度お試しください。","ko":"준비 중에 카탈로그가 변경되었습니다. 다시 시도하세요.","zh-Hans":"准备期间目录已更改。请重试。","zh-Hant":"準備期間目錄已變更。請重試。","ru":"Каталог изменился во время подготовки. Повторите попытку.","es":"El catálogo cambió durante la preparación. Inténtalo de nuevo."},
   "All Events Loaded": {
     "en": "All Events Loaded",
     "it": "Tutti gli eventi caricati"
@@ -864,6 +859,8 @@
     "ru": "Ожидание условий загрузки",
     "es": "Esperando las condiciones de descarga"
   },
+  "Completed Downloads": {"en":"Completed Downloads","it":"Download completati","de":"Abgeschlossene Downloads","fr":"Téléchargements terminés","ja":"ダウンロード済み","ko":"완료된 다운로드","zh-Hans":"已完成的下载","zh-Hant":"已完成的下載","ru":"Завершённые загрузки","es":"Descargas completadas"},
+  "Cached Documents": {"en":"Cached Documents","it":"Documenti in cache","de":"Zwischengespeicherte Dokumente","fr":"Documents en cache","ja":"キャッシュ済みのドキュメント","ko":"캐시된 문서","zh-Hans":"已缓存的文档","zh-Hant":"已快取的文件","ru":"Документы в кэше","es":"Documentos en caché"},
   "Document Cache Limit": {
     "en": "Document Cache Limit",
     "it": "Limite cache dei documenti",
