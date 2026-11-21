@@ -307,12 +307,11 @@ retains fractional frame-limit timing. Callback threading and disposal ownership
 are unchanged. These are concrete work/latency reductions, not a claim of a
 fixed physical frame rate on every PC or phone.
 
-Local Books owns content-addressed copies of EPUB, PDF and CBZ/ZIP originals,
-independent of accounts and server downloads. Import streams to disk, hashes
-the content and indexes ZIP/EPUB off the UI isolate. Comic pages inflate on
-demand off that isolate, with a 32 MiB encoded-page cache. Progress is local
-and never enters a Komga outbox; removing a copy preserves the selected source.
-RAR/CBR is outside the initial supported formats.
+Local Books owns content-addressed copies of EPUB, PDF and comic archives.
+Import streams to disk, hashes the content and indexes the publication off the
+UI isolate. ZIP, RAR, 7z and TAR comic pages decode on demand on that isolate,
+with a 32 MiB encoded-page cache. Progress stays on the device. Removing an
+imported copy preserves the selected source.
 
 The following sections describe earlier versions and their historical options.
 

@@ -6,6 +6,30 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 46 — reader interface and local comics
+
+Packaged source `5187d0864864ad6849cd0e24320dc8e0fe4e971b`.
+
+- Android pagination uses document ranges and reader-owned touch handles for
+  ordinary EPUB text. Trusted touch probes in Chromium and Android WebView selected
+  a word and extended the range. The iframe and chapter scroll offsets and
+  the CFI stayed fixed. The menu test exercises a 320-pixel reader.
+  [Android WebView probe](https://github.com/LeValue/KMReader-Porting/actions/runs/44925117133)
+- PDF now opens in the comics reader by default. A PDFium test searched its
+  text, selected page 2 from the results and checked the reading position.
+  The separate native PDF view passed checks for a short drag, a long touch
+  fling, a mouse drag and keyboard turns in RTL spreads.
+- Local Books imported a generated RAR4 CBR in canonical page order. Separate
+  7z and TAR fixtures yielded the original image bytes through the same local
+  reader. The archive tests and EPUB checks used generated content.
+- The fractional-density curl regression passed on the generated EPUB.
+  The occasional vertical shift reported on the physical phone still needs
+  a device reproduction.
+
+All eight CI jobs passed. The signed APK, update manifest and all
+711 Windows archive entries were downloaded and verified.
+[CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44924691185) · [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44926013584) · [Candidate download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.16)
+
 ## Build 45 — interactive EPUB curl handoff
 
 Runtime source `4937b928eeb9e06d8b43f4873c5b7fb61303dc5b`.

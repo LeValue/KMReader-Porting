@@ -1,7 +1,7 @@
 # Installation and first use
 
 KMReader Preview is a community reader for Android and Windows. Current public
-release: [1.0.0 candidate 15, build 45](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.15).
+release: [1.0.0 candidate 16, build 46](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.16).
 It is a development prerelease; stable 1.0 and full upstream parity are not complete.
 
 ## Install
@@ -64,7 +64,12 @@ paths and proxy on your own server; installing the client does not install it.
 
 ## Read local files
 
-Open **Local Books → Import Files** and choose an EPUB, PDF or CBZ/ZIP.
+Open **Local Books → Import Files** and choose an EPUB, PDF or comic archive.
+Comic formats include CBZ, CBR, CB7 and CBT and the ZIP, RAR, 7Z and TAR extensions.
+
+PDFs open in the comics reader. Open the reader menu to search the text or
+jump to a chapter in the PDF table of contents. The **PDF Reader** settings
+also offer the native view for text selection.
 The app copies the file into its storage and keeps reading progress locally.
 No server account is required. Removing the imported copy preserves the original
 file you selected. Local RAR/CBR reading is not currently supported.

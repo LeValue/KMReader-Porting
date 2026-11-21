@@ -7,13 +7,13 @@ Read comics and ebooks from **Komga**, your **Kindle account**, or local files
 on Android and Windows. This community Flutter port is based on
 [KMReader](https://github.com/kmworks/kmreader).
 
-**Development preview:** the current release is **1.0.0 candidate 15, build 45**.
+**Development preview:** the current release is **1.0.0 candidate 16, build 46**.
 Stable 1.0 and full upstream parity are still in progress. See the
 [roadmap](docs/ROADMAP_1.0.md) and [porting checklist](docs/PARITY.md).
 
 ## Download and install
 
-**[Download the current Android and Windows preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.15)**
+**[Download the current Android and Windows preview](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.16)**
 
 | Platform | Requirements | Installation |
 |---|---|---|
@@ -56,12 +56,12 @@ Use **Kindle Services** to choose the position for each affected book.
 | Source | Available features |
 |---|---|
 | Komga | Browse and search libraries, read comics and ebooks, download for offline use, synchronize reading progress, and manage multiple accounts. |
-| Local files | Import EPUB, PDF and CBZ/ZIP without an account; read offline and keep progress on the device. |
+| Local files | Import EPUB, PDF and comic archives (CBZ, CBR, CB7 and CBT) without an account; read offline and keep progress on the device. |
 | Kindle | Connect an Amazon.it account, browse and prepare books for reading, send local documents to the cloud library or selected devices, and manage personal documents. |
 | Komga administration | Administrators can edit metadata, select/restore covers, remove uploaded artwork, delete volumes with confirmation, and upload new EPUB/PDF/CBZ/CBR files after server setup. |
 
 Readers include slide and page-curl animations, reading preferences and
-bookmarks. The dashboard separates recently added books and comics.
+bookmarks. PDFs use the comics reader by default, with search and a table of contents. The dashboard separates recently added books and comics.
 
 **Komga uploads require the optional [server companion](docs/KOMGA_LIBRARY_MANAGEMENT.md)**
 on the server and a reverse proxy under the same Komga address. Metadata,
