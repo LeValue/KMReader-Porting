@@ -362,7 +362,8 @@ def android_apk(root, package):
 def renderer(args, origin, port):
     if args.webview2:
         debug = local_port()
-        with tempfile.TemporaryDirectory(prefix='km-curl-webview-') as profile:
+        # Edge's child processes can keep their profile locked briefly after the host exits.
+        with tempfile.TemporaryDirectory(prefix='km-curl-webview-', ignore_cleanup_errors=True) as profile:
             host = subprocess.Popen([sys.executable, __file__, '--webview2-window', origin+'/A/reader/',
                                      str(debug), str(args.width + 30), str(args.height + 40), profile])
             try:
@@ -402,7 +403,10 @@ def run(args):
     server = serve(baseline)
     origin = f'http://127.0.0.1:{server.server_port}'
     with renderer(args, origin, server.server_port) as (endpoint, engine), sync_playwright() as pw:
-        browser = pw.chromium.connect_over_cdp(endpoint) if endpoint else pw.chromium.launch(headless=True, args=['--no-sandbox'])
+        if endpoint:
+            browser = pw.chromium.connect_over_cdp(endpoint, no_defaults=True)
+        else:
+            browser = pw.chromium.launch(headless=True, args=['--no-sandbox'])
         page = (browser.contexts[0].pages[0] if endpoint else browser.new_page(viewport={'width': args.width, 'height': args.height},
                 device_scale_factor=args.dpr, has_touch=args.touch, is_mobile=args.touch))
         cdp = page.context.new_cdp_session(page)
