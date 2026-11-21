@@ -202,8 +202,10 @@ def drag(page, cdp, case, touch, hold=False, cancel=False):
 
     if touch:
         touch_event('touchStart', start)
-        for i in range(1, 10):
-            touch_event('touchMove', start + (end-start)*i/9)
+        # Cross the reader's start threshold on the first delivered move,
+        # even when an emulator takes several frames to acknowledge input.
+        for fraction in (.30, .45, .60, .74, .88, 1):
+            touch_event('touchMove', start + (end-start)*fraction)
     else:
         page.mouse.move(start, y)
         page.mouse.down()
