@@ -97,8 +97,9 @@ void main() {
       await Future.any<void>([
         received.future,
         task.then((_) {
-          if (!received.isCompleted)
+          if (!received.isCompleted) {
             fail('Worker stopped before receiving the response body');
+          }
         }),
       ]);
       expect(await task, false);
