@@ -4,7 +4,7 @@
 Aggiornato il 21 novembre 2026 per Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+45, candidata pubblica 15**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+46, candidata pubblica 16**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -30,6 +30,8 @@ La candidata pubblica 7/build 37 include copertine, ripresa aggiornamenti e
 correzioni energetiche: [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435), [consegna](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009) e
 [download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7) verificati. L'accettazione dell'installatore sul telefono,
 le misure energetiche e gli altri requisiti aperti rimangono distinti.
+
+La build 46 integra i PDF nel lettore dei fumetti con ricerca e indice. Corregge la selezione EPUB paginata su Android e apre CBR, CB7 e CBT nella libreria locale. La verifica sulle pagine EPUB segnalate sul telefono fisico resta aperta. [Build 46](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.16) · [Validazione](VALIDATION.md#build-46--reader-interface-and-local-comics)
 
 La build 45 riutilizza la texture preparata durante il curl e mostra la pagina reale quando è pronta. Il confronto su WebView2 ha misurato tempi più brevi al cambio di capitolo in entrambi i versi. Il controllo sui dispositivi fisici resta aperto. [Build 45](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.15) · [Validazione](VALIDATION.md#build-45--interactive-epub-curl-handoff)
 
@@ -127,7 +129,7 @@ dell'intera riga. Gli ID indicano il lavoro necessario per chiuderla.
 | Lettore fumetti | LTR/RTL, Webtoon, pagine doppie/singole, zoom/rotazione/crop, pagine larghe, progresso e continuazione; curl singolo con trasparenza e gesti sui bordi reali della pagina | Implementato / adattamento da validare | F-04, F-10, AT-02, AT-07; [curl](../test/page_transition_test.dart), [gesti](../test/reader_gestures_test.dart) |
 | PDF | PDFium o lettore fumetti, qualità raster, ricerca/outline, password non persistite, layout e continuazione | Parziale / da validare | F-05, AT-02, AT-03; [test PDF](../test/pdf_reader_test.dart) |
 | EPUB | WebView/WebView2, Epub.js, CFI, continuo/paginato, fixed layout/CJK, font/temi, ricerca, dizionario, segnalibri, note, evidenziazioni e animazioni | Parziale / da validare | F-06, F-10, AT-02, AT-07; [browser](../test/epub_browser_test.dart), [audit EPUB](EPUB_RENDERING_AUDIT.md) |
-| Libri locali | Importazione streaming EPUB/PDF/CBZ/ZIP, copie proprie, deduplicazione, lettura/progresso indipendenti dagli account | Implementato / da delimitare | A-03, AT-06; [test importazione](../test/local_library_test.dart) |
+| Libri locali | Importazione streaming EPUB/PDF/CBZ/CBR/CB7/CBT, copie proprie, deduplicazione, lettura/progresso indipendenti dagli account | Implementato / da delimitare | A-03, AT-06; [test importazione](../test/local_library_test.dart) |
 | Download e offline | Coda limitata, annulla/riprova/ripresa, Range/If-Range, lease, protezione account e worker Android/Windows | Parziale / da validare | F-02, F-07, AT-03; [ripresa](../test/download_resume_test.dart), [worker](../test/download_worker_test.dart) |
 | Progresso e sincronizzazione | Outbox durevole, revisioni, conflitti e avanzamento nei lettori; locatori Kindle verificati rispetto all'edizione | Implementato / da validare | AT-05; [repository Kindle](../test/kindle_repository_test.dart), [procedure](TESTING.md) |
 | Aggiornamenti live | SSE, riconnessione, Last-Event-ID, invalidazioni mirate, refresh e stato task; rimozione metadati eliminati, riconciliazione dopo riconnessione e SessionExpired per account | Implementato / da validare | F-08; [test eventi](../test/server_event_test.dart) |
@@ -294,8 +296,8 @@ cambiata; le modifiche runtime richiedono nuove build e CI.
 | ID | Controllo finale | Stato attuale / criterio di chiusura |
 |---|---|---|
 | R-01 | Chiudere A, F e AT, poi fissare la sorgente finale | Aperto. Elenco delle differenze risolto, nessuna esclusione implicita, difetti residui dichiarati. Aggiornare matrice e note con le prove effettive; la sola chiusura dei sette interventi non basta. |
-| R-02 | Regressioni e backend sulla sorgente finale | Gli otto job per la build 45 sono passati su `4937b92`, incluse le prove su Komga, browser, worker e lettori nativi. Ripetere sulla sorgente della stabile. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44917649615) |
-| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+45 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
+| R-02 | Regressioni e backend sulla sorgente finale | Gli otto job per la build 46 sono passati su `5187d08`, incluse le prove su Komga, browser, worker e lettori nativi. Ripetere sulla sorgente della stabile. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44924691185) |
+| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+46 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
 | R-04 | Allegati e pubblicazione stabile | Consegna della candidata già verificata; la pubblicazione stabile resta aperta. Preparare/verificare i pacchetti della sorgente finale, riscaricarli e controllare checksum e contenuto. Seguire [RELEASING.md](RELEASING.md): il publisher preview non equivale alla promozione stabile di `v1.0.0`. |
 | R-05 | Conservazione e documentazione | Conservare cronologia, build precedenti, firma Android e sorgenti del runtime Kindle; non rimuovere script attivi. Prima di eventuali eliminazioni di rami/release presentare un nuovo inventario preciso. Aggiornare README, note, [audit repository](REPOSITORY_AUDIT.md) e [validazione](VALIDATION.md) senza modificare allegati storici. |
 
