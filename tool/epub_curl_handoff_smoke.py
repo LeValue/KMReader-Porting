@@ -172,8 +172,9 @@ def serve(baseline):
     return server
 
 
-def configure(page, origin, label, columns):
+def configure(page, origin, label, columns, set_metrics):
     page.goto(f'{origin}/{label}/reader/')
+    set_metrics()
     page.evaluate(TRACE)
     page.evaluate('c=>reader.open(c)', {
         'url': f'{origin}/{label}/book/package.opf', 'nonce': 'handoff',
@@ -432,15 +433,23 @@ def run(args):
         if args.origin:
             origin = args.origin.format(port=server.server_port)
         page.set_default_timeout(12000)
-        if endpoint:
-            cdp.send('Emulation.setDeviceMetricsOverride', {'width': args.width, 'height': args.height,
-                      'deviceScaleFactor': args.dpr, 'mobile': args.touch})
-            if args.touch:
-                cdp.send('Emulation.setTouchEmulationEnabled', {'enabled': True, 'maxTouchPoints': 1})
-        cdp.send('Emulation.setEmulatedMedia', {'features':[{'name':'prefers-reduced-motion','value':'no-preference'}]})
+        def set_metrics():
+            if endpoint:
+                # Android WebView can restore its native metrics on navigation.
+                cdp.send('Emulation.setDeviceMetricsOverride', {'width': args.width, 'height': args.height,
+                          'deviceScaleFactor': args.dpr, 'mobile': args.touch})
+                if args.touch:
+                    cdp.send('Emulation.setTouchEmulationEnabled', {'enabled': True, 'maxTouchPoints': 1})
+            cdp.send('Emulation.setEmulatedMedia', {'features':[{'name':'prefers-reduced-motion','value':'no-preference'}]})
+
         ages = {}
+        viewport = None
         for label in 'ABBA':
-            configure(page, origin, label, args.columns)
+            configure(page, origin, label, args.columns, set_metrics)
+            current_viewport = page.evaluate('[innerWidth,innerHeight,devicePixelRatio]')
+            if viewport is None:
+                viewport = current_viewport
+            assert current_viewport == viewport, 'The WebView viewport changed during the comparison'
             ages[label] = page.evaluate('''()=>new Promise(resolve=>{
               const frames=[];const tick=t=>{frames.push(t);if(frames.length<32)requestAnimationFrame(tick);
                 else resolve(frames.slice(1).map((f,i)=>f-frames[i]));};requestAnimationFrame(tick);
@@ -452,17 +461,21 @@ def run(args):
                     if label == 'B':
                         assert sample['decodes'] == sample['uploads'] == 0, ('Release rebuilt a texture', case)
                     metrics[label][case].append(sample)
-        for label in 'AB':
-            configure(page, origin, label, args.columns)
-            drag(page, cdp, 'page-forward', args.touch, cancel=True)
-            pixels[label] = [compare_pixels(page, cdp, case, args.touch) for case in chapter_cases]
         result = {'engine': engine, 'browser': browser.version,
-                  'viewport': page.evaluate('[innerWidth,innerHeight,devicePixelRatio]'),
+                  'viewport': viewport,
                   'columns': args.columns, 'input': 'touch' if args.touch else 'mouse',
                   'cadenceMs': {label:round(statistics.median(ages[label]),2) for label in 'AB'},
                   'results': {label:{case:summary(samples, statistics.median(ages[label])) for case,samples in variants.items()}
-                              for label,variants in metrics.items()}, 'handoffPixels': pixels, 'cancelRetainedCfi': True}
+                              for label,variants in metrics.items()}}
         print(json.dumps(result, indent=2), flush=True)
+        if args.output:
+            Path(args.output).write_text(json.dumps(result, indent=2), encoding='utf8')
+        for label in 'AB':
+            configure(page, origin, label, args.columns, set_metrics)
+            drag(page, cdp, 'page-forward', args.touch, cancel=True)
+            pixels[label] = [compare_pixels(page, cdp, case, args.touch) for case in chapter_cases]
+        result.update(handoffPixels=pixels, cancelRetainedCfi=True)
+        print(json.dumps({'handoffPixels': pixels, 'cancelRetainedCfi': True}, indent=2), flush=True)
         if args.output:
             Path(args.output).write_text(json.dumps(result, indent=2), encoding='utf8')
         if not endpoint:

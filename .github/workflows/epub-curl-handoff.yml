@@ -88,7 +88,7 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: false
-          script: python tool/epub_curl_handoff_smoke.py --android emulator --touch --chapter-turns --output artifacts/curl-handoff/android-emulator.json
+          script: python tool/epub_curl_handoff_smoke.py --android emulator --touch --chapter-turns --repetitions 2 --output artifacts/curl-handoff/android-emulator.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
