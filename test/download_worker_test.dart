@@ -91,8 +91,16 @@ void main() {
           if (!received.isCompleted) received.complete();
         }
       });
-      final task = worker(budget: const Duration(milliseconds: 300)).run();
-      await received.future;
+      // Leave time for the Windows runner to open SQLite and the loopback
+      // socket before testing the deliberately stalled response body.
+      final task = worker(budget: const Duration(seconds: 2)).run();
+      await Future.any<void>([
+        received.future,
+        task.then((_) {
+          if (!received.isCompleted)
+            fail('Worker stopped before receiving the response body');
+        }),
+      ]);
       expect(await task, false);
       expect(store.download(profile.id, book.id)?['status'], 'queued');
       expect(store.transferring(profile.id, book.id), false);
