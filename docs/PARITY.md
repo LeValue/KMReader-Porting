@@ -1,10 +1,10 @@
 # Matrice di parità e chiusura del porting KMReader
 
 **Stato: porting ancora aperto; release stabile non pronta.**
-Aggiornato il 20 novembre 2026 per Android e Windows.
+Aggiornato il 21 novembre 2026 per Android e Windows.
 
 Questa è la lista di lavoro per concludere il porting. La sorgente corrente è
-**1.0.0+43, candidata pubblica 13**. Il checkpoint distribuito **1.0.0+30**, verificato al
+**1.0.0+44, candidata pubblica 14**. Il checkpoint distribuito **1.0.0+30**, verificato al
 commit `4b93c91ddfd5b847f92dcdb888643e96dc1320a6`, resta conservata. La build 31
 aggiunge le correzioni curl/Kindle e gli interventi di parità elencati sotto;
 non chiude tutte le aree della matrice.
@@ -30,6 +30,8 @@ La candidata pubblica 7/build 37 include copertine, ripresa aggiornamenti e
 correzioni energetiche: [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435), [consegna](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009) e
 [download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7) verificati. L'accettazione dell'installatore sul telefono,
 le misure energetiche e gli altri requisiti aperti rimangono distinti.
+
+La build 44 corregge la barra e l’apertura dei pannelli su Windows, la selezione e il toggle dei segnalibri e la resa delle immagini HTML e SVG nel curl. La schermata Komga mantiene visibile l’invio e mostra le cartelle anche con un companion precedente. Restano la verifica visiva su Windows con un EPUB reale e la prova del toggle sul servizio Kindle. [Build 44](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.14) · [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44861533715)
 
 La build 43 aggiunge i pannelli EPUB di Windows, il menu contestuale di selezione e la stabilità del layout Android durante la scrittura di note. Porta in Gestione libreria il caricamento multiplo Komga con navigazione delle cartelle e registrazione facoltativa delle librerie. La cancellazione dal cloud di una nota e di un’evidenziazione Kindle è stata confermata su un EPUB sintetico. Restano aperte le prove su dispositivi fisici e tra due lettori. [Build 43](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.13) · [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44830271620) · [Validazione](VALIDATION.md#build-43--public-candidate-13--epub-reader-and-komga-management)
 
@@ -277,8 +279,8 @@ cambiata; le modifiche runtime richiedono nuove build e CI.
 | ID | Controllo finale | Stato attuale / criterio di chiusura |
 |---|---|---|
 | R-01 | Chiudere A, F e AT, poi fissare la sorgente finale | Aperto. Elenco delle differenze risolto, nessuna esclusione implicita, difetti residui dichiarati. Aggiornare matrice e note con le prove effettive; la sola chiusura dei sette interventi non basta. |
-| R-02 | Regressioni e backend sulla sorgente finale | Gli otto job per la build 43 sono passati su `8b5fe53`, incluse le prove su Komga, browser, worker e lettori nativi. Ripetere dopo le prossime modifiche runtime e sulla sorgente della stabile. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44830271620) |
-| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+43 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
+| R-02 | Regressioni e backend sulla sorgente finale | Gli otto job per la build 44 sono passati su `d40d8ad`, incluse le prove su Komga, browser, worker e lettori nativi. Ripetere dopo le prossime modifiche runtime e sulla sorgente della stabile. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44861533715) |
+| R-03 | Identità, versioni, aggiornamento e distribuzione | La candidata pubblica 1.0.0+44 ha APK universale firmato, Windows completo e feed verificati; include aggiornamento in-app con conferma Android e backup/ripristino Windows. AT-01 resta aperto. Per nuovi aggiornamenti distribuiti incrementare il build, mantenere package ID/certificato e verificare ABI, allineamento, provenienza e tutti i runtime/sorgenti/licenze Windows. La firma Authenticode Windows non è attualmente presente: il tipo di distribuzione, il percorso di installazione/aggiornamento e tale stato devono essere espliciti. |
 | R-04 | Allegati e pubblicazione stabile | Consegna della candidata già verificata; la pubblicazione stabile resta aperta. Preparare/verificare i pacchetti della sorgente finale, riscaricarli e controllare checksum e contenuto. Seguire [RELEASING.md](RELEASING.md): il publisher preview non equivale alla promozione stabile di `v1.0.0`. |
 | R-05 | Conservazione e documentazione | Conservare cronologia, build precedenti, firma Android e sorgenti del runtime Kindle; non rimuovere script attivi. Prima di eventuali eliminazioni di rami/release presentare un nuovo inventario preciso. Aggiornare README, note, [audit repository](REPOSITORY_AUDIT.md) e [validazione](VALIDATION.md) senza modificare allegati storici. |
 

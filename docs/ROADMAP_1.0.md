@@ -2,7 +2,7 @@
 
 The next publication target is **1.0.0**. Existing 0.9.x candidates stay in draft
 while work continues; previous builds and releases remain available for recovery.
-Current source and public candidate are **1.0.0+43**; stable publication remains gated by the checks below.
+Current source and public candidate are **1.0.0+44**; stable publication remains gated by the checks below.
 Changing the version number alone does not complete this milestone.
 
 ## Working scope
@@ -66,7 +66,7 @@ remain excluded.
 | Data and upgrades | Account-scoped persistence, durable outbox, download resume, cache protection and versioned document tests exist | Verify an in-place upgrade from the signed 0.9.1 build without losing accounts, downloads, progress, bookmarks or preferences; test removing/reconnecting one account while another remains usable |
 | Device behavior | Hosted emulator/WebView2 checks and earlier named-device measurements are retained | Validate secure storage/app lock, background downloads, resume, rotation/fullscreen, long-book memory and responsive navigation on actual target hardware; record source and device with results |
 | Kindle | Synthetic protocol/conversion tests and earlier account-specific evidence exist; annotation import is one-way | Confirm the supported sign-in/download/offline/resume flow for the 1.0 candidate; describe annotation and first-download limitations accurately |
-| Distribution | [Public build 43 candidate.13](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.13): signed universal Android APK, complete matching Windows and public in-app update manifest; all hashes and 711 Windows files verified. Previous builds retained | Accept the bootstrap upgrade, Android system installer and Windows restart/state retention on target devices; stable promotion remains gated |
+| Distribution | [Public build 44 candidate.14](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.14): signed universal Android APK, complete matching Windows and public in-app update manifest; all hashes and 711 Windows files verified. Previous builds retained | Accept the bootstrap upgrade, Android system installer and Windows restart/state retention on target devices; stable promotion remains gated |
 
 These are readiness requirements, not a claim that a 1.0 candidate has already
 passed them. Automated checks do not replace target-device acceptance or prove
@@ -114,7 +114,7 @@ does not belong in logs, fixtures, source archives or CI artifacts.
 
 ## Version and publication
 
-Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+43 for the
+Both `pubspec.yaml` and `lib/core/app_version.dart` are 1.0.0+44 for the
 current public candidate. Passing the readiness checks is still
 required before stable publication. Preserve the
 existing Preview application ID and signing certificate for upgrade continuity.

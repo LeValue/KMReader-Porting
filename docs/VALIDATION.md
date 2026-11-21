@@ -6,6 +6,25 @@ and CI artifacts can expire; use [the public installation guide](GETTING_STARTED
 for current downloads. Historical references to private repository access describe
 the visibility at the time; the repository and current previews are public.
 
+## Build 44 / public candidate 14 — reader panels and artwork
+
+Packaged source `d40d8add38f6196d70385fb62a647955c41e65e6`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.14).
+
+- A synthetic EPUB reproduced an 86-pixel horizontal artwork shift at 2×
+  device scale in build 43. In build 44 the live and captured images align
+  within two physical pixels for responsive HTML and SVG in both directions.
+- Widget and browser tests cover the panel transition, preservation of the
+  reading locator on resize, a no-op jump to an on-screen bookmark, and
+  repeated toggles while the simulated Kindle deletion is in flight.
+- The Komga 1.30.1 integration verifies folder creation and native listing.
+  A widget test scrolls a queue of 50 files with the upload button fixed.
+- The APK uses the existing preview certificate. All **711** Windows files
+  match the CI bundle. The public update manifest was checked from build 43
+  for both platforms. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44861533715) · [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44862674729)
+
+The EPUB rendering check on the installed Windows app with a downloaded
+publication and the live Kindle bookmark toggle remain open.
+
 ## Build 43 / public candidate 13 — EPUB reader and Komga management
 
 Packaged source `8b5fe532e9a6b3d5af58ea5107ab9eff6df01716`. [Download](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.13).
