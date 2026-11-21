@@ -699,6 +699,7 @@
     "ru": "Одна страница",
     "es": "Página única"
   },
+  "Dual Page": {"en":"Dual Page","it":"Pagina doppia","de":"Doppelseite","fr":"Double page","ja":"見開きページ","ko":"양면 페이지","zh-Hans":"双页","zh-Hant":"雙頁","ru":"Разворот","es":"Página doble"},
   "Single Page Continuous": {
     "en": "Single Page Continuous",
     "it": "Scorrimento continuo a pagina singola",

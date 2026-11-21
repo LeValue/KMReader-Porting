@@ -272,7 +272,8 @@ class MainActivity : FlutterFragmentActivity() {
                     hide(WindowInsets.Type.systemBars())
                 } else {
                     systemBarsBehavior = previousBehavior
-                    hide(WindowInsets.Type.systemBars())
+                    val hidden = WindowInsets.Type.systemBars() and previousBars.inv()
+                    if (hidden != 0) hide(hidden)
                     if (previousBars != 0) show(previousBars)
                 }
             }

@@ -36,6 +36,7 @@ class ReaderDisplay extends StatefulWidget {
 class _ReaderDisplayState extends State<ReaderDisplay>
     with WidgetsBindingObserver {
   static int _readers = 0, _awakeReaders = 0;
+  static final _immersiveOwners = <Object>{};
   static bool _awake = false;
   static final _fullscreenOwners = <Object, bool>{};
   static bool _fullscreen = false;
@@ -76,6 +77,7 @@ class _ReaderDisplayState extends State<ReaderDisplay>
   bool _awakeOwned = false;
   bool? _requestedFullscreen;
   ValueListenable<TickerModeData>? _tickerMode;
+  Animation<double>? _routeAnimation;
   void _updateAwakeOwnership() {
     if (defaultTargetPlatform == TargetPlatform.windows && !kIsWeb) {
       _fullscreenOwners[_owner] =
@@ -105,6 +107,15 @@ class _ReaderDisplayState extends State<ReaderDisplay>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_native) return;
+    if (_android) {
+      final animation = ModalRoute.of(context)?.animation;
+      if (!identical(_routeAnimation, animation)) {
+        _routeAnimation?.removeStatusListener(_routeStatusChanged);
+        _routeAnimation = animation;
+        animation?.addStatusListener(_routeStatusChanged);
+        _routeStatusChanged(animation?.status ?? AnimationStatus.completed);
+      }
+    }
     final notifier = TickerMode.getValuesNotifier(context);
     if (notifier != _tickerMode) {
       _tickerMode?.removeListener(_updateAwakeOwnership);
@@ -134,13 +145,29 @@ class _ReaderDisplayState extends State<ReaderDisplay>
 
   late final bool _android;
   bool _keyboardOpen = false;
+  void _routeStatusChanged(AnimationStatus status) => _setAndroidOwnership(
+    status != AnimationStatus.reverse && status != AnimationStatus.dismissed,
+  );
+
+  void _setAndroidOwnership(bool owns) {
+    final enabled = _immersiveOwners.isNotEmpty;
+    if (owns) {
+      _immersiveOwners.add(_owner);
+    } else {
+      _immersiveOwners.remove(_owner);
+    }
+    if (enabled != _immersiveOwners.isNotEmpty) {
+      unawaited(_set(_immersiveOwners.isNotEmpty));
+    }
+  }
+
   Future<void> _set(bool enabled) async {
     try {
       final result = await ReaderDisplay.channel.invokeMethod<Object?>(
         'setReaderMode',
         enabled,
       );
-      if (_readers > 0 && enabled) _updateInsets(result);
+      if (_immersiveOwners.isNotEmpty && enabled) _updateInsets(result);
     } on MissingPluginException {
       // Desktop and widget tests do not have an Android window.
     }
@@ -188,8 +215,8 @@ class _ReaderDisplayState extends State<ReaderDisplay>
             _updateInsets(call.arguments);
           }
         });
-        unawaited(_set(true));
       }
+      _setAndroidOwnership(true);
     }
   }
 
@@ -205,7 +232,11 @@ class _ReaderDisplayState extends State<ReaderDisplay>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_android && state == AppLifecycleState.resumed) unawaited(_set(true));
+    if (_android &&
+        _immersiveOwners.contains(_owner) &&
+        state == AppLifecycleState.resumed) {
+      unawaited(_set(true));
+    }
     if (_awakeReaders > 0) _setAwake(state == AppLifecycleState.resumed);
   }
 
@@ -215,7 +246,9 @@ class _ReaderDisplayState extends State<ReaderDisplay>
     final views = WidgetsBinding.instance.platformDispatcher.views;
     if (views.isEmpty) return;
     final open = views.first.viewInsets.bottom > 0;
-    if (_keyboardOpen && !open) unawaited(_set(true));
+    if (_keyboardOpen && !open && _immersiveOwners.contains(_owner)) {
+      unawaited(_set(true));
+    }
     _keyboardOpen = open;
   }
 
@@ -229,6 +262,10 @@ class _ReaderDisplayState extends State<ReaderDisplay>
     if (_native && !_android) WidgetsBinding.instance.removeObserver(this);
     if (_android) {
       WidgetsBinding.instance.removeObserver(this);
+      _routeAnimation?.removeStatusListener(_routeStatusChanged);
+      // Restore the system bars when the pop transition begins. Disposal is
+      // only the fallback for routes removed without a reverse animation.
+      _setAndroidOwnership(false);
       if (--_readers == 0) {
         ReaderDisplay.channel.setMethodCallHandler(null);
         scheduleMicrotask(() {
@@ -237,7 +274,6 @@ class _ReaderDisplayState extends State<ReaderDisplay>
             ReaderDisplay._cutoutInsets.value = EdgeInsets.zero;
           }
         });
-        unawaited(_set(false));
       }
     }
     super.dispose();

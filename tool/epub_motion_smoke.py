@@ -284,6 +284,8 @@ with sync_playwright() as pw:
       real.update(0);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
       if(pixel[0]<250||pixel[1]<250||pixel[2]<250)throw Error('Real curl start selected the wrong front');
       real.update(1);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
+      if(pixel[3]!==0)throw Error('The flat destination must use the live publication');
+      real.livePage=-1;real.update(1);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,pixel);
       if(pixel[0]<250||pixel[1]>2||pixel[2]>2)throw Error('Real curl start selected the wrong back');
     } finally {real.stop();window.effect=savedEffect;window.nativeCurl=savedNative;}
 

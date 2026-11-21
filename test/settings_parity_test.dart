@@ -72,6 +72,42 @@ void main() {
     directory.deleteSync(recursive: true);
   });
 
+  testWidgets(
+    'Android restores reader bars at the start of the pop animation',
+    (tester) async {
+      final modes = <bool>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(ReaderDisplay.channel, (call) async {
+        if (call.method == 'setReaderMode') modes.add(call.arguments as bool);
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(ReaderDisplay.channel, null),
+      );
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(navigatorKey: navigator, home: const SizedBox()),
+      );
+      unawaited(
+        navigator.currentState!.push<void>(
+          MaterialPageRoute(
+            builder: (_) => const ReaderDisplay(child: Text('Fixture reader')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(modes, [true]);
+      navigator.currentState!.pop();
+      await tester.pump();
+      expect(modes, [true, false]);
+      expect(find.text('Fixture reader'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(modes, [true, false]);
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
+
   test('recording threshold protects unread/re-read opens, allows completion and stays open after recording', () {
     final unread = Book({
       'id': 'book',

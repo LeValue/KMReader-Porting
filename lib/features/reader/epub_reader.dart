@@ -89,6 +89,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   WidgetBuilder? _sidePanel;
   Completer<void>? _sidePanelClosed;
   String? _sidePanelTitle;
+  bool _searchPanelCompact = false;
+  bool _searchPanelAtTop = false;
+  int _searchGeneration = 0;
+  String _activeSearchQuery = '';
   bool _verticalWriting = false;
   final _closed = Completer<void>();
   String? _error;
@@ -555,6 +559,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     final event = object(value);
     switch (event['type']) {
       case 'ready':
+        if (_activeSearchQuery.isNotEmpty) {
+          unawaited(_call('showSearch', _activeSearchQuery));
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _scheduleControlsHide();
           if (_session?.initialKindleOffer != null) {
@@ -608,6 +615,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       case 'controls':
         setState(() => _controls = !_controls);
         _scheduleControlsHide();
+        return;
+      case 'searchVisible':
+        if (!Platform.isWindows &&
+            _sidePanelTitle == 'Search' &&
+            event['query'] == _activeSearchQuery) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          setState(() {
+            _searchPanelCompact = true;
+            _searchPanelAtTop = event['lower'] == true;
+          });
+        }
         return;
       case 'fullscreen':
         _toggleFullscreen();
@@ -777,6 +795,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<List<Json>> _searchBook(String query) async {
+    _activeSearchQuery = query;
     final value = await _call('search', query);
     final decoded = value is String ? jsonDecode(value) : value;
     return (decoded as List? ?? []).map(object).toList();
@@ -952,7 +971,60 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Widget _readerLayout(Widget Function(Widget?) reader) {
-    if (!Platform.isWindows) return reader(null);
+    if (!Platform.isWindows) {
+      final panel = _sidePanel;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          reader(null),
+          if (panel != null)
+            LayoutBuilder(
+              builder: (context, bounds) {
+                final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+                return Align(
+                  alignment: _searchPanelCompact && _searchPanelAtTop
+                      ? Alignment.topCenter
+                      : Alignment.bottomCenter,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: keyboard),
+                    child: Semantics(
+                      container: true,
+                      child: SizedBox(
+                        width: min(620, bounds.maxWidth),
+                        height: _searchPanelCompact
+                            ? 52
+                            : min(
+                                bounds.maxHeight * .52,
+                                max(145, bounds.maxHeight - keyboard),
+                              ),
+                        child: _searchPanelCompact
+                            ? Material(
+                                elevation: 6,
+                                child: EpubPanelHeader(
+                                  title: 'Search',
+                                  close: _closeSidePanel,
+                                  trailing: IconButton(
+                                    tooltip: tr(context, 'Search results'),
+                                    icon: const Icon(Icons.expand_less),
+                                    onPressed: () => setState(
+                                      () => _searchPanelCompact = false,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : Material(
+                                elevation: 6,
+                                child: Builder(builder: panel),
+                              ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      );
+    }
     return EpubDesktopPanels(
       reader: reader,
       panel: _sidePanel == null
@@ -987,11 +1059,14 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   void _closeSidePanel() {
     final closed = _sidePanelClosed;
     if (closed == null) return;
+    if (_sidePanelTitle == 'Search') _activeSearchQuery = '';
     _panelFocus.unfocus();
     setState(() {
       _sidePanel = null;
       _sidePanelTitle = null;
       _sidePanelClosed = null;
+      _searchPanelCompact = false;
+      _searchPanelAtTop = false;
     });
     closed.complete();
     _scheduleControlsHide();
@@ -1004,6 +1079,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     bool dedicated = false,
     bool keyboard = false,
     bool withHeader = true,
+    bool inline = false,
   }) async {
     if (!mounted) return;
     final theme = Theme.of(context);
@@ -1021,7 +1097,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             : content(context, close),
       ),
     );
-    if (Platform.isWindows) {
+    if (Platform.isWindows || inline) {
       if (_sidePanelTitle == title) {
         _closeSidePanel();
         return;
@@ -1075,6 +1151,11 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<void> _search([String initial = '']) async {
+    if (_sidePanelTitle == 'Search') {
+      _closeSidePanel();
+      return;
+    }
+    final generation = ++_searchGeneration;
     var query = initial.trim(), submitted = query;
     Future<List<Json>>? request = query.isEmpty ? null : _searchBook(query);
     await _showReaderPanel(
@@ -1095,10 +1176,20 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             child: Column(
               children: [
                 TextFormField(
-                  initialValue: initial,
-                  autofocus: initial.isEmpty,
+                  initialValue: query,
+                  autofocus: initial.isEmpty && request == null,
                   textInputAction: TextInputAction.search,
-                  onChanged: (value) => query = value,
+                  onChanged: (value) {
+                    query = value;
+                    if (value.trim().isEmpty) {
+                      _activeSearchQuery = '';
+                      update(() {
+                        submitted = '';
+                        request = null;
+                      });
+                      unawaited(_call('clearSearch'));
+                    }
+                  },
                   decoration: InputDecoration(
                     labelText: tr(context, 'Search'),
                     suffixIcon: IconButton(
@@ -1186,8 +1277,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                               child: InkWell(
                                 onTap: () {
                                   FocusScope.of(context).unfocus();
-                                  if (!Platform.isWindows) close();
-                                  unawaited(_call('display', hit['cfi']));
+                                  if (!Platform.isWindows && mounted) {
+                                    setState(() => _searchPanelCompact = true);
+                                  }
+                                  unawaited(_call('jumpToSearchResult', hit));
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
@@ -1223,8 +1316,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           );
         },
       ),
-      keyboard: true,
+      inline: true,
     );
+    if (mounted && generation == _searchGeneration) await _call('clearSearch');
   }
 
   Widget _contextActions(Json selection) {
@@ -2567,7 +2661,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         _readerBrightness = brightness;
         _readerTheme = appTheme(brightness);
       }
-      return ReaderStatusBar(
+      final reader = ReaderStatusBar(
         visible:
             widget.repository.store.setting<bool>(
               'epubShowsStatusBarWhileReading',
@@ -2774,6 +2868,15 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             ),
           ),
         ),
+      );
+      return PopScope(
+        canPop: Platform.isWindows || _sidePanel == null,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && !Platform.isWindows && _sidePanel != null) {
+            _closeSidePanel();
+          }
+        },
+        child: reader,
       );
     },
   );

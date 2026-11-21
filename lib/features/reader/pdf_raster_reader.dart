@@ -132,7 +132,7 @@ class _PdfRasterReaderState extends State<PdfRasterReader> {
                   ? ReadingDirection.rtl
                   : ReadingDirection.ltr,
               useSeriesDirection: defaults.useSeriesDirection,
-              spread: defaults.presentation == PdfPresentation.dualContinuous,
+              spread: defaults.presentation.isDual,
               mode:
                   defaults.vertical ||
                       defaults.presentation ==

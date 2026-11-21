@@ -22,6 +22,28 @@ the visibility at the time; the repository and current previews are public.
   the original journaled fixture was absent from the cloud catalog. The
   alternate annotation fixture also failed its exact identity check. Both
   probes performed zero annotation writes. [Runtime probe](https://github.com/LeValue/KMReader-Porting/actions/runs/44894787047) · [Exact-fixture probe](https://github.com/LeValue/KMReader-Porting/actions/runs/44895651737)
+- A third probe found the exact generated removal fixture, wrote one bookmark
+  and confirmed it with sidecar readback. The check modified no existing user
+  documents and issued no deletion. [Bookmark probe](https://github.com/LeValue/KMReader-Porting/actions/runs/44895908280)
+- The Windows PC ran the native diagnostic build from `a0909f0`. It passed 32
+  checks including the WebView2 EPUB tests. The diagnostic archive lacked the
+  Kindle converter for one separate check, so the overall run failed with
+  `kindle_runtime_missing`. [Native diagnostic](https://github.com/LeValue/KMReader-Porting/actions/runs/44895237188)
+
+### Search, page motion and PDF follow-up
+
+- EPUB search highlights stay active across jumps. A visible match reports its
+  location immediately so the Android results panel can collapse away from it.
+  Closing the search or clearing the field removes the highlights.
+- During a curl the flat part uses the live glyphs when the corresponding page
+  is mounted. The GPU still draws the fold and its shadow. The texture uses
+  the live iframe's computed width and inherited typography. Four targeted
+  Chromium tests passed, including comparison at 591 pixels.
+- All 14 PDFium tests and the Android route test passed. The PDF case checks an RTL
+  spread, a keyboard turn, a mouse drag back and the original resumed page.
+  The Android widget test verifies that the app requests normal system bars
+  before the reader route finishes closing. Checking the exact rendering and
+  bar transition on the reported phone remains open.
 
 ## Build 44 / public candidate 14 — reader panels and artwork
 

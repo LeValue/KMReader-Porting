@@ -13,7 +13,7 @@ class KMReaderCurlSurface {
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'page-curl-surface';
     this.canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2147483645';
-    const gl=this.gl=this.canvas.getContext('webgl',{alpha:false,antialias:true,preserveDrawingBuffer:false});
+    const gl=this.gl=this.canvas.getContext('webgl',{alpha:true,antialias:true,preserveDrawingBuffer:false});
     if (!gl) throw Error('WebGL unavailable');
     const parallel=gl.getExtension('KHR_parallel_shader_compile'),pending=[];
     this.parallelCompilation=!!parallel;
@@ -21,18 +21,19 @@ class KMReaderCurlSurface {
     // wait for the GPU compiler. Submit all programs first and poll the
     // nonblocking completion query when supported.
     const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);return shader;};
-    const uniforms=`uniform sampler2D oldPage,newPage;uniform vec2 size;uniform float progress,spread,sign,slope,grabY,curlReach;`;
+    const uniforms=`uniform sampler2D oldPage,newPage;uniform vec2 size;uniform float progress,spread,sign,slope,grabY,curlReach,livePage;`;
     const samples=`vec4 oldAt(vec2 q){return texture2D(oldPage,clamp(q/size,vec2(0.),vec2(1.)));}
       vec4 newAt(vec2 q){return texture2D(newPage,clamp(q/size,vec2(0.),vec2(1.)));}`;
     const quadVertex=`attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,(1.-a.y)*.5);gl_Position=vec4(a,0.,1.);}`;
     const background=`precision highp float;varying vec2 v;${uniforms}${samples}
       uniform sampler2D castShadow;
       void main(){vec2 q=v*size;float hinge=spread>.5?size.x*.5:(sign>0.?0.:size.x);
-        if(progress<.0001){gl_FragColor=oldAt(q);return;}
-        if(progress>.9999){gl_FragColor=newAt(q);return;}
-        vec4 color=spread>.5&&(q.x-hinge)*sign<0.?oldAt(q):newAt(q);
+        if(progress<.0001){gl_FragColor=livePage==0.?vec4(0.):oldAt(q);return;}
+        if(progress>.9999){gl_FragColor=livePage==1.?vec4(0.):newAt(q);return;}
+        bool stationary=spread>.5&&(q.x-hinge)*sign<0.;
+        vec4 color=stationary?oldAt(q):newAt(q);
         float shadow=texture2D(castShadow,vec2(v.x,1.-v.y)).r;
-        gl_FragColor=vec4(color.rgb*(1.-shadow),1.);
+        gl_FragColor=livePage==(stationary?0.:1.)?vec4(0.,0.,0.,shadow):vec4(color.rgb*(1.-shadow),1.);
       }`;
     const meshVertex=`precision highp float;attribute vec2 a;${uniforms}
       uniform float shadowPass;
@@ -91,7 +92,10 @@ class KMReaderCurlSurface {
         // the projected shadow disappear just as the front started bending,
         // leaving a bright diagonal seam on otherwise shaded paper.
         float received=texture2D(castShadow,gl_FragCoord.xy/rasterSize).r*exp(-depth/max(1.,w*.075));
-        gl_FragColor=vec4(color.rgb*shade*(1.-received),1.);
+        // The undeformed front uses the live WebView's original glyphs.
+        // Only the textured, bent part needs SVG foreignObject rasterization.
+        gl_FragColor=livePage==0.&&gl_FrontFacing&&sheetAngle<.00001
+          ?vec4(0.,0.,0.,received):vec4(color.rgb*shade*(1.-received),1.);
       }`;
     const shadowFragment=`precision highp float;${uniforms}
       varying vec2 source;varying float depth;
@@ -120,7 +124,7 @@ class KMReaderCurlSurface {
       const result={p,u:{},a:-1};
       pending.push(()=>{
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));
-        for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','shadowPass','castShadow','blurStep','rasterSize','blurWeights[0]'])result.u[name]=gl.getUniformLocation(p,name);
+        for(const name of ['oldPage','newPage','size','progress','spread','sign','slope','grabY','curlReach','livePage','shadowPass','castShadow','blurStep','rasterSize','blurWeights[0]'])result.u[name]=gl.getUniformLocation(p,name);
         result.a=gl.getAttribLocation(p,'a');
       });return result;
     };
@@ -193,10 +197,10 @@ class KMReaderCurlSurface {
     });
     if(gl.getError()!==gl.NO_ERROR)throw Error('Page texture unavailable');
   }
-  render(progress,spread,sign,slope,y,reach=.18){
+  render(progress,spread,sign,slope,y,reach=.18,livePage=-1){
     if(this.disposed||this.gl.isContextLost())throw Error('Curl surface unavailable');
     const g=this.gl;
-    const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform1f(u.curlReach,reach);};
+    const bind=(program,buffer)=>{const {p,u,a}=program;g.useProgram(p);g.bindBuffer(g.ARRAY_BUFFER,buffer);g.enableVertexAttribArray(a);g.vertexAttribPointer(a,2,g.FLOAT,false,0,0);g.uniform1i(u.oldPage,0);g.uniform1i(u.newPage,1);g.uniform2f(u.size,this.width,this.height);g.uniform1f(u.progress,progress);g.uniform1f(u.spread,spread?1:0);g.uniform1f(u.sign,sign);g.uniform1f(u.slope,slope);g.uniform1f(u.grabY,y);g.uniform1f(u.curlReach,reach);g.uniform1f(u.livePage,livePage);};
     const width=this.canvas.width,height=this.canvas.height;
     if(progress<.0001||progress>.9999){
       g.bindFramebuffer(g.FRAMEBUFFER,null);g.viewport(0,0,width,height);g.disable(g.DEPTH_TEST);g.disable(g.BLEND);
@@ -278,7 +282,7 @@ class KMReaderSheetEffect {
   static supported(style='slide'){return style==='curl'?!KMReaderCurlSurface.disabled&&typeof WebGLRenderingContext!=='undefined':typeof document.startViewTransition==='function';}
   constructor(style,sign,preferences,y=.5,reverse=false,spread=false,capture=null){
     Object.assign(this,{style,sign,preferences,y,reverse,spread,capture});
-    this.width=innerWidth;this.height=innerHeight;this.progress=0;this.slope=0;this.ready=false;this.id=`km-sheet-${++KMReaderSheetEffect.serial}`;
+    this.width=innerWidth;this.height=innerHeight;this.progress=0;this.slope=0;this.ready=false;this.livePage=-1;this.id=`km-sheet-${++KMReaderSheetEffect.serial}`;
     this.dragWidth=this.width/(spread?2:1);
     this.cancelled=new Promise(resolve=>this.cancelWait=resolve);
   }
@@ -328,12 +332,14 @@ class KMReaderSheetEffect {
         await this.wait(this.surface.whenReady());
         if(this.stopped)return false;
         if(afterPreview){
+          this.livePage=0;
           this.surface.upload(before,afterPreview,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);this.ready=true;return true;
         }
         this.surface.upload(before,null,this.width,this.height);this.update(0);document.body.append(this.surface.canvas);
         moved=true;await move();
         const after=await this.wait(this.capture()).catch(()=>null);
         if(!after||this.stopped){this.stop();return false;}
+        this.livePage=1;
         this.surface.upload(before,after,this.width,this.height);this.update(0);this.ready=true;return true;
       }catch(_){const cancelled=this.stopped&&!this.failed;if(cancelled)this.stop();else this.fail();if(!moved&&!cancelled)await move();return false;}
     }
@@ -352,7 +358,7 @@ class KMReaderSheetEffect {
     const p=this.progress=Math.max(0,Math.min(1,value));
     if(point){const dx=Math.max(this.width*.15,p*this.width);this.slope=Math.max(-.65,Math.min(.65,-(point.y-this.y*this.height)/dx));}
     if(this.style==='curl'){
-      if(this.surface)this.surface.render(p,this.spread,this.sign,this.slope*Math.sin(Math.PI*p),this.y, .18);return;
+      if(this.surface)this.surface.render(p,this.spread,this.sign,this.slope*Math.sin(Math.PI*p),this.y,.18,this.livePage);return;
     }
     const frames=this.sheetFrames(p);
     if(!this.styles){
@@ -539,6 +545,8 @@ class KMReaderPageSnapshot {
 
 (() => {
   let book, rendition, config, preferences, location, auxiliary, anchor;
+  let searchTerm = '', searchGeneration = 0;
+  const searchRanges = new WeakMap();
   let renditionSpineHooks = [], operationQueue = Promise.resolve(), turnAnimation, sheetEffect, gesture;
   let interactiveNavigation = false, suppressClickUntil = 0, inputSuspended = false;
   const settledDocuments = new WeakSet();
@@ -675,7 +683,8 @@ class KMReaderPageSnapshot {
     if (!sheet) { sheet = document.createElementNS('http://www.w3.org/1999/xhtml', 'style'); sheet.id = 'kmreader-preferences'; head.appendChild(sheet); }
     // Fixed pages position artwork and text in an authored coordinate system.
     // Reflow typography or color overrides would change that composition.
-    if (isFixedLayout()) { if (sheet.textContent) sheet.textContent = ''; return; }
+    const searchStyle = '::highlight(kmreader-search){background-color:#ffe379;color:#1d1b17;}';
+    if (isFixedLayout()) { if (sheet.textContent !== searchStyle) sheet.textContent = searchStyle; return; }
     const custom = preferences.fontUrl && new URL(preferences.fontUrl).origin === window.location.origin;
     const family = custom ? 'font-family:kmreader-custom !important;' : ['serif','sans-serif'].includes(preferences.font) ? `font-family:${preferences.font} !important;` : '';
     const face = custom ? `@font-face{font-family:kmreader-custom;src:url("${preferences.fontUrl}");font-display:block;}` : '';
@@ -685,7 +694,7 @@ class KMReaderPageSnapshot {
       ${preferences.advancedLayout === false ? '' : `p{margin-block-end:${preferences.paragraphSpacing}em !important;text-indent:${preferences.indent}em !important;} body{letter-spacing:${preferences.letterSpacing}em !important;word-spacing:${preferences.wordSpacing}em !important;}`}
       pre{white-space:pre-wrap !important;overflow-wrap:anywhere !important;max-inline-size:100%;box-sizing:border-box;}
       ::selection{background:rgba(75,135,230,.38);color:inherit;}img,svg,video{max-width:100% !important;object-fit:contain;}a{color:${preferences.theme === 'black' ? '#9fc6ff' : '#235a9c'};}`;
-    const resolvedCss=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}';
+    const resolvedCss=css+'\nhtml{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}'+searchStyle;
     if (sheet.textContent !== resolvedCss) sheet.textContent = resolvedCss;
   }
   async function stable(contents) {
@@ -1045,12 +1054,20 @@ class KMReaderPageSnapshot {
     return cached.areas.find(({rects})=>rects.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom))?.mark;
   }
   function annotationMarkup(frame,shift){
-    return [...frame.parentElement.querySelectorAll('svg')].filter(svg=>svg.querySelector('.kmreader-kindle-highlight')).map(svg=>{
+    const annotations = [...frame.parentElement.querySelectorAll('svg')].filter(svg=>svg.querySelector('.kmreader-kindle-highlight')).map(svg=>{
       const box=svg.getBoundingClientRect(),clone=svg.cloneNode(true);
       clone.removeAttribute('style');clone.setAttribute('x','0');clone.setAttribute('y','0');
       clone.setAttribute('width',box.width);clone.setAttribute('height',box.height);
       return `<g transform="translate(${box.x+shift} ${box.y})">${new XMLSerializer().serializeToString(clone)}</g>`;
     }).join('');
+    const box=frame.getBoundingClientRect();
+    const highlights=(searchRanges.get(frame.contentDocument)||[]).flatMap(({range})=>
+      [...range.getClientRects()].flatMap(rect=>{
+        const x=box.x+shift+rect.x,y=box.y+rect.y;
+        if(x>=innerWidth||y>=innerHeight||x+rect.width<=0||y+rect.height<=0)return [];
+        return `<rect x="${x}" y="${y}" width="${rect.width}" height="${rect.height}"/>`;
+      })).join('');
+    return annotations+(highlights?`<g fill="#ffc840" fill-opacity=".36">${highlights}</g>`:'');
   }
   function position(changed = false) {
     if (!location || restoring || auxiliary || interactiveNavigation) return;
@@ -1087,6 +1104,7 @@ class KMReaderPageSnapshot {
     if (!doc.documentElement.lang && config.language) doc.documentElement.lang = config.language;
     if (!doc.documentElement.dir && config.direction === 'rtl' && !contents.writingMode().startsWith('vertical')) doc.documentElement.dir = 'rtl';
     style(doc);
+    updateSearchHighlights(contents);
     if (preferences.flow === 'scrolled' && rendition.manager?.stage) {
       // The first CJK view can change the manager axis after its stage chose
       // overflow-x/y. Reapply that policy so the new axis accepts input.
@@ -1493,7 +1511,7 @@ class KMReaderPageSnapshot {
       if (target && location?.start) location.start.cfi = target;
     } finally { restoring = false; userMove = false; position(true); warmCurl(); }
   }
-  async function jumpToBookmark(value) {
+  async function jumpToVisibleLocation(value) {
     await waitForLayout();
     if(!auxiliary){
       if(value.cfi===anchor)return false;
@@ -1688,6 +1706,13 @@ class KMReaderPageSnapshot {
     const value={signature,id:cached.id+':'+pageKey};
     value.work=(async()=>{
       const root=doc.documentElement.cloneNode(true);
+      const htmlStyle=doc.defaultView.getComputedStyle(doc.documentElement);
+      // A fractional iframe border box is not the computed content width.
+      // Preserve the live layout's CSS width and inherited text metrics in
+      // the SVG document instead of forcing a second wrapping constraint.
+      for(const name of ['width','height','font-family','font-size','line-height','letter-spacing','word-spacing']){
+        root.style.setProperty(name,htmlStyle.getPropertyValue(name),'important');
+      }
       const artwork=[...root.querySelectorAll('img,svg,image')];
       if(!isFixedLayout())KMReaderPageSnapshot.compact(root,doc,clip,cached);
       root.querySelectorAll('script,link,base,meta,style').forEach(n=>n.remove());
@@ -1718,7 +1743,7 @@ class KMReaderPageSnapshot {
       }));
       for(const source of root.querySelectorAll('picture source')) source.remove();
       root.querySelector('body').style.setProperty('overflow','visible','important');root.style.setProperty('overflow','visible','important');
-      root.setAttribute('xmlns','http://www.w3.org/1999/xhtml');root.style.width=box.width+'px';root.style.height=box.height+'px';
+      root.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
       return new XMLSerializer().serializeToString(root);
     })();cached.pages.set(pageKey,value);
     while(cached.pages.size>4)cached.pages.delete(cached.pages.keys().next().value);
@@ -1976,7 +2001,9 @@ class KMReaderPageSnapshot {
           // Keep the preview during pointer capture. Once released, match the
           // actual destination before the sheet settles, even when the next
           // chapter's temporary iframe had different responsive geometry.
+          if(state.effect.surface){state.effect.livePage=-1;state.effect.update(state.effect.progress);}
           await (delta>0?next():previous());moved=true;
+          if(state.effect.surface){state.effect.livePage=1;state.effect.update(state.effect.progress);}
           const actual=sourceFrame?.isConnected?sourceFrame.getBoundingClientRect().left-sourceLeft:null;
           if(preview.shift===null||actual===null||Math.abs(actual-preview.shift)>.125||preview.revision!==captureRevision){
             const after=await timeout(captureSheet().catch(()=>null),300);
@@ -2226,16 +2253,92 @@ class KMReaderPageSnapshot {
       if (book.rendition === current) book.rendition = undefined;
     }
   }
+  function searchMatches(doc, term) {
+    const body = doc.body || doc.querySelector('body');
+    if (!term || !body) return [];
+    const nodes = [], parts = [];
+    const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let offset = 0, previousBlock;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.length || node.parentElement?.closest('script,style,svg,title,[hidden]')) continue;
+      const block = node.parentElement?.closest('p,li,h1,h2,h3,h4,h5,h6,td,blockquote,div,section');
+      if (previousBlock !== block && offset > 0) { parts.push('\n'); offset++; }
+      previousBlock = block;
+      nodes.push({node, offset});
+      parts.push(node.data); offset += node.length;
+    }
+    const fullText = parts.join('');
+    const pattern = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'giu');
+    const matches = [];
+    let index = 0;
+    for (const match of fullText.matchAll(pattern)) {
+      const start = match.index, end = start + match[0].length;
+      while (nodes[index].offset + nodes[index].node.length <= start) index++;
+      const first = nodes[index];
+      while (nodes[index].offset + nodes[index].node.length < end) index++;
+      const last = nodes[index];
+      const range = doc.createRange();
+      range.setStart(first.node, start - first.offset);
+      range.setEnd(last.node, end - last.offset);
+      matches.push({range, excerpt:fullText.slice(Math.max(0,start-70),end+70).replace(/\s+/g,' ').trim()});
+      if (matches.length === 500) break;
+    }
+    return matches;
+  }
+  function updateSearchHighlights(contents) {
+    const doc = contents.document, view = doc.defaultView;
+    const matches = searchMatches(doc, searchTerm);
+    searchRanges.set(doc, matches);
+    if (view?.CSS?.highlights) {
+      if (matches.length) view.CSS.highlights.set('kmreader-search', new view.Highlight(...matches.map(hit => hit.range)));
+      else view.CSS.highlights.delete('kmreader-search');
+    }
+    return matches;
+  }
+  function setSearchTerm(term) {
+    searchTerm = term.trim();
+    searchGeneration++;
+    for (const contents of rendition?.getContents() || []) updateSearchHighlights(contents);
+    captureRevision++; capturePages.clear(); curlPreview = null;
+    return searchGeneration;
+  }
   async function search(term) {
+    const generation = setSearchTerm(term);
+    if (!searchTerm || !book) return [];
+    term = searchTerm;
+    for (const contents of rendition.getContents()) {
+      const frame = contents.document.defaultView.frameElement;
+      if (!frame) continue;
+      const bounds = frame.getBoundingClientRect();
+      const visible = (searchRanges.get(contents.document) || [])
+        .flatMap(hit => [...hit.range.getClientRects()])
+        .find(rect => rect.width > 0 && rect.height > 0 && rect.right + bounds.x > 0 &&
+          rect.left + bounds.x < innerWidth && rect.bottom + bounds.y > 0 && rect.top + bounds.y < innerHeight);
+      if (visible) {
+        send('searchVisible', {query: term, lower: visible.bottom + bounds.y >= innerHeight * .82});
+        break;
+      }
+    }
     const matches = [];
     for (const section of book.spine.spineItems) {
       if (section.linear === 'no') continue;
-      await section.load(book.load.bind(book));
-      for (const result of section.find(term)) {
-        matches.push({cfi: result.cfi, excerpt: result.excerpt, href: section.href});
-        if (matches.length >= 500) break;
+      if (disposed || generation !== searchGeneration) return [];
+      const contents = rendition.getContents().find(c => c.sectionIndex === section.index);
+      // Searching an offscreen section must not unload a live view or share
+      // its load promise with an ongoing page turn.
+      const searchable = contents || new section.constructor({...section, linear:'yes'}, section.hooks);
+      try {
+        if (!contents) await searchable.load(book.load.bind(book));
+        if (disposed || generation !== searchGeneration) return [];
+        const hits = contents ? searchRanges.get(contents.document) || updateSearchHighlights(contents)
+          : searchMatches(searchable.document, term);
+        for (const hit of hits) {
+          matches.push({cfi: searchable.cfiFromRange(hit.range), excerpt: hit.excerpt, href: section.href});
+          if (matches.length >= 500) break;
+        }
+      } finally {
+        if (!contents) searchable.unload();
       }
-      section.unload();
       if (matches.length >= 500) break;
     }
     return matches;
@@ -2260,7 +2363,8 @@ class KMReaderPageSnapshot {
   }
   window.reader = {open: value => enqueue(() => open(value)), next: () => enqueue(next), previous: () => enqueue(previous),
     seek: value => enqueue(() => seek(value)),
-    jumpToBookmark: value => enqueue(() => jumpToBookmark(value)),
+    jumpToBookmark: value => enqueue(() => jumpToVisibleLocation(value)),
+    jumpToSearchResult: value => enqueue(() => jumpToVisibleLocation(value)),
     viewportBeforeResize: () => enqueue(async()=>{
       cancelGesture();cancelTurnAnimation();
       await waitForLayout();await tick();
@@ -2274,7 +2378,7 @@ class KMReaderPageSnapshot {
     resumeKindle: value => enqueue(() => resumeKindle(value)),
     annotations: updateKindleAnnotations,
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
-    preferences: setPreferences, search: value => enqueue(() => search(value)),
+    preferences: setPreferences, search, showSearch: setSearchTerm, clearSearch: () => setSearchTerm(''),
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
     suspendInput: value => {
       inputSuspended=!!value;cancelCurlWarm();cancelGesture();cancelTurnAnimation();
