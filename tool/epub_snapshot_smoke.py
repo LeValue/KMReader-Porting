@@ -71,6 +71,17 @@ with sync_playwright() as pw:
             assert animated.size==live.size
             difference=max(ImageStat.Stat(ImageChops.difference(live,animated)).mean)
             assert difference<1, ('Near-flat curl changed native glyphs',endpoint,difference)
+        page.evaluate('''() => {
+          const wrong=document.createElement('canvas');wrong.width=innerWidth;wrong.height=innerHeight;
+          const ctx=wrong.getContext('2d');ctx.fillStyle='#f325a1';ctx.fillRect(0,0,wrong.width,wrong.height);
+          nativeSurface.upload(wrong,wrong,innerWidth,innerHeight);
+        }''')
+        for progress, layer, column in [(.20, 0, 0), (.80, 1, 4)]:
+            page.evaluate('([p,layer])=>nativeSurface.render(p,false,1,0,.5,.18,layer)', [progress, layer])
+            animated=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+            crop=(live.width * column // 5, 0, live.width * (column + 1) // 5, live.height)
+            difference=max(ImageStat.Stat(ImageChops.difference(live.crop(crop),animated.crop(crop))).mean)
+            assert difference < 1, ('Flat face must display the live page instead of the altered texture', progress, difference)
         page.evaluate('()=>{nativeSurface.dispose();}')
     if config['direction'] == 'ltr' and config['viewport']['width'] == 390:
         note = page.evaluate('''async () => {

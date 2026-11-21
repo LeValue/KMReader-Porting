@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -572,6 +572,10 @@ void main() {
     expect(ltr.slots[0], isNot(ltr.slots[1]));
     expect(ltr.slots[1], ltr.slots[2]);
     expect(ltr.slots[3], ltr.slots[4]);
+    expect(ltr.adjacentPage(1, 1), 2);
+    expect(ltr.adjacentPage(2, 1), 4);
+    expect(ltr.adjacentPage(5, -1), 2);
+    expect(ltr.adjacentPage(4, 1), isNull);
     expect(ltr.pages[1].left, lessThan(ltr.pages[2].left));
     expect(ltr.nearestPage(ltr.slots[3], preferred: 4), 4);
     expect(ltr.nearestPage(ltr.slots[3], preferred: 5), 5);
@@ -582,7 +586,8 @@ void main() {
       viewport: const Size(1200, 800),
     );
     expect(rtl.pages[1].left, greaterThan(rtl.pages[2].left));
-    expect(rtl.pages[0].center.dx, closeTo(rtl.documentSize.width / 2, .001));
+    expect(rtl.pages[0].center.dx, closeTo(rtl.slots[0].center.dx, .001));
+    expect(rtl.slots[0].center.dx, greaterThan(rtl.slots[1].center.dx));
     for (var i = 0; i < sizes.length; i++) {
       expect(rtl.pages[i].size, sizes[i]);
       expect(rtl.slots[i].contains(rtl.pages[i].center), isTrue);
@@ -704,6 +709,36 @@ void main() {
           greaterThan(native.controller!.layout.pageLayouts[2].left),
           reason: 'Cached series RTL must apply before offline rendering',
         );
+        if (incognito) {
+          await tester.tapAt(
+            tester.getCenter(find.byType(PdfViewer)) - const Offset(120, 0),
+          );
+          await tester.pumpAndSettle();
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+          await until(tester, () => find.text('4 / 5').evaluate().isNotEmpty);
+          await tester.pumpAndSettle();
+          expect(
+            native.controller!.visibleRect.center.dx,
+            lessThan(visible.center.dx),
+          );
+          await tester.drag(
+            find.byType(PdfViewer),
+            const Offset(-110, 0),
+            kind: ui.PointerDeviceKind.mouse,
+          );
+          await until(tester, () => find.text('2 / 5').evaluate().isNotEmpty);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('2 / 5'));
+          await tester.pumpAndSettle();
+          await tester.enterText(find.byType(TextFormField), '3');
+          await tester.tap(find.text('Go'));
+          await until(tester, () => find.text('3 / 5').evaluate().isNotEmpty);
+          await tester.pumpAndSettle();
+          if (find.byTooltip('PDF Settings').evaluate().isEmpty) {
+            await tester.tapAt(tester.getCenter(find.byType(PdfViewer)));
+            await tester.pumpAndSettle();
+          }
+        }
         await tester.tap(find.byTooltip('PDF Settings'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Single Page Continuous'));

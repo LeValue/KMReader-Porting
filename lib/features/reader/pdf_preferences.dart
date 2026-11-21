@@ -6,14 +6,17 @@ import '../../core/models.dart';
 enum PdfPresentation {
   auto('auto', 'Auto'),
   singlePaged('single-paged', 'Single Page'),
+  dualPaged('dual-paged', 'Dual Page'),
   singleContinuous('single-continuous', 'Single Page Continuous'),
   dualContinuous('dual-continuous', 'Dual Page Continuous');
 
   const PdfPresentation(this.value, this.label);
   final String value, label;
+  bool get isPaged => this == singlePaged || this == dualPaged;
+  bool get isDual => this == dualPaged || this == dualContinuous;
   PdfPresentation resolved(Size viewport) => this == auto
       ? viewport.width > viewport.height
-            ? dualContinuous
+            ? dualPaged
             : singlePaged
       : this;
 }
@@ -116,34 +119,48 @@ class PdfReaderLayout {
     final maxHeight = sizes.fold(0.0, (h, p) => math.max(h, p.height));
     final pages = List<Rect>.filled(sizes.length, Rect.zero);
     final slots = List<Rect>.filled(sizes.length, Rect.zero);
-    if (mode == PdfPresentation.singlePaged) {
+    if (mode.isPaged) {
       final ratio = viewport.width > 0 && viewport.height > 0
           ? viewport.width / viewport.height
           : 1.0;
       final width = math.max(
-        maxWidth + 2 * margin,
+        maxWidth * (mode.isDual ? 2 : 1) + (mode.isDual ? 3 : 2) * margin,
         (maxHeight + 2 * margin) * ratio,
       );
       final height = width / ratio;
-      for (var i = 0; i < sizes.length; i++) {
+      final solo = mode.isDual && preferences.coverSolo;
+      final count = mode.isDual
+          ? (sizes.length + (solo ? 2 : 1)) ~/ 2
+          : sizes.length;
+      for (var i = 0, spread = 0; i < sizes.length; spread++) {
+        final paired = mode.isDual && !(solo && i == 0) && i + 1 < sizes.length;
+        final last = paired ? i + 1 : i;
         final x = preferences.vertical
             ? 0.0
-            : (preferences.rtl ? sizes.length - i - 1 : i) * width;
-        final y = preferences.vertical ? i * height : 0.0;
-        pages[i] = Rect.fromLTWH(
-          x + (width - sizes[i].width) / 2,
-          y + (height - sizes[i].height) / 2,
-          sizes[i].width,
-          sizes[i].height,
-        );
-        slots[i] = Rect.fromLTWH(x, y, width, height);
+            : (preferences.rtl ? count - spread - 1 : spread) * width;
+        final y = preferences.vertical ? spread * height : 0.0;
+        final rowWidth =
+            sizes[i].width + (paired ? margin + sizes[last].width : 0);
+        var left = x + (width - rowWidth) / 2;
+        for (final index
+            in paired && preferences.rtl ? [last, i] : [i, if (paired) last]) {
+          pages[index] = Rect.fromLTWH(
+            left,
+            y + (height - sizes[index].height) / 2,
+            sizes[index].width,
+            sizes[index].height,
+          );
+          slots[index] = Rect.fromLTWH(x, y, width, height);
+          left += sizes[index].width + margin;
+        }
+        i = last + 1;
       }
       return PdfReaderLayout._(
         pages,
         slots,
         preferences.vertical
-            ? Size(width, height * sizes.length)
-            : Size(width * sizes.length, height),
+            ? Size(width, height * count)
+            : Size(width * count, height),
       );
     }
 
@@ -183,6 +200,21 @@ class PdfReaderLayout {
     }
     return PdfReaderLayout._(pages, slots, Size(width, y));
   }
+
+  int? adjacentPage(int page, int direction) {
+    if (page < 1 || page > slots.length || direction.abs() != 1) return null;
+    final current = slots[page - 1];
+    var index = page - 1 + direction;
+    while (index >= 0 && index < slots.length && slots[index] == current) {
+      index += direction;
+    }
+    if (index < 0 || index >= slots.length) return null;
+    while (index > 0 && slots[index - 1] == slots[index]) {
+      index--;
+    }
+    return index + 1;
+  }
+
   int nearestPage(Rect viewport, {int? preferred}) {
     if (pages.isEmpty) return 1;
     var page = 1, distance = double.infinity;

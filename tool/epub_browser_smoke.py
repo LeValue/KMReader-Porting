@@ -71,9 +71,19 @@ with sync_playwright() as playwright:
     page.evaluate('(value)=>window.reader.preferences(value)', {**preferences, 'columns': 2})
     matches = page.evaluate("window.reader.search('Paragraph 40')")
     assert matches and matches[0]['cfi'].startswith('epubcfi('), matches
-    page.evaluate('(cfi)=>window.reader.display(cfi)', matches[0]['cfi'])
+    page.evaluate('hit=>window.reader.jumpToSearchResult(hit)', matches[0])
     searched = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
     assert searched['changed'] is True
+    highlight_count = "document.querySelector('#viewer iframe').contentWindow.CSS.highlights.get('kmreader-search')?.size || 0"
+    assert page.evaluate(highlight_count) == 1
+    page.evaluate('readerMessages.length=0')
+    assert page.evaluate('hit=>reader.jumpToSearchResult(hit)', matches[0]) is False
+    assert len(page.evaluate("reader.search('Paragraph 40')")) >= 2
+    assert page.evaluate("readerMessages.some(event=>event.type==='searchVisible')")
+    await_term = "window.reader.search('Paragraph 40 contains enough text')"
+    assert page.evaluate(await_term)
+    page.evaluate('reader.clearSearch()')
+    assert page.evaluate(highlight_count) == 0
     page.evaluate('(value)=>window.reader.preferences(value)', {**preferences, 'flow': 'scrolled'})
     page.evaluate('readerMessages.length=0')
     page.mouse.move(250, 250)

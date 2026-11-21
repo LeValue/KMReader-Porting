@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
@@ -54,10 +55,15 @@ class _PdfReaderState extends State<PdfReader> {
   PdfReaderLayout? _layout;
   Size _viewport = Size.zero;
   bool _reconfiguring = false, _navigating = false;
+  bool _needsReflow = false;
+  int? _pendingStep;
   bool _openingNext = false, _controls = true;
   int _passwordAttempts = 0;
   Timer? _snapTimer;
+  final _pointers = <int>{};
+  ({int pointer, Offset origin, int page})? _pageDrag;
   String get _key => 'pdf:${widget.book.id}';
+  bool get _paged => _preferences.presentation.resolved(_viewport).isPaged;
 
   void _searchMoved() {
     final searcher = _searcher;
@@ -149,16 +155,23 @@ class _PdfReaderState extends State<PdfReader> {
   }
 
   void _reflow() {
-    if (!_ready || _reconfiguring) return;
+    if (!_ready) return;
+    _needsReflow = true;
+    if (_reconfiguring || _navigating) return;
     _reconfiguring = true;
     final page = _page;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || !_controller.isReady) return;
-      _controller.invalidate();
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted || !_controller.isReady) return;
-      await _goTo(page, record: false, duration: Duration.zero);
-      if (mounted) _reconfiguring = false;
+      try {
+        if (!mounted || !_controller.isReady) return;
+        _needsReflow = false;
+        _controller.invalidate();
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || !_controller.isReady) return;
+        await _goTo(page, record: false, duration: Duration.zero);
+      } finally {
+        _reconfiguring = false;
+        _resumeNavigation();
+      }
     });
   }
 
@@ -171,6 +184,7 @@ class _PdfReaderState extends State<PdfReader> {
     page = page.clamp(1, _controller.pageCount);
     _focusedPage = page;
     _navigating = true;
+    if (MediaQuery.disableAnimationsOf(context)) duration = Duration.zero;
     try {
       final slot = _layout?.slots[page - 1];
       if (slot != null) {
@@ -189,14 +203,37 @@ class _PdfReaderState extends State<PdfReader> {
       }
     } finally {
       _navigating = false;
+      _resumeNavigation();
     }
   }
 
-  Future<void> _forward() async {
-    if (!_ready || !_controller.isReady || _openingNext || _navigating) return;
-    if (_page < _controller.pageCount) {
-      await _goTo(_page + 1);
-    } else if (widget.onNextBook != null) {
+  void _resumeNavigation() {
+    if (!mounted || !_controller.isReady || _navigating || _reconfiguring) {
+      return;
+    }
+    if (_needsReflow) {
+      _reflow();
+    } else if (_pendingStep case final int direction) {
+      _pendingStep = null;
+      unawaited(_step(direction));
+    }
+  }
+
+  int? _adjacent(int direction, [int? origin]) =>
+      _layout?.adjacentPage(origin ?? _page, direction);
+
+  Future<void> _step(int direction, {int? from}) async {
+    if (!_ready || !_controller.isReady || _openingNext) return;
+    if (_navigating || _reconfiguring) {
+      if (from == null) _pendingStep = direction;
+      return;
+    }
+    final page = _adjacent(direction, from);
+    if (page != null) {
+      await _goTo(page);
+    } else if (from != null) {
+      await _goTo(from, record: false);
+    } else if (direction > 0 && widget.onNextBook != null) {
       setState(() => _openingNext = true);
       try {
         await widget.onNextBook!();
@@ -208,10 +245,97 @@ class _PdfReaderState extends State<PdfReader> {
     }
   }
 
+  bool? _handleKey(LogicalKeyboardKey key, bool firstPress) {
+    if (!_ready ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isAltPressed ||
+        HardwareKeyboard.instance.isMetaPressed) {
+      return null;
+    }
+    final rtl = _preferences.rtl;
+    if (key == LogicalKeyboardKey.pageDown ||
+        key == LogicalKeyboardKey.arrowDown ||
+        key ==
+            (rtl
+                ? LogicalKeyboardKey.arrowLeft
+                : LogicalKeyboardKey.arrowRight)) {
+      unawaited(_step(1));
+      return true;
+    }
+    if (key == LogicalKeyboardKey.pageUp ||
+        key == LogicalKeyboardKey.arrowUp ||
+        key ==
+            (rtl
+                ? LogicalKeyboardKey.arrowRight
+                : LogicalKeyboardKey.arrowLeft)) {
+      unawaited(_step(-1));
+      return true;
+    }
+    if (key != LogicalKeyboardKey.space) return null;
+    if (widget.repository.store.setting<String>('spaceKeyAction') ==
+        'nextPage') {
+      unawaited(_step(HardwareKeyboard.instance.isShiftPressed ? -1 : 1));
+    } else if (firstPress) {
+      setState(() => _controls = !_controls);
+    }
+    return true;
+  }
+
+  bool _isAtFit(int page) {
+    final layout = _layout;
+    if (!_controller.isReady || layout == null || page > layout.slots.length) {
+      return false;
+    }
+    final slot = layout.slots[page - 1], view = _controller.viewSize;
+    final fit = (view.width / slot.width).clamp(0.0, view.height / slot.height);
+    return _controller.currentZoom <= fit * 1.05;
+  }
+
+  void _startPageDrag(PointerDownEvent event) {
+    _pointers.add(event.pointer);
+    if (_pointers.length != 1) {
+      _pageDrag = null;
+      return;
+    }
+    if (!_paged ||
+        !_ready ||
+        _navigating ||
+        !_isAtFit(_page) ||
+        event.kind == PointerDeviceKind.mouse &&
+            event.buttons != kPrimaryMouseButton) {
+      return;
+    }
+    _snapTimer?.cancel();
+    _pageDrag = (
+      pointer: event.pointer,
+      origin: event.localPosition,
+      page: _page,
+    );
+  }
+
+  void _endPageDrag(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    final drag = _pageDrag;
+    if (drag == null || drag.pointer != event.pointer) return;
+    _pageDrag = null;
+    if (!_isAtFit(drag.page)) return;
+    final offset = event.localPosition - drag.origin;
+    final axis = _preferences.vertical ? offset.dy : offset.dx;
+    final other = _preferences.vertical ? offset.dx : offset.dy;
+    final extent = _preferences.vertical ? _viewport.height : _viewport.width;
+    final threshold = (extent * .1).clamp(24.0, 56.0);
+    if (event is PointerUpEvent &&
+        axis.abs() >= threshold &&
+        axis.abs() > other.abs()) {
+      final forward = axis < 0 != (!_preferences.vertical && _preferences.rtl);
+      unawaited(_step(forward ? 1 : -1, from: drag.page));
+    } else {
+      unawaited(_goTo(drag.page, record: false));
+    }
+  }
+
   void _snap() {
-    if (_preferences.presentation.resolved(_viewport) !=
-            PdfPresentation.singlePaged ||
-        !_ready) {
+    if (!_paged || !_ready || _pageDrag != null) {
       return;
     }
     _snapTimer?.cancel();
@@ -222,13 +346,8 @@ class _PdfReaderState extends State<PdfReader> {
       final layout = _layout;
       if (layout == null) return;
       final page = layout.nearestPage(_controller.visibleRect);
-      final slot = layout.slots[page - 1];
-      final fit = (_controller.viewSize.width / slot.width).clamp(
-        0.0,
-        _controller.viewSize.height / slot.height,
-      );
       // Keep panning freely while zoomed into text or artwork.
-      if (_controller.currentZoom <= fit * 1.05) _goTo(page);
+      if (_isAtFit(page)) unawaited(_goTo(page));
     });
   }
 
@@ -500,38 +619,19 @@ class _PdfReaderState extends State<PdfReader> {
                 return Focus(
                   autofocus: true,
                   onKeyEvent: (node, event) {
-                    if (event is! KeyDownEvent || !_ready) {
-                      return KeyEventResult.ignored;
-                    }
-                    final key = event.logicalKey;
-                    if (key == LogicalKeyboardKey.space) {
-                      if (widget.repository.store.setting<String>(
-                            'spaceKeyAction',
-                          ) ==
-                          'nextPage') {
-                        unawaited(_forward());
-                      } else {
-                        setState(() => _controls = !_controls);
-                      }
-                      return KeyEventResult.handled;
-                    }
-                    final next = _preferences.rtl
-                        ? LogicalKeyboardKey.arrowLeft
-                        : LogicalKeyboardKey.arrowRight;
-                    final previous = _preferences.rtl
-                        ? LogicalKeyboardKey.arrowRight
-                        : LogicalKeyboardKey.arrowLeft;
-                    if (key == next || key == LogicalKeyboardKey.pageDown) {
-                      unawaited(_forward());
-                      return KeyEventResult.handled;
-                    }
-                    if (key == previous || key == LogicalKeyboardKey.pageUp) {
-                      _goTo(_page - 1);
-                      return KeyEventResult.handled;
-                    }
-                    return KeyEventResult.ignored;
+                    return event is! KeyUpEvent &&
+                            _handleKey(
+                                  event.logicalKey,
+                                  event is KeyDownEvent,
+                                ) ==
+                                true
+                        ? KeyEventResult.handled
+                        : KeyEventResult.ignored;
                   },
                   child: Listener(
+                    onPointerDown: _startPageDrag,
+                    onPointerUp: _endPageDrag,
+                    onPointerCancel: _endPageDrag,
                     onPointerSignal: (_) => _snap(),
                     child: PdfViewer.file(
                       widget.file.path,
@@ -563,7 +663,8 @@ class _PdfReaderState extends State<PdfReader> {
                         calculateCurrentPageNumber:
                             (visible, pages, controller) => _layout
                                 ?.nearestPage(visible, preferred: _focusedPage),
-                        enableKeyboardNavigation: false,
+                        onKey: (_, key, firstPress) =>
+                            _handleKey(key, firstPress),
                         onGeneralTap: (_, _, details) {
                           if (details.type == PdfViewerGeneralTapType.tap &&
                               details.tapOn == PdfViewerPart.background) {
@@ -609,8 +710,7 @@ class _PdfReaderState extends State<PdfReader> {
                           _ => null,
                         },
                         scrollHorizontallyByMouseWheel:
-                            _preferences.presentation.resolved(_viewport) ==
-                            PdfPresentation.singlePaged,
+                            _paged && !_preferences.vertical,
                         onInteractionStart: (_) => _snapTimer?.cancel(),
                         onInteractionEnd: (_) => _snap(),
                         pagePaintCallbacks: [
@@ -633,6 +733,7 @@ class _PdfReaderState extends State<PdfReader> {
                           if (!_ready ||
                               page == null ||
                               !mounted ||
+                              _pageDrag != null ||
                               _reconfiguring ||
                               _navigating) {
                             return;
@@ -664,7 +765,7 @@ class _PdfReaderState extends State<PdfReader> {
                 children: [
                   IconButton(
                     tooltip: tr(context, 'Previous Page'),
-                    onPressed: _page > 1 ? () => _goTo(_page - 1) : null,
+                    onPressed: _adjacent(-1) != null ? () => _step(-1) : null,
                     icon: const Icon(CupertinoIcons.chevron_left),
                   ),
                   Expanded(
@@ -690,16 +791,14 @@ class _PdfReaderState extends State<PdfReader> {
                   IconButton(
                     tooltip: tr(
                       context,
-                      _page == _controller.pageCount &&
-                              widget.onNextBook != null
+                      _adjacent(1) == null && widget.onNextBook != null
                           ? 'Next Book'
                           : 'Next Page',
                     ),
                     onPressed:
                         !_openingNext &&
-                            (_page < _controller.pageCount ||
-                                widget.onNextBook != null)
-                        ? _forward
+                            (_adjacent(1) != null || widget.onNextBook != null)
+                        ? () => _step(1)
                         : null,
                     icon: _openingNext
                         ? const SizedBox(
@@ -708,8 +807,7 @@ class _PdfReaderState extends State<PdfReader> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Icon(
-                            _page == _controller.pageCount &&
-                                    widget.onNextBook != null
+                            _adjacent(1) == null && widget.onNextBook != null
                                 ? Icons.skip_next_outlined
                                 : CupertinoIcons.chevron_right,
                           ),

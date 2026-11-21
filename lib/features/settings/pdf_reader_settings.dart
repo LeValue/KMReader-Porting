@@ -70,12 +70,14 @@ class PdfReaderSettingsPage extends StatelessWidget {
         choices: const {
           'auto': 'Auto',
           'single-paged': 'Single Page',
+          'dual-paged': 'Dual Page',
           'single-continuous': 'Single Page Continuous',
           'dual-continuous': 'Dual Page Continuous',
         },
         choiceIcons: const {
           'auto': Icons.auto_awesome_outlined,
           'single-paged': Icons.crop_portrait,
+          'dual-paged': Icons.chrome_reader_mode_outlined,
           'single-continuous': Icons.view_day_outlined,
           'dual-continuous': Icons.splitscreen_outlined,
         },
