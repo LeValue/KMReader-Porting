@@ -6,6 +6,36 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/epub_reader_chrome.dart';
 
 void main() {
+  testWidgets('the EPUB toolbar centers progress between unequal controls', (
+    tester,
+  ) async {
+    const toolbar = ValueKey('epub-toolbar');
+    const trailing = ValueKey('epub-trailing');
+    for (final width in [720.0, 300.0]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: width,
+              child: const EpubToolbarLayout(
+                key: toolbar,
+                leading: SizedBox(width: 40, height: 40),
+                center: Text('62%'),
+                trailing: SizedBox(key: trailing, width: 260, height: 40),
+              ),
+            ),
+          ),
+        ),
+      );
+      final progress = tester.getRect(find.text('62%'));
+      expect(progress.center.dx, tester.getCenter(find.byKey(toolbar)).dx);
+      expect(
+        progress.right,
+        lessThanOrEqualTo(tester.getRect(find.byKey(trailing)).left),
+      );
+    }
+  });
+
   testWidgets('the touch selection menu fits a narrow reader', (tester) async {
     var invoked = '';
     const labels = [

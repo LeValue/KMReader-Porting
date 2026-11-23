@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:flutter/physics.dart';
 import 'package:flutter/widgets.dart';
 
 /// No wall-clock catch-up jump after a late frame. The first delivered frame is
@@ -75,13 +78,43 @@ class PacedReaderSimulation extends Simulation {
 }
 
 class ReaderPagePhysics extends PageScrollPhysics {
-  const ReaderPagePhysics({super.parent, this.isAnimating});
+  const ReaderPagePhysics({super.parent, this.isAnimating, this.swipeOrigin});
   final bool Function()? isAnimating;
+  final int? Function()? swipeOrigin;
   @override
   ReaderPagePhysics applyTo(ScrollPhysics? ancestor) => ReaderPagePhysics(
     parent: buildParent(ancestor),
     isAnimating: isAnimating,
+    swipeOrigin: swipeOrigin,
   );
+
+  ({double first, double last, double stride})? _swipeBounds(
+    ScrollMetrics position,
+  ) {
+    final origin = swipeOrigin?.call();
+    if (origin == null ||
+        position is! PageMetrics ||
+        !position.hasContentDimensions ||
+        position.viewportDimension <= 0) {
+      return null;
+    }
+    final stride = position.viewportDimension * position.viewportFraction;
+    return (
+      first: math.max(position.minScrollExtent, (origin - 1) * stride),
+      last: math.min(position.maxScrollExtent, (origin + 1) * stride),
+      stride: stride,
+    );
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    final movement = super.applyPhysicsToUserOffset(position, offset);
+    final bounds = _swipeBounds(position);
+    if (bounds == null) return movement;
+    final current = position.pixels;
+    return current - (current - movement).clamp(bounds.first, bounds.last);
+  }
+
   @override
   Simulation? createBallisticSimulation(
     ScrollMetrics position,
@@ -90,6 +123,30 @@ class ReaderPagePhysics extends PageScrollPhysics {
     // A programmatic frame already owns the offset. jumpTo must not launch a
     // competing snap spring between its next two delivered frames.
     if (isAnimating?.call() ?? false) return null;
+    final bounds = _swipeBounds(position);
+    if (bounds != null) {
+      // Same directional snap as PageView, bounded by the page that opened
+      // the swipe. A fast release at the far edge cannot start another turn.
+      final tolerance = toleranceFor(position);
+      final start = position.pixels;
+      final bias = velocity.abs() > tolerance.velocity ? velocity.sign / 2 : 0;
+      final page = (start / bounds.stride + bias).round();
+      final target = (page * bounds.stride).clamp(bounds.first, bounds.last);
+      if (start == target) return null;
+      return PacedReaderSimulation(
+        ClampedSimulation(
+          ScrollSpringSimulation(
+            spring,
+            start,
+            target,
+            velocity,
+            tolerance: tolerance,
+          ),
+          xMin: math.min(start, target),
+          xMax: math.max(start, target),
+        ),
+      );
+    }
     final source = super.createBallisticSimulation(position, velocity);
     return source == null ? null : PacedReaderSimulation(source);
   }

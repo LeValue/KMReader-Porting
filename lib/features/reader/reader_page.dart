@@ -336,6 +336,7 @@ class _ReaderPageState extends State<ReaderPage>
     final size = boundary?.size ?? MediaQuery.sizeOf(context);
     if (p.transition != 'curl' || _curl.currentState == null) {
       final bounds = _interactionBounds(size);
+      _swipeOrigin = (_pages.page ?? _viewIndex).round();
       return PageRelativeDrag(
         _pages.position.drag(details, () {}),
         bounds.width > 0 ? size.width / bounds.width : 1,
@@ -544,6 +545,7 @@ class _ReaderPageState extends State<ReaderPage>
   late PageController _pages;
   final _zoom = TransformationController();
   int _gesturePage = 0;
+  int? _swipeOrigin;
   double _decodeZoom = 1;
   bool _scrolling = false, _interacting = false;
   Timer? _settleTimer;
@@ -592,6 +594,7 @@ class _ReaderPageState extends State<ReaderPage>
       _preloadTimer?.cancel();
       _preloadGeneration++;
     } else if (notification is ScrollEndNotification) {
+      if (notification.metrics is PageMetrics) _swipeOrigin = null;
       _scrolling = false;
       _settled();
     }
@@ -853,6 +856,7 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   void _turnDirect(int delta) {
+    _swipeOrigin = null;
     _resetZoom();
     if (!_split) {
       if (_session.preferences.mode != ReadingMode.paged &&
@@ -1123,6 +1127,7 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   void _go(int page) {
+    _swipeOrigin = null;
     _resetZoom();
     _session.go(page);
     if (_split) {
@@ -1154,6 +1159,7 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   void _configure(ReaderPreferences preferences) {
+    _swipeOrigin = null;
     _stopPageFlight();
     _curl.currentState?.cancelGesture();
     preferences = seriesReaderPreferences(preferences, _seriesMetadata);
@@ -1868,6 +1874,7 @@ class _ReaderPageState extends State<ReaderPage>
                                         parent:
                                             const NeverScrollableScrollPhysics(),
                                         isAnimating: () => _pageFlightActive,
+                                        swipeOrigin: () => _swipeOrigin,
                                       ),
                                       allowImplicitScrolling: true,
                                       reverse:

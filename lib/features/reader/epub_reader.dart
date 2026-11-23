@@ -847,130 +847,109 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
           ),
           onPressed: open,
         );
-    return LayoutBuilder(
-      builder: (context, bounds) => Row(
-        children: [
-          ReaderCapsule(
-            background: background,
-            foreground: foreground,
-            child: IconButton(
-              tooltip: tr(context, 'Close'),
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(CupertinoIcons.xmark),
-            ),
+    return EpubToolbarLayout(
+      leading: ReaderCapsule(
+        background: background,
+        foreground: foreground,
+        child: IconButton(
+          tooltip: tr(context, 'Close'),
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(CupertinoIcons.xmark),
+        ),
+      ),
+      center: ReaderCapsule(
+        background: background,
+        foreground: foreground,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Text(
+            epubOverlayText(context, session, 'controlsHeaderCenter'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          Expanded(
-            child: Center(
-              child: ReaderCapsule(
-                background: background,
-                foreground: foreground,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+        ),
+      ),
+      trailing: ReaderCapsule(
+        background: background,
+        foreground: foreground,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          reverse: true,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (session.auxiliary)
+                IconButton(
+                  tooltip: tr(context, 'Back to Reading'),
+                  onPressed: () => _call('closeAuxiliary'),
+                  icon: const Icon(CupertinoIcons.arrow_uturn_left),
+                ),
+              if (Platform.isWindows) ...[
+                sidePanelButton('Search', Icons.search, _search),
+                sidePanelButton(
+                  'Bookmarks and annotations',
+                  Icons.sticky_note_2_outlined,
+                  widget.incognito ? null : _bookmarks,
+                ),
+                sidePanelButton('Text Settings', Icons.text_fields, _settings),
+                IconButton(
+                  tooltip: tr(context, 'Toggle Bookmark'),
+                  onPressed:
+                      widget.incognito ||
+                          !session.ready ||
+                          activeBookmark != null &&
+                              !session.canRemoveAnnotation(activeBookmark)
+                      ? null
+                      : () => session.toggleBookmark(''),
+                  isSelected: activeBookmark != null,
+                  icon: const Icon(Icons.bookmark_add_outlined),
+                  selectedIcon: const Icon(Icons.bookmark),
+                ),
+                IconButton(
+                  tooltip: tr(
+                    context,
+                    _fullscreen ? 'Exit Full Screen' : 'Full Screen',
                   ),
-                  child: Text(
-                    epubOverlayText(context, session, 'controlsHeaderCenter'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  onPressed: _toggleFullscreen,
+                  icon: const Icon(
+                    CupertinoIcons.arrow_up_left_arrow_down_right,
                   ),
                 ),
-              ),
-            ),
-          ),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: max(0, bounds.maxWidth - 110),
-            ),
-            child: ReaderCapsule(
-              background: background,
-              foreground: foreground,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                reverse: true,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (session.auxiliary)
-                      IconButton(
-                        tooltip: tr(context, 'Back to Reading'),
-                        onPressed: () => _call('closeAuxiliary'),
-                        icon: const Icon(CupertinoIcons.arrow_uturn_left),
-                      ),
-                    if (Platform.isWindows) ...[
-                      sidePanelButton('Search', Icons.search, _search),
-                      sidePanelButton(
-                        'Bookmarks and annotations',
-                        Icons.sticky_note_2_outlined,
-                        widget.incognito ? null : _bookmarks,
-                      ),
-                      sidePanelButton(
-                        'Text Settings',
-                        Icons.text_fields,
-                        _settings,
-                      ),
-                      IconButton(
-                        tooltip: tr(context, 'Toggle Bookmark'),
-                        onPressed:
-                            widget.incognito ||
-                                !session.ready ||
-                                activeBookmark != null &&
-                                    !session.canRemoveAnnotation(activeBookmark)
-                            ? null
-                            : () => session.toggleBookmark(''),
-                        isSelected: activeBookmark != null,
-                        icon: const Icon(Icons.bookmark_add_outlined),
-                        selectedIcon: const Icon(Icons.bookmark),
-                      ),
-                      IconButton(
-                        tooltip: tr(
-                          context,
-                          _fullscreen ? 'Exit Full Screen' : 'Full Screen',
-                        ),
-                        onPressed: _toggleFullscreen,
-                        icon: const Icon(
-                          CupertinoIcons.arrow_up_left_arrow_down_right,
-                        ),
-                      ),
-                    ],
-                    PopupMenuButton<String>(
-                      onOpened: () => _chromeTimer?.cancel(),
-                      onCanceled: _scheduleControlsHide,
-                      onSelected: (v) => switch (v) {
-                        'fullscreen' => _toggleFullscreen(),
-                        'contents' => _contents(),
-                        'search' => _search(),
-                        'kindlePosition' => _checkKindlePosition(force: true),
-                        'bookmarks' => _bookmarks(),
-                        _ => _settings(),
-                      },
-                      itemBuilder: (_) => [
-                        for (final entry in {
-                          'contents': 'Table of Contents',
-                          if (widget.repository.profile.isKindle &&
-                              !widget.incognito)
-                            'kindlePosition': 'Go to latest Kindle position',
-                          if (!Platform.isWindows) ...{
-                            'search': 'Search',
-                            'bookmarks': 'Bookmarks and annotations',
-                            'settings': 'Text Settings',
-                            'fullscreen': _fullscreen
-                                ? 'Exit Full Screen'
-                                : 'Full Screen',
-                          },
-                        }.entries)
-                          PopupMenuItem(
-                            value: entry.key,
-                            child: Text(tr(context, entry.value)),
-                          ),
-                      ],
+              ],
+              PopupMenuButton<String>(
+                onOpened: () => _chromeTimer?.cancel(),
+                onCanceled: _scheduleControlsHide,
+                onSelected: (v) => switch (v) {
+                  'fullscreen' => _toggleFullscreen(),
+                  'contents' => _contents(),
+                  'search' => _search(),
+                  'kindlePosition' => _checkKindlePosition(force: true),
+                  'bookmarks' => _bookmarks(),
+                  _ => _settings(),
+                },
+                itemBuilder: (_) => [
+                  for (final entry in {
+                    'contents': 'Table of Contents',
+                    if (widget.repository.profile.isKindle && !widget.incognito)
+                      'kindlePosition': 'Go to latest Kindle position',
+                    if (!Platform.isWindows) ...{
+                      'search': 'Search',
+                      'bookmarks': 'Bookmarks and annotations',
+                      'settings': 'Text Settings',
+                      'fullscreen': _fullscreen
+                          ? 'Exit Full Screen'
+                          : 'Full Screen',
+                    },
+                  }.entries)
+                    PopupMenuItem(
+                      value: entry.key,
+                      child: Text(tr(context, entry.value)),
                     ),
-                  ],
-                ),
+                ],
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

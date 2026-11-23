@@ -16,9 +16,15 @@ import 'widget_test.dart' show FixtureRepository;
 import 'package:kmreader/features/reader/reader_viewport.dart';
 
 void main() {
-  for (final effect in ['cover', 'curl', 'webtoon']) {
+  for (final (effect, rtl) in [
+    ('slide', false),
+    ('cover', false),
+    ('cover', true),
+    ('curl', false),
+    ('webtoon', false),
+  ]) {
     testWidgets(
-      'wide single-page mouse taps and drags use paper edges: $effect',
+      'wide single-page mouse taps and drags use paper edges: $effect, RTL=$rtl',
       (tester) async {
         tester.view.physicalSize = const Size(1600, 600);
         tester.view.devicePixelRatio = 1;
@@ -54,6 +60,7 @@ void main() {
           ReaderPreferences(
             transition: effect == 'webtoon' ? 'cover' : effect,
             mode: effect == 'webtoon' ? ReadingMode.webtoon : ReadingMode.paged,
+            direction: rtl ? ReadingDirection.rtl : ReadingDirection.ltr,
           ).toJson(),
         );
         await tester.pumpWidget(
@@ -63,7 +70,7 @@ void main() {
               book: Book({
                 'id': 'mouse',
                 'name': 'Mouse fixture',
-                'media': {'pagesCount': 4},
+                'media': {'pagesCount': 8},
                 'readProgress': {'page': 1},
               }),
             ),
@@ -80,12 +87,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        // 64x96 artwork fits to x=600..1000. x=990 is a paper edge but a
-        // middle-of-window tap in the old full-width interaction map.
-        await tester.tapAt(
-          const Offset(990, 300),
-          kind: PointerDeviceKind.mouse,
-        );
+        // 64x96 artwork fits to x=600..1000. The paper edge is still in
+        // the center tap zone of the full-width interaction map.
+        final forwardEdge = Offset(rtl ? 610 : 990, 300);
+        await tester.tapAt(forwardEdge, kind: PointerDeviceKind.mouse);
         await tester.pump(const Duration(milliseconds: 350));
         await tester.pumpAndSettle();
         if (effect == 'webtoon') {
@@ -118,11 +123,11 @@ void main() {
               .toString(),
         );
         final drag = await tester.startGesture(
-          const Offset(990, 300),
+          forwardEdge,
           kind: PointerDeviceKind.mouse,
         );
         for (var i = 0; i < 7; i++) {
-          await drag.moveBy(const Offset(-40, 0));
+          await drag.moveBy(Offset(rtl ? 40 : -40, 0));
           await tester.pump(const Duration(milliseconds: 100));
         }
         await tester.pump(const Duration(milliseconds: 250));
@@ -133,6 +138,34 @@ void main() {
           closeTo(2, .01),
           reason: 'A slow drag across most of the paper must turn without traversing black margins',
         );
+        if (effect == 'slide' || effect == 'cover') {
+          final controller = tester
+              .widget<PageView>(find.byType(PageView))
+              .controller!;
+          for (final direction in [1, -1]) {
+            final origin = controller.page!.round();
+            final physical = rtl ? -direction : direction;
+            final edge = physical > 0 ? 1580.0 : 20.0;
+            final swipe = await tester.startGesture(
+              Offset(edge, 300),
+              kind: PointerDeviceKind.mouse,
+            );
+            for (var step = 1; step <= 6; step++) {
+              await swipe.moveTo(
+                Offset(edge - physical * 260 * step, 300),
+                timeStamp: Duration(milliseconds: 12 * step),
+              );
+              await tester.pump();
+              expect(
+                (controller.page! - origin).abs(),
+                lessThanOrEqualTo(1.001),
+              );
+            }
+            await swipe.up(timeStamp: const Duration(milliseconds: 78));
+            await tester.pumpAndSettle();
+            expect(controller.page, closeTo(origin + direction, .01));
+          }
+        }
         await tester.pumpWidget(const SizedBox());
         await tester.pump(const Duration(milliseconds: 100));
       },

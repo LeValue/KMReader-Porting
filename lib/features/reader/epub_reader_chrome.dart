@@ -6,6 +6,41 @@ import 'package:flutter/material.dart';
 
 import '../../ui/strings.dart';
 
+class EpubToolbarLayout extends StatelessWidget {
+  const EpubToolbarLayout({
+    super.key,
+    required this.leading,
+    required this.center,
+    required this.trailing,
+  });
+
+  final Widget leading, center, trailing;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) => Row(
+      children: [
+        Expanded(
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: leading,
+          ),
+        ),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: bounds.maxWidth / 2),
+          child: center,
+        ),
+        Expanded(
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: trailing,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class EpubDesktopPanels extends StatefulWidget {
   const EpubDesktopPanels({
     super.key,
