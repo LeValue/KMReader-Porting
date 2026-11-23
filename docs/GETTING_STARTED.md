@@ -1,7 +1,7 @@
 # Installation and first use
 
 KMReader Preview is a community reader for Android and Windows. Current public
-release: [1.0.0 candidate 16, build 46](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.16).
+release: [1.0.0 candidate 17, build 47](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.17).
 It is a development prerelease; stable 1.0 and full upstream parity are not complete.
 
 ## Install
