@@ -9,15 +9,15 @@ body:
     id: build
     attributes:
       label: App version and build
-      description: Find these in Settings → About. Mention whether this is a project preview or your own build.
-      placeholder: 1.0.0 candidate 6, build 36
+      description: Find these in Settings → About. Mention if you built the app yourself.
+      placeholder: 1.0.0, build 48
     validations:
       required: true
   - type: input
     id: platform
     attributes:
       label: Platform and OS version
-      placeholder: Android 14, or Windows 11 x64; include device model if relevant
+      placeholder: Android 14, or Windows 11 x64
     validations:
       required: true
   - type: input

@@ -27,36 +27,54 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
   bool _importing = false;
   LocalLibrary get library => widget.app.localLibrary;
   Future<void> _import() async {
-    final files = await openFiles(
-      // Android providers can label CB7/CBR as generic binary files.
-      // Validate the selected format when reading it instead.
-      acceptedTypeGroups: Platform.isAndroid
-          ? const []
-          : const [
-              XTypeGroup(
-                label: 'EPUB / PDF / Comics',
-                extensions: LocalLibrary.extensions,
-              ),
-            ],
-    );
-    if (!mounted || files.isEmpty) return;
+    if (_importing) return;
     setState(() => _importing = true);
     final errors = <String>[];
     try {
+      final files = await openFiles(
+        // Android providers can label CB7/CBR as generic binary files.
+        acceptedTypeGroups: Platform.isAndroid
+            ? const []
+            : const [
+                XTypeGroup(
+                  label: 'EPUB / PDF / Comics',
+                  extensions: LocalLibrary.extensions,
+                ),
+              ],
+      );
+      if (!mounted) return;
       for (final file in files) {
         try {
           await library.importFile(file);
-        } catch (error) {
-          errors.add('${file.name}: $error');
+        } on FormatException catch (error) {
+          if (mounted)
+            errors.add('${file.name}: ${tr(context, error.message)}');
+        } catch (_) {
+          if (mounted)
+            errors.add(
+              '${file.name}: ${tr(context, 'Could not import this file.')}',
+            );
         }
       }
       if (mounted && errors.isNotEmpty) showError(context, errors.join('\n'));
+    } catch (_) {
+      if (mounted) showError(context, 'Could not open the file picker.');
     } finally {
       if (mounted) setState(() => _importing = false);
     }
   }
 
   Future<void> _open(Book book) async {
+    final file = library.bookFile(book);
+    if (!await file.exists()) {
+      if (mounted)
+        showError(
+          context,
+          'The imported copy is missing. Select the original file to restore it.',
+        );
+      return;
+    }
+    if (!mounted) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
@@ -64,12 +82,12 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
             ? ReaderPage(
                 repository: library,
                 book: book,
-                rasterPages: LocalComicPages(library.bookFile(book)),
+                rasterPages: LocalComicPages(file),
               )
             : DocumentReader(
                 repository: library,
                 book: book,
-                load: () async => library.bookFile(book),
+                load: () async => file,
                 incognito: false,
               ),
       ),

@@ -183,7 +183,7 @@ void verifyNativeEpubRecovery() {
         debugPrint('EPUB visible-text probe: ${jsonEncode(probe)}');
         // PixelCopy already captured the actual app surface. Decode its PNG
         // on CPU: ui.Image.toByteData adds an unrelated Impeller GPU blit that
-        // crashed the Android phone's IO thread during this verification itself.
+        // can exhaust the native WebView I/O thread.
         final image = img.decodePng(bytes)!;
         var dark = 0, light = 0;
         final pixels = image.getRange(

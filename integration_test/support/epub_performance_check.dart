@@ -200,7 +200,7 @@ void verifyNativeEpubPerformance() {
         expect(bytes, isNotEmpty);
         // PixelCopy has already captured the actual app surface. A Flutter
         // image decode/readback adds unrelated GPU allocations/blits before
-        // the animation probe, and crashed the physical Android phone IO thread.
+        // the animation probe, and can exhaust the WebView I/O thread.
         final image = img.decodePng(bytes!)!;
         imageWidth = image.width;
         imageHeight = image.height;

@@ -1,139 +1,58 @@
-# Installation and first use
+# Install and start reading
 
-KMReader Preview is a community reader for Android and Windows. Current public
-release: [1.0.0 candidate 17, build 47](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.17).
-It is a development prerelease; stable 1.0 and full upstream parity are not complete.
+Download the Android APK or Windows ZIP from [GitHub Releases](https://github.com/LeValue/KMReader-Porting/releases).
 
-## Install
+- **Android 7 or later** — open the APK and confirm installation in Android.
+  The universal APK supports ARM64, ARMv7 and x86_64.
+- **Windows 10 or 11 x64** — extract the full ZIP into a writable folder and
+  run `KMReader/kmreader.exe`. EPUB reading uses the
+  [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+  Windows packages include the MSVC runtime and are distributed without an
+  Authenticode signature.
 
-### Android
+Each release includes `SHA256SUMS.txt`. On Windows, use `Get-FileHash` to
+check a download.
 
-1. Download `KMReader-1.0.0-android-universal-preview.apk` from the release page.
-   It supports Android 7.0/API 24 and later on ARM64, ARMv7 and x86_64.
-2. Open the APK. If prompted, allow installation from the browser or file manager
-   you used. Complete the Android installer confirmation.
-3. To update KMReader Preview, install over the existing app without uninstalling.
-   Official project previews retain the same package and signing certificate.
+## Update
 
-### Windows
+Open **Settings → About → App updates**. Android asks for confirmation in the
+system installer. Windows backs up the application files, applies the update
+and reopens the app.
 
-1. Download `KMReader-1.0.0-windows-x64-preview.zip` for Windows 10/11 x64.
-2. Extract the complete ZIP into a writable application folder. Keep the `data`,
-   DLL and `kindle` files together; copying only the executable will not work.
-3. Run `KMReader/kmreader.exe`. The ebook reader needs Microsoft's
-   [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
-   The bundle includes the MSVC runtime; the executable is not Authenticode signed.
+To upgrade manually, install the official APK over the existing Android app,
+or close KMReader and extract the complete Windows ZIP. The Android release
+keeps the package ID and signing certificate of KMReader Preview, so Android
+can update it in place. The Windows app stores library data separately from
+the installation folder.
 
-Each release includes `SHA256SUMS.txt`. Compare the downloaded file's SHA256 with
-its entry using `Get-FileHash` on Windows or `sha256sum` on Linux.
+## Read with Komga
 
-If the in-app updater in build 38 or earlier fails, use the current public
-packages to upgrade once. On Android install the official APK over Preview.
-On Windows close the old app, extract the full ZIP and start the executable
-from the extracted folder. The default storage in the Windows profile is
-shared across these installation folders.
+Add your Komga URL under **Settings → Servers**. Include any reverse-proxy
+prefix and sign in with your Komga credentials or API key. Use HTTPS when
+connecting outside a trusted network. Browse a library and download a volume
+to read offline. KMReader synchronizes progress when the server is available.
 
-## Connect Komga
+See [Komga library management](KOMGA_LIBRARY_MANAGEMENT.md) for administration
+and batch uploads.
 
-Add a server account using its reachable Komga URL and your account credentials
-or API key. Include any URL prefix used by your reverse proxy, such as `/komga`.
-The app needs network access to that address; it does not expose your home server
-or configure remote networking for you. For access outside your local network,
-configure your server's HTTPS endpoint or VPN separately.
+## Read without an account
 
-Browse a library, open a volume and choose the reader settings you prefer.
-Downloaded volumes are available offline. When reconnected, progress is
-synchronized; conflicting remote progress changes require explicit resolution.
-Credentials use OS secure storage, and cached content/progress are separated by
-server and account.
+Open **Local Books → Import Files** to import EPUB, PDF or comic archives.
+KMReader keeps a copy and remembers reading progress. Removing an imported
+copy preserves the original file.
 
-### Administrator tools
+PDFs open in the comics reader with page turns, search and a table of contents.
+The native PDF view is available under reader settings for text selection.
 
-With a Komga administrator account:
+## Read with Kindle
 
-- Open a volume or series and choose **Manage on Komga** to edit metadata or covers.
-- **Delete from Komga** removes the volume's original server file for every user
-  after confirmation. It is different from removing a local download.
-- **Library Management → Add to Komga** uploads EPUB/PDF/CBZ/CBR files in a batch.
-  Install or update the [Debian server companion](KOMGA_LIBRARY_MANAGEMENT.md) (guide in Italian).
-  The server companion is needed only for new-file uploads. Metadata, covers and
-  deletion use native Komga APIs. Duplicate filenames are rejected.
+Add an Amazon.it account under **Settings → Servers**. The Kindle integration
+offers supported reading positions in the EPUB reader and can send personal
+documents. See [Kindle](KINDLE_IMPORT.md) for setup, sync and limitations.
 
-The companion is tested on Linux with Komga 1.30.1. Configure the allowed library
-paths and proxy on your own server; installing the client does not install it.
+## Get help
 
-## Read local files
-
-Open **Local Books → Import Files** and choose an EPUB, PDF or comic archive.
-Comic formats include CBZ, CBR, CB7 and CBT and the ZIP, RAR, 7Z and TAR extensions.
-
-PDFs open in the comics reader. Open the reader menu to search the text or
-jump to a chapter in the PDF table of contents. The **PDF Reader** settings
-also offer the native view for text selection.
-The app copies the file into its storage and keeps reading progress locally.
-No server account is required. Removing the imported copy preserves the original
-file you selected. Local RAR/CBR reading is not currently supported.
-
-## Use Kindle
-
-Add a Kindle account under **Settings → Servers** and complete Amazon sign-in.
-The unofficial adapter currently targets Amazon.it. Reading may require document
-preparation; Windows distributions include its separate conversion worker.
-
-Starting with build 38, KMReader offers a newer Kindle reading position when you
-open a supported Kindle ebook or return to the foreground with the reader open.
-It also checks for new positions periodically while that reader is active.
-Choose **Go to position** to continue there or **Stay here** to keep reading
-and share the position on this device. The reader menu also has **Go to
-latest Kindle position** for an explicit cloud fetch.
-In **Settings → Servers**, turn on **Automatically resume from Kindle** to skip
-confirmation. **Sync reading position with Kindle** controls both sharing your
-reading position and checking for incoming positions. Automatic resume is off
-by default.
-
-Select text to copy it, highlight it, write a note or search the book. Select
-one word to look it up in Wiktionary. Tap a highlighted passage with a note
-to open it. On Windows, use the reader toolbar to add a bookmark or open
-text settings, search and annotations beside the page. New marks in supported personal Kindle EPUBs are
-synchronized from the **Bookmarks and annotations** menu. See the
-[Kindle guide](KINDLE_IMPORT.md#reading-position-and-annotations) for coverage.
-
-For a local document, open **Send to Kindle**, choose a file and review its
-metadata. **Add to Kindle library** makes it available through the account's
-cloud library. Turn that switch off to deliver only to selected devices.
-Amazon acceptance can precede processing and appearance in the catalog.
-Supported upload formats and troubleshooting are in [Send to Kindle](KINDLE_IMPORT.md).
-
-[Personal-document management](KINDLE_LIBRARY_MANAGEMENT.md) supports confirmed
-deletion and metadata/cover updates using a replacement when necessary. Reading
-state is restored only when it can be verified against the new edition. Purchased
-books cannot be edited this way. Read the documented limits before replacing a
-document with notes/highlights or a format other than EPUB.
-
-## Build 37 updater changes
-
-Build 37 adds recovery of interrupted update downloads, explicit failure stages
-and hashing outside the UI isolate. The public build 36 does not gain these
-changes retroactively. If an older updater cannot complete its download, install
-the current verified public APK manually over KMReader Preview,
-without uninstalling. Subsequent transfers can use the corrected updater.
-The app never bypasses Android signing/version checks to force an installation.
-
-## Updates and troubleshooting
-
-From build 35 onward, open **Settings → About → App updates**. Update files are
-public; no GitHub account is needed. Downloads are checked against the release
-manifest. Android asks for installer permission/confirmation; Windows closes,
-backs up/replaces the installation and reopens. Keep the application folder
-writable and retain the complete bundle.
-
-If you use an older build, bootstrap with the current public download. Do not
-uninstall the existing Preview app to update it. Development/debug builds signed
-with a different key cannot replace a signed project preview.
-
-For problems, check the [current release notes](releases/v1.0.0.md) and
-[open issues](https://github.com/LeValue/KMReader-Porting/issues). Report the app
-build from About, OS version, content format and steps to reproduce. For reader
-issues, include animation mode, direction, input method and whether the problem
-occurs at a chapter boundary. Remove credentials, account identifiers, private
-addresses and personal content before sharing logs or screenshots.
+Use the version from **Settings → About** when reporting a problem. Include
+the OS, file format and steps to reproduce. Remove credentials, private URLs
+and personal content before sharing a log or screenshot.
+[Report a problem](https://github.com/LeValue/KMReader-Porting/issues)

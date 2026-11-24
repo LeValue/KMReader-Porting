@@ -24,6 +24,9 @@ class UniversalDeliveryTest(unittest.TestCase):
             self.assertEqual(feed['packages']['android']['sha256'], hashlib.sha256(apk.read_bytes()).hexdigest())
             self.assertEqual(feed['packages']['windows']['size'], windows.stat().st_size)
             self.assertTrue(feed['packages']['android']['url'].endswith('/v1.0.0-candidate.5/'+apk.name))
+            stable_apk = apk.rename(apk.with_name('KMReader-1.0.0-android-universal.apk'))
+            stable_feed = update_manifest('x/y', 'v1.0.0', 'a'*40, '1.0.0', '48', [stable_apk])
+            self.assertTrue(stable_feed['packages']['android']['url'].endswith('/v1.0.0/'+stable_apk.name))
             arm = Path(root) / 'KMReader-1.0.0-android-armv7-preview.apk'; arm.write_bytes(b'ARM32')
             self.assertEqual(set(update_manifest('x/y','tag','a'*40,'1.0.0',35,[arm])['packages']), {'android-armeabi-v7a'})
 

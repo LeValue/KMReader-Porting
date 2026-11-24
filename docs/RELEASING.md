@@ -1,206 +1,41 @@
-# Build, sign and distribute verified previews
+# Build and release
 
-The stable publication target is **1.0.0**. Existing drafts are retained.
-Public candidates supply the in-app update feed and remain prereleases until the [1.0 readiness work](ROADMAP_1.0.md) is complete.
+Use the pinned [development toolchain](DEVELOPMENT.md). Keep
+`pubspec.yaml` and `lib/core/app_version.dart` in sync, and increase the build
+number for every distributed update. GitHub CI embeds the exact source commit in
+both platform builds. Update the notes in [releases](releases/).
 
-Current source and [public candidate](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.17) are **1.0.0+47**. Existing 0.9.x releases remain in draft;
-this procedure does not publish it automatically. See [development](DEVELOPMENT.md)
-for prerequisites and [testing](TESTING.md) for the required checks.
+Run **Build and test** on the release source. It builds the unsigned Android
+APK and portable Windows bundle, including the Kindle worker, matching source
+and notices. Use the artifacts from that run.
 
-For a local diagnostic build, use `flutter build apk --debug`. It uses the debug
-key and cannot update the signed Preview package. For Windows release builds,
-run `./tool/build_kindle_worker.ps1`, then `flutter build windows --release`; copy
-`artifacts/kindle-dist/KMReader-Kindle` to `build/windows/x64/runner/Release/kindle`,
-the matching `artifacts/kindle-delivery/*-source.zip` beside the executable, and
-`assets/kindle/NOTICE.md` as `Kindle-NOTICE.md`. Distribute the entire Release
-directory, including native DLLs, data and the MSVC runtime. CI does all of this.
+## Package
 
-This is a **maintainer procedure**. Contributors can use local debug builds
-without access to the project’s signing key or release permissions. See
-[development](DEVELOPMENT.md) and [contributing](../CONTRIBUTING.md).
+1. Create an empty release draft targeting the verified commit. Use
+   `v<version>` for a stable release or `v<version>-candidate.<number>` for a
+   prerelease.
+2. Sign the Android APK locally with the existing distribution key. Keep
+   `dev.levalue.kmreader.preview` so Android can update existing installations.
+   Verify the APK with `apksigner verify --verbose --print-certs`, compare the
+   certificate to `tool/preview-certificate.sha256`, and check alignment with
+   Build Tools 36 `zipalign -c -P 16 4`.
+3. Stage the signed APK delta from a clean checkout. The universal APK input
+   uses the local staging filename `KMReader-<version>-android-universal-preview.apk`.
 
-## Retain the Android signing identity
+   ```sh
+   GH_REPO=LeValue/KMReader-Porting VERIFIED_RUN=<run-id> DRAFT_TAG=<tag> \
+     ANDROID_UNIVERSAL=true python3 tool/stage_draft_deltas.py <signed-apk-dir> \
+     --output <delivery-inputs.json>
+   ```
 
-Use the existing ignored `android/key.properties` and its existing private
-keystore. Do not generate a replacement key for an update. The properties are
-`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; keep their values out of
-Git, PRs, logs and CI. Without this file release output is unsigned; the debug
-key is never substituted. The expected public certificate SHA256 is in
-`tool/preview-certificate.sha256`. Preserve the Preview package ID
-`dev.levalue.kmreader.preview`, the certificate and the increasing version code
-to retain upgrade/data compatibility. The diagnostic app has a separate ID.
+4. Dispatch **Build and test** on the same source with `deliver_draft=true`,
+   the chosen draft tag, the verified run, `android_universal=true`,
+   `apk_deltas=true` and the blob and checksum from the staging output.
+   Delivery verifies source, signature, package IDs and artifact checksums.
+5. Download the draft APK, Windows ZIP, `kmreader-update.json` and
+   `SHA256SUMS.txt`. Check the downloaded hashes, package contents and
+   manifest URLs before publishing.
 
-## New distributed update
-
-The version in `pubspec.yaml` and `lib/core/app_version.dart` must agree.
-Increment the Android build number for every published update and add notes at
-`docs/releases/v<version>-preview.1.md`. `tool/preview_metadata.py` checks these
-values before CI builds or publication.
-
-Commit the source, then run `python3 tool/prepare_build_metadata.py` to generate
-the embedded source/version record. CI does this for both platforms too.
-Build Android with the retained, private signing configuration. The key is not
-uploaded to CI. Produce complete APKs for all three architectures:
-
-```sh
-# Chaquopy has explicit ABI filters: build one complete APK at a time.
-# Save each output before building the next architecture.
-mkdir -p artifacts/signed-preview
-for target in android-arm64 android-arm android-x64; do
-  env 'ORG_GRADLE_PROJECT_force-version-code-ignoring-abi=true' \
-    ORG_GRADLE_PROJECT_kmreaderPreview=true \
-    flutter build apk --release --target-platform "$target"
-  cp build/app/outputs/flutter-apk/app-release.apk "artifacts/signed-preview/$target.apk"
-done
-```
-
-The explicit version-code flag keeps each architecture on the same increasing
-build number, preserving upgrade compatibility with the older universal APK.
-Do not use `--split-per-abi`: AGP splits conflict with Chaquopy ABI filters.
-Check
-the actual `aapt2 dump badging` output with `tool/preview_metadata.py --apk-badging
-<file> --abi <abi>`.
-
-Verify each APK's retained certificate, package ID, version, non-debuggable mode
-and 16 KiB ZIP alignment. Stage each complete APK with `tool/stage_preview.py`;
-retain its returned source commit, Git blob and SHA256. Staging requires a clean
-checkout and embedded provenance matching HEAD; the publisher checks that record
-again against the source-matched CI revision. The tool rejects a payload over its
-request budget. Do not commit APKs or split one APK into upload fragments.
-
-Create an empty draft for the versioned tag, targeting the exact source commit.
-Run the ordinary build/test workflow on that source. The [eight CI jobs](TESTING.md#ci-and-devices)
-must pass, including both release builds, host tests, native integrations and
-service tests. Each independent job can be retried after a runner or transport failure.
-
-Dispatch `ci.yml` on `main` with `publish_preview=true`, the three staged blob/hash
-pairs, and optionally `verified_run` for that completed CI run. When reusing a
-run, duplicate build jobs are skipped and `tool/verify_preview_ci.py` requires
-the exact commit, repository, main branch, expected workflow, successful run and
-all required job names. Artifacts come from that verified run. Without reuse,
-the dispatch runs all eight jobs.
-
-The publisher repeats APK integrity checks, packages the matching Windows
-artifact with its native engines and MSVC runtime, verifies uploaded asset
-digests, and only then publishes the draft. It refuses an existing release or
-a nonempty draft. Existing published assets are preserved.
-
-After publication, download every asset, verify `SHA256SUMS.txt` and GitHub's
-asset digests, compare the Android files with the locally verified APKs and all
-Windows bundle files with the successful CI artifact. Update README download
-links and `docs/VALIDATION.md` with the exact source, runs and observed limits.
-A development preview must not be presented as verified full upstream parity.
-
-For candidate delivery, `ci.yml` also supports `deliver_draft=true`,
-an existing empty `v<version>`, `v<version>-candidate.<number>` or historical
-`v<version>-epub-candidate.<number>` draft, `verified_run`, and
-the three staged APK blob/hash pairs. This skips compilation and public
-publication. `tool/deliver_draft.py` requires successful Android/Windows/native
-CI, unchanged application/runtime sources, matching APK provenance, signatures,
-architecture, alignment and exact bytes. It packages the matching Windows CI
-artifact and verifies GitHub asset digests. The existing draft must target the
-verified commit and remains unpublished. Delivery-only tooling may be added
-after that verified runtime commit; runtime changes require fresh complete CI.
-
-
-## Preserve existing deliverables
-
-Never overwrite a nonempty draft, mutate a published asset, move an existing tag
-or delete a branch/release as cleanup. The [inventory](REPOSITORY_AUDIT.md) records
-all refs and release assets before repository organization. Any future deletion requires a fresh
-inventory of exact refs, unique commits, source provenance, digests and retained
-replacement builds presented to the maintainer first. No such deletion is part
-of this change. CI builds do not require uploading the Android signing key.
-
-## Stable 1.0 publication
-
-First close the scope audits, functional gaps and target acceptance in the
-[porting closure matrix](PARITY.md), then complete its R-01–R-05 release checks.
-The seven candidate changes and successful package delivery do not establish
-complete functional parity. Keep unresolved requirements visible.
-
-The source version is now 1.0.0+47. The preview tool remains useful for identity,
-ABI, provenance and signature checks. Its `v1.0.0-preview.1` notes entry points to
-[the stable-version notes](releases/v1.0.0.md). Do not run the preview publisher to
-represent a stable 1.0 release: it deliberately generates a preview tag/prerelease.
-
-After the final source has passed all required jobs, verify the three signed
-APKs and the complete matching Windows archive as above. Record the actual
-upgrade/Kindle delivery/Windows responsiveness acceptance in `VALIDATION.md`.
-The existing `v1.0.0` draft retains build 30. Prepare a **new**, empty
-`v1.0.0-candidate.N` draft targeting the next verified source, attach those exact
-verified binaries, runtime source/notices and SHA256SUMS, then download and check
-all asset hashes. Preserve every existing draft/tag/asset. Stable promotion is a
-separate explicit publication step (`draft=false`, `prerelease=false`) after
-reviewing the concrete draft and its evidence. No public release is created by
-an ordinary main-branch push.
-
-Build 31 is already delivered to [candidate.2](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-79ed866c31844ad0e3f8)
-from `2f3c6385bdd6e2c2a25e65b192af6a0e92a0dc69`. Preserve it and the build 30 draft;
-choose the next unused candidate number for a subsequent update.
-
-Build 33 is delivered to [candidate.3](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-e4981f585158c367246b) from verified runtime
-`e9a7712da95c227a86e5d613409e2c3dda2a7949`, including all three locally signed
-Android APKs and the matching Windows bundle. [Delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/42612973171)
-and all downloaded hashes passed; all 710 Windows files match CI. The original
-certificate/package are retained. Preserve candidate.3 and all earlier assets;
-a subsequent delivery must use the next unused candidate number.
-
-Build 34 is delivered to [candidate.4](https://github.com/LeValue/KMReader-Porting/releases/tag/untagged-d2f6d537abce94cd6b9a), with a universal signed Android
-APK and matching Windows bundle. The universal APK is compiled by source-matched
-CI and signed locally; all ZIP payloads are verified against that CI input. The
-original certificate and package are retained. Delivery gained an opt-in
-`android_universal=true` workflow input: stage the canonical
-`KMReader-<version>-android-universal-preview.apk` with `ANDROID_UNIVERSAL=true`,
-then pass the staged inputs to the same candidate workflow. It validates exactly
-ARM64/ARMv7/x86_64 together; default delivery still requires three separate APKs.
-No duplicate workflow or private-key upload is needed. Source, native CI,
-provenance, signatures, alignment and digest gates remain mandatory.
-
-## In-app update feed (build 35 onward)
-
-The maintainer chose public update files. Deliver a new empty candidate through
-all existing CI/signing/digest gates first, then publish that verified candidate
-with `gh release edit <candidate-tag> --draft=false --prerelease --latest=false`.
-Do not publish stable 1.0, modify older assets or change repository visibility.
-The delivery script adds `kmreader-update.json` (schema 1, source/version/build,
-package URL/bytes/SHA256) and includes it in SHA256SUMS. URLs use the final tag,
-not GitHub's temporary untagged draft URL. Keep the manifest and packages public;
-no account token is requested or stored by the updater.
-
-Users install build 35 manually once, then choose Settings → About → App updates.
-The app discovers newer public releases containing this manifest, including
-candidates; it rejects drafts, nonincreasing builds, version downgrades, unrelated
-hosts/tags, corrupt downloads and incompatible package provenance. Android also
-verifies the installed package's signer and uses the system installer; allow
-installation from KMReader once and confirm each update as Android requires.
-Windows validates the archive off the UI thread, starts the bundled PowerShell
-helper, closes normally and reopens in the original working directory. It keeps
-user files, backs up replaced files and restores them on replacement failure.
-A writable portable installation is required; protected directories report an
-error without closing the application. Backups remain under the app support
-`updates` directory. Windows packages are still not Authenticode signed.
-
-Run `flutter test test/app_updates_test.dart test/app_update_page_test.dart` and
-(on Windows) `powershell -NoProfile -File tool/test_windows_updater.ps1`; complete
-CI runs both plus the platform builds. Physical Android install approval and
-Windows restart/upgrade acceptance remain AT-01; automation does not close them.
-
-Build 35 is delivered and public at [candidate.5](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.5), from verified source
-`69a127d50354aed80983d72988cde186d611c8b2`. [CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43588228905) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43590146370) passed; all four downloaded assets
-and 711 Windows files were verified. Original Android signing identity and
-all older drafts/assets are retained. Physical upgrade acceptance remains open.
-
-
-Build 36 is public at [candidate.6](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.6) from source `e186e60a6034027f8e95ba1100a75d1aa83b9fc2`.
-[Complete CI](https://github.com/LeValue/KMReader-Porting/actions/runs/43638043777) and [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/43639902577) passed; all four assets,
-all 711 Windows payload files and the public update feed were verified.
-The Komga companion is versioned under `tool/komga_admin` in that same source tag;
-it is installed once on the Debian server, separately from client packages.
-[Setup and acceptance](KOMGA_LIBRARY_MANAGEMENT.md) remain explicit.
-
-
-Build 37 is public at [candidate.7](https://github.com/LeValue/KMReader-Porting/releases/tag/v1.0.0-candidate.7), source `9b03716a6204a8696b861531791150e48e5b5eef`.
-[Source CI](https://github.com/LeValue/KMReader-Porting/actions/runs/44108656435), [delivery](https://github.com/LeValue/KMReader-Porting/actions/runs/44114394009), all four assets and all 711 Windows
-files were verified. Older Android updater failures can bootstrap with the direct
-signed APK without uninstalling; installed-device approval remains AT-01.
+The Android signing key, account data and machine diagnostics belong in
+private storage. Publish the draft only after checking the assets. The
+portable Windows archive does not have an Authenticode signature.

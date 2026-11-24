@@ -74,7 +74,7 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
           });
         }
         if (Platform.isWindows && mounted) {
-          await openKindleChrome(_attempt!.url);
+          await _openBrowser();
         }
       } else {
         throw const KindleFailure('platform_unsupported');
@@ -128,9 +128,9 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
   }
 
   Future<void> _pasteCallback() async {
-    final value = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
-    final uri = Uri.tryParse(value.trim());
     try {
+      final value = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+      final uri = Uri.tryParse(value.trim());
       if (uri == null || _attempt?.callback(uri) == null) {
         throw const KindleFailure('login_callback');
       }
@@ -146,19 +146,36 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
     }
   }
 
+  Future<void> _openBrowser() async {
+    final url = _attempt?.url;
+    if (url == null) return;
+    try {
+      await openKindleChrome(url);
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    }
+  }
+
+  String _errorMessage(BuildContext context) => tr(context, switch (_error) {
+    KindleFailure(code: 'browser_unavailable') => 'Chrome could not be opened.',
+    KindleFailure(code: 'login_callback' || 'login_state') =>
+      'Copy the full sign-in address from Chrome after signing in.',
+    _ => 'Could not connect to Kindle. Try signing in again.',
+  });
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(tr(context, 'Connect Kindle'))),
     body: _error != null
         ? Center(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(CupertinoIcons.exclamationmark_triangle, size: 36),
                   const SizedBox(height: 16),
-                  Text(_error.toString(), textAlign: TextAlign.center),
+                  Text(_errorMessage(context), textAlign: TextAlign.center),
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: _start,
@@ -172,28 +189,31 @@ class _KindleLoginPageState extends State<KindleLoginPage> {
             children: [
               if (_attempt != null && Platform.isWindows)
                 Center(
-                  child: Padding(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.all(32),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.open_in_browser, size: 40),
                         const SizedBox(height: 20),
-                        const Text(
-                          'Completa il login e l’OTP nel tuo Chrome abituale. Poi copia l’indirizzo completo dalla barra di Chrome e incollalo qui, anche se Amazon mostra una pagina di servizio non disponibile.',
+                        Text(
+                          tr(
+                            context,
+                            'Sign in to Amazon in Chrome, then copy the full address from the address bar.',
+                          ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
                         FilledButton.icon(
                           onPressed: _busy ? null : _pasteCallback,
                           icon: const Icon(Icons.content_paste),
-                          label: const Text('Completa con l’indirizzo copiato'),
+                          label: Text(
+                            tr(context, 'Continue with copied address'),
+                          ),
                         ),
                         TextButton(
-                          onPressed: _busy
-                              ? null
-                              : () => openKindleChrome(_attempt!.url),
-                          child: const Text('Riapri Chrome'),
+                          onPressed: _busy ? null : _openBrowser,
+                          child: Text(tr(context, 'Reopen Chrome')),
                         ),
                       ],
                     ),

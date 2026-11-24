@@ -26,16 +26,7 @@ def source_bundle(repository, dependency, output, version, metadata):
         repository / "tool/kindle_personal_cli.py",
         repository / "tool/package_kindle_prototype.py",
         repository / ".github/workflows/ci.yml",
-        repository / "archive/kindle-prototype/kindle-prototype.yml",
-        repository / "archive/kindle-prototype/README.md",
-        repository / "archive/kindle-prototype/RELEASE_NOTES.md",
-        repository / "archive/README.md",
-        repository / "tool/README.md",
-        repository / "docs/README.md",
         repository / "docs/KINDLE_RUNTIME.md",
-        repository / "docs/DEVELOPMENT.md",
-        repository / "docs/TESTING.md",
-        repository / "docs/RELEASING.md",
         repository / "assets/kindle/COPYING",
         repository / "assets/kindle/NOTICE.md",
         *sorted((repository / "tool/kindle_android").glob("*.py")),
@@ -125,9 +116,6 @@ def main():
     stage.mkdir(parents=True)
     shutil.copytree(args.binary_directory, stage / "KMReader-Kindle")
     shutil.copyfile(prototype / "README.md", stage / "LEGGIMI.md")
-    shutil.copyfile(
-        repository / "archive/kindle-prototype/README.md", stage / "PROTOTYPE-GUIDE.md"
-    )
     shutil.copyfile(prototype / "Avvia-Kindle.cmd", stage / "Avvia-Kindle.cmd")
     shutil.copyfile(dependency / "COPYING", stage / "LICENSE")
     shutil.copyfile(repository / "LICENSE", stage / "MIT-LICENSE")
@@ -145,7 +133,6 @@ def main():
         raise ValueError(
             "Packaged executable must pass DPAPI, both browsers and offline KFX conversion"
         )
-    shutil.copyfile(args.smoke_report, stage / "verification.json")
     # Include installed distribution notices (also those of transitive runtime
     # dependencies). Node/Playwright notices are already included by collect-all.
     notices = stage / "THIRD_PARTY_LICENSES"

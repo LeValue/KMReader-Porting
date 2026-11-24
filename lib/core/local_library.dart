@@ -110,12 +110,14 @@ class LocalLibrary extends Repository {
   Future<Book> book(String id, {bool force = false}) async =>
       books.firstWhere((b) => b.id == id);
 
-  Future<void> _imports = Future.value();
-  Future<Book> importFile(XFile source) {
-    final work = _imports.then((_) => _importFile(source));
-    _imports = work.then<void>((_) {}, onError: (Object _) {});
+  Future<void> _mutations = Future.value();
+  Future<T> _mutate<T>(Future<T> Function() operation) {
+    final work = _mutations.then((_) => operation());
+    _mutations = work.then<void>((_) {}, onError: (Object _) {});
     return work;
   }
+
+  Future<Book> importFile(XFile source) => _mutate(() => _importFile(source));
 
   Future<Book> _importFile(XFile source) async {
     final suffix = p.extension(source.name).toLowerCase();
@@ -139,7 +141,14 @@ class LocalLibrary extends Repository {
       final digest = await sha256.bind(temporary.openRead()).first;
       final id = digest.toString();
       final existing = books.where((book) => book.id == id).firstOrNull;
-      if (existing != null) return existing;
+      if (existing != null) {
+        final copy = bookFile(existing);
+        if (!await copy.exists()) {
+          await temporary.rename(copy.path);
+          changed();
+        }
+        return existing;
+      }
       final info = await Isolate.run(
         () => _inspectLocal(temporary.path, extension),
       );
@@ -163,13 +172,13 @@ class LocalLibrary extends Repository {
     }
   }
 
-  Future<void> remove(Book book) async {
+  Future<void> remove(Book book) => _mutate(() async {
     // Only the content-addressed copy owned by this library is removed.
     final file = bookFile(book);
     if (await file.exists()) await file.delete();
     store.db.execute('DELETE FROM local_books WHERE id=?', [book.id]);
     changed();
-  }
+  });
 }
 
 Future<Json> _inspectLocal(String file, String extension) async {

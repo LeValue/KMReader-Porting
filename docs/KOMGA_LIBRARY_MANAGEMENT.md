@@ -1,7 +1,7 @@
 # Gestione remota Komga da KMReader
 
-Disponibile dalla build 36: **aggiungere nuovi contenuti, modificare informazioni e
-copertine, eliminare volumi**. La sostituzione di un file esistente è esclusa.
+Gli amministratori possono aggiungere volumi, modificare metadati e copertine
+ed eliminare file dal server. Il caricamento rifiuta i duplicati.
 Le funzioni richiedono un account amministratore Komga e una connessione attiva.
 I metadati utilizzano l'editor già presente, compresi i blocchi dei campi e il
 controllo di modifiche concorrenti. Le modifiche riguardano il catalogo Komga;
@@ -9,7 +9,7 @@ non riscrivono il contenuto dei file EPUB/PDF/archivio originali.
 
 ## Nell'app
 
-- **Impostazioni → Server → Aggiungi a Komga**: scegli libreria, cartella della
+- **Gestione libreria → Aggiungi a Komga**: scegli libreria, cartella della
   serie e file EPUB/PDF/CBZ/CBR. La cartella può essere nuova o già esistente,
   anche annidata (per esempio `Marvel/X-Men`), sempre relativa alla libreria.
   Il nome del file deve essere nuovo: un duplicato viene rifiutato.
@@ -27,9 +27,7 @@ non riscrivono il contenuto dei file EPUB/PDF/archivio originali.
   contenuto compaia nel catalogo. Se la richiesta di scansione fallisce,
   **Scansiona libreria** la ripete senza reinviare il file.
 
-## Copertine dalla build 37
-
-Le seguenti aggiunte sono disponibili dalla candidata pubblica 7/build 37:
+## Copertine
 
 - **Gestisci su Komga → Copertine disponibili**: anteprime, selezione della
   copertina attuale e ripristino di un'immagine già presente.
@@ -41,11 +39,9 @@ Le seguenti aggiunte sono disponibili dalla candidata pubblica 7/build 37:
   alternativa, eventualmente ereditandola dai volumi. Nessun'altra copertina viene
   eliminata automaticamente per forzare il ripristino.
 
-[Inventario dei percorsi e verifiche](COVER_PARITY.md).
-
 ## Perché serve un componente sul server
 
-Le API verificate di Komga **1.29.1 e 1.30.1** consentono di modificare metadati,
+Le API di Komga consentono di modificare metadati,
 caricare copertine e cancellare file. L'importazione dei libri di Komga usa
 invece file già presenti sul server. `tool/komga_admin/server.py` riceve nuovi
 file sulla VM Debian e richiede la scansione nativa. Non modifica Komga, non
@@ -96,12 +92,11 @@ o successivo. Non è necessario cambiare il database Komga. L’installazione
 dell’app Android/Windows non installa automaticamente questo servizio.
 
 1. Copia `tool/komga_admin/server.py` in `/opt/kmreader-admin/server.py`.
-   I file della candidata sono anche disponibili dal tag versionato
-   `v1.0.0-candidate.13` del repository, senza dipendenze pip:
+   I file del servizio sono nel tag `v1.0.0`, senza dipendenze pip:
 
    ```sh
    sudo install -d -m 0755 /opt/kmreader-admin /etc/kmreader-admin
-   curl --fail --location https://raw.githubusercontent.com/LeValue/KMReader-Porting/v1.0.0-candidate.13/tool/komga_admin/server.py -o /tmp/kmreader-admin-server.py
+   curl --fail --location https://raw.githubusercontent.com/LeValue/KMReader-Porting/v1.0.0/tool/komga_admin/server.py -o /tmp/kmreader-admin-server.py
    sudo install -m 0644 /tmp/kmreader-admin-server.py /opt/kmreader-admin/server.py
    ```
 
@@ -155,14 +150,3 @@ aggiuntiva verso il servizio. Configura nell'app l'indirizzo di quel frontend.
 Se usi già Nginx/Caddy con un dominio, aggiungi il percorso sul frontend esistente
 senza cambiare l'indirizzo nell'app. La configurazione del proxy dipende dalla
 rete effettiva della VM; non esporre direttamente la porta interna 8788.
-
-## Verifiche e limiti
-
-I test automatici usano librerie temporanee e utenti sintetici: permessi,
-proprietà delle ricevute, hash, symlink, duplicati, ripresa dopo pubblicazione,
-richiesta di scansione e trasferimento HTTP. Non cancellano libri personali.
-
-Ogni amministratore deve installare e configurare il servizio sul proprio server.
-Dopo il setup verificare con un file di prova: comparsa nel catalogo, modifica informazioni,
-nuova copertina, eliminazione confermata. Conservare librerie e credenziali
-esistenti; non pubblicare API key, password o percorsi privati nei log del progetto.

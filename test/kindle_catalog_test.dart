@@ -40,7 +40,7 @@ void main() {
         'The Dictionary of Lost Words',
         'Il mio dizionario',
         'Oxford Summer',
-        'sample EPUB',
+        'A Test Novel',
       ]) {
         expect(isKindleDictionary({'title': title}), isFalse, reason: title);
       }
@@ -86,7 +86,7 @@ void main() {
     store.cache(profile.id, 'kindle:catalog', {
       'items': [
         dictionary,
-        {'key': 'PDOC:novel', 'title': 'sample EPUB'},
+        {'key': 'PDOC:novel', 'title': 'A Test Novel'},
       ],
     });
     store.cacheBooks(profile.id, [
@@ -99,7 +99,7 @@ void main() {
     final saved = File('${directory.path}/retained.epub')
       ..writeAsStringSync('saved');
     final result = await repo.catalog('books');
-    expect(result.items.map((e) => e.book.title), ['sample EPUB']);
+    expect(result.items.map((e) => e.book.title), ['A Test Novel']);
     expect(store.cached(profile.id, 'book:$id'), isNull);
     expect(store.progress(profile.id, id)?['page'], 8);
     expect(saved.readAsStringSync(), 'saved');

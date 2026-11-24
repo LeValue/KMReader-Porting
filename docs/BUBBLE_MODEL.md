@@ -32,8 +32,3 @@ session and at most two pending requests. Results use a four-image memory cache;
 incognito calls bypass it. The worker releases native resources after one idle
 minute and when the account closes. No detection cache is written to disk.
 The option defaults off and is only invoked from the OCR screen.
-
-Tests compare ONNX outputs with stored source-network probes, execute the
-actual worker, check suppression/grouping and closure during decoding, and
-exercise opt-in, pending guards, incognito and OCR fallback at mobile/desktop
-widths. Native CI runs the real model on Android and Windows as well.

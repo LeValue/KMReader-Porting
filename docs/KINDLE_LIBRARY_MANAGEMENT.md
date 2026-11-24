@@ -1,26 +1,8 @@
-# Gestione remota dei documenti personali Kindle
+# Gestire i documenti Kindle
 
-Disponibile dalla **build 33**, inclusa nella candidata corrente. La gestione riguarda i documenti
-personali **PDOC**; gli acquisti Amazon (`EBOK`) non possono raggiungere le
-mutazioni. La voce **F-13** della [matrice](PARITY.md) resta aperta per la copertura
-residua e l'accettazione finale sulle app installate. Build e release precedenti,
-cronologia, componenti Kindle attivi e firma Android restano conservati.
-
-## Aggiunta e destinazione
-
-**Invia a Kindle** distingue due operazioni, verificate sull'account reale:
-
-- **Aggiungi alla libreria Kindle**, predefinita: archiviazione cloud, nessun
-  dispositivo obbligatorio; accesso dai dispositivi compatibili dell'account.
-- Interruttore disattivato: **Invia solo ai dispositivi selezionati**, con almeno
-  una destinazione. Il documento non entra nel cloud e non viene sincronizzato
-  o condiviso da Amazon. L'utente ha confermato ricezione e apertura sul Kindle
-  Android scelto nella prova.
-
-Le selezioni precedenti non vengono inoltrate in modalità libreria. Un errore
-nel recupero dei dispositivi non impedisce l'aggiunta al cloud. Sessione di lettura
-e credenziali di invio persistenti vengono riutilizzate senza un nuovo accesso
-per ogni operazione. [Protocollo e prove di invio](KINDLE_IMPORT.md).
+KMReader può gestire i documenti personali del proprio account Amazon.it.
+Per inviarne uno, usa [Invia a Kindle](KINDLE_IMPORT.md).
+Gli acquisti Amazon sono disponibili per la lettura secondo il supporto del servizio.
 
 ## Modifica ed eliminazione
 
@@ -102,74 +84,8 @@ modificato/ambiguo e CFI non supportati impediscono il ritiro dell'originale.
 Questi casi restano da completare: non vengono considerati riusciti e non sono
 spostati automaticamente tra le funzionalità future della 1.0.
 
-## Registro e recupero
+## Recupero
 
-Il registro `kindle:management` è separato per account. I backup sono nella
-cartella privata `<account>/kindle-management/`, scritti con temporaneo e rinomina;
-per una sostituzione viene conservata anche la copia del sorgente con SHA256.
-Non vengono puliti automaticamente. Backup, identificativi personali, cookie,
-chiavi e contenuto dei libri non fanno parte dei log o degli artefatti CI.
-Le prove personali mantengono il registro sul PC, protetto con DPAPI.
-
-| Stato | Significato e recupero |
-|---|---|
-| `backed_up` | Backup completato, mutazione non iniziata; annullabile. |
-| `delete_submitting`, `delete_uncertain`, `delete_verifying` | Verifica senza scritture; nuovo tentativo solo con l'azione esplicita e i controlli di proprietà/revisione. |
-| `replacement_submitting`, `replacement_uncertain` | Consegna da controllare; nessun nuovo invio automatico. |
-| `replacement_migration_required` | Copia accettata; ripristino da completare. |
-| `migration_submitting`, `migration_uncertain` | Scrittura dello stato da verificare, senza replay. |
-| `progress_restored` | Stato cloud verificato e progresso locale ripristinato; originale ancora presente. |
-| `replacement_retiring`, `replacement_retirement_uncertain`, `replacement_retirement_verifying` | Ritiro avviato: verifica senza replay; eventuale tentativo esplicito riusa copia e ripristino verificato. |
-| `done` | Cancellazione confermata; per una sostituzione, anche ripristino verificato. |
-| `rejected` | Mutazione non iniziata o richiesta rifiutata da Amazon; originale conservato. |
-| `superseded` | Tentativo di cancellazione conservato nello storico e sostituito da un nuovo tentativo esplicito. |
-
-Download/outbox pendenti bloccano la gestione dello stesso documento. Un'operazione
-aperta impedisce mutazioni concorrenti, anche dopo il riavvio. La chiusura di un
-account impedisce di pubblicare risultati tardivi nella sua cache.
-
-## Requisiti e prove
-
-| ID | Requisito | Situazione nella sorgente 33 |
-|---|---|---|
-| K-01 | Invio locale con sessione persistente e modalità distinte | Libreria e solo dispositivo verificati; ricezione/apertura Android confermata dall'utente. Resta accettazione UI installata su entrambe le piattaforme. |
-| K-02 | Eliminazione cloud PDOC | Cancellazione reale del solo PDOC sintetico confermata da Amazon e dall'assenza nel catalogo; recupero del tentativo precedente senza nuovo upload. Resta accettazione UI installata. |
-| K-03 | Metadati e copertina | Recupero dall'app e modifica EPUB su copia implementati; titolo e copertina convertiti verificati sull'account reale. Nessun aggiornamento in-place presunto; resta accettazione UI. |
-| K-04 | Ripristino progresso e segnalibri | Punto di lettura e segnalibri riletti dal cloud sulla nuova edizione; completamento e data conservati nella prova reale. Test conferma, risposta persa, conflitti, rollback e ripresa offline passati. Restano PDF/note/evidenziazioni e accettazione sui dispositivi. |
-| K-05 | Registro durevole e recupero | Piano salvato prima delle mutazioni; invii incerti non ripetuti, originale ritirabile solo dopo verifica. Prova personale conserva backup/registro sul PC tra processi. |
-| K-06 | Accettazione Android/Windows/altro Kindle | Servizi provati dal desktop e consegna Kindle Android confermata; restano UI aggiornata e ripresa su un secondo dispositivo dopo sostituzione. |
-
-Prove locali: [modifica/eliminazione](../test/kindle_management_test.dart),
-[rimappatura](../test/kindle_edition_migration_test.dart),
-[ripristino e ritiro](../test/kindle_replacement_test.dart).
-[Prova reale conclusa 42514185821](https://github.com/LeValue/KMReader-Porting/actions/runs/42514185821)
-sulla sorgente `e9a7712da95c227a86e5d613409e2c3dda2a7949`: nuova edizione con titolo/copertina
-verificati, punto di lettura e segnalibri confermati dal cloud, completamento/data
-conservati, cancellazione dell'originale riconosciuta da Amazon e assenza verificata.
-Il caricamento iniziale è stato effettuato una sola volta nella
-[prova 42506920429](https://github.com/LeValue/KMReader-Porting/actions/runs/42506920429);
-[42509219752](https://github.com/LeValue/KMReader-Porting/actions/runs/42509219752)
-ha ripristinato lo stato sulla nuova copia ma si era fermata al ritiro per il difetto
-dei cookie. Il recupero finale ha eseguito **0 upload, 0 scritture di annotazioni e
-1 cancellazione**, dopo aver ricontrollato proprietà e stato. I tentativi falliti
-restano nella cronologia e non sono contati come prove riuscite.
-
-[Riapertura in un nuovo processo 42514327712](https://github.com/LeValue/KMReader-Porting/actions/runs/42514327712)
-passata con **0 upload, 0 cancellazioni e 0 scritture di annotazioni**: vecchia
-copia assente, copia aggiornata presente, progresso/segnalibri cloud ancora
-confermati e registro `done`.
-
-Tutte queste prove riguardano lo stesso documento sintetico generato dalla prova
-di aggiunta al cloud. Il guard HTTP impedisce modifiche ai libri preesistenti
-dell'utente. [Altre evidenze](KINDLE_IMPORT.md).
-
-## Fonti del protocollo
-
-Il JavaScript MyCD attuale di Amazon contiene `ajax_fmyx`, `DeleteContent`,
-`KindlePDoc`, form e header `MYX`:
-[risorsa pubblica verificata](https://m.media-amazon.com/images/I/91XIVcpdV8L._RC%7C81vusVJblyL.js,01K8GZbiiAL.js_.js).
-Il [riferimento storico](https://github.com/fatso83/amazon_fiona_js/blob/4092714156b31a3fecfa46c2ac552df613e395c7/TODO.md)
-resta utile per il contesto, ma il suo vecchio endpoint non viene considerato attuale.
-Lo scambio cookie segue il [client Audible](https://github.com/mkb79/Audible/blob/master/src/audible/auth.py),
-adattato al dominio Kindle Amazon.it. La scrittura XML delle annotazioni è stata
-verificata su un PDOC sintetico con GUID reale: l'alias `_LATEST_` non viene usato.
+Se una sostituzione è interrotta, riapri la gestione del documento per riprendere
+dallo stato salvato. In caso di esito incerto, verifica nel catalogo prima di
+ripetere un invio o un’eliminazione.

@@ -37,6 +37,11 @@ migrate_working_dir/
 *.jks
 *.keystore
 *.p12
+*.pfx
+*.dpapi
+.env
+.env.*
+!.env.example
 
 # Symbolication related
 app.*.symbols

@@ -95,8 +95,7 @@ class MainActivity : FlutterFragmentActivity() {
             } else if (call.method == "getEpubWebViewConfiguration") {
                 // Huawei's Android 10 graphics stack can reject the offscreen
                 // SurfaceProducer buffers while WebView's DOM remains healthy.
-                // Direct hybrid composition keeps hardware-accelerated text
-                // visible on the verified Android phone configuration.
+                // Direct hybrid composition avoids that offscreen surface.
                 val diagnostic = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
                     packageName == "dev.levalue.kmreader.epubdiagnostic"
                 val diagnosticMode = if (diagnostic) intent.getStringExtra("route") else null

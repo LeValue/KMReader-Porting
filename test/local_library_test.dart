@@ -41,6 +41,22 @@ void main() {
   }
 
   test(
+    'reimport restores a missing copy without losing reading progress',
+    () async {
+      final source = XFile(comic().path);
+      final book = await library.importFile(source);
+      library.setProgress(book, 2);
+      await library.bookFile(book).delete();
+
+      final restored = await library.importFile(source);
+
+      expect(restored.id, book.id);
+      expect(library.books.single.page, 2);
+      expect(await LocalComicPages(library.bookFile(restored)).page(2), [2]);
+    },
+  );
+
+  test(
     'local comics import once, survive reopening and sort pages naturally',
     () async {
       final original = comic();

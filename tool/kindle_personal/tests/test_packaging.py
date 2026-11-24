@@ -68,13 +68,12 @@ class SourcePackageTest(unittest.TestCase):
                     "tool/build_kindle_worker.ps1",
                     "tool/kindle_android/kmreader_kfx.py",
                     "android/app/build.gradle.kts",
-                    "archive/kindle-prototype/kindle-prototype.yml",
-                    "archive/kindle-prototype/README.md",
                     "assets/kindle/NOTICE.md",
                     "assets/kindle/COPYING",
                 ):
                     self.assertEqual(bundle.read(name), files[name].encode("utf-8"))
                 self.assertNotIn(".github/workflows/kindle-prototype.yml", bundle.namelist())
+                self.assertFalse(any(name.startswith("archive/") for name in bundle.namelist()))
                 self.assertFalse(
                     any(b"PRIVATE_" in bundle.read(name) for name in bundle.namelist())
                 )

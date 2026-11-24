@@ -1,9 +1,5 @@
 # Development
 
-The current source is the **1.0.0+39 candidate** in both `pubspec.yaml` and
-`lib/core/app_version.dart`, based on the working 0.9.1 baseline. See the
-[release notes](releases/v1.0.0.md) and [readiness work](ROADMAP_1.0.md).
-
 ## Prerequisites
 
 - Flutter **3.47.8**, Dart **3.13.7** (use the pinned Flutter SDK).
@@ -32,9 +28,7 @@ flutter run -d <android-device-id>
 
 Regenerate `assets/build/source.json` with `prepare_build_metadata.py` before
 building a new checkout; this generated file embeds the exact source/version.
-Distributed builds must pass the clean-source CI/signing gates in
-[releasing](RELEASING.md). Build 35 is the first public in-app update bootstrap;
-future distributed builds need a higher build number.
+See [releasing](RELEASING.md) for publication requirements.
 
 On Windows, use `flutter run -d windows`. Kindle conversion also needs the
 separate worker: run `./tool/build_kindle_worker.ps1`, then copy
@@ -59,8 +53,7 @@ Never copy signing material or local account data into Git.
 | `third_party/` | Three locally patched dependency overrides; see each `PORTING.md` |
 | `test/`, `integration_test/`, `test_driver/` | Host tests and actual device/WebView checks |
 | `tool/` | [Active build, runtime, diagnostic and release tools](../tool/README.md) |
-| `docs/` | [Current guides and versioned evidence](README.md) |
-| `archive/` | Superseded standalone workflow, research and browser experiments |
+| `docs/` | [User and developer guides](README.md) |
 
 Before moving Python files, read the
 [Kindle dependency map](KINDLE_RUNTIME.md). Keep generated output in ignored

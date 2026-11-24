@@ -2167,5 +2167,41 @@
   "Example: Marvel/X-Men": {
     "en": "Example: Marvel/X-Men",
     "it": "Esempio: Marvel/X-Men"
+  },
+  "Could not import this file.": {
+    "en": "Could not import this file.",
+    "it": "Impossibile importare questo file."
+  },
+  "Could not open the file picker.": {
+    "en": "Could not open the file picker.",
+    "it": "Impossibile aprire il selettore dei file."
+  },
+  "The imported copy is missing. Select the original file to restore it.": {
+    "en": "The imported copy is missing. Select the original file to restore it.",
+    "it": "La copia importata è mancante. Seleziona il file originale per ripristinarla."
+  },
+  "Chrome could not be opened.": {
+    "en": "Chrome could not be opened.",
+    "it": "Impossibile aprire Chrome."
+  },
+  "Copy the full sign-in address from Chrome after signing in.": {
+    "en": "Copy the full sign-in address from Chrome after signing in.",
+    "it": "Dopo l’accesso, copia l’indirizzo completo da Chrome."
+  },
+  "Could not connect to Kindle. Try signing in again.": {
+    "en": "Could not connect to Kindle. Try signing in again.",
+    "it": "Impossibile collegare Kindle. Riprova ad accedere."
+  },
+  "Sign in to Amazon in Chrome, then copy the full address from the address bar.": {
+    "en": "Sign in to Amazon in Chrome, then copy the full address from the address bar.",
+    "it": "Accedi ad Amazon in Chrome, poi copia l’indirizzo completo dalla barra degli indirizzi."
+  },
+  "Continue with copied address": {
+    "en": "Continue with copied address",
+    "it": "Continua con l’indirizzo copiato"
+  },
+  "Reopen Chrome": {
+    "en": "Reopen Chrome",
+    "it": "Riapri Chrome"
   }
 }

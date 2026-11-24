@@ -82,7 +82,7 @@ def update_manifest(repository, tag, source, version, build, files):
     packages = {}
     for file in files:
         if file.suffix == '.apk':
-            label = file.name.split('-android-', 1)[1].split('-preview.apk', 1)[0]
+            label = file.stem.split('-android-', 1)[1].removesuffix('-preview')
             platform = {'universal': 'android', 'arm64': 'android-arm64-v8a',
                         'armv7': 'android-armeabi-v7a', 'x64': 'android-x86_64'}[label]
         else:
@@ -113,10 +113,11 @@ def main():
         delta_base = base_directory / 'app-release.apk'
         validate_provenance(apk_provenance(delta_base), source, version, build)
     files = []
+    suffix = '' if release['tag_name'] == 'v' + version else '-preview'
     for prefix, label, abi in android_variants(os.environ.get('ANDROID_UNIVERSAL', '').lower() == 'true'):
-        target = output / f'KMReader-{version}-android-{label}-preview.apk'
+        target = output / f'KMReader-{version}-android-{label}{suffix}.apk'
         if args.apk_directory:
-            local = args.apk_directory / target.name
+            local = args.apk_directory / f'KMReader-{version}-android-{label}-preview.apk'
             if not local.is_file():
                 raise ValueError('Missing locally signed APK: ' + label)
             shutil.copyfile(local, target)
@@ -170,7 +171,7 @@ def main():
     if ((bundle / 'data/flutter_assets/assets/epub/reader.js').read_bytes().replace(b'\r\n', b'\n') !=
             (ROOT / 'assets/epub/reader.js').read_bytes().replace(b'\r\n', b'\n')):
         raise ValueError('Unexpected Windows reader assets')
-    windows = output / f'KMReader-{version}-windows-x64-preview.zip'
+    windows = output / f'KMReader-{version}-windows-x64{suffix}.zip'
     with zipfile.ZipFile(windows, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         for path in sorted(bundle.rglob('*')):
             if path.is_file():
