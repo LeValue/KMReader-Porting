@@ -47,13 +47,15 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
         try {
           await library.importFile(file);
         } on FormatException catch (error) {
-          if (mounted)
+          if (mounted) {
             errors.add('${file.name}: ${tr(context, error.message)}');
+          }
         } catch (_) {
-          if (mounted)
+          if (mounted) {
             errors.add(
               '${file.name}: ${tr(context, 'Could not import this file.')}',
             );
+          }
         }
       }
       if (mounted && errors.isNotEmpty) showError(context, errors.join('\n'));
@@ -67,11 +69,12 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
   Future<void> _open(Book book) async {
     final file = library.bookFile(book);
     if (!await file.exists()) {
-      if (mounted)
+      if (mounted) {
         showError(
           context,
           'The imported copy is missing. Select the original file to restore it.',
         );
+      }
       return;
     }
     if (!mounted) return;
