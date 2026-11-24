@@ -2,8 +2,9 @@
 
 Download the Android APK or Windows ZIP from [GitHub Releases](https://github.com/LeValue/KMReader-Porting/releases).
 
-- **Android 7 or later** — open the APK and confirm installation in Android.
-  The universal APK supports ARM64, ARMv7 and x86_64.
+- **Android 7 or later** — choose the APK for your architecture (`arm64`,
+  `armv7` or `x64`), open it and confirm installation. Most current phones use
+  `arm64`. KMReader selects the matching APK for in-app updates.
 - **Windows 10 or 11 x64** — extract the full ZIP into a writable folder and
   run `KMReader/kmreader.exe`. EPUB reading uses the
   [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).

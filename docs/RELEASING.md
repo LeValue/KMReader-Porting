@@ -14,25 +14,31 @@ and notices. Use the artifacts from that run.
 1. Create an empty release draft targeting the verified commit. Use
    `v<version>` for a stable release or `v<version>-candidate.<number>` for a
    prerelease.
-2. Sign the Android APK locally with the existing distribution key. Keep
+2. Prepare the ARM64, ARMv7 and x86_64 APKs from the verified build and sign
+   them locally with the existing distribution key. Keep
    `dev.levalue.kmreader.preview` so Android can update existing installations.
+   When splitting the verified universal build, retain the common assets and
+   only the corresponding native libraries and Chaquopy assets in each APK.
+   Run `zipalign -f -P 16 4` on each APK before signing.
    Verify the APK with `apksigner verify --verbose --print-certs`, compare the
    certificate to `tool/preview-certificate.sha256`, and check alignment with
    Build Tools 36 `zipalign -c -P 16 4`.
-3. Stage the signed APK delta from a clean checkout. The universal APK input
-   uses the local staging filename `KMReader-<version>-android-universal-preview.apk`.
+3. Stage the signed APK deltas from a clean checkout. The staging filenames
+   are `KMReader-<version>-android-arm64-preview.apk`,
+   `KMReader-<version>-android-armv7-preview.apk` and
+   `KMReader-<version>-android-x64-preview.apk`.
 
    ```sh
-   GH_REPO=LeValue/KMReader-Porting VERIFIED_RUN=<run-id> DRAFT_TAG=<tag> \
-     ANDROID_UNIVERSAL=true python3 tool/stage_draft_deltas.py <signed-apk-dir> \
-     --output <delivery-inputs.json>
+   GH_REPO=LeValue/KMReader-Porting VERIFIED_RUN="$run_id" DRAFT_TAG="$draft_tag" \
+     python3 tool/stage_draft_deltas.py "$signed_apk_dir" \
+     --output delivery-inputs.json
    ```
 
 4. Dispatch **Build and test** on the same source with `deliver_draft=true`,
-   the chosen draft tag, the verified run, `android_universal=true`,
-   `apk_deltas=true` and the blob and checksum from the staging output.
+   the chosen draft tag, the verified run, `apk_deltas=true` and the blobs and
+   checksums from the staging output.
    Delivery verifies source, signature, package IDs and artifact checksums.
-5. Download the draft APK, Windows ZIP, `kmreader-update.json` and
+5. Download the draft APKs, Windows ZIP, `kmreader-update.json` and
    `SHA256SUMS.txt`. Check the downloaded hashes, package contents and
    manifest URLs before publishing.
 
