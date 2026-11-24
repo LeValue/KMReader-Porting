@@ -489,7 +489,7 @@ if __name__ == '__main__':
         webview2_window(url, int(port), int(width), int(height), profile)
         sys.exit()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--baseline', default='6bf5d31dd7035750276f114d1347ce7586ac365b')
+    parser.add_argument('--baseline', default='8a6ffd7625a341ae6b5b115f3bd6fd77a77e58d3')
     parser.add_argument('--width', type=int, default=393)
     parser.add_argument('--height', type=int, default=760)
     parser.add_argument('--dpr', type=float, default=1.5)

@@ -10,7 +10,7 @@ class PreviewGateTest(unittest.TestCase):
                     'head_branch': 'main', 'event': 'push', 'path': '.github/workflows/ci.yml',
                     'repository': {'full_name': 'LeValue/KMReader-Porting'}}
         self.jobs = [{'name': name, 'conclusion': 'success'} for name in
-                     ['android', 'android_reader_display', 'linux_host',
+                     ['android', 'android_python_wheels', 'android_reader_display', 'linux_host',
                       'linux_services', 'windows', 'windows_host',
                       'windows_reader', 'windows_worker']]
 

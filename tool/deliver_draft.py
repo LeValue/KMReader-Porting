@@ -18,7 +18,7 @@ from verify_preview_ci import REQUIRED
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_PATHS = ['lib', 'assets', 'android', 'windows', 'third_party', 'pubspec.yaml',
                  'pubspec.lock', 'tool/prepare_build_metadata.py', 'tool/preview_metadata.py',
-                 'tool/preview-certificate.sha256', 'tool/install_android_ndk.sh',
+                 'tool/preview-certificate.sha256', 'tool/install_android_ndk.sh', 'tool/android_python',
                  'tool/kindle_personal', 'tool/komga_admin', 'tool/kindle_android', 'tool/build_kindle_worker.ps1']
 
 

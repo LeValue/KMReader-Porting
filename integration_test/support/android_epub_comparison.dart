@@ -178,7 +178,7 @@ void verifyAndroidEpubComparison() {
       }
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['androidEpubComparison'] = {
-        'baseline': '0f9d3f2ecd0b33db34c0b990de05cc37aa9066ee',
+        'baseline': '70f4efeb7d4f901586cc69456438da521c0a3d89',
         'fixtureSha256': publicationDigest,
         'runs': report,
       };

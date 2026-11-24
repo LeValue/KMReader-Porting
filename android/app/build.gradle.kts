@@ -100,8 +100,10 @@ chaquopy {
         version = "3.11"
         buildPython(providers.gradleProperty("kindleBuildPython").orNull ?: "python3.11")
         pip {
-            install("lxml==5.3.0")
-            install("Pillow==11.0.0")
+            options("--find-links", rootProject.projectDir.parentFile
+                .resolve(".dart_tool/android-python-wheels").absolutePath)
+            install("lxml==6.1.1")
+            install("Pillow==13.0.0")
             install("beautifulsoup4==4.14.3")
             install("pypdf==6.21.4")
             install("defusedxml==0.7.1")

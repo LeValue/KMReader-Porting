@@ -1,0 +1,51 @@
+diff --git a/server/pypi/build-wheel.py b/server/pypi/build-wheel.py
+index 505304c..39a575e 100755
+--- a/server/pypi/build-wheel.py
++++ b/server/pypi/build-wheel.py
+@@ -274,7 +274,7 @@ class BuildWheel:
+             if not requirements:
+                 return
+             run(f"{bootstrap_env}/bin/pip --python {self.build_env}/bin/python "
+-                f"install " + " ".join(shlex.quote(req) for req in requirements))
++                f"install --ignore-installed " + " ".join(shlex.quote(req) for req in requirements))
+
+         # In the common case where get_requires_for_build only returns things which were
+         # already in build_system_requires, we can avoid running pip a second time.
+@@ -493,7 +493,7 @@ class BuildWheel:
+                 link_filename = re.sub(pattern, repl, filename)
+                 if link_filename in self.standard_libs:
+                     continue  # e.g. torch has libc10.so, which would become libc.so.
+-                if link_filename != filename:
++                if link_filename != filename and not os.path.lexists(join(reqs_lib_dir, link_filename)):
+                     run(f"ln -s {filename} {reqs_lib_dir}/{link_filename}")
+
+     # On Android, some libraries are incorporated into libc. Create empty .a files so we
+@@ -691,6 +691,15 @@ class BuildWheel:
+         env["VIRTUAL_ENV"] = self.build_env
+
+         self.get_common_env_vars(env)
++        native = f"{PYPI_DIR}/native-prefix/{self.abi}"
++        env["CFLAGS"] += f" -I{native}/include -I{native}/include/freetype2"
++        env["CXXFLAGS"] += f" -I{native}/include -I{native}/include/freetype2"
++        env["LDFLAGS"] += f" -L{native}/lib"
++        env["PKG_CONFIG_LIBDIR"] = f"{native}/lib/pkgconfig"
++        env["XML2_CONFIG"] = f"{native}/bin/xml2-config"
++        env["XSLT_CONFIG"] = f"{native}/bin/xslt-config"
++        env["JPEG_ROOT"] = native
++        env["FREETYPE_ROOT"] = native
+         if self.needs_python:
+             self.get_python_env_vars(env, pypi_env)
+         if "rust" in self.non_python_build_reqs:
+diff --git a/target/android-env.sh b/target/android-env.sh
+index 3da8493..7e78588 100644
+--- a/target/android-env.sh
++++ b/target/android-env.sh
+@@ -24,7 +24,7 @@ fail() {
+ # * https://android.googlesource.com/platform/ndk/+/ndk-rXX-release/docs/BuildSystemMaintainers.md
+ #   where XX is the NDK version. Do a diff against the version you're upgrading from, e.g.:
+ #   https://android.googlesource.com/platform/ndk/+/ndk-r25-release..ndk-r26-release/docs/BuildSystemMaintainers.md
+-ndk_version=27.3.13750724
++ndk_version=28.2.13676358
+
+ ndk=$ANDROID_HOME/ndk/$ndk_version
+ if ! [ -e $ndk ]; then

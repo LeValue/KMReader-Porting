@@ -10,7 +10,7 @@ body:
     attributes:
       label: App version and build
       description: Find these in Settings → About. Mention if you built the app yourself.
-      placeholder: 1.0.0, build 48
+      placeholder: 1.0.0, build 49
     validations:
       required: true
   - type: input

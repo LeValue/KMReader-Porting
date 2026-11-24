@@ -1,0 +1,24 @@
+--- a/setup.py
++++ b/setup.py
+@@ -371,9 +371,7 @@
+         return True if value in configuration.get(option, []) else None
+
+     def initialize_options(self) -> None:
+-        self.disable_platform_guessing = self.check_configuration(
+-            "platform-guessing", "disable"
+-        )
++        self.disable_platform_guessing = True
+         build_ext.initialize_options(self)
+         for x in self.feature:
+             setattr(self, f"disable_{x}", self.check_configuration(x, "disable"))
+@@ -730,8 +728,8 @@
+
+         if feature.want("zlib"):
+             _dbg("Looking for zlib")
+-            if _find_include_file(self, "zlib.h"):
+-                if _find_library_file(self, "z"):
++            if True:  # Android NDK sysroot supplies zlib.
++                if True:
+                     feature.set("zlib", "z")
+                 elif sys.platform == "win32" and _find_library_file(self, "zlib"):
+                     feature.set("zlib", "zlib")  # alternative name

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reuse only successful native/build artifacts for this exact source revision."""
 REQUIRED = {
-    'android', 'android_reader_display', 'linux_host', 'linux_services',
+    'android', 'android_python_wheels', 'android_reader_display', 'linux_host', 'linux_services',
     'windows', 'windows_host', 'windows_reader', 'windows_worker',
 }
 

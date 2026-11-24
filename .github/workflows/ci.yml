@@ -57,6 +57,7 @@ concurrency:
 jobs:
   android:
     if: &run_verification github.event_name != 'workflow_dispatch' || !inputs.deliver_draft
+    needs: android_python_wheels
     runs-on: ubuntu-latest
     steps:
       - &checkout
@@ -104,6 +105,11 @@ jobs:
       - &ndk_install
         name: Install and verify the pinned Android NDK
         run: bash tool/install_android_ndk.sh
+      - &download_android_wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: android-python-wheels
+          path: .dart_tool/android-python-wheels
       - name: Build the release APK with the production plugin registrant
         run: flutter build apk --release
         env:
@@ -112,6 +118,36 @@ jobs:
         with:
           name: android-release-unsigned
           path: build/app/outputs/flutter-apk/app-release.apk
+  android_python_wheels:
+    if: *run_verification
+    runs-on: ubuntu-latest
+    steps:
+      - *checkout
+      - *python
+      - uses: actions/cache@v4
+        id: wheels
+        with:
+          path: .dart_tool/android-python-wheels
+          key: android-python-wheels-${{ runner.os }}-${{ hashFiles('tool/android_python/**') }}
+      - uses: android-actions/setup-android@v3
+        if: steps.wheels.outputs.cache-hit != 'true'
+        with:
+          packages: platform-tools
+      - uses: actions/cache@v4
+        if: steps.wheels.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+          key: kmreader-ndk-${{ runner.os }}-28.2.13676358
+      - if: steps.wheels.outputs.cache-hit != 'true'
+        run: bash tool/install_android_ndk.sh
+      - if: steps.wheels.outputs.cache-hit != 'true'
+        run: bash tool/android_python/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-python-wheels
+          path: .dart_tool/android-python-wheels/*.whl
+          include-hidden-files: true
+          if-no-files-found: error
   linux_host:
     if: *run_verification
     runs-on: ubuntu-latest
@@ -284,6 +320,7 @@ jobs:
           path: artifacts/native-epub/*.png
   android_reader_display:
     if: *run_verification
+    needs: android_python_wheels
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -298,6 +335,7 @@ jobs:
       - *pub
       - *ndk_cache
       - *ndk_install
+      - *download_android_wheels
       - name: Enable KVM access on the isolated runner
         run: |
           printf '%s\n' 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -318,7 +356,7 @@ jobs:
           set -euo pipefail
           mkdir -p .dart_tool/native-test-apks
           fixtures="$RUNNER_TEMP/updater-fixtures"
-          baseline=0f9d3f2ecd0b33db34c0b990de05cc37aa9066ee
+          baseline=70f4efeb7d4f901586cc69456438da521c0a3d89
           git fetch --no-tags --depth=1 origin "$baseline"
           git show "$baseline:assets/epub/reader.js" > assets/epub/benchmark-baseline.js
           bash tool/prepare_android_update_fixtures.sh "$fixtures"

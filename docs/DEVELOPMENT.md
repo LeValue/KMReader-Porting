@@ -5,7 +5,9 @@
 - Flutter **3.47.8**, Dart **3.13.7** (use the pinned Flutter SDK).
 - Android: Java **21**, SDK/Build Tools **36**, NDK **28.2.13676358**, Python
   **3.11** available as `python3.11` (or Gradle property `kindleBuildPython`).
-  Minimum Android API is 24. Chaquopy 17.2.0 installs its pinned native wheels.
+  Minimum Android API is 24. Build the Kindle Python wheels once on Linux with
+  `bash tool/android_python/build.sh`, using the Android SDK and NDK above.
+  The script writes the wheel directory used by Gradle. CI caches those wheels.
 - Windows 10/11 x64: Visual Studio Desktop development with C++, Windows SDK,
   Python 3.11, Chrome and Edge for packaged worker checks. Enable Developer Mode
   for Flutter plugin links. Windows binaries require a Windows host.
