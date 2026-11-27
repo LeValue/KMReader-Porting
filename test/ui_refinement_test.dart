@@ -210,8 +210,8 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('Settings')), findsAny);
       expect(find.bySemanticsLabel(RegExp('Local books')), findsAny);
       expect(
-        tester.widget<NavigationBar>(find.byType(NavigationBar)).labelBehavior,
-        NavigationDestinationLabelBehavior.onlyShowSelected,
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).height,
+        greaterThan(80),
       );
       expect(tester.takeException(), isNull);
       semantics.dispose();
