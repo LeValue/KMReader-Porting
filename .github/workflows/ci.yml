@@ -13,6 +13,14 @@ on:
         description: Deliver already verified signed builds to an existing review draft without publishing
         type: boolean
         default: false
+      stage_signing:
+        description: Transfer completed release APKs to an internal draft for local signing
+        type: boolean
+        default: false
+      production_run:
+        description: Optional completed split-APK build for signed delta delivery
+        type: string
+        default: ''
       android_universal:
         description: Deliver one signed universal Android APK instead of three per-ABI APKs
         type: boolean
@@ -60,7 +68,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 jobs:
   android:
-    if: &run_verification github.event_name != 'workflow_dispatch' || (!inputs.deliver_draft && !inputs.final_build)
+    if: &run_verification github.event_name != 'workflow_dispatch' || (!inputs.deliver_draft && !inputs.final_build && !inputs.stage_signing)
     needs: android_python_wheels
     runs-on: ubuntu-latest
     steps:
@@ -123,7 +131,7 @@ jobs:
           name: android-release-unsigned
           path: build/app/outputs/flutter-apk/app-release.apk
   final_android:
-    if: github.event_name == 'workflow_dispatch' && inputs.final_build && !inputs.deliver_draft
+    if: github.event_name == 'workflow_dispatch' && inputs.final_build && !inputs.deliver_draft && !inputs.stage_signing
     needs: android_python_wheels
     runs-on: ubuntu-latest
     strategy:
@@ -160,7 +168,7 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
   android_python_wheels:
-    if: &build_platform github.event_name != 'workflow_dispatch' || !inputs.deliver_draft
+    if: &build_platform github.event_name != 'workflow_dispatch' || (!inputs.deliver_draft && !inputs.stage_signing)
     runs-on: ubuntu-latest
     steps:
       - *checkout
@@ -459,8 +467,30 @@ jobs:
             artifacts/native-epub/*.png
             artifacts/android-epub-recovery/report.json
             ${{ runner.temp }}/reader-logcat.txt
+  stage_apks_for_signing:
+    if: github.event_name == 'workflow_dispatch' && inputs.stage_signing && !inputs.deliver_draft && !inputs.final_build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: signing-stage-${{ inputs.draft_tag }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BUILD_RUN: ${{ inputs.production_run }}
+      DRAFT_TAG: ${{ inputs.draft_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - *python
+      - name: Verify the split build and transfer its APKs
+        run: python3 tool/stage_split_apks.py
   deliver_verified_draft:
-    if: github.event_name == 'workflow_dispatch' && inputs.deliver_draft
+    if: github.event_name == 'workflow_dispatch' && inputs.deliver_draft && !inputs.stage_signing && !inputs.final_build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -473,6 +503,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       VERIFIED_RUN: ${{ inputs.verified_run }}
+      PRODUCTION_RUN: ${{ inputs.production_run }}
       APK_DELTAS: ${{ inputs.apk_deltas }}
       ANDROID_UNIVERSAL: ${{ inputs.android_universal }}
       DRAFT_TAG: ${{ inputs.draft_tag }}

@@ -13,6 +13,7 @@ import shutil
 import zipfile
 
 from preview_metadata import apk_provenance, read_version, validate_provenance
+from stage_split_apks import download_split_apks, verify_split_run
 from verify_preview_ci import REQUIRED
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -105,8 +106,18 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     sdk = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0'
     certificate = (ROOT / 'tool/preview-certificate.sha256').read_text().strip()
+    use_deltas = os.environ.get('APK_DELTAS', '').lower() == 'true'
+    universal = os.environ.get('ANDROID_UNIVERSAL', '').lower() == 'true'
+    production_run = os.environ.get('PRODUCTION_RUN', '')
     delta_base = None
-    if os.environ.get('APK_DELTAS', '').lower() == 'true':
+    split_bases = {}
+    if production_run:
+        if not use_deltas or universal or args.apk_directory:
+            raise ValueError('A split production run requires signed per-ABI deltas')
+        if verify_split_run(repository, production_run) != source:
+            raise ValueError('Production and verification runs must use the same source')
+        split_bases = download_split_apks(repository, production_run, output / 'split-bases')
+    elif use_deltas:
         base_directory = output / 'verified-ci-base'
         subprocess.check_call(['gh', 'run', 'download', requested, '--repo', repository,
                                '--name', 'android-release-unsigned', '--dir', str(base_directory)])
@@ -114,7 +125,7 @@ def main():
         validate_provenance(apk_provenance(delta_base), source, version, build)
     files = []
     suffix = '' if release['tag_name'] == 'v' + version else '-preview'
-    for prefix, label, abi in android_variants(os.environ.get('ANDROID_UNIVERSAL', '').lower() == 'true'):
+    for prefix, label, abi in android_variants(universal):
         target = output / f'KMReader-{version}-android-{label}{suffix}.apk'
         if args.apk_directory:
             local = args.apk_directory / f'KMReader-{version}-android-{label}-preview.apk'
@@ -131,9 +142,11 @@ def main():
             packed = base64.b64decode(blob['content'])
             if hashlib.sha1(b'blob ' + str(len(packed)).encode() + b'\0' + packed).hexdigest() != blob_id:
                 raise ValueError('Git object hash mismatch')
-            if delta_base is not None:
+            base = split_bases.get(label, delta_base)
+            if base is not None:
                 from apk_delta import apply_delta
-                content = apply_delta(delta_base, packed, expected)
+                validate_provenance(apk_provenance(base), source, version, build)
+                content = apply_delta(base, packed, expected)
             else:
                 content = lzma.decompress(packed)
             if hashlib.sha256(content).hexdigest() != expected:
