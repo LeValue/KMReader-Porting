@@ -32,7 +32,13 @@ def candidate_tag_matches(version, tag):
                         r'(?:-(?:epub-)?candidate\.[1-9][0-9]*)?', tag) is not None
 
 
-def verify():
+def require_matching_runtime(source):
+    if subprocess.run(['git', 'cat-file', '-e', source + '^{commit}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+        subprocess.check_call(['git', 'fetch', '--no-tags', '--depth=1', 'origin', source])
+    subprocess.check_call(['git', 'diff', '--exit-code', source, 'HEAD', '--', *RUNTIME_PATHS])
+
+
+def verify(production_run=''):
     repository = os.environ['GH_REPO']
     requested, tag = os.environ['VERIFIED_RUN'], os.environ['DRAFT_TAG']
     if not re.fullmatch(r'[1-9][0-9]*', requested):
@@ -52,9 +58,12 @@ def verify():
     passed = {j['name'] for j in jobs['jobs'] if j.get('conclusion') == 'success'}
     if not REQUIRED <= passed:
         raise ValueError('All native and release jobs must pass')
-    if subprocess.run(['git', 'cat-file', '-e', source + '^{commit}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
-        subprocess.check_call(['git', 'fetch', '--no-tags', '--depth=1', 'origin', source])
-    subprocess.check_call(['git', 'diff', '--exit-code', source, 'HEAD', '--', *RUNTIME_PATHS])
+    require_matching_runtime(source)
+    if production_run:
+        # A test-only follow-up can verify already-built application code.
+        # Check both trees against HEAD and keep the actual build provenance.
+        source = verify_split_run(repository, production_run)
+        require_matching_runtime(source)
     version, build = read_version(ROOT)
     if not candidate_tag_matches(version, tag):
         raise ValueError('Only a version-matched candidate draft can receive these files')
@@ -98,7 +107,8 @@ def main():
     parser.add_argument('--verify-only', action='store_true')
     parser.add_argument('--apk-directory', type=Path, help='Locally signed APKs; all source, signature and CI checks still apply')
     args = parser.parse_args()
-    repository, requested, source, version, build, release = verify()
+    production_run = os.environ.get('PRODUCTION_RUN', '')
+    repository, requested, source, version, build, release = verify(production_run)
     if args.verify_only:
         print(json.dumps({'verifiedSource': source, 'run': requested, 'draft': release['html_url']}))
         return
@@ -108,14 +118,11 @@ def main():
     certificate = (ROOT / 'tool/preview-certificate.sha256').read_text().strip()
     use_deltas = os.environ.get('APK_DELTAS', '').lower() == 'true'
     universal = os.environ.get('ANDROID_UNIVERSAL', '').lower() == 'true'
-    production_run = os.environ.get('PRODUCTION_RUN', '')
     delta_base = None
     split_bases = {}
     if production_run:
         if not use_deltas or universal or args.apk_directory:
             raise ValueError('A split production run requires signed per-ABI deltas')
-        if verify_split_run(repository, production_run) != source:
-            raise ValueError('Production and verification runs must use the same source')
         split_bases = download_split_apks(repository, production_run, output / 'split-bases')
     elif use_deltas:
         base_directory = output / 'verified-ci-base'
@@ -172,7 +179,7 @@ def main():
         files.append(target)
         print('Verified signed ' + label + ' APK', flush=True)
     bundle = output / 'windows'
-    subprocess.check_call(['gh', 'run', 'download', requested, '--repo', repository, '--name', 'windows', '--dir', str(bundle)])
+    subprocess.check_call(['gh', 'run', 'download', production_run or requested, '--repo', repository, '--name', 'windows', '--dir', str(bundle)])
     validate_provenance(json.loads((bundle / 'data/flutter_assets/assets/build/source.json').read_text()), source, version, build)
     for name in ['kmreader.exe', 'flutter_windows.dll', 'data/app.so']:
         if not (bundle / name).is_file():

@@ -315,7 +315,7 @@ void main() {
           'kmreader-native-epub-',
         );
         final store = LocalStore(sqlite3.openInMemory());
-        if (layout == 'reflowable') {
+        if (layout != 'fixed') {
           store.setSetting('epubDefault', {'advancedLayout': false});
         }
         const profile = ServerProfile(

@@ -97,6 +97,7 @@ void verifyNativeLocalLibrary() {
       expect(tester.takeException(), isNull);
     } finally {
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      app.localFolders.dispose();
       app.localLibrary.dispose();
       store.close();
       await directory.delete(recursive: true);
