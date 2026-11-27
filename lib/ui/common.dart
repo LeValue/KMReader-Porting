@@ -242,7 +242,10 @@ class _CoverState extends State<Cover> {
         (changes.contains(widget.path) ||
             (changes.contains(Repository.resumedCovers) &&
                 MediaCache.kind(widget.path) == MediaCacheKind.covers))) {
-      setState(() => _image = widget.repository.image(widget.path));
+      final image = widget.repository.image(widget.path);
+      setState(() {
+        _image = image;
+      });
     }
   }
 
