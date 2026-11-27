@@ -660,21 +660,53 @@ class KindleClient {
     String guid, {
     int? position,
     List<int> bookmarks = const [],
+    List<KindleMark> annotations = const [],
+  }) async =>
+      (await confirmedReadingState(
+        item,
+        guid,
+        position: position,
+        bookmarks: bookmarks,
+        annotations: annotations,
+      )) !=
+      null;
+
+  Future<Json?> confirmedReadingState(
+    Json item,
+    String guid, {
+    int? position,
+    List<int> bookmarks = const [],
+    List<KindleMark> annotations = const [],
   }) async {
     final after = await sidecar(item, guid: guid, annotations: true);
     if (after == null ||
         after['guid'] != guid ||
         after['annotations_complete'] != true) {
-      return false;
+      return null;
     }
     final records = (after['records'] as List).map(object).toList();
-    return (position == null ||
+    final remaining = records
+        .where(
+          (record) => const {
+            'kindle.note',
+            'kindle.highlight',
+          }.contains(record['type']),
+        )
+        .toList();
+    for (final annotation in annotations) {
+      final index = remaining.indexWhere(annotation.matches);
+      if (index < 0) return null;
+      remaining.removeAt(index);
+    }
+    final matches =
+        (position == null ||
             records.any(
               (r) =>
                   r['type'] == 'kindle.most_recent_read' &&
                   num.tryParse('${r['location']}') == position,
             )) &&
         bookmarks.every((p) => records.any(KindleMark('bookmark', p).matches));
+    return matches ? after : null;
   }
 
   /// One submission followed by readback. Callers persist their intent before
@@ -684,11 +716,15 @@ class KindleClient {
     String guid, {
     int? position,
     List<int> bookmarks = const [],
+    List<KindleMark> annotations = const [],
   }) async {
     if (position != null && position < 0 || bookmarks.any((p) => p < 0)) {
       throw const KindleFailure('position_invalid');
     }
-    if (position != null || bookmarks.isNotEmpty) {
+    if (annotations.any((mark) => !mark.valid || mark.type == 'bookmark')) {
+      throw const KindleFailure('annotation_invalid');
+    }
+    if (position != null || bookmarks.isNotEmpty || annotations.isNotEmpty) {
       await _postReadingState(item, guid, (xml, timestamp) {
         if (position != null) {
           xml.element(
@@ -703,6 +739,9 @@ class KindleClient {
         for (final bookmark in bookmarks.toSet()) {
           KindleMark('bookmark', bookmark).append(xml, timestamp);
         }
+        for (final annotation in annotations) {
+          annotation.append(xml, timestamp);
+        }
       });
     }
     if (!await readingStateConfirmed(
@@ -710,6 +749,7 @@ class KindleClient {
       guid,
       position: position,
       bookmarks: bookmarks,
+      annotations: annotations,
     )) {
       throw const KindleFailure('management_migration_not_confirmed');
     }

@@ -113,6 +113,33 @@ void main() {
     original.close();
     updated.close();
   });
+  test(
+    'cache cleanup leaves an offline PDF open in another reader window',
+    () async {
+      final original = await open();
+      final secondStore = LocalStore(
+        sqlite3.open('${directory.path}/db.sqlite'),
+      );
+      final second = DocumentCache(
+        directory: cache.directory,
+        server: 's',
+        store: secondStore,
+        api: api,
+      );
+      try {
+        expect(await second.usage(), (bytes: 3, removableBytes: 0));
+        await second.trim(clear: true);
+        expect(await original.file.exists(), true);
+        original.close();
+        await second.trim(clear: true);
+        expect(await original.file.exists(), false);
+      } finally {
+        original.close();
+        second.close();
+        secondStore.close();
+      }
+    },
+  );
   test('conditional validation recovers an interrupted HEAD without replacing the cached document', () async {
     final original = await open();
     api.readNetworkPreferences = () => const NetworkPreferences(retries: 1);

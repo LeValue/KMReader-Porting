@@ -117,10 +117,11 @@ class LocalLibrary extends Repository {
     return work;
   }
 
-  Future<Book> importFile(XFile source) => _mutate(() => _importFile(source));
+  Future<Book> importFile(XFile source, {String? displayName}) =>
+      _mutate(() => _importFile(source, displayName ?? source.name));
 
-  Future<Book> _importFile(XFile source) async {
-    final suffix = p.extension(source.name).toLowerCase();
+  Future<Book> _importFile(XFile source, String name) async {
+    final suffix = p.extension(name).toLowerCase();
     final extension = suffix.isEmpty ? '' : suffix.substring(1);
     if (!extensions.contains(extension)) {
       throw const FormatException(
@@ -154,9 +155,9 @@ class LocalLibrary extends Repository {
       );
       final book = Book({
         'id': id,
-        'name': source.name,
+        'name': name,
         'metadata': {
-          'title': text(info['title'], p.basenameWithoutExtension(source.name)),
+          'title': text(info['title'], p.basenameWithoutExtension(name)),
         },
         'media': {'mediaProfile': info['profile'], 'pagesCount': info['count']},
       });

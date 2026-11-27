@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:flutter/rendering.dart';
@@ -18,6 +19,7 @@ import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/main.dart';
 import 'package:kmreader/ui/strings.dart';
 import 'package:kmreader/features/settings/settings_page.dart';
+import 'package:kmreader/features/settings/api_keys_page.dart';
 
 class MemoryVault implements CredentialVault {
   final values = <String, String>{};
@@ -111,10 +113,54 @@ void main() {
     app.store.close();
     directory.deleteSync(recursive: true);
   });
+  testWidgets('revoking is disabled when the current API key is unknown', (
+    tester,
+  ) async {
+    const profile = ServerProfile(
+      id: 'manual',
+      name: 'Server',
+      url: 'https://server.invalid',
+      email: 'reader@example.invalid',
+      authentication: Authentication.apiKey,
+    );
+    final repository = FixtureRepository(
+      profile: profile,
+      store: app.store,
+      directory: directory,
+      api: KomgaApi(
+        Uri.parse(profile.url),
+        authentication: Authentication.apiKey,
+        credential: 'synthetic',
+        client: MockClient(
+          (request) async =>
+              http.Response('[{"id":"key","comment":"Manual key"}]', 200),
+        ),
+      ),
+    );
+    app.repository = repository;
+    await tester.pumpWidget(
+      MaterialApp(home: ApiKeysPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+    final revoke = tester.widget<IconButton>(
+      find.byWidgetPredicate(
+        (widget) => widget is IconButton && widget.tooltip == 'Revoke API Key',
+      ),
+    );
+    expect(revoke.onPressed, isNull);
+    expect(
+      find.textContaining('active API key cannot be identified'),
+      findsOneWidget,
+    );
+  });
   for (final size in [const Size(390, 844), const Size(1280, 889)]) {
     testWidgets('catalog detail and reader work at ${size.width.toInt()}px', (
       tester,
     ) async {
+      if (size.width >= 900) {
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      }
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -276,6 +322,38 @@ void main() {
         isTrue,
       );
       await screenshot(tester, key, 'dashboard-${size.width.toInt()}');
+      if (size.width >= 900) {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      } else {
+        await tester.tap(find.byTooltip('Search').first);
+      }
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Synthetic');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(
+        requests.any(
+          (r) =>
+              r.url.path.endsWith('/books/list') &&
+              object(jsonDecode(r.body))['fullTextSearch'] == 'Synthetic',
+        ),
+        isTrue,
+      );
+      await tester.tap(find.text('Series').first);
+      await tester.pumpAndSettle();
+      expect(
+        requests.any(
+          (r) =>
+              r.url.path.endsWith('/series/list') &&
+              object(jsonDecode(r.body))['fullTextSearch'] == 'Synthetic',
+        ),
+        isTrue,
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
       final title = find.text('Synthetic Comic').first;
       await tester.ensureVisible(title);
       await tester.tap(title);
@@ -403,6 +481,7 @@ void main() {
         reason: 'Reordering cached sections must not refetch catalog data',
       );
       await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
     });
     testWidgets(
       'onboarding and sign-in fit ${size.width.toInt()}px without layout errors',

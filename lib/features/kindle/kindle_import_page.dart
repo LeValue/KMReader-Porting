@@ -15,9 +15,15 @@ import '../../ui/strings.dart';
 import 'kindle_send_login_page.dart';
 
 class KindleImportPage extends StatefulWidget {
-  const KindleImportPage({super.key, required this.repository, this.replacing});
+  const KindleImportPage({
+    super.key,
+    required this.repository,
+    this.replacing,
+    this.copyOnly = false,
+  });
   final KindleRepository repository;
   final Book? replacing;
+  final bool copyOnly;
   @override
   State<KindleImportPage> createState() => _KindleImportPageState();
 }
@@ -93,8 +99,8 @@ class _KindleImportPageState extends State<KindleImportPage> {
             'management_source_changed' || 'management_target_changed' => 'Reading state changed during the update. Both copies are preserved.',
             'management_mapping_ambiguous' ||
             'management_mapping_unavailable' ||
-            'management_local_locator' => 'The reading position cannot be mapped safely. The original is preserved.',
-            'management_annotation_migration' => 'Notes or highlights cannot yet be migrated. The original is preserved.',
+            'management_local_locator' => 'Reading positions cannot be matched safely. You can send the file as a separate copy.',
+            'management_annotation_migration' => 'An annotation range cannot be matched safely. Both copies are preserved.',
             'management_migration_not_confirmed' => 'Amazon has not confirmed restored reading state. Check its status without sending another copy.',
             'management_cover_layout' => 'This EPUB uses a cover format that cannot be replaced safely. Use an EPUB with a JPG or PNG cover.',
             'management_cover' =>
@@ -242,8 +248,12 @@ class _KindleImportPageState extends State<KindleImportPage> {
       } else if (_cover != null) {
         throw const KindleFailure('management_epub_required');
       }
-      if (widget.replacing case final book?) {
+      if (widget.replacing case final book? when !widget.copyOnly) {
         final manager = KindleDocumentManager(widget.repository);
+        if (p.extension(prepared.name).toLowerCase() != '.epub') {
+          throw const KindleFailure('management_mapping_unavailable');
+        }
+        await manager.checkReplacementSource(book);
         final sku = await manager.sendUpdatedVersion(
           book,
           prepared,
@@ -339,7 +349,9 @@ class _KindleImportPageState extends State<KindleImportPage> {
         title: Text(
           tr(
             context,
-            widget.replacing == null
+            widget.copyOnly
+                ? 'Send as a separate Kindle copy'
+                : widget.replacing == null
                 ? 'Send to Kindle'
                 : 'Update Kindle document',
           ),
@@ -571,7 +583,7 @@ class _KindleImportPageState extends State<KindleImportPage> {
                   child: Text(
                     tr(
                       context,
-                      widget.replacing == null
+                      widget.replacing == null || widget.copyOnly
                           ? (_archive
                                 ? 'Accepted by Amazon. Processing can take a few minutes; refresh your library later.'
                                 : 'Accepted by Amazon for delivery to the selected devices. This file is not added to your cloud library.')
@@ -598,7 +610,9 @@ class _KindleImportPageState extends State<KindleImportPage> {
                 label: Text(
                   tr(
                     context,
-                    widget.replacing == null ? 'Send to Kindle' : 'Save',
+                    widget.replacing == null || widget.copyOnly
+                        ? 'Send to Kindle'
+                        : 'Save',
                   ),
                 ),
               ),

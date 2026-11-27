@@ -34,6 +34,7 @@ import 'password_page.dart';
 import 'library_editor.dart';
 import 'translation_settings.dart';
 import 'server_management_page.dart';
+import 'server_edit_page.dart';
 import 'komga_upload_page.dart';
 import 'kindle_services_page.dart';
 import '../catalog/catalog_page.dart';
@@ -241,7 +242,7 @@ class _SettingsIndex extends StatelessWidget {
             'System Features',
             CupertinoIcons.desktopcomputer,
             Colors.indigo,
-            const SystemFeaturesPage(),
+            SystemFeaturesPage(app: app),
           ),
         ]),
         _group([
@@ -411,10 +412,12 @@ class _SettingsSection extends StatelessWidget {
                         ),
                       ),
                     ),
-                  for (final profile in app.servers)
+                  for (final profile in app.visibleServers)
                     ListTile(
                       leading: Icon(
-                        CupertinoIcons.tray_2,
+                        profile.isProtected
+                            ? CupertinoIcons.lock
+                            : CupertinoIcons.tray_2,
                         color: profile.id == repository.profile.id
                             ? Theme.of(context).colorScheme.secondary
                             : null,
@@ -424,13 +427,28 @@ class _SettingsSection extends StatelessWidget {
                       isThreeLine: true,
                       onTap: () async {
                         try {
-                          await app.activate(profile);
+                          await app.activate(
+                            profile,
+                            authenticationReason: tr(
+                              context,
+                              'Authenticate to open this server.',
+                            ),
+                          );
                         } catch (e) {
                           if (context.mounted) showError(context, e);
                         }
                       },
                       trailing: PopupMenuButton<String>(
                         onSelected: (action) async {
+                          if (action == 'edit' && context.mounted) {
+                            await Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ServerEditPage(app: app, profile: profile),
+                              ),
+                            );
+                          }
                           if (action == 'login' && context.mounted) {
                             Navigator.push(
                               context,
@@ -442,6 +460,7 @@ class _SettingsSection extends StatelessWidget {
                             );
                           }
                           if (action == 'remove' &&
+                              context.mounted &&
                               await confirm(
                                 context,
                                 profile.isKindle
@@ -459,6 +478,11 @@ class _SettingsSection extends StatelessWidget {
                           }
                         },
                         itemBuilder: (_) => [
+                          if (!profile.isKindle)
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text(tr(context, 'Edit Server')),
+                            ),
                           PopupMenuItem(
                             value: 'login',
                             child: Text(tr(context, 'Sign In')),
@@ -477,6 +501,7 @@ class _SettingsSection extends StatelessWidget {
                         ],
                       ),
                     ),
+                  if (app.hasProtectedServers) ProtectedServersButton(app: app),
                   ListTile(
                     leading: const Icon(CupertinoIcons.add_circled),
                     title: Text(tr(context, 'Add Server')),
@@ -576,6 +601,7 @@ class _SettingsSection extends StatelessWidget {
                           value,
                           tr(context, 'Confirm app lock settings'),
                         );
+                        app.settingsChanged();
                         if (context.mounted && app.deviceLock.error != null) {
                           showError(context, app.deviceLock.error!);
                         }

@@ -23,6 +23,7 @@ void main() {
   for (final mode in [
     'confirmed',
     'lost_reply',
+    'annotations_lost_reply',
     'source_changed',
     'target_changed',
     'retire',
@@ -78,6 +79,8 @@ void main() {
       });
       var uploads = 0, writes = 0, deletions = 0;
       var restored = false, uploaded = false, removed = false;
+      final marked = mode == 'annotations_lost_reply';
+      final interrupted = mode == 'lost_reply' || marked;
       var targetBookId = '';
       final client = KindleClient(
         session: session,
@@ -115,6 +118,15 @@ void main() {
                         'annotationId': 'synthetic',
                         'startPosition': old ? '11' : '101',
                       },
+                    if (marked && (old || restored))
+                      for (final type in ['highlight', 'note'])
+                        {
+                          'type': 'kindle.$type',
+                          'annotationId': '${old ? 'old' : 'new'}-$type',
+                          'startPosition': old ? 11 : 101,
+                          'endPosition': old ? 14 : 104,
+                          if (type == 'note') 'noteText': 'Retain this note 🦆',
+                        },
                   ],
                 },
               }),
@@ -124,7 +136,7 @@ void main() {
           if (request.url.path.endsWith('/sidecar') &&
               request.method == 'POST') {
             writes++;
-            final xml = XmlDocument.parse(request.body);
+            final xml = XmlDocument.parse(utf8.decode(request.bodyBytes));
             expect(
               xml.findAllElements('book').single.getAttribute('key'),
               'NEW',
@@ -142,7 +154,14 @@ void main() {
               '101',
             );
             restored = true;
-            if (mode == 'lost_reply') {
+            if (marked) {
+              final highlight = xml.findAllElements('highlight').single;
+              final note = xml.findAllElements('note').single;
+              expect(highlight.getAttribute('begin'), '101');
+              expect(highlight.getAttribute('end'), '104');
+              expect(note.innerText, 'Retain this note 🦆');
+            }
+            if (interrupted) {
               throw const SocketException('response lost');
             }
             return http.Response('', 200);
@@ -319,7 +338,7 @@ void main() {
         expect(writes, 0);
         expect(store.progress(profile.id, newBook.id), isNull);
       } else {
-        if (mode == 'lost_reply') {
+        if (interrupted) {
           await expectLater(
             manager.restoreReplacement(text(operation['operation'])),
             throwsA(isA<KindleFailure>()),
@@ -352,6 +371,22 @@ void main() {
           );
         }
         expect(writes, 1);
+        if (marked) {
+          expect(
+            (object(manager.operations.single['migration_plan'])['annotations']
+                as List),
+            hasLength(2),
+          );
+          final sidecar = object(
+            store.cached(profile.id, 'kindle:sidecar:${newBook.id}'),
+          );
+          expect(
+            (sidecar['records'] as List)
+                .map(object)
+                .any((record) => record['noteText'] == 'Retain this note 🦆'),
+            isTrue,
+          );
+        }
         expect(store.progress(profile.id, newBook.id)?['completed'], true);
         expect(
           store.progress(profile.id, newBook.id)?['readDate'],

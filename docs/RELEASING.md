@@ -9,6 +9,11 @@ Run **Build and test** on the release source. It builds the unsigned Android
 APK and portable Windows bundle, including the Kindle worker, matching source
 and notices. Use the artifacts from that run.
 
+For a build without publication, dispatch **Build and test** with
+`final_build=true` after verification. It builds an unsigned APK for each ABI
+and the portable Windows bundle from the selected source. Sign the three APKs
+locally using the distribution key and the alignment and signature checks below.
+
 ## Package
 
 1. Create an empty release draft targeting the verified commit. Use

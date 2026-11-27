@@ -23,7 +23,9 @@ import '../../core/models.dart';
 import '../../core/next_book.dart';
 import '../../core/api.dart';
 import '../../core/repository.dart';
+import '../../core/reader_defaults.dart';
 import '../../core/document_cache.dart';
+import '../../core/file_export.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
@@ -56,6 +58,7 @@ class ReaderPage extends StatefulWidget {
     this.rasterPages,
     this.onNextBook,
     this.initialPreferences,
+    this.readDefaultPreferences,
     this.documentNavigation,
   });
   final Repository repository;
@@ -64,6 +67,7 @@ class ReaderPage extends StatefulWidget {
   final String? readListId;
   final RasterPages? rasterPages;
   final ReaderPreferences? initialPreferences;
+  final ReaderPreferences Function()? readDefaultPreferences;
   final Future<void> Function()? onNextBook;
   final ({
     Future<int?> Function(BuildContext) search,
@@ -444,6 +448,27 @@ class _ReaderPageState extends State<ReaderPage>
     }
   }
 
+  bool _exportingPage = false;
+
+  Future<void> _exportPage(int page) async {
+    if (_exportingPage) return;
+    _exportingPage = true;
+    try {
+      final bytes = await _pageBytes(page);
+      if (mounted) {
+        await saveEncodedPageImage(
+          bytes,
+          widget.repository.directory,
+          page: page,
+        );
+      }
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      _exportingPage = false;
+    }
+  }
+
   Future<void> _imageMenu() async {
     final first = _split
         ? _session.page
@@ -466,8 +491,20 @@ class _ReaderPageState extends State<ReaderPage>
                   title: Text(
                     tr(sheet, 'Show Page %d Solo').replaceAll('%d', '$page'),
                   ),
-                  subtitle: Text(tr(sheet, 'Save Image')),
                   leading: const Icon(Icons.crop_portrait),
+                  trailing: IconButton(
+                    tooltip: tr(
+                      sheet,
+                      'Save Page %d as Image',
+                    ).replaceAll('%d', '$page'),
+                    onPressed: _exportingPage
+                        ? null
+                        : () {
+                            Navigator.pop(sheet);
+                            unawaited(_exportPage(page));
+                          },
+                    icon: const Icon(Icons.save_alt),
+                  ),
                   onTap: () {
                     Navigator.pop(sheet);
                     _showSolo(page);
@@ -536,6 +573,7 @@ class _ReaderPageState extends State<ReaderPage>
           _session.preferences.spread != spread) {
         _configure(
           _session.preferences.copy(spread: spread, pageLayout: 'auto'),
+          persist: false,
         );
       }
     });
@@ -646,9 +684,13 @@ class _ReaderPageState extends State<ReaderPage>
   Timer? _chromeTimer;
   void _scheduleControlsHide() {
     _chromeTimer?.cancel();
-    if (!_controls) return;
+    if (!_controls || MediaQuery.maybeAccessibleNavigationOf(context) == true) {
+      return;
+    }
     _chromeTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+      if (mounted &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          !readerControlHasFocus()) {
         setState(() => _controls = false);
       }
     });
@@ -707,13 +749,10 @@ class _ReaderPageState extends State<ReaderPage>
       if (!mounted) return;
       _seriesMetadata = object(series['metadata']);
       if (_session.preferences.useSeriesDirection) {
-        final resolved = seriesReaderPreferences(
-          _session.preferences,
-          _seriesMetadata,
-        );
+        final resolved = _withSeriesDirection(_session.preferences);
         if (resolved.mode != _session.preferences.mode ||
             resolved.direction != _session.preferences.direction) {
-          _configure(resolved);
+          _configure(resolved, persist: false);
         }
       }
     } on ApiFailure {
@@ -776,7 +815,7 @@ class _ReaderPageState extends State<ReaderPage>
       }
       _initialPartPending = false;
       _geometryRevision++;
-      _configure(_session.preferences);
+      _configure(_session.preferences, persist: false);
     } catch (e) {
       if (mounted) {
         _dimensionsLoaded = true;
@@ -863,7 +902,7 @@ class _ReaderPageState extends State<ReaderPage>
           _scroll.isAttached) {
         final positions = _positions.itemPositions.value;
         final current = positions
-            .where((item) => item.index == _session.page - 1)
+            .where((item) => item.index == _session.itemIndex)
             .firstOrNull;
         final height = current == null
             ? 1.0
@@ -871,13 +910,13 @@ class _ReaderPageState extends State<ReaderPage>
         final amount = _session.preferences.tapScroll / 100;
         final alignment = (current?.itemLeadingEdge ?? 0) - delta * amount;
         final target = alignment < -height
-            ? _session.page
+            ? _session.itemIndex + 1
             : alignment > 1
-            ? _session.page - 2
-            : _session.page - 1;
+            ? _session.itemIndex - 1
+            : _session.itemIndex;
         _scroll.scrollTo(
-          index: target.clamp(0, widget.book.pages - 1),
-          alignment: target == _session.page - 1
+          index: target.clamp(0, _session.itemCount - 1),
+          alignment: target == _session.itemIndex
               ? alignment
               : delta > 0
               ? alignment + height
@@ -1007,6 +1046,41 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   late final FocusNode _focus;
+  String get _preferencesKey => widget.documentNavigation == null
+      ? 'reader:${widget.book.id}'
+      : 'pdf-raster:${widget.book.id}';
+
+  ReaderPreferences _readerPreferences({bool withVolume = true}) {
+    final store = widget.repository.store;
+    final account = widget.repository.profile.id;
+    final saved = withVolume
+        ? object(store.cached(account, _preferencesKey))
+        : <String, dynamic>{};
+    final initial = {
+      ...object(store.setting<dynamic>('readerDefault')),
+      ...?(widget.readDefaultPreferences?.call() ?? widget.initialPreferences)
+          ?.toJson(),
+      ...saved,
+    };
+    if (initial['pageLayout'] == 'dual-forced') initial['spread'] = true;
+    if (initial['pageLayout'] == 'single') initial['spread'] = false;
+    if (saved.containsKey('direction') &&
+        !initial.containsKey('useSeriesDirection')) {
+      initial['useSeriesDirection'] = false;
+    }
+    return ReaderPreferences.fromJson(initial);
+  }
+
+  ReaderPreferences _withSeriesDirection(ReaderPreferences preferences) {
+    final effective = seriesReaderPreferences(preferences, _seriesMetadata);
+    if (widget.documentNavigation != null &&
+        preferences.useSeriesDirection &&
+        preferences.mode == ReadingMode.vertical) {
+      return effective.copy(mode: ReadingMode.vertical);
+    }
+    return effective;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1019,20 +1093,17 @@ class _ReaderPageState extends State<ReaderPage>
       );
     }
     _focus = FocusNode();
-    final json = widget.repository.store.cached(
-      widget.repository.profile.id,
-      'reader:${widget.book.id}',
-    );
-    final defaults = widget.repository.store.setting<dynamic>('readerDefault');
-    final initial = {
-      ...object(defaults),
-      ...?widget.initialPreferences?.toJson(),
-      ...object(json),
-    };
-    if (initial['pageLayout'] == 'dual-forced') initial['spread'] = true;
-    if (initial['pageLayout'] == 'single') initial['spread'] = false;
-    if (json != null && !initial.containsKey('useSeriesDirection')) {
-      initial['useSeriesDirection'] = false;
+    final store = widget.repository.store;
+    final account = widget.repository.profile.id;
+    final legacyKey = 'reader:${widget.book.id}';
+    if (_preferencesKey != legacyKey &&
+        store.cachedEncoded(account, _preferencesKey) == null) {
+      if (store.cachedEncoded(account, legacyKey) case final String saved) {
+        store.transaction(() {
+          store.cacheEncoded(account, _preferencesKey, saved);
+          store.deleteCache(account, legacyKey);
+        });
+      }
     }
     _seriesMetadata = object(
       object(
@@ -1051,11 +1122,9 @@ class _ReaderPageState extends State<ReaderPage>
     _session = ReadingSession(
       count: widget.book.pages,
       initialPage: widget.book.completed ? 1 : widget.book.page,
-      preferences: seriesReaderPreferences(
-        ReaderPreferences.fromJson(initial),
-        _seriesMetadata,
-      ),
+      preferences: _withSeriesDirection(_readerPreferences()),
       incognito: widget.incognito,
+      continuousSpreads: widget.documentNavigation != null,
       onCommit: (page) {
         if (_progressGate.allows(page)) {
           widget.repository.setProgress(widget.book, page);
@@ -1120,8 +1189,8 @@ class _ReaderPageState extends State<ReaderPage>
             .where((p) => p.itemTrailingEdge > .1 && p.itemLeadingEdge < .5)
             .toList()
           ..sort((a, b) => a.index.compareTo(b.index));
-    if (visible.isNotEmpty && visible.first.index + 1 != _session.page) {
-      setState(() => _session.go(visible.first.index + 1));
+    if (visible.isNotEmpty && visible.first.index != _session.itemIndex) {
+      setState(() => _session.go(_session.firstPage(visible.first.index)));
       _settled();
     }
   }
@@ -1145,7 +1214,7 @@ class _ReaderPageState extends State<ReaderPage>
       _animatePage(_viewIndex);
     } else if (_scroll.isAttached) {
       _scroll.scrollTo(
-        index: _session.page - 1,
+        index: _session.itemIndex,
         duration: const Duration(milliseconds: 240),
       );
     }
@@ -1158,11 +1227,39 @@ class _ReaderPageState extends State<ReaderPage>
     if (mounted && page != null) _go(page);
   }
 
-  void _configure(ReaderPreferences preferences) {
+  void _configure(ReaderPreferences preferences, {bool persist = true}) {
     _swipeOrigin = null;
     _stopPageFlight();
     _curl.currentState?.cancelGesture();
-    preferences = seriesReaderPreferences(preferences, _seriesMetadata);
+    if (persist) {
+      final changes = readerPreferenceChanges(
+        _session.preferences.toJson(),
+        preferences.toJson(),
+      );
+      if (_session.preferences.useSeriesDirection &&
+          !preferences.useSeriesDirection) {
+        changes.addAll({
+          'mode': preferences.mode.name,
+          'direction': preferences.direction.name,
+        });
+      }
+      if (changes.isNotEmpty) {
+        writeReaderVolumePreferences(
+          widget.repository.store,
+          widget.repository.profile.id,
+          _preferencesKey,
+          changes,
+        );
+      }
+    }
+    if (preferences.pageLayout == 'auto') {
+      final size = MediaQuery.sizeOf(context);
+      preferences = preferences.copy(
+        spread: size.width > size.height,
+        pageLayout: 'auto',
+      );
+    }
+    preferences = _withSeriesDirection(preferences);
     final old = _pages;
     _resetZoom();
     _scrolling = false;
@@ -1172,11 +1269,6 @@ class _ReaderPageState extends State<ReaderPage>
       _rebuildParts(preferences);
       _pages = PageController(initialPage: _viewIndex);
     });
-    widget.repository.store.cache(
-      widget.repository.profile.id,
-      'reader:${widget.book.id}',
-      preferences.toJson(),
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       old.dispose();
       _verticalReady = true;
@@ -1279,12 +1371,42 @@ class _ReaderPageState extends State<ReaderPage>
 
   bool _openingNext = false;
 
-  Future<void> _settings() => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    constraints: const BoxConstraints(maxWidth: 760),
-    isScrollControlled: true,
-    builder: (context) => StatefulBuilder(
+  Widget _continuousPages(int index, ReaderPreferences preferences) {
+    final first = _session.firstPage(index);
+    final last = (first + _session.visiblePages(index) - 1).clamp(
+      1,
+      widget.book.pages,
+    );
+    Widget image(int page) => _PageImage(
+      key: ValueKey(page),
+      onTapKind: (kind) => _inputKind = kind,
+      rasterPages: widget.rasterPages,
+      repository: widget.repository,
+      book: widget.book,
+      page: page,
+      preferences: preferences,
+      vertical: true,
+      onActivityChanged: _activity,
+      onReady: () {
+        _readyPages.add(page);
+        _commitIfReady();
+      },
+    );
+    if (first == last) return image(first);
+    return Row(
+      textDirection: preferences.direction == ReadingDirection.rtl
+          ? TextDirection.rtl
+          : TextDirection.ltr,
+      children: [
+        Expanded(child: image(first)),
+        Expanded(child: image(last)),
+      ],
+    );
+  }
+
+  Future<void> _settings() => showReaderOptions(
+    context,
+    (context) => StatefulBuilder(
       builder: (context, update) {
         void apply(ReaderPreferences p) {
           _configure(p);
@@ -1295,6 +1417,9 @@ class _ReaderPageState extends State<ReaderPage>
         return ReaderSafeArea(
           child: ReaderOptionsPanel(
             title: 'Reader Settings',
+            compact: true,
+            useAppPalette: true,
+            fill: true,
             children:
                 [
                       Wrap(
@@ -1341,7 +1466,10 @@ class _ReaderPageState extends State<ReaderPage>
                         title: Text(tr(context, 'Double Page')),
                         value: p.spread,
                         onChanged:
-                            p.mode == ReadingMode.paged && p.splitWide == 'none'
+                            (p.mode == ReadingMode.paged ||
+                                    widget.documentNavigation != null &&
+                                        p.mode == ReadingMode.vertical) &&
+                                p.splitWide == 'none'
                             ? (v) => apply(p.copy(spread: v))
                             : null,
                       ),
@@ -1635,17 +1763,42 @@ class _ReaderPageState extends State<ReaderPage>
                         motion: p.motion,
                         onChanged: (motion) => apply(p.copy(motion: motion)),
                       ),
+                      if (widget.documentNavigation == null)
+                        TextButton(
+                          onPressed: () {
+                            final values = p.toJson()..remove('rotation');
+                            if (p.pageLayout == 'auto') values.remove('spread');
+                            if (p.useSeriesDirection) {
+                              values.remove('direction');
+                              values.remove('mode');
+                            }
+                            updateReaderDefaults(
+                              widget.repository.store,
+                              'readerDefault',
+                              values,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(tr(context, 'Saved'))),
+                            );
+                          },
+                          child: Text(tr(context, 'Use as Default')),
+                        ),
                       TextButton(
                         onPressed: () {
-                          widget.repository.store.setSetting(
-                            'readerDefault',
-                            p.toJson(),
+                          writeReaderVolumePreferences(
+                            widget.repository.store,
+                            widget.repository.profile.id,
+                            _preferencesKey,
+                            {},
+                            reset: p.toJson().keys,
                           );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(tr(context, 'Saved'))),
+                          _configure(
+                            _readerPreferences(withVolume: false),
+                            persist: false,
                           );
+                          update(() {});
                         },
-                        child: Text(tr(context, 'Use as Default')),
+                        child: Text(tr(context, 'Use Global Defaults')),
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
@@ -1657,9 +1810,15 @@ class _ReaderPageState extends State<ReaderPage>
                       Wrap(
                         spacing: 10,
                         children: [
-                          for (final c in ['black', 'white', 'sepia'])
+                          for (final (c, label) in const [
+                            ('system', 'System'),
+                            ('black', 'Black'),
+                            ('white', 'White'),
+                            ('gray', 'Gray'),
+                            ('sepia', 'Sepia'),
+                          ])
                             ChoiceChip(
-                              label: Text(tr(context, c)),
+                              label: Text(tr(context, label)),
                               selected: p.background == c,
                               onSelected: (_) => apply(p.copy(background: c)),
                             ),
@@ -1720,7 +1879,7 @@ class _ReaderPageState extends State<ReaderPage>
       _ => Colors.black,
     };
     final modeKey =
-        '${settings.mode}:${settings.spread}:${settings.direction}:${settings.splitWide}:$_geometryRevision';
+        '${settings.mode}:${settings.spread}:${settings.soloCover}:${settings.direction}:${settings.splitWide}:$_geometryRevision';
     final scaffold = Scaffold(
       backgroundColor: background,
       body: MouseRegion(
@@ -1736,6 +1895,9 @@ class _ReaderPageState extends State<ReaderPage>
           onKeyEvent: (node, event) {
             if (event is! KeyDownEvent) return KeyEventResult.ignored;
             final key = event.logicalKey;
+            if (key != LogicalKeyboardKey.escape && readerControlHasFocus()) {
+              return KeyEventResult.ignored;
+            }
             if (key == LogicalKeyboardKey.escape) {
               if (!_controls || _isFullscreen) {
                 setState(() {
@@ -2017,8 +2179,8 @@ class _ReaderPageState extends State<ReaderPage>
                                   itemScrollController: _scroll,
                                   physics: const NeverScrollableScrollPhysics(),
                                   itemPositionsListener: _positions,
-                                  initialScrollIndex: _session.page - 1,
-                                  itemCount: widget.book.pages,
+                                  initialScrollIndex: _session.itemIndex,
+                                  itemCount: _session.itemCount,
                                   itemBuilder: (context, index) =>
                                       GestureDetector(
                                         onTapUp: (details) {
@@ -2042,20 +2204,9 @@ class _ReaderPageState extends State<ReaderPage>
                                                   ? 0
                                                   : 12,
                                             ),
-                                            child: _PageImage(
-                                              onTapKind: (kind) =>
-                                                  _inputKind = kind,
-                                              rasterPages: widget.rasterPages,
-                                              repository: widget.repository,
-                                              book: widget.book,
-                                              page: index + 1,
-                                              preferences: settings,
-                                              vertical: true,
-                                              onActivityChanged: _activity,
-                                              onReady: () {
-                                                _readyPages.add(index + 1);
-                                                _commitIfReady();
-                                              },
+                                            child: _continuousPages(
+                                              index,
+                                              settings,
                                             ),
                                           ),
                                         ),
@@ -2269,6 +2420,12 @@ class _ReaderPageState extends State<ReaderPage>
                             ),
                             child: Slider(
                               value: _session.page.toDouble(),
+                              semanticFormatterCallback: (value) =>
+                                  readingPageLabel(
+                                    context,
+                                    value.round(),
+                                    widget.book.pages,
+                                  ),
                               min: 1,
                               max: widget.book.pages > 1
                                   ? widget.book.pages.toDouble()
@@ -2322,6 +2479,7 @@ class _ReaderPageState extends State<ReaderPage>
 
 class _PageImage extends StatefulWidget {
   const _PageImage({
+    super.key,
     required this.repository,
     required this.book,
     required this.page,

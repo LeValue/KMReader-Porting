@@ -16,16 +16,23 @@ import 'package:kmreader/core/reader_defaults.dart';
 import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/core/store.dart';
 import 'package:kmreader/features/catalog/dashboard.dart';
+import 'package:kmreader/features/catalog/detail_page.dart';
 import 'package:kmreader/features/catalog/reading_stats_overview.dart';
+import 'package:kmreader/features/offline/downloads_page.dart';
+import 'package:kmreader/features/reader/epub_session.dart';
 import 'package:kmreader/features/reader/pdf_preferences.dart';
+import 'package:kmreader/features/reader/reading_session.dart';
 import 'package:kmreader/features/settings/reader_settings.dart';
 import 'package:kmreader/features/settings/service_settings.dart';
 import 'package:kmreader/features/settings/settings_style.dart';
 import 'package:kmreader/ui/strings.dart';
 import 'package:kmreader/ui/theme.dart';
 import 'package:kmreader/ui/section_scroll_view.dart';
+import 'package:kmreader/ui/reader_chrome.dart';
+import 'package:kmreader/ui/shell_navigation.dart';
 
 import 'widget_test.dart' show FixtureRepository, screenshot;
+import 'epub_navigation_test.dart' show createBook;
 
 const account = ServerProfile(
   id: 'ui',
@@ -153,6 +160,95 @@ void main() {
     return value;
   }
 
+  test('localized page templates retain named values and distinguish Chinese scripts', () {
+    expect(Strings.preferredLocale('zh_HK')?.scriptCode, 'Hant');
+    expect(Strings.preferredLocale('zh-Hans-SG')?.scriptCode, 'Hans');
+    expect(
+      Strings(const Locale('it'))('Page {page} of {total}', {
+        'page': 4,
+        'total': 38,
+      }),
+      'Pagina 4 di 38',
+    );
+  });
+
+  testWidgets(
+    'compact large-text navigation retains all accessible destinations',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      addTearDown(semantics.dispose);
+      await tester.binding.setSurfaceSize(const Size(320, 568));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            bottomNavigationBar: ShellNavigationBar(
+              selectedIndex: 0,
+              labels: const [
+                'Dashboard',
+                'Library',
+                'Lists',
+                'Local books',
+                'Settings',
+              ],
+              icons: const [
+                Icons.home,
+                Icons.book,
+                Icons.list,
+                Icons.folder,
+                Icons.settings,
+              ],
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+      expect(find.bySemanticsLabel(RegExp('Settings')), findsAny);
+      expect(find.bySemanticsLabel(RegExp('Local books')), findsAny);
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).labelBehavior,
+        NavigationDestinationLabelBehavior.onlyShowSelected,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a reader control retains keyboard focus and formats its page label',
+    (tester) async {
+      final selected = FocusNode();
+      addTearDown(selected.dispose);
+      var activated = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ReaderCapsule(
+                child: TextButton(
+                  focusNode: selected,
+                  onPressed: () => activated = true,
+                  child: Text(readingPageLabel(context, 12, 69)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      selected.requestFocus();
+      await tester.pump();
+      expect(readerControlHasFocus(), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      expect(activated, isTrue);
+      expect(find.text('Page 12 of 69'), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+
   test('global reader updates override only changed book fields and preserve locators/progress', () {
     store.cache(account.id, 'epub:b', {
       'fontSize': 22.0,
@@ -176,12 +272,177 @@ void main() {
     expect(object(store.cached(account.id, 'reader:b'))['rotation'], 1);
     expect(object(store.setting<dynamic>('epubDefault'))['fontSize'], 30.0);
   });
+
+  test(
+    'an already open EPUB keeps a new global font size after saving progress',
+    () async {
+      final repo = repository();
+      final volume = book('epub', 1);
+      final file = createBook(directory);
+      store.cache(account.id, 'epub:epub', {
+        'fontSize': 23.0,
+        'lineHeight': 1.9,
+      });
+      final session = await EpubSession.open(repo, volume, file);
+      try {
+        expect(session.preferences.fontSize, 23);
+        updateReaderDefaults(store, 'epubDefault', {
+          'fontSize': 29.0,
+          'flow': 'paged',
+        });
+        session.receive({
+          'type': 'position',
+          'href': session.href,
+          'progression': .4,
+          'cfi': 'epubcfi(saved)',
+          'page': 5,
+          'changed': true,
+        });
+        session.save();
+        final saved = object(store.cached(account.id, 'epub:epub'));
+        expect(saved, isNot(contains('fontSize')));
+        expect(saved['lineHeight'], 1.9);
+        expect(saved['cfi'], 'epubcfi(saved)');
+        expect(session.resetPreferences().fontSize, 29);
+        final reset = object(store.cached(account.id, 'epub:epub'));
+        expect(reset, isNot(contains('lineHeight')));
+        expect(reset['cfi'], 'epubcfi(saved)');
+      } finally {
+        await session.close();
+      }
+    },
+  );
+
+  test('raster PDF defaults keep comic settings separate and pair continuous pages', () {
+    store.cache(account.id, 'pdf-raster:pdf', {
+      'direction': 'rtl',
+      'background': 'black',
+      'rotation': 1,
+    });
+    store.cache(account.id, 'reader:comic', {
+      'direction': 'rtl',
+      'background': 'black',
+    });
+    updateReaderDefaults(store, 'pdfDefault', {'background': 'white'});
+    final raster = object(store.cached(account.id, 'pdf-raster:pdf'));
+    expect(raster, {'direction': 'rtl', 'rotation': 1});
+    expect(
+      object(store.cached(account.id, 'reader:comic'))['background'],
+      'black',
+    );
+    final session = ReadingSession(
+      count: 6,
+      initialPage: 3,
+      continuousSpreads: true,
+      preferences: const ReaderPreferences(
+        mode: ReadingMode.vertical,
+        spread: true,
+        soloCover: true,
+      ),
+      onCommit: (_) {},
+    );
+    addTearDown(session.dispose);
+    expect(session.itemCount, 4);
+    expect(session.itemIndex, 1);
+    expect(session.firstPage(1), 2);
+    session.next();
+    expect(session.page, 4);
+  });
+
+  for (final size in [const Size(320, 520), const Size(1160, 520)]) {
+    testWidgets('series detail keeps its catalog usable at $size', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final repo = DashboardFixture(
+        profile: account,
+        store: store,
+        directory: directory,
+        api: KomgaApi(
+          Uri.parse(account.url),
+          authentication: Authentication.apiKey,
+          credential: 'fixture',
+        ),
+      );
+      repositories.add(repo);
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DetailPage(
+              repository: repo,
+              item: CatalogItem('series', {
+                'id': 's',
+                'name': 'Fixture series',
+                'metadata': {'summary': 'Series description'},
+              }),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(find.text('Fixture series'), findsNWidgets(2));
+        final contents = find.byType(CustomScrollView);
+        expect(contents, findsOneWidget);
+        if (size.width > 880) {
+          expect(find.text('Series description'), findsOneWidget);
+          expect(tester.getTopLeft(contents).dx, greaterThan(290));
+        } else {
+          await tester.drag(contents, const Offset(0, -190));
+          await tester.pump(const Duration(milliseconds: 250));
+          expect(find.text('Book b2'), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.runAsync(repo.stopDownloadWork);
+        repositories.remove(repo);
+      }
+    });
+  }
+
+  testWidgets('downloads separate waiting, failed and available books', (
+    tester,
+  ) async {
+    final repo = DashboardFixture(
+      profile: account,
+      store: store,
+      directory: directory,
+      api: KomgaApi(
+        Uri.parse(account.url),
+        authentication: Authentication.apiKey,
+        credential: 'fixture',
+      ),
+    );
+    repositories.add(repo);
+    await tester.binding.setSurfaceSize(const Size(320, 650));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    store.saveDownload(account.id, book('waiting', 1), 'paused');
+    store.saveDownload(account.id, book('failed', 2), 'failed');
+    store.saveDownload(account.id, book('ready', 3), 'ready', size: 2097152);
+    try {
+      await tester.pumpWidget(
+        MaterialApp(home: DownloadsPage(repository: repo)),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('Download Queue'), findsOneWidget);
+      expect(find.text('Interrupted Downloads'), findsOneWidget);
+      expect(find.text('Completed Downloads'), findsOneWidget);
+      expect(find.text('2.0 MiB'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(repo.stopDownloadWork);
+      repositories.remove(repo);
+    }
+  });
   test('new installs use original reader defaults; existing installs preserve choices', () {
     initializeReaderDefaults(store);
     final prefs = object(store.setting<dynamic>('readerDefault'));
     expect(prefs['pageLayout'], 'auto');
     expect(prefs['soloCover'], true);
-    expect(prefs['doubleTapZoom'], 3);
+    expect(prefs['doubleTapZoom'], 2);
+    expect(prefs['showProgress'], true);
+    expect(object(store.setting<dynamic>('pdfDefault'))['showProgress'], true);
     expect(store.setting<int>('progressRecordingThreshold'), 3);
     expect(
       object(store.setting<dynamic>('epubDefault'))['advancedLayout'],

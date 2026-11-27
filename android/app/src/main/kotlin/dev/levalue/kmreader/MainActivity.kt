@@ -2,6 +2,7 @@ package dev.levalue.kmreader
 
 import android.content.pm.ApplicationInfo
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Handler
@@ -22,11 +23,14 @@ import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterFragmentActivity() {
+open class MainActivity : FlutterFragmentActivity() {
     private var transferConditions: TransferConditions? = null
     private var ocr: ReaderOcr? = null
     private var exporter: FileExporter? = null
     private var updater: AppUpdater? = null
+    private var systemShortcuts: SystemShortcuts? = null
+    private var localFolders: LocalFolders? = null
+    private var libraryIndex: LibraryIndex? = null
     private var privacyChannel: MethodChannel? = null
     private var readerStatusBarVisible = false
     private var readerActive = false
@@ -49,6 +53,9 @@ class MainActivity : FlutterFragmentActivity() {
         ocr = ReaderOcr(this, flutterEngine.dartExecutor.binaryMessenger)
         exporter = FileExporter(this, flutterEngine.dartExecutor.binaryMessenger)
         updater = AppUpdater(this, flutterEngine.dartExecutor.binaryMessenger)
+        systemShortcuts = SystemShortcuts(this, flutterEngine.dartExecutor.binaryMessenger)
+        localFolders = LocalFolders(this, flutterEngine.dartExecutor.binaryMessenger)
+        libraryIndex = LibraryIndex(this, flutterEngine.dartExecutor.binaryMessenger)
         privacyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.levalue.kmreader/privacy")
         privacyChannel!!.setMethodCallHandler { call, result ->
             if (call.method == "getAppIcons") {
@@ -65,6 +72,7 @@ class MainActivity : FlutterFragmentActivity() {
                 for (name in listOf("Default", "Classic", "Legacy")) {
                     if (name != selected) packageManager.setComponentEnabledSetting(ComponentName(this, "dev.levalue.kmreader.Launcher$name"), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
                 }
+                systemShortcuts?.publish()
                 result.success(null)
             } else if (call.method == "setProtected" && call.arguments is Boolean) {
                 if (call.arguments as Boolean) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -296,7 +304,23 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        systemShortcuts?.receive(intent)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        localFolders?.onActivityResult(requestCode, resultCode, data)
+    }
+
     override fun onDestroy() {
+        libraryIndex?.close()
+        libraryIndex = null
+        localFolders?.close()
+        localFolders = null
+        systemShortcuts?.close()
+        systemShortcuts = null
         transferConditions?.close()
         transferConditions = null
         privacyChannel?.setMethodCallHandler(null)

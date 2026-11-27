@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_controller.dart';
 import '../../core/local_library.dart';
 import '../../core/models.dart';
+import '../../core/reader_launch.dart';
 import '../../ui/common.dart';
 import '../../ui/strings.dart';
 import '../reader/document_readers.dart';
@@ -25,7 +26,108 @@ class LocalLibraryPage extends StatefulWidget {
 
 class _LocalLibraryPageState extends State<LocalLibraryPage> {
   bool _importing = false;
+  bool _choosingFolder = false;
   LocalLibrary get library => widget.app.localLibrary;
+  @override
+  void initState() {
+    super.initState();
+    widget.app.localFolders.start();
+  }
+
+  Future<void> _manageFolders() async {
+    final sources = widget.app.localFolders;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, updateDialog) => ListenableBuilder(
+          listenable: sources,
+          builder: (context, _) => AlertDialog(
+            title: Text(tr(context, 'Watched Folders')),
+            content: SizedBox(
+              width: 420,
+              height: sources.folders.isEmpty
+                  ? 72
+                  : MediaQuery.sizeOf(context).height * .30,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (sources.folders.isEmpty)
+                    Text(
+                      tr(
+                        context,
+                        'Choose a folder to import its books automatically.',
+                      ),
+                    ),
+                  if (sources.scanning) const LinearProgressIndicator(),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final source in sources.folders)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(source.name),
+                            subtitle: sources.failures.containsKey(source.id)
+                                ? Text(
+                                    tr(
+                                      context,
+                                      'Some files could not be imported.',
+                                    ),
+                                  )
+                                : null,
+                            trailing: IconButton(
+                              tooltip: tr(context, 'Stop Watching'),
+                              onPressed: () async {
+                                try {
+                                  await sources.remove(source);
+                                } catch (error) {
+                                  if (context.mounted) {
+                                    showError(context, error);
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.remove_circle_outline),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              if (sources.folders.isNotEmpty)
+                TextButton(
+                  onPressed: sources.scanning ? null : sources.refresh,
+                  child: Text(tr(context, 'Refresh')),
+                ),
+              TextButton(
+                onPressed: _choosingFolder
+                    ? null
+                    : () async {
+                        updateDialog(() => _choosingFolder = true);
+                        try {
+                          await sources.add();
+                        } catch (error) {
+                          if (context.mounted) showError(context, error);
+                        } finally {
+                          _choosingFolder = false;
+                          if (context.mounted) updateDialog(() {});
+                        }
+                      },
+                child: Text(tr(context, 'Add Folder')),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(tr(context, 'Done')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _import() async {
     if (_importing) return;
     setState(() => _importing = true);
@@ -153,6 +255,12 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
                     ),
                   ),
                   const SizedBox(width: 12),
+                  if (widget.app.localFolders.supported)
+                    IconButton(
+                      tooltip: tr(context, 'Watched Folders'),
+                      onPressed: _manageFolders,
+                      icon: const Icon(Icons.folder_open),
+                    ),
                   FilledButton.icon(
                     onPressed: _importing ? null : _import,
                     icon: const Icon(Icons.add),
@@ -180,11 +288,42 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
                             '${book.format.toUpperCase()}${book.page > 0 ? ' · ${book.page} / ${book.pages}' : ''}',
                           ),
                           onTap: () => _open(book),
-                          trailing: IconButton(
-                            tooltip: tr(context, 'Remove'),
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _remove(book),
-                          ),
+                          trailing: ReaderLaunch.supported
+                              ? PopupMenuButton<String>(
+                                  onSelected: (action) async {
+                                    if (action == 'remove') {
+                                      await _remove(book);
+                                    } else {
+                                      try {
+                                        await ReaderLaunch(
+                                          library.profile.id,
+                                          book.id,
+                                        ).openWindow();
+                                      } catch (failure) {
+                                        if (context.mounted) {
+                                          showError(context, failure);
+                                        }
+                                      }
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    PopupMenuItem(
+                                      value: 'window',
+                                      child: Text(
+                                        tr(context, 'Open in New Window'),
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'remove',
+                                      child: Text(tr(context, 'Remove')),
+                                    ),
+                                  ],
+                                )
+                              : IconButton(
+                                  tooltip: tr(context, 'Remove'),
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () => _remove(book),
+                                ),
                         );
                       },
                     ),

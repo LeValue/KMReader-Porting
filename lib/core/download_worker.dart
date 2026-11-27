@@ -8,6 +8,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'api.dart';
 import 'credentials.dart';
 import 'download_policy.dart';
+import 'download_notifications.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'store.dart';
@@ -48,25 +49,39 @@ class DownloadWorker {
     Timer? timer;
     Timer? policyCheck;
     String? active;
-    bool cancelled() =>
-        store.accountRemoved(server) ||
-        store.setting<bool>('offline:$server') == true ||
-        !DownloadPolicy.read(store).background;
+    ServerProfile? profile;
+    bool cancelled() {
+      final target = profile;
+      return store.accountRemoved(server) ||
+          (target != null &&
+              !store.servers.any(
+                (current) =>
+                    current.id == server &&
+                    current.url == target.url &&
+                    current.credentialKey == target.credentialKey &&
+                    current.authentication == target.authentication,
+              )) ||
+          store.setting<bool>('offline:$server') == true ||
+          store.setting<bool>('downloadQueuePaused:$server') == true ||
+          !DownloadPolicy.read(store).background;
+    }
+
     try {
-      final profile = store.servers.where((p) => p.id == server).firstOrNull;
-      if (profile == null || profile.isKindle || cancelled()) return true;
-      final credential = await vault.read(server);
+      final saved = store.servers.where((p) => p.id == server).firstOrNull;
+      profile = saved;
+      if (saved == null || saved.isKindle || cancelled()) return true;
+      final credential = await vault.read(saved.credentialKey);
       if (_stopped) return false;
-      if (credential == null) return true;
+      if (credential == null || cancelled()) return true;
       if (conditions != null &&
           !DownloadPolicy.read(store).permits(await conditions!())) {
         return false;
       }
       final repository = _repository = Repository(
-        profile: profile,
+        profile: saved,
         api: KomgaApi(
-          Uri.parse(profile.url),
-          authentication: profile.authentication,
+          Uri.parse(saved.url),
+          authentication: saved.authentication,
           credential: credential,
         ),
         store: store,
@@ -107,6 +122,14 @@ class DownloadWorker {
         active = item.id;
         try {
           await repository.download(item);
+          if (store.download(server, item.id)?['status'] == 'ready') {
+            await DownloadNotifications.show(
+              store,
+              saved,
+              item.id,
+              completed: true,
+            );
+          }
         } on TransferBusy {
           return false;
         } catch (error) {
@@ -122,6 +145,12 @@ class DownloadWorker {
             return false;
           }
           // Authentication, missing files and storage errors need user action.
+          await DownloadNotifications.show(
+            store,
+            saved,
+            item.id,
+            completed: false,
+          );
         } finally {
           if (_stopped && !cancelled()) {
             final current = store.download(server, item.id);

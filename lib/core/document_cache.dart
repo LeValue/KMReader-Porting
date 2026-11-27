@@ -40,6 +40,9 @@ class DocumentCache {
   final _refreshes = <String, Future<void>>{};
   final _active = <String, int>{};
   Timer? _trimTimer;
+  Timer? _leaseTimer;
+  static const _leasePeriod = Duration(seconds: 15);
+  static const _leaseDuration = Duration(minutes: 2);
   bool _closed = false;
   int get budget =>
       (store.setting<int>('documentCacheMb') ?? 1024).clamp(128, 8192) *
@@ -67,17 +70,53 @@ class DocumentCache {
   }
 
   DocumentLease _lease(File file) {
+    if (_closed) throw StateError('Document cache closed');
+    store.transaction(() {
+      store.db.execute(
+        'INSERT OR REPLACE INTO document_leases VALUES(?,?,?,?)',
+        [server, file.path, _owner, _leaseExpiry],
+      );
+      if (!file.existsSync()) {
+        throw const ApiFailure(
+          'The saved document is no longer available. Open it again.',
+        );
+      }
+    });
     _active.update(file.path, (v) => v + 1, ifAbsent: () => 1);
+    _leaseTimer ??= Timer.periodic(_leasePeriod, (_) {
+      store.db.execute(
+        'UPDATE document_leases SET expires=? WHERE server=? AND owner=?',
+        [_leaseExpiry, server, _owner],
+      );
+    });
     return DocumentLease(file, () {
       final remaining = (_active[file.path] ?? 1) - 1;
       if (remaining <= 0) {
         _active.remove(file.path);
+        if (!_closed) {
+          store.db.execute(
+            'DELETE FROM document_leases WHERE server=? AND path=? AND owner=?',
+            [server, file.path, _owner],
+          );
+        }
+        if (_active.isEmpty) {
+          _leaseTimer?.cancel();
+          _leaseTimer = null;
+        }
       } else {
         _active[file.path] = remaining;
       }
       scheduleTrim();
     });
   }
+
+  int get _leaseExpiry =>
+      DateTime.now().add(_leaseDuration).millisecondsSinceEpoch;
+
+  bool hasOpenDocument(File file) => store.db.select(
+    'SELECT 1 FROM document_leases WHERE server=? AND path=? AND expires>? LIMIT 1',
+    [server, file.path, DateTime.now().millisecondsSinceEpoch],
+  ).isNotEmpty;
 
   Future<DocumentLease> open(
     Book book, {
@@ -306,10 +345,17 @@ class DocumentCache {
   }
 
   Future<({int bytes, int removableBytes})> usage() async {
+    final open = store.db
+        .select(
+          'SELECT path FROM document_leases WHERE server=? AND expires>?',
+          [server, DateTime.now().millisecondsSinceEpoch],
+        )
+        .map((row) => row['path'])
+        .toSet();
     var bytes = 0, removableBytes = 0;
     await for (final (file, stat) in _files()) {
       bytes += stat.size;
-      if (!_active.containsKey(file.path)) removableBytes += stat.size;
+      if (!open.contains(file.path)) removableBytes += stat.size;
     }
     return (bytes: bytes, removableBytes: removableBytes);
   }
@@ -319,11 +365,19 @@ class DocumentCache {
     var total = files.fold(0, (bytes, entry) => bytes + entry.$2.size);
     files.sort((a, b) => a.$2.modified.compareTo(b.$2.modified));
     for (final entry in files) {
-      if (!clear && total <= budget) break;
-      if (_active.containsKey(entry.$1.path)) continue;
+      if (_closed || !clear && total <= budget) break;
       try {
-        await entry.$1.delete();
-        total -= entry.$2.size;
+        store.transaction(() {
+          // A write before checking makes opening a document and eviction
+          // mutually exclusive across the library and standalone readers.
+          store.db.execute(
+            'DELETE FROM document_leases WHERE server=? AND path=? AND expires<=?',
+            [server, entry.$1.path, DateTime.now().millisecondsSinceEpoch],
+          );
+          if (hasOpenDocument(entry.$1)) return;
+          entry.$1.deleteSync();
+          total -= entry.$2.size;
+        });
       } on FileSystemException {
         // Another Windows reader can still hold the immutable source open.
       }
@@ -342,5 +396,6 @@ class DocumentCache {
   void close() {
     _closed = true;
     _trimTimer?.cancel();
+    _leaseTimer?.cancel();
   }
 }

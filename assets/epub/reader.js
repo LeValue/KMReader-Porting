@@ -588,10 +588,21 @@ class KMReaderPageSnapshot {
       .finally(() => clearTimeout(timer));
   };
   const colors = () => /^#[a-f0-9]{6}$/i.test(preferences.backgroundColor || '') && /^#[a-f0-9]{6}$/i.test(preferences.textColor || '') ? [preferences.backgroundColor, preferences.textColor] : preferences.theme === 'black' ? ['#1c1c1e', '#e8e4dc'] : preferences.theme === 'white' ? ['#ffffff', '#262321'] : ['#efe5d0', '#262321'];
-  const isFixedLayout = () => Boolean(book && (book.package?.metadata.layout === 'pre-paginated' || book.displayOptions?.fixedLayout === 'true'));
+  let mixedLayout = false;
+  const fixedDocuments = new WeakSet();
+  const publisherFixed = () => Boolean(book && (book.package?.metadata.layout === 'pre-paginated' || book.displayOptions?.fixedLayout === 'true'));
+  const isFixedLayout = () => !mixedLayout && publisherFixed();
+  function fixedSection(section) {
+    if (section?.properties.includes('rendition:layout-pre-paginated')) return true;
+    if (section?.properties.includes('rendition:layout-reflowable')) return false;
+    return publisherFixed();
+  }
+  function hasFixedView() {
+    return isFixedLayout() || Boolean(mixedLayout && rendition?.getContents().some(content => fixedDocuments.has(content.document)));
+  }
   const verticalWriting = () => Boolean(rendition?.manager?.writingMode?.startsWith('vertical'));
   const localTouchSelection = doc => config?.androidSelection && preferences.flow === 'paged' &&
-    !isFixedLayout() && !doc.defaultView?.getComputedStyle(doc.body || doc.documentElement).writingMode.startsWith('vertical');
+    !isFixedLayout() && !fixedDocuments.has(doc) && !doc.defaultView?.getComputedStyle(doc.body || doc.documentElement).writingMode.startsWith('vertical');
   const spreadPreference = value => verticalWriting() ? 'none' : value.columns === 1 ? 'none' : value.columns === 2 ? 'always'
     : isFixedLayout() && book.package?.metadata.spread === 'none' ? 'none'
     : isFixedLayout() && book.package?.metadata.spread === 'both' ? 'always' : 'auto';
@@ -603,8 +614,32 @@ class KMReaderPageSnapshot {
   // upstream semantics and the following expand() measures the final layout.
   const formattingContents = new WeakSet();
   const IframeView = ePub.Rendition.prototype.requireView('iframe');
+  function layoutForSection(layout, section) {
+    if (!mixedLayout || !fixedSection(section)) return layout;
+    const fixed = Object.create(layout);
+    Object.defineProperties(fixed, {
+      name: {value: 'pre-paginated'},
+      columnWidth: {get: () => layout.width},
+    });
+    fixed.format = function(contents) {
+      fixedDocuments.add(contents.document);
+      const viewport = contents.viewport();
+      const width = Number.parseInt(viewport.width, 10), height = Number.parseInt(viewport.height, 10);
+      if (!(width > 0 && height > 0)) return layout.format(contents, section);
+      const scale = Math.min(this.columnWidth / width, this.height / height);
+      contents.fit(this.columnWidth, this.height);
+      // Contents.scaler applies translation in authored viewport coordinates.
+      contents.scaler(scale, (this.columnWidth / scale - width) / 2, (this.height / scale - height) / 2);
+    };
+    return fixed;
+  }
+  const setIframeLayout = IframeView.prototype.setLayout;
+  IframeView.prototype.setLayout = function(layout) {
+    return setIframeLayout.call(this, layoutForSection(layout, this.section));
+  };
   const createIframe = IframeView.prototype.create;
   IframeView.prototype.create = function(...args) {
+    if (!this.iframe) this.layout = layoutForSection(this.layout, this.section);
     const frame = createIframe.apply(this, args);
     // Loading long prose into a zero-width iframe first wraps every word on
     // its own line. Give the still-hidden frame its real initial viewport;
@@ -681,7 +716,8 @@ class KMReaderPageSnapshot {
     }
     return nativeWritingMode.call(this, value);
   };
-  function style(document) {
+  function style(document, section) {
+    if (mixedLayout && section && fixedSection(section)) fixedDocuments.add(document);
     if(!document.documentElement.lang&&config?.language)document.documentElement.lang=config.language;
     if (document.documentElement.style) document.documentElement.style.touchAction = preferences.flow === 'paged' ? 'pan-y pinch-zoom' : 'auto';
     const [background, foreground] = colors();
@@ -692,7 +728,7 @@ class KMReaderPageSnapshot {
     // Fixed pages position artwork and text in an authored coordinate system.
     // Reflow typography or color overrides would change that composition.
     const searchStyle = '::highlight(kmreader-search){background-color:#ffe379;color:#1d1b17;}';
-    if (isFixedLayout()) { if (sheet.textContent !== searchStyle) sheet.textContent = searchStyle; return; }
+    if (isFixedLayout() || fixedDocuments.has(document)) { if (sheet.textContent !== searchStyle) sheet.textContent = searchStyle; return; }
     const custom = preferences.fontUrl && new URL(preferences.fontUrl).origin === window.location.origin;
     const family = custom ? 'font-family:kmreader-custom !important;' : ['serif','sans-serif'].includes(preferences.font) ? `font-family:${preferences.font} !important;` : '';
     const face = custom ? `@font-face{font-family:kmreader-custom;src:url("${preferences.fontUrl}");font-display:block;}` : '';
@@ -1284,7 +1320,19 @@ class KMReaderPageSnapshot {
     while ((text = walker.nextNode())) last = text;
     return last ? [last, last.length] : [node, offset];
   }
-  const wordSegmenter=typeof Intl.Segmenter==='function'?new Intl.Segmenter(undefined,{granularity:'word'}):null;
+  const wordSegmenters = new Map();
+  function segmentWord(node, doc) {
+    if (typeof Intl.Segmenter !== 'function') return null;
+    const language = node.parentElement?.closest('[lang]')?.lang || doc.documentElement.lang || config?.language || '';
+    if (!wordSegmenters.has(language)) {
+      let segmenter;
+      try { segmenter = new Intl.Segmenter(language || undefined, {granularity: 'word'}); }
+      catch (_) { segmenter = new Intl.Segmenter(undefined, {granularity: 'word'}); }
+      if (wordSegmenters.size >= 8) wordSegmenters.clear();
+      wordSegmenters.set(language, segmenter);
+    }
+    return wordSegmenters.get(language).segment(node.data);
+  }
   function wordRange(doc,x,y) {
     const caret=doc.caretRangeFromPoint(x,y);
     const node=caret?.startContainer;
@@ -1292,10 +1340,10 @@ class KMReaderPageSnapshot {
     const offset=caret.startOffset;
     // Treat apostrophes inside words as part of the token. The range uses DOM
     // UTF-16 offsets and retains the last character for annotations.
-    const words=wordSegmenter?.segment(node.data);
+    const words=segmentWord(node,doc);
     const candidates=words
       ? [words.containing(offset),words.containing(offset-1)].filter(word=>word?.segment.trim())
-      : [...node.data.matchAll(/[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}\p{N}]+)*|[^\s]/gu)]
+      : [...node.data.matchAll(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}][\p{M}\ufe0e\ufe0f]*|[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}\p{N}]+)*|[^\s]/gu)]
           .map(match=>({index:match.index,segment:match[0]}));
     for(const {index,segment} of candidates){
       const end=index+segment.length;
@@ -1546,7 +1594,7 @@ class KMReaderPageSnapshot {
     // One authored fixed page is one spine item. A native view can deliver its
     // contents before Epub.js exposes a viewport mapping; use that real page's
     // canonical CFI instead of announcing readiness with no reading position.
-    if(!isFixedLayout()||preferences.flow!=='paged'||rendition.manager?.layout?.divisor!==1)return;
+    if(!hasFixedView()||preferences.flow!=='paged'||!mixedLayout&&rendition.manager?.layout?.divisor!==1)return;
     const contents=rendition.getContents();if(contents.length!==1)return;
     const content=contents[0],section=book.spine.get(content.sectionIndex);
     if(!section||!content.document?.body)return;
@@ -1561,7 +1609,7 @@ class KMReaderPageSnapshot {
     // Reading the current location also synchronizes Epub.js layout with the
     // actual native viewport. A turn must not use cached geometry from before
     // the reader was shown or a settings sheet finished closing.
-    const current = rendition.currentLocation();
+    const current = mixedLayout && hasFixedView() ? fixedViewportLocation() || rendition.currentLocation() : rendition.currentLocation();
     if (current?.start?.cfi) location = current;
     else {const fixed=fixedViewportLocation();if(fixed)location=fixed;}
   }
@@ -1926,7 +1974,7 @@ class KMReaderPageSnapshot {
   }
   function previewShift(delta){
     const manager=rendition?.manager;
-    if(preferences.flow!=='paged'||manager?.settings.axis!=='horizontal'||isFixedLayout())return null;
+    if(preferences.flow!=='paged'||manager?.settings.axis!=='horizontal'||hasFixedView())return null;
     const frames=[...document.querySelectorAll('#viewer iframe')];
     if(frames.length!==1)return null;
     const {scrollLeft,scrollWidth,clientWidth,offsetWidth}=manager.container;
@@ -1958,9 +2006,9 @@ class KMReaderPageSnapshot {
     const shift=previewShift(delta);
     if(shift!==null)return captureSheet(shift);
     const manager=rendition?.manager,views=manager?.views?.all();
-    if(preferences.flow!=='paged'||isFixedLayout()||verticalWriting()||views?.length!==1)return Promise.resolve(null);
+    if(preferences.flow!=='paged'||hasFixedView()||verticalWriting()||views?.length!==1)return Promise.resolve(null);
     const section=delta>0?views[0].section.next():views[0].section.prev();
-    if(!section)return Promise.resolve(null);
+    if(!section || mixedLayout && fixedSection(section))return Promise.resolve(null);
     const revision=captureRevision,key=[revision,section.index,delta,previewOrigin()].join('|');
     if(boundaryPreviews.has(key))return boundaryPreviews.get(key);
     // Render only the adjacent boundary page in an isolated, temporary view.
@@ -2225,6 +2273,7 @@ class KMReaderPageSnapshot {
   }
   function motionAllowed(style) {
     return !config.disableMotion && preferences.animate !== false && preferences.flow === 'paged' && style !== 'none' &&
+      !(mixedLayout && hasFixedView()) &&
       !matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
   async function capturedLayout(move) {
@@ -2245,7 +2294,10 @@ class KMReaderPageSnapshot {
   async function transitionMove(delta, style, y) {
     if(delta>0 && atReadingEnd() || delta<0 && location?.atStart)return null;
     const move = () => delta > 0 ? next() : previous();
-    if (!motionAllowed(style) || !KMReaderSheetEffect.supported(style) || (delta > 0 && atReadingEnd())) {
+    const view = mixedLayout && rendition.manager?.views?.first();
+    const fixedBoundary = view && previewShift(delta) === null &&
+      fixedSection(delta > 0 ? view.section.next() : view.section.prev());
+    if (fixedBoundary || !motionAllowed(style) || !KMReaderSheetEffect.supported(style) || (delta > 0 && atReadingEnd())) {
       await move(); return null;
     }
     // SheetEffect owns the compositor delivery barrier. GPU curl has no
@@ -2300,6 +2352,7 @@ class KMReaderPageSnapshot {
     book = ePub(value.url, {openAs: 'opf', replacements: 'none'});
     await book.ready;
     if (disposed) return;
+    mixedLayout = book.spine.spineItems.some(section => fixedSection(section) !== publisherFixed());
     // Include typography in the serialized publication before the iframe's
     // first layout, rather than paginating the entire chapter with publisher
     // defaults and throwing that work away in the rendered-content hook.
@@ -2380,6 +2433,7 @@ class KMReaderPageSnapshot {
     const current = rendition = book.renderTo('viewer', {width: window.innerWidth, height: window.innerHeight, resizeOnOrientationChange: false,
       manager: preferences.flow === 'scrolled' ? 'continuous' : 'default',
       flow: preferences.flow === 'scrolled' ? 'scrolled' : 'paginated',
+      layout: mixedLayout ? 'reflowable' : null,
       offset: Math.max(800, Math.min(1600, window.innerHeight * 2)),
       spread: spreadPreference(preferences),
       minSpreadWidth: 800, gap: isFixedLayout() ? 0 : preferences.margin * 2, direction: config.direction,

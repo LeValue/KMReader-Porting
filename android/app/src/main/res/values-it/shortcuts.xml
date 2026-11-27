@@ -1,0 +1,5 @@
+<resources>
+    <string name="quick_search">Cerca in libreria</string>
+    <string name="quick_downloads">Download</string>
+    <string name="quick_reading">In lettura</string>
+</resources>

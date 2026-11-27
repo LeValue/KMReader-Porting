@@ -610,25 +610,6 @@ class EpubThemeSettingsPage extends StatefulWidget {
 }
 
 class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
-  static const _themeKeys = {
-    'theme',
-    'colorScheme',
-    'font',
-    'fontWeight',
-    'advancedLayout',
-    'fontSize',
-    'lineHeight',
-    'margin',
-    'columns',
-    'alignment',
-    'paragraphSpacing',
-    'indent',
-    'letterSpacing',
-    'wordSpacing',
-  };
-  Json _theme(dynamic value) => Map.fromEntries(
-    object(value).entries.where((entry) => _themeKeys.contains(entry.key)),
-  );
   LocalStore get store => widget.repository.store;
   CustomFontStore get fonts =>
       CustomFontStore(store, widget.repository.directory);
@@ -662,7 +643,14 @@ class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
         .toList();
     store.setSetting('epubPresets', [
       ...presets,
-      {'name': name, 'value': _theme(store.setting<dynamic>('epubDefault'))},
+      {
+        'name': name,
+        'value': epubThemePreferences(
+          EpubPreferences.fromJson(
+            object(store.setting<dynamic>('epubDefault')),
+          ).toJson(),
+        ),
+      },
     ]);
     setState(() {});
   }
@@ -783,7 +771,11 @@ class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
       ),
     );
     if (selected != null) {
-      updateReaderDefaults(store, 'epubDefault', _theme(selected['value']));
+      updateReaderDefaults(
+        store,
+        'epubDefault',
+        epubThemePreferences(object(selected['value'])),
+      );
     }
     if (mounted) setState(() {});
   }
@@ -1023,7 +1015,7 @@ class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
         max: 48,
         step: 1.2,
         section: 'Page',
-        formatValue: (value) => '${(value / 24).toStringAsFixed(2)}x',
+        formatValue: epubMarginScale,
       ),
       PreferenceSpec(
         'advancedLayout',
@@ -1031,17 +1023,6 @@ class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
         true,
         bucket: 'epubDefault',
         section: ' ',
-        writeValue: (store, value) =>
-            updateReaderDefaults(store, 'epubDefault', {
-              'advancedLayout': value,
-              'fontSize': 19.0,
-              'wordSpacing': 0.0,
-              'paragraphSpacing': .5,
-              'indent': 2.0,
-              'letterSpacing': 0.0,
-              'lineHeight': 1.2,
-              'alignment': 'publisher',
-            }),
       ),
       PreferenceSpec(
         'fontSize',
@@ -1052,7 +1033,7 @@ class _EpubThemeSettingsPageState extends State<EpubThemeSettingsPage> {
         max: 76,
         step: .95,
         section: 'Character & Word',
-        formatValue: (value) => '${(value / 19).toStringAsFixed(2)}x',
+        formatValue: epubSizeScale,
         visible: _epubAdvanced,
       ),
       PreferenceSpec(

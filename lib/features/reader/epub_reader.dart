@@ -18,6 +18,7 @@ import '../../core/annotation_colors.dart';
 import '../../core/models.dart';
 import '../../core/external_links.dart';
 import '../../core/repository.dart';
+import '../../core/reader_defaults.dart';
 import '../../core/client_log.dart';
 import '../../core/translation.dart';
 import '../../ui/common.dart';
@@ -71,13 +72,16 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   void _scheduleControlsHide() {
     _chromeTimer?.cancel();
     if (!_controls ||
+        MediaQuery.maybeAccessibleNavigationOf(context) == true ||
         _sidePanel != null ||
         _settingsOpen ||
         _session?.ready != true) {
       return;
     }
     _chromeTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+      if (mounted &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          !readerControlHasFocus()) {
         setState(() => _controls = false);
       }
     });
@@ -760,6 +764,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             trailing: entry.location == null
                 ? null
                 : IconButton(
+                    tooltip: tr(context, 'Go to section'),
                     icon: const Icon(CupertinoIcons.arrow_right_circle),
                     onPressed: () => go(entry.location!),
                   ),
@@ -980,6 +985,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                     padding: EdgeInsets.only(bottom: top ? 0 : keyboard),
                     child: Semantics(
                       container: true,
+                      label: tr(context, _sidePanelTitle ?? 'Reading controls'),
                       child: SizedBox(
                         width: min(620, bounds.maxWidth),
                         height: min(
@@ -1644,17 +1650,24 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Naviga nel volume',
+                  tr(context, 'Navigate in Book'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   total == null
                       ? '${(progress * 100).round()}%'
-                      : 'Pagina ~${(progress * total).floor().clamp(0, total - 1) + 1} di $total · ${(progress * 100).round()}%',
+                      : '${readingPageLabel(context, (progress * total).floor().clamp(0, total - 1) + 1, total)} · ${(progress * 100).round()}%',
                 ),
                 Slider(
                   value: progress,
+                  semanticFormatterCallback: (value) => total == null
+                      ? '${(value * 100).round()}%'
+                      : readingPageLabel(
+                          context,
+                          (value * total).floor().clamp(0, total - 1) + 1,
+                          total,
+                        ),
                   onChanged: (value) => update(() => progress = value),
                   onChangeEnd: (value) => Navigator.pop(context, value),
                 ),
@@ -1666,7 +1679,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           controller: controller,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: 'Vai alla pagina (1–$total)',
+                            labelText: tr(context, 'Go to page (1–{total})', {
+                              'total': total,
+                            }),
                           ),
                           onSubmitted: (value) {
                             final page = int.tryParse(value);
@@ -1677,7 +1692,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Vai',
+                        tooltip: tr(context, 'Go'),
                         onPressed: () {
                           final page = int.tryParse(controller.text);
                           if (page != null && page >= 1 && page <= total) {
@@ -1699,7 +1714,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                               action = 'previous';
                               Navigator.pop(context);
                             },
-                      child: const Text('Capitolo precedente'),
+                      child: Text(tr(context, 'Previous Chapter')),
                     ),
                     TextButton(
                       onPressed:
@@ -1710,7 +1725,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                               action = 'next';
                               Navigator.pop(context);
                             },
-                      child: const Text('Capitolo successivo'),
+                      child: Text(tr(context, 'Next Chapter')),
                     ),
                     TextButton(
                       onPressed: () {
@@ -2163,17 +2178,19 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     var draft = session.preferences.toJson();
     String? applied = jsonEncode(draft);
     var pending = Future<void>.value();
-    void preview() {
+    void preview({bool persist = true}) {
       final settings = jsonEncode(draft);
       if (applied == settings) return;
       applied = settings;
       final value = EpubPreferences.fromJson(draft);
+      session.setPreferences(value, persist: persist);
       pending = pending
           .then((_) async {
             if (!mounted || applied != settings) return;
-            session.setPreferences(value);
             await session.prepareFont();
-            if (mounted) await _call('preferences', session.browserPreferences);
+            if (mounted && applied == settings) {
+              await _call('preferences', session.browserPreferences);
+            }
           })
           .catchError((Object error) {
             if (mounted) showError(context, error);
@@ -2185,7 +2202,15 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         'Text Settings',
         (context, close) => StatefulBuilder(
           builder: (context, update) {
-            final session = _session!, p = EpubPreferences.fromJson(draft);
+            final p = EpubPreferences.fromJson(draft);
+            final store = widget.repository.store;
+            final presets = [
+              for (final value
+                  in store.setting<List<dynamic>>('epubPresets') ?? [])
+                if (object(value) case final entry
+                    when text(entry['name']).isNotEmpty)
+                  entry,
+            ];
             Future<void> apply(String key, dynamic value) async {
               final next = EpubPreferences.fromJson({
                 ...draft,
@@ -2214,27 +2239,17 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
               double value,
               double min,
               double max,
-              int divisions,
-            ) => ReaderOptionSlider(
+              int divisions, {
+              String Function(double)? formatValue,
+            }) => ReaderOptionSlider(
               key: ValueKey('epub-$key'),
               title: title,
               value: value,
               min: min,
               max: max,
               divisions: divisions,
-              onChanged: (v) {
-                draft[key] = v;
-                if (const {
-                  'fontSize',
-                  'lineHeight',
-                  'paragraphSpacing',
-                  'indent',
-                  'letterSpacing',
-                  'wordSpacing',
-                }.contains(key)) {
-                  draft['advancedLayout'] = true;
-                }
-              },
+              formatValue: formatValue,
+              onChanged: (_) {},
               onChangeEnd: (v) => apply(key, v),
             );
             Widget picker(
@@ -2283,6 +2298,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                           4.75,
                           76,
                           75,
+                          formatValue: epubSizeScale,
                         ),
                       ],
                     ),
@@ -2337,59 +2353,74 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       title: 'Page layout',
                       children: [
                         slider(
-                          'Line Height',
-                          'lineHeight',
-                          p.lineHeight,
-                          .5,
-                          3,
-                          25,
+                          'Page Margins',
+                          'margin',
+                          p.margin,
+                          6,
+                          48,
+                          35,
+                          formatValue: epubMarginScale,
                         ),
-                        slider('Page Margins', 'margin', p.margin, 0, 100, 20),
-                        picker(
-                          'epub.text_alignment.title',
-                          'alignment',
-                          p.alignment,
-                          {
-                            'publisher':
-                                'epub.text_alignment.publisher_default',
-                            'left': 'left',
-                            'right': 'right',
-                            'justify': 'justify',
-                            'center': 'center',
-                          },
+                        SwitchListTile.adaptive(
+                          title: Text(tr(context, 'Advanced Layout')),
+                          value: p.advancedLayout,
+                          onChanged: (value) => apply('advancedLayout', value),
                         ),
-                        slider(
-                          'Paragraph Spacing',
-                          'paragraphSpacing',
-                          p.paragraphSpacing,
-                          0,
-                          3,
-                          30,
-                        ),
-                        slider(
-                          'Paragraph Indent',
-                          'indent',
-                          p.indent,
-                          0,
-                          8,
-                          20,
-                        ),
-                        slider(
-                          'Letter Spacing',
-                          'letterSpacing',
-                          p.letterSpacing,
-                          -.05,
-                          1,
-                          105,
-                        ),
-                        slider(
-                          'Word Spacing',
-                          'wordSpacing',
-                          p.wordSpacing,
-                          0,
-                          1,
-                          20,
-                        ),
+                        if (p.advancedLayout) ...[
+                          slider(
+                            'Line Height',
+                            'lineHeight',
+                            p.lineHeight,
+                            .5,
+                            3,
+                            25,
+                          ),
+                          picker(
+                            'epub.text_alignment.title',
+                            'alignment',
+                            p.alignment,
+                            {
+                              'publisher':
+                                  'epub.text_alignment.publisher_default',
+                              'left': 'left',
+                              'right': 'right',
+                              'justify': 'justify',
+                              'center': 'center',
+                            },
+                          ),
+                          slider(
+                            'Paragraph Spacing',
+                            'paragraphSpacing',
+                            p.paragraphSpacing,
+                            0,
+                            3,
+                            30,
+                          ),
+                          slider(
+                            'Paragraph Indent',
+                            'indent',
+                            p.indent,
+                            0,
+                            8,
+                            20,
+                          ),
+                          slider(
+                            'Letter Spacing',
+                            'letterSpacing',
+                            p.letterSpacing,
+                            -.05,
+                            1,
+                            105,
+                          ),
+                          slider(
+                            'Word Spacing',
+                            'wordSpacing',
+                            p.wordSpacing,
+                            0,
+                            1,
+                            20,
+                          ),
+                        ],
                         ListTile(
                           leading: const Icon(Icons.add),
                           title: Text(tr(context, 'Import Font')),
@@ -2485,15 +2516,58 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                       ),
                     ],
                   ),
-                  OutlinedButton(
-                    onPressed: () {
-                      widget.repository.store.setSetting(
-                        'epubDefault',
-                        p.toJson(),
-                      );
-                      close();
-                    },
-                    child: Text(tr(context, 'Use as Default')),
+                  ReaderOptionGroup(
+                    title: 'Preferences',
+                    children: [
+                      if (presets.isNotEmpty)
+                        ListTile(
+                          leading: const Icon(Icons.palette_outlined),
+                          title: Text(tr(context, 'Load Preset')),
+                          onTap: () async {
+                            final name = await chooseValue<String>(
+                              context,
+                              title: 'Load Preset',
+                              selected: '',
+                              choices: {
+                                for (final preset in presets)
+                                  text(preset['name']): text(preset['name']),
+                              },
+                              anchored: true,
+                            );
+                            if (name == null || !context.mounted) return;
+                            final preset = presets.firstWhere(
+                              (value) => value['name'] == name,
+                            );
+                            draft = {
+                              ...draft,
+                              ...epubThemePreferences(object(preset['value'])),
+                            };
+                            preview();
+                            update(() {});
+                          },
+                        ),
+                      ListTile(
+                        leading: const Icon(Icons.save_outlined),
+                        title: Text(tr(context, 'Use as Default')),
+                        onTap: () {
+                          updateReaderDefaults(
+                            store,
+                            'epubDefault',
+                            p.toJson(),
+                          );
+                          close();
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.restore),
+                        title: Text(tr(context, 'Use Global Defaults')),
+                        onTap: () {
+                          draft = session.resetPreferences().toJson();
+                          preview(persist: false);
+                          update(() {});
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2625,6 +2699,9 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey, rtl = _session?.host.direction == 'rtl';
+    if (key != LogicalKeyboardKey.escape && readerControlHasFocus()) {
+      return KeyEventResult.ignored;
+    }
     if (HardwareKeyboard.instance.isControlPressed &&
         key == LogicalKeyboardKey.keyC) {
       unawaited(_copySelection());
@@ -2835,18 +2912,25 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                                 foregroundColor: foreground,
                                               ),
                                               onPressed: _quickNavigation,
-                                              child: Text(
-                                                epubOverlayText(
+                                              child: Semantics(
+                                                label: tr(
                                                   context,
-                                                  session,
-                                                  'controlsFooterCenter',
+                                                  'Navigate in Book',
                                                 ),
-                                                key: const ValueKey(
-                                                  'epub-position',
+                                                child: Text(
+                                                  epubOverlayText(
+                                                    context,
+                                                    session,
+                                                    'controlsFooterCenter',
+                                                  ),
+                                                  key: const ValueKey(
+                                                    'epub-position',
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.center,
                                                 ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
                                               ),
                                             ),
                                           ),

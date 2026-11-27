@@ -13,9 +13,11 @@ class DeviceLockGate extends StatefulWidget {
     required this.lock,
     required this.child,
     this.privacyProtection = false,
+    this.requireAuthentication = false,
   });
   final DeviceLock lock;
   final bool privacyProtection;
+  final bool requireAuthentication;
   final Widget child;
   @override
   State<DeviceLockGate> createState() => _DeviceLockGateState();
@@ -27,7 +29,10 @@ class _DeviceLockGateState extends State<DeviceLockGate>
   bool? _protected;
   bool _autoAttempted = false;
   void _protect() {
-    final wanted = widget.lock.enabled || widget.privacyProtection;
+    final wanted =
+        widget.lock.enabled ||
+        widget.privacyProtection ||
+        widget.requireAuthentication;
     if (_protected == wanted) return;
     _protected = wanted;
     unawaited(
@@ -49,7 +54,10 @@ class _DeviceLockGateState extends State<DeviceLockGate>
   @override
   void didUpdateWidget(DeviceLockGate old) {
     super.didUpdateWidget(old);
-    if (old.privacyProtection != widget.privacyProtection) _protect();
+    if (old.privacyProtection != widget.privacyProtection ||
+        old.requireAuthentication != widget.requireAuthentication) {
+      _protect();
+    }
     if (old.lock != widget.lock) {
       old.lock.removeListener(_protect);
       widget.lock.addListener(_protect);
@@ -75,7 +83,7 @@ class _DeviceLockGateState extends State<DeviceLockGate>
       if (!widget.lock.busy && (background || !widget.lock.locked)) {
         _autoAttempted = false;
       }
-      widget.lock.lock();
+      widget.lock.lock(required: widget.requireAuthentication);
     } else if (state == AppLifecycleState.resumed && !_autoAttempted) {
       _unlock();
     }
@@ -98,7 +106,10 @@ class _DeviceLockGateState extends State<DeviceLockGate>
         children: [
           Offstage(
             offstage: lock.locked,
-            child: TickerMode(enabled: !lock.locked, child: widget.child),
+            child: ExcludeFocus(
+              excluding: lock.locked,
+              child: TickerMode(enabled: !lock.locked, child: widget.child),
+            ),
           ),
           if (lock.locked)
             PopScope(

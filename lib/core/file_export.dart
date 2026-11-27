@@ -49,7 +49,18 @@ Future<bool> exportPageImage(
     ],
   );
   if (location == null) return false;
-  await source.copy(location.path);
+  final target = File(location.path);
+  final staging = await target.parent.createTemp('.kmreader-export-');
+  try {
+    final copy = await source.copy('${staging.path}/page.png');
+    await copy.rename(target.path);
+  } finally {
+    try {
+      await staging.delete(recursive: true);
+    } on FileSystemException {
+      // Keep the outcome of the export when another process removed staging.
+    }
+  }
   return true;
 }
 
@@ -63,15 +74,23 @@ Future<bool> saveEncodedPageImage(
   ui.Codec? codec;
   ui.Image? image;
   try {
-    codec = await ui.instantiateImageCodec(bytes);
-    image = (await codec.getNextFrame()).image;
-    final png = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (png == null) throw const FormatException('Unable to encode the page.');
+    const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+    var encoded = bytes;
+    if (bytes.length < signature.length ||
+        signature.asMap().entries.any(
+          (entry) => bytes[entry.key] != entry.value,
+        )) {
+      codec = await ui.instantiateImageCodec(bytes);
+      image = (await codec.getNextFrame()).image;
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (png == null) {
+        throw const FormatException('Unable to encode the page.');
+      }
+      encoded = png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
+    }
     temporary = await directory.createTemp('page-export-');
     final source = File('${temporary.path}/page.png');
-    await source.writeAsBytes(
-      png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes),
-    );
+    await source.writeAsBytes(encoded);
     return await exportPageImage(
       source,
       suggestedName: 'kmreader-page-$page.png',
@@ -79,6 +98,12 @@ Future<bool> saveEncodedPageImage(
   } finally {
     image?.dispose();
     codec?.dispose();
-    if (temporary != null) await temporary.delete(recursive: true);
+    if (temporary != null) {
+      try {
+        await temporary.delete(recursive: true);
+      } on FileSystemException {
+        // A cleanup failure must preserve the picker result.
+      }
+    }
   }
 }

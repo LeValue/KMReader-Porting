@@ -60,6 +60,39 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets('a protected profile locks on background without global lock', (
+    tester,
+  ) async {
+    final store = LocalStore(sqlite3.openInMemory());
+    addTearDown(store.close);
+    final auth = Auth()..answer = false;
+    final lock = DeviceLock(store, auth);
+    addTearDown(lock.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => DeviceLockGate(
+          lock: lock,
+          requireAuthentication: true,
+          child: child!,
+        ),
+        home: const Scaffold(body: Text('Protected profile')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(lock.enabled, false);
+    expect(find.text('Protected profile'), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    expect(lock.locked, true);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(auth.calls, 1);
+    expect(find.text('Protected profile'), findsNothing);
+    auth.answer = true;
+    await tester.tap(find.text('Unlock'));
+    await tester.pumpAndSettle();
+    expect(find.text('Protected profile'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets(
     'cancelled authentication is not repeated by the same foreground transition',
     (tester) async {

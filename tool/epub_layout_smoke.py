@@ -13,8 +13,9 @@ with sync_playwright() as playwright:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script("window.readerMessages=[]; addEventListener('readerEvent', event=>readerMessages.push(event.detail));")
     page.goto(url)
-    page.evaluate('(hold)=>window.holdFixedViewport=hold', config.get('kind') != 'vertical' and config['preferences']['flow'] == 'paged')
-    if config.get('kind') != 'vertical' or config['preferences']['flow'] == 'paged':
+    kind = config.get('kind')
+    page.evaluate('(hold)=>window.holdFixedViewport=hold', kind not in ('vertical', 'mixed') and config['preferences']['flow'] == 'paged')
+    if kind != 'mixed' and (kind != 'vertical' or config['preferences']['flow'] == 'paged'):
         page.evaluate("""() => {
             const renderTo = ePub.Book.prototype.renderTo;
             ePub.Book.prototype.renderTo = function(...args) {
@@ -46,6 +47,28 @@ with sync_playwright() as playwright:
           return {font: style.fontSize, color: style.color, left: style.left, top: style.top};
         }''')
         assert values == {'font': '18px', 'color': 'rgb(17, 34, 51)', 'left': '120px', 'top': '200px'}, values
+
+    if kind == 'mixed':
+        page.evaluate("reader.display('two.xhtml')")
+        check_authored()
+        frame = next(frame for frame in page.frames if frame.locator('#label').count())
+        assert frame.locator('body').evaluate("el => getComputedStyle(el).transform !== 'none'")
+        assert page.evaluate("reader.position().start.href.endsWith('two.xhtml')")
+        before = page.evaluate('reader.position().start.cfi')
+        page.evaluate('prefs => reader.preferences(prefs)', {**config['preferences'], 'fontSize': 32, 'theme': 'black'})
+        assert page.evaluate('reader.position().start.cfi') == before
+        check_authored()
+        if config['preferences']['flow'] == 'paged':
+            page.evaluate('reader.previous()')
+        else:
+            page.evaluate("reader.display('one.xhtml')")
+        assert page.evaluate("reader.position().start.href.endsWith('one.xhtml')")
+        prose = next(frame for frame in page.frames if frame.locator('h1').count())
+        assert prose.locator('body').evaluate('el => getComputedStyle(el).fontSize') == '32px'
+        page.evaluate('reader.destroy()')
+        assert not errors, errors
+        browser.close()
+        sys.exit(0)
 
     if config.get('kind') == 'vertical':
         frame = next(frame for frame in page.frames if frame.locator('#p0').count())

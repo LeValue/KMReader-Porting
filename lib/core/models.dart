@@ -69,6 +69,8 @@ class ServerProfile {
     this.managedKey = false,
     this.userId,
     this.source = 'komga',
+    this.isProtected = false,
+    this.credentialSlot,
   });
   final String id, name, url, email;
   final Authentication authentication;
@@ -77,6 +79,9 @@ class ServerProfile {
   final bool managedKey;
   final String? userId;
   final String source;
+  final bool isProtected;
+  final String? credentialSlot;
+  String get credentialKey => credentialSlot ?? id;
   bool get isKindle => source == 'kindle';
   factory ServerProfile.fromJson(Json j) => ServerProfile(
     id: j['id'],
@@ -89,6 +94,8 @@ class ServerProfile {
     managedKey: j['managedKey'] == true,
     userId: j['userId'] as String?,
     source: j['source'] == 'kindle' ? 'kindle' : 'komga',
+    isProtected: j['protected'] == true,
+    credentialSlot: j['credentialSlot'] as String?,
   );
   Json toJson() => {
     'id': id,
@@ -101,6 +108,8 @@ class ServerProfile {
     'managedKey': managedKey,
     'userId': userId,
     if (isKindle) 'source': source,
+    if (isProtected) 'protected': true,
+    if (credentialSlot != null) 'credentialSlot': credentialSlot,
   };
   static String identity(Uri url, String userId) =>
       sha256.convert(utf8.encode('$url\n$userId')).toString();

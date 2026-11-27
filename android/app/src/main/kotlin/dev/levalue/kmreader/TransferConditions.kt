@@ -10,6 +10,7 @@ import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.os.StatFs
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 
@@ -29,7 +30,14 @@ class TransferConditions(private val context: Context, messenger: BinaryMessenge
     }
     init {
         channel.setMethodCallHandler { call, result ->
-            if (call.method == "conditions") result.success(value()) else result.notImplemented()
+            when (call.method) {
+                "conditions" -> result.success(value())
+                "availableStorage" -> {
+                    val path = call.arguments as? String
+                    result.success(path?.let { runCatching { StatFs(it).availableBytes }.getOrNull() })
+                }
+                else -> result.notImplemented()
+            }
         }
         connectivity.registerDefaultNetworkCallback(network)
         context.registerReceiver(power, IntentFilter(Intent.ACTION_BATTERY_CHANGED))

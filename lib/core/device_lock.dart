@@ -33,8 +33,8 @@ class DeviceLock extends ChangeNotifier {
   int _generation = 0;
   bool _disposed = false;
 
-  void lock() {
-    if (!enabled || busy || locked) return;
+  void lock({bool required = false}) {
+    if ((!enabled && !required) || busy || locked) return;
     _generation++;
     locked = true;
     notifyListeners();
@@ -60,6 +60,8 @@ class DeviceLock extends ChangeNotifier {
       if (!_disposed) notifyListeners();
     }
   }
+
+  Future<bool> verifyAccess(String reason) => _verify(reason);
 
   Future<void> unlock(String reason) async {
     if (!locked || busy) return;

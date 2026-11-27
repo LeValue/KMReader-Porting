@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../../core/repository.dart';
+import '../../core/reader_launch.dart';
 import '../../core/kindle/repository.dart';
 import '../kindle/kindle_document_page.dart';
 import '../../ui/common.dart';
@@ -149,77 +150,117 @@ class _DetailContent extends StatelessWidget {
               ),
             ),
           )
-        : Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 90,
-                      height: 130,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Cover(
-                          repository: repository,
-                          path: item.thumbnail,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.title,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(item.subtitle),
-                          if (item.kind == 'series')
-                            TextButton.icon(
-                              onPressed: () => addToList(
-                                context,
-                                repository,
-                                'collections',
-                                item.id,
-                              ),
-                              icon: const Icon(CupertinoIcons.add),
-                              label: Text(tr(context, 'Add to Collection')),
-                            ),
-                          const SizedBox(height: 12),
-                          if (object(item.json['metadata'])['status'] != null)
-                            Text(text(object(item.json['metadata'])['status'])),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+        : _CollectionDetail(repository: repository, item: item),
+  );
+}
+
+class _CollectionDetail extends StatelessWidget {
+  const _CollectionDetail({required this.repository, required this.item});
+  final Repository repository;
+  final CatalogItem item;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) {
+      final wide = bounds.maxWidth >= 880;
+      final metadata = object(item.json['metadata']);
+      final description = text(metadata['summary'], text(item.json['summary']));
+      final status = text(metadata['status']);
+      final cover = ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: wide ? 144 : 78,
+          height: wide ? 204 : 112,
+          child: Cover(repository: repository, path: item.thumbnail),
+        ),
+      );
+      final details = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
+          if (item.subtitle.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(item.subtitle, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+          if (status.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(status, style: Theme.of(context).textTheme.labelMedium),
+          ],
+          if (item.kind == 'series')
+            TextButton.icon(
+              onPressed: () =>
+                  addToList(context, repository, 'collections', item.id),
+              icon: const Icon(CupertinoIcons.add),
+              label: Text(tr(context, 'Add to Collection')),
+            ),
+        ],
+      );
+      final hero = Padding(
+        padding: EdgeInsets.all(wide ? 24 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (wide) ...[
+              cover,
+              const SizedBox(height: 18),
+              details,
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  cover,
+                  const SizedBox(width: 16),
+                  Expanded(child: details),
+                ],
               ),
-              Expanded(
-                child: CatalogPageView(
-                  repository: repository,
-                  kind: item.kind == 'collections' ? 'series' : 'books',
-                  readListId: item.kind == 'readlists' ? item.id : null,
-                  searchEnabled: item.kind != 'readlists',
-                  path: item.kind == 'readlists'
-                      ? '/api/v1/readlists/${Uri.encodeComponent(item.id)}/books'
-                      : null,
-                  condition: item.kind == 'series'
-                      ? {
-                          'seriesId': {'operator': 'is', 'value': item.id},
-                        }
-                      : item.kind == 'collections'
-                      ? {
-                          'collectionId': {'operator': 'is', 'value': item.id},
-                        }
-                      : null,
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              if (wide)
+                SelectableText(description)
+              else
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(tr(context, 'Summary')),
+                  children: [SelectableText(description)],
                 ),
-              ),
             ],
-          ),
+          ],
+        ),
+      );
+      final members = CatalogPageView(
+        key: ValueKey((item.kind, item.id)),
+        repository: repository,
+        header: wide ? null : hero,
+        preferenceScope: 'detail:${item.kind}:${item.id}',
+        kind: item.kind == 'collections' ? 'series' : 'books',
+        readListId: item.kind == 'readlists' ? item.id : null,
+        searchEnabled: item.kind != 'readlists',
+        path: item.kind == 'readlists'
+            ? '/api/v1/readlists/${Uri.encodeComponent(item.id)}/books'
+            : null,
+        condition: switch (item.kind) {
+          'series' => {
+            'seriesId': {'operator': 'is', 'value': item.id},
+          },
+          'collections' => {
+            'collectionId': {'operator': 'is', 'value': item.id},
+          },
+          _ => null,
+        },
+      );
+      return Row(
+        children: [
+          if (wide) ...[
+            SizedBox(
+              width: 300,
+              child: ListView(children: [hero]).withWheelScrolling(),
+            ),
+            const VerticalDivider(width: 1),
+          ],
+          Expanded(child: members),
+        ],
+      );
+    },
   );
 }
 
@@ -250,8 +291,12 @@ class _BookDetail extends StatelessWidget {
       repository.profile.id,
       book.id,
     );
+    final width = MediaQuery.sizeOf(context).width;
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.symmetric(
+        horizontal: ((width - 1142) / 2).clamp(24, double.infinity),
+        vertical: 24,
+      ),
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
@@ -366,6 +411,19 @@ class _BookDetail extends StatelessWidget {
                     PopupMenuButton<String>(
                       tooltip: tr(context, 'More'),
                       onSelected: (value) async {
+                        if (value == 'window') {
+                          try {
+                            await ReaderLaunch(
+                              repository.profile.id,
+                              book.id,
+                            ).openWindow();
+                          } catch (failure) {
+                            if (context.mounted) {
+                              showError(context, failure);
+                            }
+                          }
+                          return;
+                        }
                         if (value == 'list') {
                           await addToList(
                             context,
@@ -399,6 +457,11 @@ class _BookDetail extends StatelessWidget {
                         }
                       },
                       itemBuilder: (_) => [
+                        if (ReaderLaunch.supported)
+                          PopupMenuItem(
+                            value: 'window',
+                            child: Text(tr(context, 'Open in New Window')),
+                          ),
                         if (repository.supportsRemoteLists)
                           PopupMenuItem(
                             value: 'list',

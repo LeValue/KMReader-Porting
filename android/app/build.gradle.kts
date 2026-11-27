@@ -22,6 +22,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -31,6 +32,8 @@ android {
         if (previewBuild) applicationIdSuffix = ".preview"
         if (epubDiagnostic) applicationIdSuffix = ".epubdiagnostic"
         resValue("string", "app_name", if (epubDiagnostic) "KMReader EPUB Test" else "KMReader")
+        resValue("string", "library_search_authority",
+            "dev.levalue.kmreader${applicationIdSuffix.orEmpty()}.library_search")
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -74,6 +77,10 @@ android {
             signingConfig = if (signingFile.exists()) signingConfigs.getByName("release") else null
         }
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 kotlin {

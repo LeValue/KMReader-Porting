@@ -66,6 +66,9 @@ class LocalStore {
     db.execute(
       'CREATE TABLE IF NOT EXISTS transfer_leases(server TEXT NOT NULL,book TEXT NOT NULL,owner TEXT NOT NULL,expires INTEGER NOT NULL,PRIMARY KEY(server,book))',
     );
+    db.execute('''CREATE TABLE IF NOT EXISTS document_leases(
+      server TEXT NOT NULL, path TEXT NOT NULL, owner TEXT NOT NULL,
+      expires INTEGER NOT NULL, PRIMARY KEY(server,path,owner))''');
     for (final table in [
       'cache',
       'progress',
@@ -158,6 +161,7 @@ class LocalStore {
         'downloads',
         'catalog_records',
         'image_versions',
+        'document_leases',
       ]) {
         db.execute('DELETE FROM $table WHERE server=?', [id]);
       }

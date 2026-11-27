@@ -129,7 +129,8 @@ class OfflineCatalog {
         );
       }
     }
-    List<String>? listOrder;
+    List<String>? members;
+    var keepListOrder = false;
     if (path != null) {
       final match = RegExp(
         r'^/api/v1/(series|collections|readlists)/([^/]+)/(books|series)$',
@@ -144,25 +145,19 @@ class OfflineCatalog {
             'SELECT value FROM catalog_records WHERE server=? AND kind=? AND id=?',
             [server, match[1], id],
           );
-          final ids = list.isEmpty
-              ? <dynamic>[]
-              : (object(
-                          jsonDecode(list.first['value'] as String),
-                        )[kind == 'books' ? 'bookIds' : 'seriesIds']
-                        as List? ??
-                    []);
-          if (match[1] == 'readlists' &&
-              list.isNotEmpty &&
-              object(jsonDecode(list.first['value'] as String))['ordered'] ==
-                  true) {
-            listOrder = ids.whereType<String>().toList();
+          final definition = list.isEmpty
+              ? <String, dynamic>{}
+              : object(jsonDecode(list.first['value'] as String));
+          final ids = definition[kind == 'books' ? 'bookIds' : 'seriesIds'];
+          if (ids is! List) {
+            throw const ApiFailure(
+              'This list must be opened online before it can be used offline.',
+              offline: true,
+            );
           }
-          if (ids.isEmpty) {
-            clauses.add('0');
-          } else {
-            clauses.add('c.id IN (${List.filled(ids.length, '?').join(',')})');
-            args.addAll(ids);
-          }
+          members = ids.whereType<String>().toSet().toList();
+          keepListOrder =
+              match[1] == 'readlists' && definition['ordered'] == true;
         }
       } else if (!onDeck &&
           !(const {'collections', 'readlists'}.contains(kind) &&
@@ -206,25 +201,24 @@ class OfflineCatalog {
       )
       '''
         : '';
-    final source = onDeck ? '$from JOIN deck ON deck.id=c.id' : from;
-    final filters = [if (onDeck) server, ...args];
+    final source = onDeck
+        ? '$from JOIN deck ON deck.id=c.id'
+        : members != null
+        ? '$from JOIN json_each(?) membership ON membership.value=c.id'
+        : from;
+    final sourceArgs = [
+      if (onDeck) server,
+      if (members != null) jsonEncode(members),
+    ];
     final total = integer(
-      db
-          .select(
-            '${deck}SELECT count(*) AS n FROM $source WHERE $where',
-            filters,
-          )
-          .first['n'],
+      db.select('${deck}SELECT count(*) AS n FROM $source WHERE $where', [
+        ...sourceArgs,
+        ...args,
+      ]).first['n'],
     );
     final order = <String>[];
-    final orderArgs = <Object?>[];
-    if (listOrder != null && listOrder.isNotEmpty) {
-      order.add(
-        "CASE c.id ${[for (var i = 0; i < listOrder.length; i++) 'WHEN ? THEN $i'].join(' ')} END",
-      );
-      orderArgs.addAll(listOrder);
-    }
-    final sortParts = listOrder == null && !onDeck
+    if (keepListOrder) order.add('CAST(membership.key AS INTEGER)');
+    final sortParts = !keepListOrder && !onDeck
         ? serverSort(kind, sort)
         : <String>[];
     for (final part in sortParts) {
@@ -251,7 +245,7 @@ class OfflineCatalog {
     page = page.clamp(0, 1 << 30);
     final records = db.select(
       '${deck}SELECT c.value FROM $source $downloadJoin WHERE $where ORDER BY ${order.join(',')} LIMIT ? OFFSET ?',
-      [if (byDownload) server, ...filters, ...orderArgs, size, page * size],
+      [...sourceArgs, if (byDownload) server, ...args, size, page * size],
     );
     return CatalogPage(
       records
@@ -320,6 +314,7 @@ class _OfflineSql {
       'seriesStatus' => "json_extract(c.value,'\$.metadata.status')",
       'mediaProfile' => "json_extract(c.value,'\$.media.mediaProfile')",
       'mediaStatus' => "json_extract(c.value,'\$.media.status')",
+      'releaseDate' when kind == 'series' => "coalesce(json_extract(c.value,'\$.booksMetadata.releaseDate'),json_extract(c.value,'\$.metadata.releaseDate'))",
       'ageRating' ||
       'releaseDate' ||
       'publisher' ||
@@ -367,9 +362,14 @@ class _OfflineSql {
     return value.entries
         .map((entry) {
           if (entry.key == 'allOf' || entry.key == 'anyOf') {
-            final children = (entry.value as List)
-                .map((v) => condition(object(v)))
-                .toList();
+            final nodes = entry.value;
+            if (nodes is! List || nodes.any((node) => node is! Map)) {
+              throw const ApiFailure(
+                'Unsupported offline filter group.',
+                offline: true,
+              );
+            }
+            final children = nodes.map((v) => condition(object(v))).toList();
             return children.isEmpty
                 ? (entry.key == 'allOf' ? '1' : '0')
                 : '(${children.join(entry.key == 'allOf' ? ' AND ' : ' OR ')})';
@@ -377,6 +377,19 @@ class _OfflineSql {
           final name = entry.key,
               filter = object(entry.value),
               op = text(filter['operator']);
+          if (filter.keys.any(
+            (key) => !const {
+              'operator',
+              'value',
+              'dateTime',
+              'duration',
+            }.contains(key),
+          )) {
+            throw const ApiFailure(
+              'This filter has options that require the server.',
+              offline: true,
+            );
+          }
           if (name == 'readListId' || name == 'collectionId') {
             if (!['is', 'isNot'].contains(op)) {
               throw const ApiFailure(
@@ -406,7 +419,9 @@ class _OfflineSql {
               : name == 'author'
               ? "json_extract(a.value,'\$.name')"
               : 'a.value';
-          final array = "json_each(c.value,'\$.$arrayPath') a";
+          final array = name == 'author' && kind == 'series'
+              ? "json_each(coalesce(json_extract(c.value,'\$.booksMetadata.authors'),json_extract(c.value,'\$.metadata.authors'))) a"
+              : "json_each(c.value,'\$.$arrayPath') a";
           if (op == 'isNull' || op == 'isNotNull') {
             return arrayPath != null
                 ? '${op == 'isNull' ? 'NOT ' : ''}EXISTS(SELECT 1 FROM $array)'
@@ -480,11 +495,28 @@ class _OfflineSql {
             }
           }
           if (arrayPath != null) {
-            if (op == 'isNot') {
-              predicate = predicate.replaceFirst('!=', '=');
-              return 'NOT EXISTS(SELECT 1 FROM $array WHERE $predicate)';
+            var match = op == 'isNot'
+                ? predicate.replaceFirst('!=', '=')
+                : predicate;
+            if (name == 'author') {
+              final author = object(filter['value']);
+              if (author.keys.any((key) => key != 'name' && key != 'role')) {
+                throw const ApiFailure(
+                  'This filter has options that require the server.',
+                  offline: true,
+                );
+              }
+              final role = text(author['role']);
+              if (role.isNotEmpty) {
+                args.add(role);
+                match +=
+                    " AND json_extract(a.value,'\$.role')=? COLLATE NOCASE";
+              }
             }
-            return 'EXISTS(SELECT 1 FROM $array WHERE $predicate)';
+            if (op == 'isNot') {
+              return 'NOT EXISTS(SELECT 1 FROM $array WHERE $match)';
+            }
+            return 'EXISTS(SELECT 1 FROM $array WHERE $match)';
           }
           return '($predicate)';
         })

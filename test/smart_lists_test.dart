@@ -119,6 +119,39 @@ void main() {
     store.close();
     directory.deleteSync(recursive: true);
   });
+  test('a saved smart list combines its own rules with offline search and account scope', () async {
+    final service = SmartLists(repository);
+    await service.get('smart');
+    for (final (server, id, role) in [
+      ('s', 'match', 'writer'),
+      ('s', 'excluded', 'inker'),
+      ('other', 'private', 'writer'),
+    ]) {
+      store.cache(server, 'book:$id', {
+        'id': id,
+        'name': 'Visible volume',
+        'metadata': {
+          'authors': [
+            {'name': 'Writer', 'role': role},
+          ],
+        },
+      });
+    }
+    repository.setOffline(true);
+    final page = await repository.catalog(
+      'books',
+      path: '/api/v1/smart-lists/smart/books',
+      search: 'volume',
+      size: 1,
+    );
+    expect(page.items.map((item) => item.id), ['match']);
+    expect(page.total, 1);
+    repository.removeCatalogItem('smart-lists', 'smart');
+    await expectLater(
+      repository.catalog('books', path: '/api/v1/smart-lists/smart/books'),
+      throwsA(isA<ApiFailure>()),
+    );
+  });
   test('Komga 404 is remembered for 24 hours without probing again', () async {
     missing = true;
     final service = SmartLists(repository);

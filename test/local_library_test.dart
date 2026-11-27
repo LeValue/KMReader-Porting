@@ -57,6 +57,26 @@ void main() {
   );
 
   test(
+    'a folder provider can supply a format and display name for a staging file',
+    () async {
+      final staged = await comic().rename('${directory.path}/provider.part');
+      final imported = await library.importFile(
+        XFile(staged.path),
+        displayName: 'Folder Comic.cbz',
+      );
+      expect(imported.title, 'Folder Comic');
+      expect(imported.pages, 3);
+      library.setProgress(imported, 2);
+      final scannedAgain = await library.importFile(
+        XFile(staged.path),
+        displayName: 'Folder Comic.cbz',
+      );
+      expect(scannedAgain.id, imported.id);
+      expect(library.books.single.page, 2);
+    },
+  );
+
+  test(
     'local comics import once, survive reopening and sort pages naturally',
     () async {
       final original = comic();

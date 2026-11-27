@@ -228,36 +228,41 @@ class EpubSelectionMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CustomSingleChildLayout(
     delegate: _SelectionPosition(anchor, touch),
-    child: Material(
-      elevation: 8,
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(touch ? 3 : 6),
-        child: LayoutBuilder(
-          builder: (context, bounds) {
-            final iconsOnly = touch && bounds.maxWidth < 460;
-            return Wrap(
-              spacing: 2,
-              runSpacing: 2,
-              children: [
-                for (final action in actions)
-                  if (iconsOnly)
-                    IconButton(
-                      tooltip: tr(context, action.label),
-                      onPressed: action.invoke,
-                      icon: Icon(action.icon, size: 20),
-                    )
-                  else
-                    TextButton.icon(
-                      onPressed: action.invoke,
-                      icon: Icon(action.icon, size: 18),
-                      label: Text(tr(context, action.label)),
-                    ),
-              ],
-            );
-          },
+    child: Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: tr(context, 'Selected text actions'),
+      child: Material(
+        elevation: 8,
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(touch ? 3 : 6),
+          child: LayoutBuilder(
+            builder: (context, bounds) {
+              final iconsOnly = touch && bounds.maxWidth < 460;
+              return Wrap(
+                spacing: 2,
+                runSpacing: 2,
+                children: [
+                  for (final action in actions)
+                    if (iconsOnly)
+                      IconButton(
+                        tooltip: tr(context, action.label),
+                        onPressed: action.invoke,
+                        icon: Icon(action.icon, size: 20),
+                      )
+                    else
+                      TextButton.icon(
+                        onPressed: action.invoke,
+                        icon: Icon(action.icon, size: 18),
+                        label: Text(tr(context, action.label)),
+                      ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     ),

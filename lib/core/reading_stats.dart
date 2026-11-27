@@ -29,15 +29,21 @@ class ReadingStats {
             query: query,
           ),
         );
+        Future<Json> optional(String path, Json query) async {
+          try {
+            return object(await repository.api.request(path, query: query));
+          } on ApiFailure catch (error) {
+            if (error.status != 404) rethrow;
+            return {};
+          }
+        }
+
         final parts = await Future.wait([
-          repository.api.request(
-            '/api/v1/stats/reading/activity',
-            query: {
-              ...query,
-              'tzOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
-            },
-          ),
-          repository.api.request('/api/v1/stats/reading/tops', query: query),
+          optional('/api/v1/stats/reading/activity', {
+            ...query,
+            'tzOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+          }),
+          optional('/api/v1/stats/reading/tops', query),
         ]);
         final activity = object(parts[0]);
         final result = <String, dynamic>{

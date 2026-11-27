@@ -74,26 +74,58 @@ class KindleEditionMigration {
     }
   }
 
-  List<Json> get _old => (source['anchors'] as List).map(object).toList();
-  List<Json> get _new => (target['anchors'] as List).map(object).toList();
+  late final _old = (source['anchors'] as List).map(object).toList();
+  late final _targetPositions = _indexTarget();
+  final _containedPositions = <String, Set<int>>{};
 
-  int position(int original) {
+  Map<String, Set<int>> _indexTarget() {
+    final positions = <String, Set<int>>{};
+    for (final anchor in (target['anchors'] as List).map(object)) {
+      (positions[text(anchor['text'])] ??= {}).add(integer(anchor['position']));
+    }
+    return positions;
+  }
+
+  Set<int> _matches(String passage) {
+    final exact = _targetPositions[passage];
+    if (exact != null || passage.runes.length < 32) return exact ?? const {};
+    // A converter can merge adjacent spans. Allow the entire old passage to
+    // move inside a larger one only when its position is unique.
+    return _containedPositions.putIfAbsent(passage, () {
+      final matches = <int>{};
+      for (final candidate in _targetPositions.entries) {
+        var from = 0;
+        while (from <= candidate.key.length - passage.length) {
+          final offset = candidate.key.indexOf(passage, from);
+          if (offset < 0) break;
+          final scalars = candidate.key.substring(0, offset).runes.length;
+          matches.addAll(candidate.value.map((start) => start + scalars));
+          if (matches.length > 1) return matches;
+          from = offset + 1;
+        }
+      }
+      return matches;
+    });
+  }
+
+  int position(int original) => _relocate(original, original + 1);
+
+  int _relocate(int start, int end) {
     final candidates =
         _old
             .where(
               (a) =>
-                  integer(a['position']) <= original &&
-                  original < integer(a['position']) + integer(a['length']),
+                  integer(a['position']) <= start &&
+                  end <= integer(a['position']) + integer(a['length']),
             )
             .toList()
           ..sort(
             (a, b) => integer(a['length']).compareTo(integer(b['length'])),
           );
     for (final anchor in candidates) {
-      final matches = _new.where((a) => a['text'] == anchor['text']).toList();
-      final positions = matches.map((a) => integer(a['position'])).toSet();
+      final positions = _matches(text(anchor['text']));
       if (positions.length != 1) continue;
-      return positions.single + original - integer(anchor['position']);
+      return positions.single + start - integer(anchor['position']);
     }
     throw const KindleFailure('management_mapping_ambiguous');
   }
@@ -109,7 +141,7 @@ class KindleEditionMigration {
   /// Resolve the CFI produced by the reader against the original DOM. Only
   /// structurally verified point CFIs are accepted; ranges/temporal CFIs stop
   /// migration rather than silently retaining an invalid old-edition CFI.
-  int cfiPosition(String cfi) {
+  int cfiPosition(String cfi, {bool endBoundary = false}) {
     final match = RegExp(r'^epubcfi\(/6/([0-9]+)(?:\[[^\]^]*\])?!(/[^,~@]+)\)$')
         .firstMatch(cfi);
     if (match == null) throw const KindleFailure('management_local_locator');
@@ -188,7 +220,8 @@ class KindleEditionMigration {
                 a['path'] == path &&
                 a['id'] == parent.id &&
                 parent.text == a['text'] &&
-                characters < integer(a['length']),
+                (characters < integer(a['length']) ||
+                    endBoundary && characters == integer(a['length'])),
           )
           .toList();
       if (anchors.length == 1) {
@@ -199,7 +232,71 @@ class KindleEditionMigration {
     throw const KindleFailure('management_local_locator');
   }
 
+  KindleMark cloudAnnotation(Json record) {
+    final type = text(record['type']);
+    final start = int.tryParse('${record['startPosition']}');
+    final end = int.tryParse('${record['endPosition']}');
+    if (start == null ||
+        end == null ||
+        start < 0 ||
+        end <= start ||
+        !const {'kindle.note', 'kindle.highlight'}.contains(type)) {
+      throw const KindleFailure('management_annotation_migration');
+    }
+    final mapped = _relocate(start, end);
+    final mark = KindleMark(
+      type.substring(7),
+      mapped,
+      end: mapped + end - start,
+      note: type == 'kindle.note' ? kindleNoteText(record) : null,
+    );
+    if (!mark.valid) {
+      throw const KindleFailure('management_annotation_migration');
+    }
+    return mark;
+  }
+
   List<Json> bookmarks(List<Json> originals) => originals.map((mark) {
+    final type = text(mark['type'], 'kindle.bookmark');
+    if (type == 'kindle.note' || type == 'kindle.highlight') {
+      var start = mark['kindleStart'] as int?;
+      var end = mark['kindleEnd'] as int?;
+      if (start == null || end == null) {
+        final range = text(mark['rangeCfi']);
+        final parts = range.startsWith('epubcfi(') && range.endsWith(')')
+            ? range.substring(8, range.length - 1).split(',')
+            : const <String>[];
+        if (parts.length != 3) {
+          throw const KindleFailure('management_local_locator');
+        }
+        start = cfiPosition('epubcfi(${parts[0]}${parts[1]})');
+        end = cfiPosition('epubcfi(${parts[0]}${parts[2]})', endBoundary: true);
+      }
+      final mapped = cloudAnnotation({
+        'type': type,
+        'startPosition': start,
+        'endPosition': end,
+        'noteText': mark['label'],
+      });
+      final from = newMap.locator(mapped.start),
+          to = newMap.locator(mapped.end! - 1);
+      if (from == null || to == null || from['href'] != to['href']) {
+        throw const KindleFailure('management_annotation_migration');
+      }
+      return {
+        ...mark,
+        'href': from['href'],
+        'cfi': '',
+        'rangeCfi': null,
+        'locator': from,
+        'endLocator': {...to, 'offset': integer(to['offset']) + 1},
+        'kindleStart': mapped.start,
+        'kindleEnd': mapped.end,
+      };
+    }
+    if (type != 'kindle.bookmark') {
+      throw const KindleFailure('management_local_locator');
+    }
     final original = mark['kindlePosition'] is int
         ? mark['kindlePosition'] as int
         : cfiPosition(text(mark['cfi']));

@@ -8,8 +8,9 @@ import 'package:html/dom.dart' as dom;
 import 'package:flutter/foundation.dart';
 
 class EpubChapter {
-  EpubChapter(this.path, this.title);
+  EpubChapter(this.path, this.title, {this.fixedLayout = false});
   final String path, title;
+  final bool fixedLayout;
 }
 
 class EpubLocation {
@@ -156,12 +157,30 @@ class EpubDocument {
               ?.innerText ??
           'EPUB';
       final chapters = <EpubChapter>[];
+      final fixedLayout = elements.any(
+        (element) =>
+            element.name.local == 'meta' &&
+            element.getAttribute('property') == 'rendition:layout' &&
+            element.innerText.trim() == 'pre-paginated',
+      );
       for (final e in elements.where(
         (e) => e.name.local == 'itemref' && e.getAttribute('linear') != 'no',
       )) {
         final href = manifest[e.getAttribute('idref')];
         if (href == null) continue;
-        chapters.add(EpubChapter(href, '${chapters.length + 1}'));
+        final properties = (e.getAttribute('properties') ?? '').split(
+          RegExp(r'\s+'),
+        );
+        chapters.add(
+          EpubChapter(
+            href,
+            '${chapters.length + 1}',
+            fixedLayout:
+                properties.contains('rendition:layout-pre-paginated') ||
+                fixedLayout &&
+                    !properties.contains('rendition:layout-reflowable'),
+          ),
+        );
       }
       if (chapters.isEmpty) {
         throw const FormatException('This EPUB contains no readable chapters.');
@@ -192,6 +211,7 @@ class EpubDocument {
         chapters[i] = EpubChapter(
           path,
           heading == null || heading.isEmpty ? '${i + 1}' : heading,
+          fixedLayout: chapters[i].fixedLayout,
         );
       }
       if (contents.isEmpty) {

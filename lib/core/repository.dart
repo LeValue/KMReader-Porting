@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -14,6 +15,7 @@ import 'cache.dart';
 import 'media_cache.dart';
 import 'browse_preferences.dart';
 import 'document_cache.dart';
+import 'download_notifications.dart';
 import 'page_formats.dart';
 import 'network_preferences.dart';
 import 'client_log.dart';
@@ -334,6 +336,8 @@ class Repository extends ChangeNotifier {
       (store.setting<List<dynamic>>('removed:${profile.id}') ?? [])
           .whereType<String>()
           .toSet();
+  bool catalogItemRemoved(String kind, String id) =>
+      _removed.contains('$kind:$id');
   void rememberItem(CatalogItem item) {
     if (_disposed) return;
     final key = item.kind == 'books'
@@ -350,7 +354,11 @@ class Repository extends ChangeNotifier {
     _removalGenerations['$kind:$id'] = _invalidationGeneration + 1;
     store.offlineCatalog.remove(profile.id, kind, id);
     store.setSetting('removed:${profile.id}', _removed.toList());
-    store.deleteCache(profile.id, 'detail:$kind:$id');
+    final key = kind == 'books' ? 'book:$id' : 'detail:$kind:$id';
+    store.deleteCache(profile.id, key);
+    _queryValues.remove(key);
+    _queryDates.remove(key);
+    _queryGenerations.remove(key);
     refreshContent();
   }
 
@@ -501,15 +509,53 @@ class Repository extends ChangeNotifier {
     }
     if (offline &&
         ['books', 'series', 'collections', 'readlists'].contains(kind)) {
+      final smart = RegExp(r'^/api/v1/smart-lists/([^/]+)/(books|series)$')
+          .firstMatch(path ?? '');
+      final smartId = smart == null ? null : Uri.decodeComponent(smart[1]!);
+      if (smartId != null && _removed.contains('smart-lists:$smartId')) {
+        throw const ApiFailure(
+          'This smart list is no longer available.',
+          offline: true,
+        );
+      }
       try {
+        var offlinePath = path;
+        var offlineCondition = condition;
+        var offlineSearch = search;
+        if (smart != null && smartId != null && smart[2] == kind) {
+          final list = object(
+            store.cached(profile.id, 'detail:smart-lists:$smartId'),
+          );
+          final saved = object(list['search']);
+          if (list['search'] is Map &&
+              list['target'] == (kind == 'books' ? 'BOOK' : 'SERIES') &&
+              (saved['condition'] == null || saved['condition'] is Map) &&
+              (saved['fullTextSearch'] == null ||
+                  saved['fullTextSearch'] is String) &&
+              saved.keys.every(
+                (key) => key == 'condition' || key == 'fullTextSearch',
+              )) {
+            offlinePath = null;
+            offlineCondition = {
+              'allOf': [
+                if (saved['condition'] is Map) object(saved['condition']),
+                ?condition,
+              ],
+            };
+            offlineSearch = [
+              text(saved['fullTextSearch']),
+              search ?? '',
+            ].join(' ').trim();
+          }
+        }
         final result = store.offlineCatalog.query(
           profile.id,
           kind,
           page: page,
           size: size,
-          search: search,
-          condition: condition,
-          path: path,
+          search: offlineSearch,
+          condition: offlineCondition,
+          path: offlinePath,
           sort: sort,
           libraryId: libraryId,
         );
@@ -588,7 +634,7 @@ class Repository extends ChangeNotifier {
       parsed.last,
       (parsed.total - (parsed.items.length - kept.length)).clamp(0, 1 << 31),
     );
-    if (kind == 'series' &&
+    if (const {'series', 'collections', 'readlists'}.contains(kind) &&
         data is Object &&
         _storedBookBatches[data] != true) {
       store.cacheItems(profile.id, result.items);
@@ -1360,6 +1406,22 @@ class Repository extends ChangeNotifier {
     }
   }
 
+  void _markOfflineCatalogStale() {
+    final key = 'offlineCatalogSnapshot:${profile.id}';
+    final snapshot = object(store.setting<dynamic>(key));
+    if (snapshot.isNotEmpty && snapshot['complete'] != false) {
+      store.setSetting(key, {...snapshot, 'complete': false});
+    }
+  }
+
+  void _reconcileLiveCatalog() {
+    _markOfflineCatalogStale();
+    _coverResumeEpoch = DateTime.now().millisecondsSinceEpoch;
+    imageChanges.value = const {resumedCovers};
+    refreshContent();
+    unawaited(sync());
+  }
+
   /// Suspend live catalog traffic, leaving explicit transfers and outbox intact.
   void setForeground(bool value) {
     if (_disposed || value == _foreground) return;
@@ -1375,9 +1437,7 @@ class Repository extends ChangeNotifier {
           !_eventsSessionExpired &&
           store.setting<bool>('enableSSE') != false &&
           store.setting<bool>('enableSSEAutoRefresh') != false) {
-        _coverResumeEpoch = DateTime.now().millisecondsSinceEpoch;
-        imageChanges.value = const {resumedCovers};
-        refreshContent();
+        _reconcileLiveCatalog();
         _hadEventConnection = false;
       }
       listen();
@@ -1406,7 +1466,7 @@ class Repository extends ChangeNotifier {
                 _refreshTimer?.cancel();
                 _refreshTimer = Timer(
                   const Duration(milliseconds: 600),
-                  refreshContent,
+                  _reconcileLiveCatalog,
                 );
               }
               _hadEventConnection = true;
@@ -1466,6 +1526,8 @@ class Repository extends ChangeNotifier {
                   ? ('series', text(data['seriesId']))
                   : type.startsWith('ThumbnailReadList')
                   ? ('readlists', text(data['readListId']))
+                  : type.startsWith('ThumbnailSmartList')
+                  ? ('smart-lists', text(data['smartListId']))
                   : ('', '');
               if (kind.isNotEmpty && id.isNotEmpty) {
                 _queueImageEvent(
@@ -1476,11 +1538,13 @@ class Repository extends ChangeNotifier {
             }
             final change = catalogEventChange(type, data);
             if (change == null) return;
-            final indexKey = 'offlineCatalogSnapshot:${profile.id}';
-            final indexed = object(store.setting<dynamic>(indexKey));
-            if (indexed.isNotEmpty) {
-              store.setSetting(indexKey, {...indexed, 'complete': false});
+            if (type.endsWith('ThumbnailChanged') && change.id.isNotEmpty) {
+              _queueImageEvent(
+                '/api/v1/${change.kind}/${Uri.encodeComponent(change.id)}/thumbnail',
+              );
+              return;
             }
+            if (!type.startsWith('ReadProgress')) _markOfflineCatalogStale();
             if (change.id.isNotEmpty) {
               final token = '${change.kind}:${change.id}';
               if (change.deleted) {
@@ -1643,7 +1707,23 @@ class Repository extends ChangeNotifier {
     await Future.wait(active);
   }
 
+  bool get downloadQueuePaused =>
+      store.setting<bool>('downloadQueuePaused:${profile.id}') == true;
+
+  void setDownloadQueuePaused(bool paused) {
+    if (_disposed || profile.isKindle || paused == downloadQueuePaused) return;
+    store.setSetting('downloadQueuePaused:${profile.id}', paused);
+    if (paused) {
+      pauseDownloads();
+    } else {
+      resumeDownloads();
+    }
+    onDownloadQueueChanged?.call();
+    changed();
+  }
+
   void resumeDownloads() {
+    if (downloadQueuePaused) return;
     _downloadSuspended = false;
     for (final row in store.downloads(profile.id)) {
       if (['queued', 'downloading', 'paused'].contains(row['status'])) {
@@ -1659,6 +1739,7 @@ class Repository extends ChangeNotifier {
     if (_disposed ||
         offline ||
         _downloadSuspended ||
+        downloadQueuePaused ||
         !(canTransfer?.call() ?? true)) {
       return;
     }
@@ -1819,7 +1900,19 @@ class Repository extends ChangeNotifier {
           size += await file.length();
         }
       }
-      if (!_disposed) store.saveDownload(profile.id, book, 'ready', size: size);
+      if (!_disposed) {
+        store.saveDownload(profile.id, book, 'ready', size: size);
+        if (!backgroundTransfer) {
+          unawaited(
+            DownloadNotifications.show(
+              store,
+              profile,
+              book.id,
+              completed: true,
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (!_disposed &&
           (store.accountRemoved(profile.id) ||
@@ -1828,16 +1921,22 @@ class Repository extends ChangeNotifier {
         _cancelled.add(book.id);
       }
       if (!_disposed && leased) {
-        store.saveDownload(
-          profile.id,
-          book,
-          _pausing.contains(book.id)
-              ? 'paused'
-              : _cancelled.contains(book.id)
-              ? 'cancelled'
-              : 'failed',
-          error: e.toString(),
-        );
+        final status = _pausing.contains(book.id)
+            ? 'paused'
+            : _cancelled.contains(book.id)
+            ? 'cancelled'
+            : 'failed';
+        store.saveDownload(profile.id, book, status, error: e.toString());
+        if (!backgroundTransfer && status == 'failed') {
+          unawaited(
+            DownloadNotifications.show(
+              store,
+              profile,
+              book.id,
+              completed: false,
+            ),
+          );
+        }
       }
       if (_pausing.contains(book.id)) throw const _TransferPaused();
       rethrow;

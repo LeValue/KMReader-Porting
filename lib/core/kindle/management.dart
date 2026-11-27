@@ -54,7 +54,13 @@ class KindleDocumentManager {
         object(
               repository.store.cached(repository.profile.id, 'kindle:outbox'),
             )[book.id] !=
-            null) {
+            null ||
+        object(
+          repository.store.cached(
+            repository.profile.id,
+            'kindle:annotation-outbox',
+          ),
+        ).values.any((record) => object(record)['book'] == book.id)) {
       throw const KindleFailure('management_busy');
     }
     return item;
@@ -78,6 +84,14 @@ class KindleDocumentManager {
     final file = repository.bookFile(prepared);
     if (!await file.exists()) throw const KindleFailure('management_source');
     return _KindleEditSource(file.path, '${book.title}.${prepared.format}');
+  }
+
+  Future<void> checkReplacementSource(Book book) async {
+    final source = await sourceForEdit(book);
+    final map = await KindlePositionMap.open(source.path);
+    if (map?.primary == null || map!.entries.isEmpty) {
+      throw const KindleFailure('management_mapping_unavailable');
+    }
   }
 
   Future<Json> _backup(Book book, String kind) async {
@@ -457,6 +471,7 @@ class KindleDocumentManager {
         text(plan['guid']),
         position: plan['position'] as int?,
         bookmarks: (plan['bookmarks'] as List).cast<int>(),
+        annotations: _plannedAnnotations(plan),
       )) {
         throw const KindleFailure('management_migration_not_confirmed');
       }
@@ -762,11 +777,13 @@ class KindleDocumentManager {
           throw const KindleFailure('management_source_changed');
         }
         final records = (saved['records'] as List? ?? []).map(object).toList();
-        if (records.any(
-          (r) => const {'kindle.note', 'kindle.highlight'}.contains(r['type']),
-        )) {
-          throw const KindleFailure('management_annotation_migration');
-        }
+        final annotations = records
+            .where(
+              (r) =>
+                  const {'kindle.note', 'kindle.highlight'}.contains(r['type']),
+            )
+            .map(mapping.cloudAnnotation)
+            .toList();
         Json? targetState;
         try {
           targetState = await client.sidecar(
@@ -817,6 +834,15 @@ class KindleDocumentManager {
               : mapping.position(oldPosition),
           'locator': oldPosition == null ? null : mapping.locator(oldPosition),
           'bookmarks': bookmarks,
+          'annotations': [
+            for (final mark in annotations)
+              {
+                'type': mark.type,
+                'start': mark.start,
+                'end': mark.end,
+                'note': ?mark.note,
+              },
+          ],
           'local_bookmarks': localMarks,
           'target': updated.id,
         };
@@ -829,6 +855,7 @@ class KindleDocumentManager {
             text(plan['guid']),
             position: plan['position'] as int?,
             bookmarks: bookmarks,
+            annotations: annotations,
           );
         } catch (_) {
           operation['state'] = 'migration_uncertain';
@@ -836,14 +863,17 @@ class KindleDocumentManager {
           rethrow;
         }
       }
-      if (plan['target'] != updated.id ||
-          plan['guid'] != mapping.newMap.primary ||
-          !await client.readingStateConfirmed(
-            targetItem,
-            text(plan['guid']),
-            position: plan['position'] as int?,
-            bookmarks: (plan['bookmarks'] as List).cast<int>(),
-          )) {
+      final confirmed =
+          plan['target'] == updated.id && plan['guid'] == mapping.newMap.primary
+          ? await client.confirmedReadingState(
+              targetItem,
+              text(plan['guid']),
+              position: plan['position'] as int?,
+              bookmarks: (plan['bookmarks'] as List).cast<int>(),
+              annotations: _plannedAnnotations(plan),
+            )
+          : null;
+      if (confirmed == null) {
         operation['state'] = 'migration_uncertain';
         _save(operation);
         throw const KindleFailure('management_migration_not_confirmed');
@@ -897,6 +927,11 @@ class KindleDocumentManager {
           repository.profile.id,
           'epubBookmarks:${updated.id}',
           plan['local_bookmarks'],
+        );
+        repository.store.cache(
+          repository.profile.id,
+          'kindle:sidecar:${updated.id}',
+          confirmed,
         );
         repository.store.cache(
           repository.profile.id,
@@ -1001,6 +1036,16 @@ String _readingSnapshot(Json sidecar) {
     'records': records,
   });
 }
+
+List<KindleMark> _plannedAnnotations(Json plan) => [
+  for (final value in (plan['annotations'] as List? ?? []).map(object))
+    KindleMark(
+      text(value['type']),
+      value['start'] as int,
+      end: value['end'] as int?,
+      note: value['note'] as String?,
+    ),
+];
 
 Future<String> _encodeBackup(Json value) =>
     Isolate.run(() => jsonEncode(value));

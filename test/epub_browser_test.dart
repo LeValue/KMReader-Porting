@@ -291,6 +291,31 @@ figure{width:65%;margin:0;break-after:column} img,svg{width:100%;height:auto}
     }
   }
   for (final flow in ['paged', 'scrolled']) {
+    test('mixed EPUB $flow preserves both section layouts on reflow', () async {
+      final file = fixedLayoutFixture(directory, mixed: true);
+      final host = await EpubHost.openFile(file.path);
+      try {
+        final result = await Process.run('python3', [
+          'tool/epub_layout_smoke.py',
+          host.reader.toString(),
+          jsonEncode({
+            'url': host.publication.toString(),
+            'nonce': 'mixed-layout',
+            'kind': 'mixed',
+            'direction': 'ltr',
+            'href': 'one.xhtml',
+            'preferences': EpubPreferences.fromJson({'flow': flow}).toJson(),
+          }),
+        ]);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+      } finally {
+        await host.close();
+      }
+    }, skip: Platform.environment['KMREADER_BROWSER_TEST'] != '1');
     test(
       'fixed-layout EPUB $flow flow preserves authored typography and navigation',
       () async {

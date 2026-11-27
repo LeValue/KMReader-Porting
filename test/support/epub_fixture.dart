@@ -53,17 +53,18 @@ File verticalEpubFixture(Directory directory) => fixture(
   },
 );
 
-File fixedLayoutFixture(Directory directory) => fixture(
+File fixedLayoutFixture(Directory directory, {bool mixed = false}) => fixture(
   directory,
   resources: {
     'OPS/package.opf': utf8.encode(
       '''<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uid" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="uid">fixed-layout-test</dc:identifier><dc:title>Fixed pages</dc:title><dc:language>en</dc:language><meta property="rendition:layout">pre-paginated</meta><meta property="rendition:spread">none</meta></metadata>
-<manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>''',
+<manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"${mixed ? ' properties="rendition:layout-reflowable"' : ''}/><itemref idref="two"/></spine></package>''',
     ),
     for (final (name, size) in [('one', (600, 800)), ('two', (800, 600))])
-      'OPS/$name.xhtml': utf8.encode(
-        '''<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$name</title><meta name="viewport" content="width=${size.$1},height=${size.$2}"/><style>html,body{margin:0;padding:0;width:${size.$1}px;height:${size.$2}px;background:#ffeedd;color:#112233}body{font-size:18px;line-height:1.2}.label{position:absolute;left:120px;top:200px;margin:0;font-size:inherit}</style></head><body><p class="label" id="label">Authored $name page</p></body></html>''',
-      ),
+      if (!mixed || name == 'two')
+        'OPS/$name.xhtml': utf8.encode(
+          '''<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$name</title><meta name="viewport" content="width=${size.$1},height=${size.$2}"/><style>html,body{margin:0;padding:0;width:${size.$1}px;height:${size.$2}px;background:#ffeedd;color:#112233}body{font-size:18px;line-height:1.2}.label{position:absolute;left:120px;top:200px;margin:0;font-size:inherit}</style></head><body><p class="label" id="label">Authored $name page</p></body></html>''',
+        ),
   },
 );

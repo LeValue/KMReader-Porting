@@ -16,12 +16,6 @@ class SmartLists {
   }
 
   Future<List<Json>?> load() async {
-    if (repository.offline) {
-      throw const ApiFailure(
-        'Smart lists are unavailable offline.',
-        offline: true,
-      );
-    }
     if (unsupported) return null;
     try {
       final data = await repository.get(
@@ -31,7 +25,20 @@ class SmartLists {
       final values = data is List
           ? data
           : object(data)['content'] as List? ?? [];
-      return values.map(object).toList();
+      final lists = values.map(object).where((row) {
+        final id = text(row['id']);
+        return id.isNotEmpty &&
+            (!repository.offline ||
+                !repository.catalogItemRemoved('smart-lists', id));
+      }).toList();
+      if (!repository.offline) {
+        for (final row in lists) {
+          if (row['search'] is Map) {
+            repository.rememberItem(CatalogItem('smart-lists', row));
+          }
+        }
+      }
+      return lists;
     } on ApiFailure catch (error) {
       if (error.status != 404) rethrow;
       repository.store.setSetting(
@@ -43,8 +50,10 @@ class SmartLists {
   }
 
   Future<Json> get(String id) async => object(
-    await repository.api.request(
+    await repository.get(
       '/api/v1/smart-lists/${Uri.encodeComponent(id)}',
+      cacheKey: 'detail:smart-lists:$id',
+      force: true,
     ),
   );
   Future<List<Json>> targets() async {
@@ -91,7 +100,11 @@ class SmartLists {
     }
     final id = original == null ? null : text(original['id']);
     if (id != null) {
-      final latest = await get(id);
+      final latest = object(
+        await repository.api.request(
+          '/api/v1/smart-lists/${Uri.encodeComponent(id)}',
+        ),
+      );
       for (final key in fields.keys) {
         if (jsonEncode(original![key]) != jsonEncode(latest[key])) {
           throw const ApiFailure(
@@ -107,6 +120,11 @@ class SmartLists {
       method: id == null ? 'POST' : 'PATCH',
       body: fields,
     );
+    if (id != null) {
+      repository.rememberItem(
+        CatalogItem('smart-lists', {...original!, ...fields}),
+      );
+    }
     repository.refreshContent();
   }
 
@@ -116,6 +134,6 @@ class SmartLists {
       '/api/v1/smart-lists/${Uri.encodeComponent(text(item['id']))}',
       method: 'DELETE',
     );
-    repository.refreshContent();
+    repository.removeCatalogItem('smart-lists', text(item['id']));
   }
 }

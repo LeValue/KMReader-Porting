@@ -184,36 +184,40 @@ class _PdfRasterReaderState extends State<PdfRasterReader> {
       }
       final source = snapshot.data!;
       final store = widget.repository.store;
-      final defaults = PdfPreferences.fromJson({
-        ...object(store.setting<dynamic>('pdfDefault')),
-        ...object(
-          store.cached(widget.repository.profile.id, 'pdf:${widget.book.id}'),
-        ),
-      });
-      final presentation = defaults.presentation;
       return ReaderPage(
-        initialPreferences:
-            ReaderPreferences.fromJson(
-              object(widget.repository.store.setting<dynamic>('readerDefault')),
-            ).copy(
-              background: defaults.background,
-              direction: defaults.rtl
-                  ? ReadingDirection.rtl
-                  : ReadingDirection.ltr,
-              useSeriesDirection: defaults.useSeriesDirection,
-              spread: presentation == PdfPresentation.auto
-                  ? null
-                  : presentation.isDual,
-              mode:
-                  defaults.vertical ||
-                      presentation == PdfPresentation.singleContinuous ||
-                      presentation == PdfPresentation.dualContinuous
-                  ? ReadingMode.vertical
-                  : ReadingMode.paged,
-              soloCover: defaults.coverSolo,
-              controlsGradient: defaults.controlsGradient,
-              showProgress: defaults.showProgress,
-            ),
+        readDefaultPreferences: () {
+          final saved = object(store.setting<dynamic>('pdfDefault'));
+          final defaults = PdfPreferences.fromJson(saved);
+          final presentation = defaults.presentation;
+          final hasLayout = saved.containsKey('presentation');
+          return ReaderPreferences.fromJson(
+            object(store.setting<dynamic>('readerDefault')),
+          ).copy(
+            background: defaults.background,
+            direction: defaults.rtl
+                ? ReadingDirection.rtl
+                : ReadingDirection.ltr,
+            useSeriesDirection: defaults.useSeriesDirection,
+            spread: hasLayout ? presentation.isDual : null,
+            pageLayout: !hasLayout
+                ? null
+                : presentation == PdfPresentation.auto
+                ? 'auto'
+                : presentation.isDual
+                ? 'dual-forced'
+                : 'single',
+            mode:
+                defaults.vertical ||
+                    presentation == PdfPresentation.singleContinuous ||
+                    presentation == PdfPresentation.dualContinuous
+                ? ReadingMode.vertical
+                : ReadingMode.paged,
+            soloCover: defaults.coverSolo,
+            splitWide: hasLayout ? 'none' : null,
+            controlsGradient: defaults.controlsGradient,
+            showProgress: defaults.showProgress,
+          );
+        },
         repository: widget.repository,
         book: Book({
           ...widget.book.json,

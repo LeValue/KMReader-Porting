@@ -17,6 +17,9 @@ Dal dettaglio del documento, **Gestisci documento Kindle** offre:
   il ripristino dello stato descritto sotto. Il documento precedente viene
   ritirato soltanto dopo il ripristino verificato. Un'accettazione Amazon non
   basta a dichiarare concluso l'aggiornamento.
+- **Invia come copia Kindle separata:** prepara e invia un secondo documento
+  conservando l'originale e il suo stato di lettura. Funziona anche per PDF e
+  per edizioni prive di una mappa Kindle.
 - **Elimina dalla libreria Kindle:** conferma esplicita della cancellazione
   permanente del PDOC selezionato. Prima della richiesta viene salvato lo stato
   di lettura. Un sidecar non disponibile (404) viene registrato come tale, non
@@ -51,8 +54,9 @@ la percentuale, un CFI o un GUID della vecchia edizione.
 3. Confrontare le mappe delle due edizioni e rimappare le posizioni su testo
    Unicode **identico e non ambiguo**. I CFI locali devono risolversi contro il
    DOM originario; quelli non verificabili fermano la migrazione.
-4. Registrare l'intento prima della scrittura. Inviare posizione e segnalibri
-   sulla nuova edizione, poi rileggerli dal cloud con il suo GUID verificato.
+4. Registrare l'intento prima della scrittura. Inviare posizione, segnalibri,
+   evidenziazioni e note sulla nuova edizione, poi rileggerli dal cloud con il suo
+   GUID verificato, controllando gli intervalli e il testo delle note.
 5. Pubblicare progresso, completamento, data di lettura, segnalibri e locatore
    locale in una transazione SQLite. Anche l'overlay in memoria viene invalidato
    in caso di rollback. Il locatore migrato consente la ripresa offline.
@@ -76,13 +80,12 @@ dell'account. Un marcatore persistente impedisce che quei metadati facciano
 riapparire il documento, anche offline dopo il riavvio; non cancella file o
 progresso e può essere rimosso da una successiva aggiunta confermata.
 
-### Copertura residua
+### Compatibilità
 
-La rimappatura è implementata per EPUB preparati con una mappa Kindle valida.
-La presenza di **note o evidenziazioni**, un PDF o un'edizione senza mappa, testo
-modificato/ambiguo e CFI non supportati impediscono il ritiro dell'originale.
-Questi casi restano da completare: non vengono considerati riusciti e non sono
-spostati automaticamente tra le funzionalità future della 1.0.
+La rimappatura usa EPUB preparati con una mappa Kindle valida. Il passaggio
+selezionato deve avere una corrispondenza testuale univoca. Per note prive di
+un intervallo, PDF senza mappa, testo modificato o riferimenti CFI non verificabili
+rimane disponibile l'invio come copia separata con lo stato dell'originale.
 
 ## Recupero
 

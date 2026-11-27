@@ -8,7 +8,7 @@ class Strings {
   Strings(this.locale);
   final Locale locale;
   static Map<String, dynamic> _catalog = {};
-  static final Map<String, dynamic> _english = {};
+  static final Map<String, Map<dynamic, dynamic>> _english = {};
   static Future<void> initialize() async {
     _catalog = jsonDecode(await rootBundle.loadString('assets/strings.json'));
     final port = jsonDecode(
@@ -24,7 +24,10 @@ class Strings {
     for (final entry in _catalog.entries) {
       final value = entry.value as Map;
       final english = value['en'] as String? ?? entry.key;
-      _english.putIfAbsent(english.toLowerCase(), () => value);
+      final alias = _english.putIfAbsent(english.toLowerCase(), () => {});
+      for (final translation in value.entries) {
+        alias.putIfAbsent(translation.key, () => translation.value);
+      }
     }
   }
 
@@ -35,20 +38,65 @@ class Strings {
     Locale('fr'),
     Locale('ja'),
     Locale('ko'),
-    Locale('zh', 'CN'),
-    Locale('zh', 'TW'),
+    Locale.fromSubtags(
+      languageCode: 'zh',
+      scriptCode: 'Hans',
+      countryCode: 'CN',
+    ),
+    Locale.fromSubtags(
+      languageCode: 'zh',
+      scriptCode: 'Hant',
+      countryCode: 'TW',
+    ),
     Locale('ru'),
     Locale('es'),
   ];
-  String call(String key) {
+  static Locale? preferredLocale(String? setting) {
+    if (setting == null) return null;
+    final parts = setting.replaceAll('-', '_').split('_');
+    final language = parts.first.toLowerCase();
+    return locales
+        .where(
+          (supported) =>
+              supported.languageCode == language &&
+              (language != 'zh' ||
+                  supported.scriptCode ==
+                      (parts.any(
+                            (part) => const {
+                              'hant',
+                              'tw',
+                              'hk',
+                              'mo',
+                            }.contains(part.toLowerCase()),
+                          )
+                          ? 'Hant'
+                          : 'Hans')),
+        )
+        .firstOrNull;
+  }
+
+  String call(String key, [Map<String, Object> arguments = const {}]) {
     final lang = locale.languageCode == 'zh'
-        ? (locale.countryCode == 'TW' ? 'zh-Hant' : 'zh-Hans')
+        ? locale.scriptCode == 'Hant' ||
+                  locale.scriptCode == null &&
+                      const {'TW', 'HK', 'MO'}.contains(locale.countryCode)
+              ? 'zh-Hant'
+              : 'zh-Hans'
         : locale.languageCode;
-    final entries = _catalog[key] ?? _english[key.toLowerCase()];
-    if (entries is Map) {
-      return entries[lang] as String? ?? entries['en'] as String? ?? key;
-    }
-    return key;
+    final entries = _catalog[key] as Map?;
+    final english = entries?['en'] as String? ?? key;
+    final alias = _english[english.toLowerCase()];
+    final translation =
+        entries?[lang] as String? ??
+        alias?[lang] as String? ??
+        alias?['en'] as String? ??
+        english;
+    return arguments.isEmpty
+        ? translation
+        : translation.replaceAllMapped(
+            RegExp(r'\{(\w+)\}'),
+            (match) => arguments[match[1]]?.toString() ?? match[0]!,
+          );
   }
 
   static Strings of(BuildContext context) =>
@@ -68,4 +116,8 @@ class _StringsDelegate extends LocalizationsDelegate<Strings> {
   bool shouldReload(_StringsDelegate old) => false;
 }
 
-String tr(BuildContext context, String key) => Strings.of(context)(key);
+String tr(
+  BuildContext context,
+  String key, [
+  Map<String, Object> arguments = const {},
+]) => Strings.of(context)(key, arguments);

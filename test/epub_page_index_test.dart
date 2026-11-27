@@ -15,6 +15,24 @@ import 'support/epub_fixture.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
+    'each authored page counts as one logical page regardless of its text',
+    () {
+      final directory = Directory.systemTemp.createTempSync(
+        'epub-authored-index-',
+      );
+      try {
+        expect(indexEpubFile(fixedLayoutFixture(directory).path), [1024, 1024]);
+        final mixed = indexEpubFile(
+          fixedLayoutFixture(directory, mixed: true).path,
+        );
+        expect(mixed.first, greaterThan(1024));
+        expect(mixed.last, 1024);
+      } finally {
+        directory.deleteSync(recursive: true);
+      }
+    },
+  );
+  test(
     'closing waits for background archive indexing before deleting the EPUB',
     () async {
       final directory = Directory.systemTemp.createTempSync(

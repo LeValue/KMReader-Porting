@@ -9,11 +9,16 @@ import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/api.dart';
+import '../../core/file_export.dart';
 import '../../core/models.dart';
+import '../../core/reader_defaults.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
+import '../../ui/reader_options.dart';
+import '../../ui/reader_chrome.dart';
 import '../../ui/strings.dart';
 import 'pdf_preferences.dart';
+import 'pdf_raster_pages.dart';
 import 'progress_gate.dart';
 import 'reader_display.dart';
 import '../../ui/wheel_scroll.dart';
@@ -59,6 +64,7 @@ class _PdfReaderState extends State<PdfReader> {
   int? _pendingStep;
   bool _openingNext = false, _controls = true;
   bool _zoomed = false;
+  bool _exporting = false;
   int _passwordAttempts = 0;
   Timer? _snapTimer;
   final _pointers = <int>{};
@@ -143,15 +149,29 @@ class _PdfReaderState extends State<PdfReader> {
     final geometryChanged =
         preferences.presentation != _preferences.presentation ||
         preferences.rtl != _preferences.rtl ||
+        preferences.vertical != _preferences.vertical ||
         preferences.coverSolo != _preferences.coverSolo;
-    setState(() => _preferences = preferences);
     if (persist) {
-      widget.repository.store.cache(
-        widget.repository.profile.id,
-        _key,
+      final changes = readerPreferenceChanges(
+        _preferences.toJson(),
         preferences.toJson(),
       );
+      if (_preferences.useSeriesDirection && !preferences.useSeriesDirection) {
+        changes.addAll({
+          'rtl': preferences.rtl,
+          'vertical': preferences.vertical,
+        });
+      }
+      if (changes.isNotEmpty) {
+        writeReaderVolumePreferences(
+          widget.repository.store,
+          widget.repository.profile.id,
+          _key,
+          changes,
+        );
+      }
     }
+    setState(() => _preferences = preferences);
     if (geometryChanged) _reflow();
   }
 
@@ -370,11 +390,9 @@ class _PdfReaderState extends State<PdfReader> {
   }
 
   Future<void> _settings() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
+    await showReaderOptions(
+      context,
+      (context) => StatefulBuilder(
         builder: (context, refresh) {
           void change(PdfPreferences value) {
             _configure(value);
@@ -382,74 +400,124 @@ class _PdfReaderState extends State<PdfReader> {
           }
 
           return ReaderSafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    title: Text(
-                      tr(context, 'PDF Settings'),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
-                  for (final mode in PdfPresentation.values)
-                    ListTile(
-                      title: Text(tr(context, mode.label)),
-                      leading: Icon(
-                        _preferences.presentation == mode
-                            ? CupertinoIcons.checkmark_circle_fill
-                            : CupertinoIcons.circle,
-                      ),
-                      onTap: () => change(
+            child: ReaderOptionsPanel(
+              title: 'PDF Settings',
+              useAppPalette: true,
+              compact: true,
+              fill: true,
+              children: [
+                ReaderOptionGroup(
+                  title: 'Reading',
+                  children: [
+                    ReaderOptionPicker(
+                      title: 'Page Presentation',
+                      value: _preferences.presentation.value,
+                      choices: {
+                        for (final mode in PdfPresentation.values)
+                          mode.value: mode.label,
+                      },
+                      onChanged: (value) => change(
                         _preferences.copy(
-                          presentation: mode,
+                          presentation: PdfPresentation.values.firstWhere(
+                            (mode) => mode.value == value,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_preferences.presentation.isDual ||
+                        _preferences.presentation == PdfPresentation.auto)
+                      SwitchListTile.adaptive(
+                        title: Text(tr(context, 'Cover Page Alone')),
+                        value: _preferences.coverSolo,
+                        onChanged: (value) =>
+                            change(_preferences.copy(coverSolo: value)),
+                      ),
+                    ReaderOptionPicker(
+                      title: 'Preferred Direction',
+                      value: _preferences.vertical
+                          ? 'vertical'
+                          : _preferences.rtl
+                          ? 'rtl'
+                          : 'ltr',
+                      choices: const {
+                        'ltr': 'Left to Right',
+                        'rtl': 'Right to Left',
+                        'vertical': 'Vertical',
+                      },
+                      onChanged: (value) => change(
+                        _preferences.copy(
+                          rtl: value == 'rtl',
+                          vertical: value == 'vertical',
                           useSeriesDirection: false,
                         ),
                       ),
                     ),
-                  SwitchListTile(
-                    title: Text(tr(context, 'Cover Page Alone')),
-                    value: _preferences.coverSolo,
-                    onChanged: (value) =>
-                        change(_preferences.copy(coverSolo: value)),
-                  ),
-                  SwitchListTile(
-                    title: Text(tr(context, 'Right to Left')),
-                    value: _preferences.rtl,
-                    onChanged: (value) => change(
-                      _preferences.copy(rtl: value, useSeriesDirection: false),
+                    SwitchListTile(
+                      title: Text(tr(context, 'Use Series Reading Direction')),
+                      value: _preferences.useSeriesDirection,
+                      onChanged: (value) {
+                        change(_preferences.copy(useSeriesDirection: value));
+                        if (value) _seriesDirection();
+                      },
                     ),
-                  ),
-                  SwitchListTile(
-                    title: Text(tr(context, 'Use Series Reading Direction')),
-                    value: _preferences.useSeriesDirection,
-                    onChanged: (value) {
-                      change(_preferences.copy(useSeriesDirection: value));
-                      if (value) _seriesDirection();
-                    },
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SegmentedButton<String>(
-                      segments: [
-                        for (final entry in const {
-                          'white': 'White',
-                          'sepia': 'Sepia',
-                          'black': 'Black',
-                        }.entries)
-                          ButtonSegment(
-                            value: entry.key,
-                            label: Text(tr(context, entry.value)),
-                          ),
-                      ],
-                      selected: {_preferences.background},
-                      onSelectionChanged: (value) =>
-                          change(_preferences.copy(background: value.first)),
+                  ],
+                ),
+                ReaderOptionGroup(
+                  title: 'Appearance',
+                  children: [
+                    ReaderOptionPicker(
+                      title: 'Reader Background',
+                      value: _preferences.background,
+                      choices: const {
+                        'system': 'System',
+                        'white': 'White',
+                        'sepia': 'Sepia',
+                        'gray': 'Gray',
+                        'black': 'Black',
+                      },
+                      onChanged: (value) =>
+                          change(_preferences.copy(background: value)),
                     ),
-                  ),
-                ],
-              ),
-            ).withWheelScrolling(),
+                    SwitchListTile.adaptive(
+                      title: Text(tr(context, 'Controls Gradient Background')),
+                      value: _preferences.controlsGradient,
+                      onChanged: (value) =>
+                          change(_preferences.copy(controlsGradient: value)),
+                    ),
+                    SwitchListTile.adaptive(
+                      title: Text(
+                        tr(context, 'Show Progress Bar While Reading'),
+                      ),
+                      value: _preferences.showProgress,
+                      onChanged: (value) =>
+                          change(_preferences.copy(showProgress: value)),
+                    ),
+                  ],
+                ),
+                ListTile(
+                  leading: const Icon(Icons.restore),
+                  title: Text(tr(context, 'Use Global Defaults')),
+                  onTap: () {
+                    final store = widget.repository.store;
+                    writeReaderVolumePreferences(
+                      store,
+                      widget.repository.profile.id,
+                      _key,
+                      {},
+                      reset: _preferences.toJson().keys,
+                    );
+                    _configure(
+                      PdfPreferences.fromJson(
+                        object(store.setting<dynamic>('pdfDefault')),
+                      ),
+                      persist: false,
+                    );
+                    _seriesDirection();
+                    refresh(() {});
+                  },
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -565,6 +633,44 @@ class _PdfReaderState extends State<PdfReader> {
     );
   }
 
+  List<int> get _exportPages {
+    final slots = _layout?.slots;
+    if (slots == null || _focusedPage < 1 || _focusedPage > slots.length) {
+      return [];
+    }
+    final slot = slots[_focusedPage - 1];
+    return [
+      if (_focusedPage > 1 && slots[_focusedPage - 2] == slot) _focusedPage - 1,
+      _focusedPage,
+      if (_focusedPage < slots.length && slots[_focusedPage] == slot)
+        _focusedPage + 1,
+    ];
+  }
+
+  Future<void> _exportPage(int page) async {
+    if (!_controller.isReady || _exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final bytes = await PdfRasterPages.renderPage(
+        _controller.document.pages[page - 1],
+        quality: PdfRasterQuality.parse(
+          widget.repository.store.setting<String>('pdfOfflineRenderQuality'),
+        ),
+      );
+      if (mounted) {
+        await saveEncodedPageImage(
+          bytes,
+          widget.repository.directory,
+          page: page,
+        );
+      }
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: _controls
@@ -590,6 +696,25 @@ class _PdfReaderState extends State<PdfReader> {
                 onPressed: _outline,
                 icon: const Icon(CupertinoIcons.list_bullet),
               ),
+              if (_ready)
+                PopupMenuButton<int>(
+                  tooltip: tr(context, 'Save Image'),
+                  enabled: !_exporting && _exportPages.isNotEmpty,
+                  icon: const Icon(Icons.save_alt),
+                  onSelected: _exportPage,
+                  itemBuilder: (_) => [
+                    for (final page in _exportPages)
+                      PopupMenuItem(
+                        value: page,
+                        child: Text(
+                          tr(
+                            context,
+                            'Save Page %d as Image',
+                          ).replaceAll('%d', '$page'),
+                        ),
+                      ),
+                  ],
+                ),
             ],
           )
         : null,
@@ -797,6 +922,11 @@ class _PdfReaderState extends State<PdfReader> {
                   Expanded(
                     child: Slider(
                       min: 1,
+                      semanticFormatterCallback: (value) => readingPageLabel(
+                        context,
+                        value.round(),
+                        _controller.pageCount,
+                      ),
                       max: _controller.pageCount.clamp(2, 1000000).toDouble(),
                       value: _page
                           .clamp(1, _controller.pageCount.clamp(2, 1000000))
@@ -809,9 +939,20 @@ class _PdfReaderState extends State<PdfReader> {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(right: 16),
-                    child: TextButton(
-                      onPressed: _jump,
-                      child: Text('$_page / ${_controller.pageCount}'),
+                    child: Tooltip(
+                      message: tr(context, 'Go to Page'),
+                      child: TextButton(
+                        onPressed: _jump,
+                        child: Semantics(
+                          label: readingPageLabel(
+                            context,
+                            _page,
+                            _controller.pageCount,
+                          ),
+                          excludeSemantics: true,
+                          child: Text('$_page / ${_controller.pageCount}'),
+                        ),
+                      ),
                     ),
                   ),
                   IconButton(

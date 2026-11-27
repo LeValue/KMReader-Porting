@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/media_cache.dart';
+import '../../core/background_downloads.dart';
 import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
@@ -24,14 +26,30 @@ typedef _StorageUsage = ({
   int documentBytes,
   int removableDocumentBytes,
   int offlineBytes,
+  int? availableBytes,
 });
 
 class _CacheSettingsPageState extends State<CacheSettingsPage> {
   late Future<_StorageUsage> _stats;
   Timer? _trim;
   bool _busy = false;
+
+  Future<int?> _availableStorage(Repository repository) async {
+    try {
+      return await BackgroundDownloads.channel.invokeMethod<int>(
+        'availableStorage',
+        repository.directory.path,
+      );
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
   Future<_StorageUsage> _load() async {
     final repository = widget.repository;
+    final available = _availableStorage(repository);
     final offlineBytes = repository.store
         .downloads(repository.profile.id)
         .where((item) => item['status'] == 'ready')
@@ -46,6 +64,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
       documentBytes: documents.bytes,
       removableDocumentBytes: documents.removableBytes,
       offlineBytes: offlineBytes,
+      availableBytes: await available,
     );
   }
 
@@ -153,10 +172,20 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
           ),
           if (snapshot.hasError) Text('${snapshot.error}'),
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.download_done),
-              title: Text(tr(context, 'Completed Downloads')),
-              trailing: Text(_size(context, snapshot.data?.offlineBytes)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.download_done),
+                  title: Text(tr(context, 'Completed Downloads')),
+                  trailing: Text(_size(context, snapshot.data?.offlineBytes)),
+                ),
+                if (snapshot.data?.availableBytes case final available?)
+                  ListTile(
+                    leading: const Icon(Icons.storage_outlined),
+                    title: Text(tr(context, 'Available Device Storage')),
+                    trailing: Text(_size(context, available)),
+                  ),
+              ],
             ),
           ),
           for (final kind in MediaCacheKind.values) ...[

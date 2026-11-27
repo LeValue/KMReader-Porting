@@ -76,6 +76,26 @@ class _KindleDocumentPageState extends State<KindleDocumentPage> {
           },
         ),
         ListTile(
+          leading: const Icon(Icons.copy_outlined),
+          title: Text(tr(context, 'Send as a separate Kindle copy')),
+          subtitle: Text(
+            tr(
+              context,
+              'Keeps the original document and its reading state on Amazon.',
+            ),
+          ),
+          enabled: !_busy && !widget.repository.offline,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => KindleImportPage(
+                repository: widget.repository,
+                replacing: widget.book,
+                copyOnly: true,
+              ),
+            ),
+          ),
+        ),
+        ListTile(
           leading: Icon(
             Icons.delete_forever,
             color: Theme.of(context).colorScheme.error,

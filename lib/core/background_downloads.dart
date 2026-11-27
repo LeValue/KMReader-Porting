@@ -14,6 +14,7 @@ import 'download_worker.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'store.dart';
+import 'system_library_index.dart';
 
 final _workers = <String, DownloadWorker>{};
 
@@ -54,6 +55,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
   BackgroundDownloads(this.store, this.directory);
   final LocalStore store;
   final Directory directory;
+  late final SystemLibraryIndex libraryIndex = SystemLibraryIndex(store);
   static const channel = MethodChannel('dev.levalue.kmreader/background');
   final _known = <String>{};
   final _windowsProfiles = <String>{};
@@ -195,6 +197,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
 
   Future<void> _reconcile() async {
     if (_disposed) return;
+    unawaited(libraryIndex.refresh().catchError((Object _) {}));
     final currentPolicy = policy;
     final reset = _reset;
     _reset = false;
@@ -206,6 +209,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
       if (profile.isKindle) continue;
       final enabled =
           currentPolicy.background &&
+          store.setting<bool>('downloadQueuePaused:${profile.id}') != true &&
           store.setting<bool>('offline:${profile.id}') != true;
       final rows = store.downloads(profile.id);
       final pending = rows

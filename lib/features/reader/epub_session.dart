@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../../core/annotation_colors.dart';
 import '../../core/models.dart';
 import '../../core/page_motion.dart';
+import '../../core/reader_defaults.dart';
 import '../../core/repository.dart';
 import 'epub_document.dart';
 import 'progress_gate.dart';
@@ -295,7 +296,7 @@ class EpubSession extends ChangeNotifier {
       final hash = text(book.json['fileHash']);
       final cached = saved['weights'];
       final weights =
-          saved['schema'] == 1 &&
+          saved['schema'] == 2 &&
               saved['size'] == size &&
               saved['hash'] == hash &&
               cached is List &&
@@ -310,7 +311,7 @@ class EpubSession extends ChangeNotifier {
       }
       pageIndex = EpubPageIndex(weights);
       repository.store.cache(repository.profile.id, key, {
-        'schema': 1,
+        'schema': 2,
         'size': size,
         'hash': hash,
         'weights': weights,
@@ -478,9 +479,10 @@ class EpubSession extends ChangeNotifier {
         incognito,
         host,
         EpubPreferences.fromJson({
-          ...object(repository.store.setting<dynamic>('epubDefault')),
-          if (saved.isNotEmpty && !saved.containsKey('flow'))
+          if (saved.containsKey('chapter') &&
+              saved['readerFlowVersion'] == null)
             'flow': 'scrolled',
+          ...object(repository.store.setting<dynamic>('epubDefault')),
           ...saved,
         }),
       );
@@ -600,19 +602,25 @@ class EpubSession extends ChangeNotifier {
     _externalPosition = null;
     _pending = null;
     _saveTimer?.cancel();
+    final store = repository.store;
+    final account = repository.profile.id;
+    final legacyPosition = object(store.cached(account, key))
+        .containsKey('chapter');
     repository.store.transaction(() {
-      final old = object(repository.store.cached(repository.profile.id, key))
-        ..remove('kindleResume')
-        ..remove('kindleResumeChoice');
-      repository.store.cache(repository.profile.id, key, {
-        ...old,
-        ...preferences.toJson(),
-        'chapter': chapter,
-        'progress': progression,
-        'cfi': cfi,
-        'modified':
-            locator['modified'] ?? DateTime.now().toUtc().toIso8601String(),
-      });
+      writeReaderVolumePreferences(
+        store,
+        account,
+        key,
+        {
+          if (!legacyPosition) 'readerFlowVersion': 1,
+          'chapter': chapter,
+          'progress': progression,
+          'cfi': cfi,
+          'modified':
+              locator['modified'] ?? DateTime.now().toUtc().toIso8601String(),
+        },
+        reset: const ['kindleResume', 'kindleResumeChoice'],
+      );
       if (fromCloud) {
         repository.externalDocumentPositionApplied(book, locator);
         repository.setEpubProgress(
@@ -724,16 +732,31 @@ class EpubSession extends ChangeNotifier {
     }
   }
 
-  void setPreferences(EpubPreferences value) {
+  void setPreferences(EpubPreferences value, {bool persist = true}) {
+    final changes = readerPreferenceChanges(
+      preferences.toJson(),
+      value.toJson(),
+    );
     preferences = value;
-    if (!repository.closed) {
-      final old = object(repository.store.cached(repository.profile.id, key));
-      repository.store.cache(repository.profile.id, key, {
-        ...old,
-        ...value.toJson(),
-      });
+    if (persist && !repository.closed && changes.isNotEmpty) {
+      writeReaderVolumePreferences(
+        repository.store,
+        repository.profile.id,
+        key,
+        changes,
+      );
     }
     notifyListeners();
+  }
+
+  EpubPreferences resetPreferences() {
+    final store = repository.store;
+    writeReaderVolumePreferences(store, repository.profile.id, key, {
+      'readerFlowVersion': 1,
+    }, reset: preferences.toJson().keys);
+    return EpubPreferences.fromJson(
+      object(store.setting<dynamic>('epubDefault')),
+    );
   }
 
   void save() {
@@ -747,17 +770,23 @@ class EpubSession extends ChangeNotifier {
     )) {
       return;
     }
-    final old = object(repository.store.cached(repository.profile.id, key))
-      ..remove('kindleResume')
-      ..remove('kindleResumeChoice');
-    repository.store.cache(repository.profile.id, key, {
-      ...old,
-      ...preferences.toJson(),
-      'chapter': pending.chapter,
-      'progress': pending.progression,
-      'cfi': pending.cfi,
-      'modified': DateTime.now().toUtc().toIso8601String(),
-    });
+    final store = repository.store;
+    final account = repository.profile.id;
+    final legacyPosition = object(store.cached(account, key))
+        .containsKey('chapter');
+    writeReaderVolumePreferences(
+      store,
+      account,
+      key,
+      {
+        if (!legacyPosition) 'readerFlowVersion': 1,
+        'chapter': pending.chapter,
+        'progress': pending.progression,
+        'cfi': pending.cfi,
+        'modified': DateTime.now().toUtc().toIso8601String(),
+      },
+      reset: const ['kindleResume', 'kindleResumeChoice'],
+    );
     repository.setEpubProgress(
       book,
       pending.href,

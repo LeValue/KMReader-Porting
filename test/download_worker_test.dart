@@ -75,6 +75,24 @@ void main() {
     expect(store.transferring(profile.id, book.id), false);
   });
   test(
+    'a manually paused profile stays queued for the next background worker',
+    () async {
+      var requests = 0;
+      server.listen((request) async {
+        requests++;
+        request.response.add([1, 2, 3]);
+        await request.response.close();
+      });
+      store.setSetting('downloadQueuePaused:${profile.id}', true);
+      expect(await worker().run(), true);
+      expect(requests, 0);
+      expect(store.download(profile.id, book.id)?['status'], 'queued');
+      store.setSetting('downloadQueuePaused:${profile.id}', false);
+      expect(await worker().run(), true);
+      expect(store.download(profile.id, book.id)?['status'], 'ready');
+    },
+  );
+  test(
     'a timed-out worker aborts its connection and leaves retryable queued work',
     () async {
       final received = Completer<void>();

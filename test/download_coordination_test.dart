@@ -93,7 +93,7 @@ void main() {
     ) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
-    foreground.pauseDownloads();
+    foreground.setDownloadQueuePaused(true);
     for (
       var i = 0;
       i < 100 && store.download(profile.id, book.id)?['status'] != 'paused';
@@ -104,8 +104,10 @@ void main() {
     expect(store.download(profile.id, book.id)?['status'], 'paused');
     expect(done, false);
     expect(await partial.readAsBytes(), [1, 2]);
-    resume.complete();
     foreground.resumeDownloads();
+    expect(foreground.downloadQueuePaused, true);
+    resume.complete();
+    foreground.setDownloadQueuePaused(false);
     await download;
     expect(files, 2);
     expect(done, true);

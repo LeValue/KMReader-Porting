@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
@@ -8,6 +9,47 @@ import '../features/settings/settings_style.dart';
 import 'common.dart';
 import 'strings.dart';
 import 'wheel_scroll.dart';
+
+Future<void> showReaderOptions(BuildContext context, WidgetBuilder builder) {
+  if (defaultTargetPlatform == TargetPlatform.windows &&
+      MediaQuery.sizeOf(context).width >= 720) {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierColor: Colors.black26,
+      barrierDismissible: true,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      transitionDuration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 200),
+      pageBuilder: (context, _, _) => Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: SizedBox(
+          width: 380,
+          height: double.infinity,
+          child: Material(elevation: 8, child: Builder(builder: builder)),
+        ),
+      ),
+      transitionBuilder: (context, animation, _, child) => SlideTransition(
+        textDirection: Directionality.of(context),
+        position: Tween(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(animation.drive(CurveTween(curve: Curves.easeOutCubic))),
+        child: child,
+      ),
+    );
+  }
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: false,
+    isScrollControlled: true,
+    constraints: const BoxConstraints(maxWidth: 640),
+    builder: (context) => FractionallySizedBox(
+      heightFactor: .82,
+      child: Builder(builder: builder),
+    ),
+  );
+}
 
 /// A bounded reader form with a persistent title/close action on every screen.
 class ReaderOptionsPanel extends StatelessWidget {
@@ -69,7 +111,7 @@ class ReaderOptionsPanel extends StatelessWidget {
     }
     return Theme(
       data: theme,
-      child: ColoredBox(
+      child: Material(
         color: theme.scaffoldBackgroundColor,
         child: SizedBox(
           height: fill
@@ -227,11 +269,13 @@ class ReaderOptionSlider extends StatefulWidget {
     required this.onChanged,
     this.onChangeEnd,
     this.label,
+    this.formatValue,
     this.divisions,
   });
   final String title;
   final double value, min, max;
   final String? label;
+  final String Function(double)? formatValue;
   final int? divisions;
   final ValueChanged<double> onChanged;
   final ValueChanged<double>? onChangeEnd;
@@ -262,7 +306,9 @@ class _ReaderOptionSliderState extends State<ReaderOptionSlider> {
             ),
             const SizedBox(width: 12),
             Text(
-              widget.label ?? draft.toStringAsFixed(2),
+              widget.label ??
+                  widget.formatValue?.call(draft) ??
+                  draft.toStringAsFixed(2),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

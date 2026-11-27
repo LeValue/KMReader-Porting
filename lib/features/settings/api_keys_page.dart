@@ -20,9 +20,39 @@ class ApiKeysPage extends StatefulWidget {
 class _ApiKeysPageState extends State<ApiKeysPage> {
   int _revision = 0;
   bool _busy = false;
+  bool get _keyUnknown =>
+      widget.repository.profile.authentication == Authentication.apiKey &&
+      widget.repository.profile.apiKeyId == null;
+
+  Future<void> _revoke(String id) async {
+    if (_busy || _keyUnknown || id == widget.repository.profile.apiKeyId) {
+      return;
+    }
+    if (!await confirm(
+      context,
+      'Revoke API Key',
+      'Connections using this key will stop working.',
+    )) {
+      return;
+    }
+    if (!mounted || _busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.repository.api.request(
+        '/api/v2/users/me/api-keys/${Uri.encodeComponent(id)}',
+        method: 'DELETE',
+      );
+      if (mounted) setState(() => _revision++);
+    } catch (failure) {
+      if (mounted) showError(context, failure);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _create() async {
     final comment = await askName(context, 'Create API Key');
-    if (comment == null || _busy) return;
+    if (comment == null || !mounted || _busy) return;
     setState(() => _busy = true);
     try {
       final result = object(
@@ -85,6 +115,16 @@ class _ApiKeysPageState extends State<ApiKeysPage> {
       load: () => widget.repository.api.request('/api/v2/users/me/api-keys'),
       builder: (context, data) => ListView(
         children: [
+          if (_keyUnknown)
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text(
+                tr(
+                  context,
+                  'The active API key cannot be identified. Sign in with a password or a key created by KMReader to revoke keys here.',
+                ),
+              ),
+            ),
           for (final value in data as List)
             ListTile(
               leading: const Icon(CupertinoIcons.lock),
@@ -98,26 +138,13 @@ class _ApiKeysPageState extends State<ApiKeysPage> {
                 tooltip: tr(context, 'Revoke API Key'),
                 icon: const Icon(CupertinoIcons.trash),
                 onPressed:
-                    object(value)['id'] == widget.repository.profile.apiKeyId
+                    _busy ||
+                        _keyUnknown ||
+                        text(object(value)['id']).isEmpty ||
+                        object(value)['id'] ==
+                            widget.repository.profile.apiKeyId
                     ? null
-                    : () async {
-                        if (!await confirm(
-                          context,
-                          'Revoke API Key',
-                          'Connections using this key will stop working.',
-                        )) {
-                          return;
-                        }
-                        try {
-                          await widget.repository.api.request(
-                            '/api/v2/users/me/api-keys/${Uri.encodeComponent(object(value)['id'])}',
-                            method: 'DELETE',
-                          );
-                          if (mounted) setState(() => _revision++);
-                        } catch (e) {
-                          if (context.mounted) showError(context, e);
-                        }
-                      },
+                    : () => _revoke(text(object(value)['id'])),
               ),
             ),
         ],

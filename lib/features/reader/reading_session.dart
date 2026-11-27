@@ -9,17 +9,20 @@ class ReadingSession extends ChangeNotifier {
     required this.preferences,
     required this.onCommit,
     this.incognito = false,
+    this.continuousSpreads = false,
   }) : page = initialPage.clamp(1, count > 0 ? count : 1),
        _committed = initialPage;
   final int count;
   final bool incognito;
+  final bool continuousSpreads;
   final void Function(int) onCommit;
   ReaderPreferences preferences;
   int page;
   int _committed;
   int get step =>
       preferences.spread &&
-          preferences.mode == ReadingMode.paged &&
+          (preferences.mode == ReadingMode.paged ||
+              continuousSpreads && preferences.mode == ReadingMode.vertical) &&
           preferences.splitWide == 'none'
       ? 2
       : 1;

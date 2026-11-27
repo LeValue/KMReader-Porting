@@ -6,6 +6,7 @@
 #include <winrt/base.h>
 #include <winrt/Windows.Networking.Connectivity.h>
 #include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -150,6 +151,19 @@ BackgroundDownloads::BackgroundDownloads(flutter::BinaryMessenger* messenger) {
   channel_->SetMethodCallHandler([](const auto& call,auto result) {
     try {
       if(call.method_name()=="conditions") {result->Success(Conditions());return;}
+      if (call.method_name() == "availableStorage") {
+        const auto* path = call.arguments()
+                               ? std::get_if<std::string>(call.arguments())
+                               : nullptr;
+        ULARGE_INTEGER available{};
+        if (path && GetDiskFreeSpaceExW(Wide(*path).c_str(), &available,
+                                       nullptr, nullptr)) {
+          result->Success(Value(static_cast<std::int64_t>(available.QuadPart)));
+        } else {
+          result->Success();
+        }
+        return;
+      }
       if(call.method_name()=="schedule") {
         const auto* args=call.arguments()?std::get_if<Map>(call.arguments()):nullptr;
         if(!args) throw std::invalid_argument("Missing task arguments");

@@ -77,6 +77,30 @@ void main() {
     expect(marks.single['href'], 'after.xhtml');
     expect(marks.single['label'], 'Saved');
     expect(marks.single['cfi'], isEmpty);
+    final note = migration.bookmarks([
+      {
+        'type': 'kindle.note',
+        'label': 'Test note',
+        'rangeCfi': 'epubcfi(/6/2!/4/2[old],/1:1,/1:5)',
+      },
+    ]).single;
+    expect(note['kindleStart'], 101);
+    expect(note['kindleEnd'], 104);
+    expect((note['endLocator'] as Map)['offset'], 4);
+    expect(
+      () => migration.cloudAnnotation({
+        'type': 'kindle.highlight',
+        'startPosition': 12,
+        'endPosition': 15,
+      }),
+      throwsA(isA<KindleFailure>()),
+    );
+    const passage = 'An entire original Kindle passage 🦆, preserved.';
+    final merged = await KindleEditionMigration.open(
+      book('original-passage', 40, 'passage', text: passage).path,
+      book('merged-passage', 90, 'larger', text: 'Preface. $passage End.').path,
+    );
+    expect(merged.position(42), 101);
     final ambiguous = await KindleEditionMigration.open(
       old.path,
       book('duplicate', 200, 'new', duplicate: true).path,

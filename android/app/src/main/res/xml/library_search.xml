@@ -1,0 +1,7 @@
+<searchable xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="@string/app_name"
+    android:includeInGlobalSearch="true"
+    android:searchSuggestAuthority="@string/library_search_authority"
+    android:searchSuggestThreshold="2"
+    android:searchSuggestIntentAction="android.intent.action.VIEW"
+    android:searchSuggestIntentData="kmreader://indexed-book" />

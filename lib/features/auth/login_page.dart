@@ -1,4 +1,5 @@
 import '../local/local_library_page.dart';
+import '../settings/server_edit_page.dart';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -66,6 +67,7 @@ class _LoginPageState extends State<LoginPage> {
         password: _password.text,
         claim: _claim,
         autoCreateApiKey: _autoKey,
+        authenticationReason: tr(context, 'Authenticate to open this server.'),
       );
       widget.app.store.setSetting('autoCreateApiKey', _autoKey);
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
@@ -280,86 +282,84 @@ class WelcomePage extends StatelessWidget {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
+          child: ListView(
+            shrinkWrap: true,
             padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const Spacer(),
-                Image.asset('assets/logo.png', height: 120),
-                const SizedBox(height: 40),
-                Text(
-                  'KMReader',
-                  style: Theme.of(context).textTheme.headlineLarge,
+            children: [
+              Image.asset('assets/logo.png', height: 120),
+              const SizedBox(height: 40),
+              Text(
+                'KMReader',
+                style: Theme.of(context).textTheme.headlineLarge,
+              ),
+              const SizedBox(height: 40),
+              Text(
+                tr(context, 'Your Komga library, ready to read'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w400,
+                  color: Theme.of(context).hintColor,
                 ),
-                const SizedBox(height: 40),
-                Text(
-                  tr(context, 'Your Komga library, ready to read'),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w400,
-                    color: Theme.of(context).hintColor,
-                  ),
+              ),
+              const SizedBox(height: 24),
+              if (app.startupError != null) Text(app.startupError!),
+              ...app.visibleServers.map(
+                (s) => ListTile(
+                  leading: const Icon(CupertinoIcons.tray_2),
+                  title: Text(s.name),
+                  subtitle: Text(s.email),
+                  onTap: () async {
+                    try {
+                      await app.activate(s);
+                    } catch (e) {
+                      if (context.mounted) showError(context, e);
+                    }
+                  },
                 ),
-                const Spacer(),
-                if (app.startupError != null) Text(app.startupError!),
-                if (app.servers.isNotEmpty)
-                  ...app.servers.map(
-                    (s) => ListTile(
-                      leading: const Icon(CupertinoIcons.tray_2),
-                      title: Text(s.name),
-                      subtitle: Text(s.email),
-                      onTap: () async {
-                        try {
-                          await app.activate(s);
-                        } catch (e) {
-                          if (context.mounted) showError(context, e);
-                        }
-                      },
-                    ),
-                  ),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => LoginPage(app: app),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(tr(context, 'Get Started')),
-                        const SizedBox(width: 8),
-                        const Icon(CupertinoIcons.arrow_right, size: 18),
-                      ],
-                    ),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
+              ),
+              if (app.hasProtectedServers) ProtectedServersButton(app: app),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => KindleLoginPage(app: app),
+                      builder: (_) => LoginPage(app: app),
                     ),
                   ),
-                  icon: const Icon(CupertinoIcons.book),
-                  label: Text(tr(context, 'Connect Kindle')),
-                ),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          LocalLibraryPage(app: app, standalone: true),
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(tr(context, 'Get Started')),
+                      const SizedBox(width: 8),
+                      const Icon(CupertinoIcons.arrow_right, size: 18),
+                    ],
                   ),
-                  icon: const Icon(Icons.folder_open),
-                  label: Text(tr(context, 'Local Books')),
                 ),
-                const SizedBox(height: 40),
-              ],
-            ),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => KindleLoginPage(app: app),
+                  ),
+                ),
+                icon: const Icon(CupertinoIcons.book),
+                label: Text(tr(context, 'Connect Kindle')),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        LocalLibraryPage(app: app, standalone: true),
+                  ),
+                ),
+                icon: const Icon(Icons.folder_open),
+                label: Text(tr(context, 'Local Books')),
+              ),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
       ),

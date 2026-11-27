@@ -15,19 +15,29 @@ class ShellNavigationBar extends StatelessWidget {
   final List<IconData> icons;
   final ValueChanged<int> onSelected;
   @override
-  Widget build(BuildContext context) => NavigationBar(
-    selectedIndex: selectedIndex,
-    labelPadding: const EdgeInsets.symmetric(horizontal: 2),
-    labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 11)),
-    onDestinationSelected: onSelected,
-    destinations: [
-      for (var i = 0; i < labels.length; i++)
-        DefaultTextStyle.merge(
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.ellipsis,
-          child: NavigationDestination(icon: Icon(icons[i]), label: labels[i]),
-        ),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) => NavigationBar(
+      selectedIndex: selectedIndex,
+      labelBehavior:
+          bounds.maxWidth < 500 &&
+              MediaQuery.textScalerOf(context).scale(14) > 19
+          ? NavigationDestinationLabelBehavior.onlyShowSelected
+          : NavigationDestinationLabelBehavior.alwaysShow,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+      labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 11)),
+      onDestinationSelected: onSelected,
+      destinations: [
+        for (var i = 0; i < labels.length; i++)
+          DefaultTextStyle.merge(
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            child: NavigationDestination(
+              icon: Icon(icons[i]),
+              label: labels[i],
+            ),
+          ),
+      ],
+    ),
   );
 }

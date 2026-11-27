@@ -41,6 +41,7 @@ class HistoryPage extends StatelessWidget {
           CatalogPageView(
             repository: repository,
             kind: 'books',
+            preferenceScope: 'reading-history',
             initialSort: 'readProgress.readDate,desc',
             condition: {
               'readStatus': {'operator': 'isNot', 'value': 'UNREAD'},

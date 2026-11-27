@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      final_build:
+        description: Build the production Windows bundle and one Android APK per ABI
+        type: boolean
+        default: false
       deliver_draft:
         description: Deliver already verified signed builds to an existing review draft without publishing
         type: boolean
@@ -56,7 +60,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 jobs:
   android:
-    if: &run_verification github.event_name != 'workflow_dispatch' || !inputs.deliver_draft
+    if: &run_verification github.event_name != 'workflow_dispatch' || (!inputs.deliver_draft && !inputs.final_build)
     needs: android_python_wheels
     runs-on: ubuntu-latest
     steps:
@@ -118,8 +122,45 @@ jobs:
         with:
           name: android-release-unsigned
           path: build/app/outputs/flutter-apk/app-release.apk
+  final_android:
+    if: github.event_name == 'workflow_dispatch' && inputs.final_build && !inputs.deliver_draft
+    needs: android_python_wheels
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64
+            platform: android-arm64
+          - abi: armv7
+            platform: android-arm
+          - abi: x64
+            platform: android-x64
+    steps:
+      - *checkout
+      - *python
+      - *provenance
+      - *android_space
+      - *android_java
+      - *android_sdk
+      - *flutter
+      - *clang
+      - *pub
+      - *ndk_cache
+      - *ndk_install
+      - *download_android_wheels
+      - name: Build the standalone production APK
+        run: flutter build apk --release --no-pub --target-platform ${{ matrix.platform }}
+        env:
+          # The stable Android release uses this application ID for in-place updates.
+          ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-final-${{ matrix.abi }}-unsigned
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
   android_python_wheels:
-    if: *run_verification
+    if: &build_platform github.event_name != 'workflow_dispatch' || !inputs.deliver_draft
     runs-on: ubuntu-latest
     steps:
       - *checkout
@@ -199,7 +240,7 @@ jobs:
           curl --fail --location https://github.com/gotson/komga/releases/download/1.30.1/komga-1.30.1.jar --output /tmp/komga-admin.jar
           python3 -m tool.komga_admin.smoke --jar /tmp/komga-admin.jar
   windows_worker:
-    if: *run_verification
+    if: *build_platform
     runs-on: windows-latest
     steps:
       - *checkout
@@ -219,7 +260,7 @@ jobs:
             artifacts/kindle-delivery/kindle-executable-check.json
   windows:
     needs: windows_worker
-    if: *run_verification
+    if: *build_platform
     runs-on: windows-latest
     steps:
       - *checkout

@@ -27,12 +27,23 @@ class PdfReaderSettingsPage extends StatelessWidget {
             _native(value) ? 'The native PDF view supports selectable text.' : 'PDFs open in the comics reader with search and a table of contents.',
       ),
       PreferenceSpec(
+        'pdfOfflineRenderQuality',
+        'Render Quality',
+        'balanced',
+        section: 'PDF Page Rendering',
+        visible: (value) => !_native(value),
+        choices: {
+          for (final quality in PdfRasterQuality.values)
+            quality.name: quality.label,
+        },
+        caption: 'Image quality for PDF pages in the comics reader.',
+      ),
+      PreferenceSpec(
         'rtl',
         'Preferred Direction',
         'ltr',
         bucket: 'pdfDefault',
         section: 'Default Reading Options',
-        visible: _native,
         choices: const {
           'ltr': 'Left to Right',
           'rtl': 'Right to Left',
@@ -56,7 +67,6 @@ class PdfReaderSettingsPage extends StatelessWidget {
         'Force Default Reading Direction',
         true,
         bucket: 'pdfDefault',
-        visible: _native,
         invertBool: true,
         caption: 'Ignore book and series metadata and always use the preferred direction',
       ),
@@ -65,7 +75,6 @@ class PdfReaderSettingsPage extends StatelessWidget {
         'Page Presentation',
         'auto',
         bucket: 'pdfDefault',
-        visible: _native,
         choices: const {
           'auto': 'Auto',
           'single-paged': 'Single Page',
@@ -82,8 +91,8 @@ class PdfReaderSettingsPage extends StatelessWidget {
         },
         captionValue: (value) =>
             const {
-              'single-paged':
-                  'Uses the native page controller for discrete page turns.',
+              'single-paged': 'Turns one page at a time.',
+              'dual-paged': 'Turns two-page spreads one at a time.',
               'single-continuous':
                   'Scrolls through one page at a time continuously.',
               'dual-continuous':
@@ -96,12 +105,11 @@ class PdfReaderSettingsPage extends StatelessWidget {
         'Solo Cover Page',
         true,
         bucket: 'pdfDefault',
-        visible: (value) =>
-            _native(value) &&
-            const [
-              'auto',
-              'dual-continuous',
-            ].contains(_defaults(value)['presentation'] ?? 'auto'),
+        visible: (value) => const [
+          'auto',
+          'dual-paged',
+          'dual-continuous',
+        ].contains(_defaults(value)['presentation'] ?? 'auto'),
         caption: 'Show the first page alone before entering dual-page spread',
       ),
       PreferenceSpec(
@@ -110,7 +118,6 @@ class PdfReaderSettingsPage extends StatelessWidget {
         'white',
         bucket: 'pdfDefault',
         section: 'Appearance',
-        visible: _native,
         choices: backgroundChoices,
         caption: 'The background color of the reader',
       ),
@@ -120,7 +127,6 @@ class PdfReaderSettingsPage extends StatelessWidget {
         true,
         bucket: 'pdfDefault',
         section: 'Reader Overlay',
-        visible: _native,
         caption: 'Add a gradient behind reader controls for better contrast over pages.',
       ),
       PreferenceSpec(
@@ -128,20 +134,7 @@ class PdfReaderSettingsPage extends StatelessWidget {
         'Show Progress Bar While Reading',
         false,
         bucket: 'pdfDefault',
-        visible: _native,
         caption: 'Keep book progress pinned to the bottom until reader controls are shown.',
-      ),
-      PreferenceSpec(
-        'pdfOfflineRenderQuality',
-        'Render Quality',
-        'balanced',
-        section: 'PDF Page Rendering',
-        visible: (value) => !_native(value),
-        choices: {
-          for (final quality in PdfRasterQuality.values)
-            quality.name: quality.label,
-        },
-        caption: 'Image quality for PDF pages in the comics reader.',
       ),
     ],
   );

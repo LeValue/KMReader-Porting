@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
@@ -23,18 +24,35 @@ class ServerSmartListsPage extends StatefulWidget {
 class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
   late Future<List<Json>?> _future;
   String? _account;
+  late int _revision;
   final _refreshingCovers = <String>{};
   SmartLists get _service => SmartLists(widget.repository);
   @override
   void initState() {
     super.initState();
+    _revision = widget.repository.contentRevision;
+    widget.repository.catalogChanges.addListener(_catalogChanged);
     _future = _load();
   }
 
   Future<List<Json>?> _load() async {
     final result = await _service.load();
-    if (result != null) _account = await _service.account();
+    if (result != null && !widget.repository.offline) {
+      _account = await _service.account();
+    }
     return result;
+  }
+
+  void _catalogChanged() {
+    if (_revision == widget.repository.contentRevision) return;
+    _revision = widget.repository.contentRevision;
+    setState(() => _future = _load());
+  }
+
+  @override
+  void dispose() {
+    widget.repository.catalogChanges.removeListener(_catalogChanged);
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -71,6 +89,10 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
 
   void _open(Json item) {
     final kind = item['target'] == 'BOOK' ? 'books' : 'series';
+    final id = text(item['id']);
+    if (!widget.repository.offline && item['search'] is! Map) {
+      unawaited(_service.get(id).then<void>((_) {}, onError: (Object _) {}));
+    }
     Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -79,8 +101,7 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
           body: CatalogPageView(
             repository: widget.repository,
             kind: kind,
-            path:
-                '/api/v1/smart-lists/${Uri.encodeComponent(text(item['id']))}/$kind',
+            path: '/api/v1/smart-lists/${Uri.encodeComponent(id)}/$kind',
           ),
         ),
       ),
@@ -94,7 +115,8 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
       if (snapshot.hasError) {
         return FailureView(error: snapshot.error!, retry: _refresh);
       }
-      if (snapshot.connectionState != ConnectionState.done) {
+      if (snapshot.connectionState != ConnectionState.done &&
+          !snapshot.hasData) {
         return const Center(child: CircularProgressIndicator.adaptive());
       }
       if (snapshot.data == null) {
@@ -126,7 +148,7 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
                 alignment: Alignment.centerRight,
                 child: IconButton(
                   tooltip: tr(context, 'smartlist.create.title'),
-                  onPressed: () => _edit(),
+                  onPressed: widget.repository.offline ? null : () => _edit(),
                   icon: const Icon(CupertinoIcons.add),
                 ),
               ),
@@ -145,18 +167,25 @@ class _ServerSmartListsPageState extends State<ServerSmartListsPage> {
                       }
                       final item = items[index], id = text(item['id']);
                       final writable =
-                          widget.repository.profile.admin ||
-                          item['ownerId'] == _account;
+                          !widget.repository.offline &&
+                          (widget.repository.profile.admin ||
+                              _account != null && item['ownerId'] == _account);
                       return ListTile(
-                        leading: Icon(
-                          pins.contains(id)
-                              ? CupertinoIcons.pin_fill
-                              : CupertinoIcons
-                                    .line_horizontal_3_decrease_circle,
+                        leading: SizedBox(
+                          width: 40,
+                          height: 52,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: Cover(
+                              repository: widget.repository,
+                              path: CatalogItem('smart-lists', item).thumbnail,
+                            ),
+                          ),
                         ),
                         title: Text(text(item['name'])),
                         subtitle: Text(
                           [
+                            if (pins.contains(id)) tr(context, 'Pinned'),
                             tr(
                               context,
                               item['target'] == 'BOOK' ? 'Books' : 'Series',
@@ -311,7 +340,8 @@ class _ServerSmartListEditorState extends State<ServerSmartListEditor> {
     'summary': _summary.text.trim(),
     if (_original == null) 'target': _target,
     'search': {
-      ..._search,
+      for (final entry in _search.entries)
+        if (entry.key != 'fullTextSearch') entry.key: entry.value,
       if (_query.text.trim().isNotEmpty) 'fullTextSearch': _query.text.trim(),
     },
     if (widget.repository.profile.admin) ...{

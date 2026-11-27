@@ -36,7 +36,9 @@ class EpubPageIndex {
 
 List<int> countEpubText(EpubDocument document) => [
   for (var index = 0; index < document.chapters.length; index++)
-    _count(document.chapter(index)),
+    document.chapters[index].fixedLayout
+        ? 1024
+        : _count(document.chapter(index)),
 ];
 int _count(String source) {
   final document = html.parse(source);

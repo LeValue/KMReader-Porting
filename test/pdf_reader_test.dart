@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kmreader/ui/reader_options.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kmreader/core/api.dart';
@@ -776,9 +777,21 @@ void main() {
         }
         await tester.tap(find.byTooltip('PDF Settings'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Single Page Continuous'));
+        await tester.tap(find.text('Page Presentation'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Sepia'));
+        await tester.tap(
+          find.widgetWithText(
+            CheckedPopupMenuItem<String>,
+            'Single Page Continuous',
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Reader Background'));
+        await tester.tap(find.text('Reader Background'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(CheckedPopupMenuItem<String>, 'Sepia'),
+        );
         await tester.pumpAndSettle();
         expect(
           object(store.cached(profile.id, 'pdf:pdf'))['presentation'],
@@ -789,7 +802,12 @@ void main() {
           0,
           reason: 'Changing layout/theme must preserve progress',
         );
-        await tester.tapAt(const Offset(20, 100));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(ReaderOptionsPanel),
+            matching: find.byTooltip('Close'),
+          ),
+        );
         await tester.pumpAndSettle();
         expect(find.text('3 / 5'), findsOneWidget);
         await tester.tap(find.byTooltip('Next Page'));

@@ -23,6 +23,7 @@ import 'package:kmreader/features/reader/reading_session.dart';
 import 'package:kmreader/features/settings/kindle_services_page.dart';
 import 'package:kmreader/features/settings/reader_settings.dart';
 import 'package:kmreader/features/settings/settings_page.dart';
+import 'package:kmreader/ui/reader_options.dart';
 import 'package:kmreader/ui/strings.dart';
 
 import 'widget_test.dart' show MemoryVault;
@@ -71,6 +72,39 @@ void main() {
     store.close();
     directory.deleteSync(recursive: true);
   });
+
+  testWidgets('a wide Windows reader opens options at the right edge', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1120, 540));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showReaderOptions(
+                context,
+                (_) => const ReaderOptionsPanel(
+                  title: 'Reader Settings',
+                  fill: true,
+                  children: [Text('Fixture setting')],
+                ),
+              ),
+              child: const Text('Open fixture'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open fixture'));
+    await tester.pumpAndSettle();
+    final panel = find.byType(ReaderOptionsPanel);
+    expect(tester.getRect(panel), const Rect.fromLTWH(740, 0, 380, 540));
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(panel, findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets(
     'Android restores reader bars at the start of the pop animation',

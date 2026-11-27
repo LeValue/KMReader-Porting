@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/api.dart';
 import '../../core/models.dart';
 import '../../core/browse_preferences.dart';
 import '../../ui/catalog_card.dart';
@@ -67,6 +68,83 @@ void openItem(BuildContext context, Repository repository, CatalogItem item) {
   );
 }
 
+class CatalogSearchPage extends StatefulWidget {
+  const CatalogSearchPage({super.key, required this.repository});
+
+  final Repository repository;
+
+  @override
+  State<CatalogSearchPage> createState() => _CatalogSearchPageState();
+}
+
+class _CatalogSearchPageState extends State<CatalogSearchPage> {
+  final _search = TextEditingController();
+  var _kind = 'books';
+  var _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_query != _search.text.trim()) {
+      setState(() => _query = _search.text.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(tr(context, 'Search'))),
+    body: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: TextField(
+            autofocus: true,
+            controller: _search,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              labelText: tr(context, 'Search your library'),
+              suffixIcon: IconButton(
+                onPressed: _submit,
+                icon: const Icon(CupertinoIcons.search),
+                tooltip: tr(context, 'Search'),
+              ),
+            ),
+          ),
+        ),
+        if (widget.repository.supportsSeries)
+          SegmentedButton<String>(
+            segments: [
+              ButtonSegment(value: 'books', label: Text(tr(context, 'Books'))),
+              ButtonSegment(
+                value: 'series',
+                label: Text(tr(context, 'Series')),
+              ),
+            ],
+            selected: {_kind},
+            onSelectionChanged: (selection) =>
+                setState(() => _kind = selection.single),
+          ),
+        if (_query.isNotEmpty)
+          Expanded(
+            child: CatalogPageView(
+              key: ValueKey((_kind, _query)),
+              repository: widget.repository,
+              kind: _kind,
+              preferenceScope: 'search',
+              searchEnabled: false,
+              initialSearch: _query,
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 class CatalogPageView extends StatefulWidget {
   const CatalogPageView({
     super.key,
@@ -84,6 +162,8 @@ class CatalogPageView extends StatefulWidget {
     this.initialFilter,
     this.initialSearch,
     this.onItemPicked,
+    this.preferenceScope,
+    this.header,
   });
   final Repository repository;
   final String kind;
@@ -97,6 +177,8 @@ class CatalogPageView extends StatefulWidget {
   final CatalogFilter? initialFilter;
   final String? initialSearch;
   final ValueChanged<CatalogItem>? onItemPicked;
+  final String? preferenceScope;
+  final Widget? header;
   @override
   State<CatalogPageView> createState() => _CatalogPageViewState();
 }
@@ -119,6 +201,62 @@ class _CatalogPageViewState extends State<CatalogPageView> {
   CatalogFilter _advanced = CatalogFilter();
   int _contentRevision = 0, _progressRevision = 0, _cacheRevision = 0;
   late bool _ignoresSearchFilters;
+  String? get _preferenceKey {
+    final scope = widget.preferenceScope;
+    return scope == null
+        ? null
+        : 'catalogView:${widget.repository.profile.id}:$scope:${widget.kind}';
+  }
+
+  Json get _preferences {
+    final key = _preferenceKey;
+    return key == null
+        ? {}
+        : object(widget.repository.store.setting<dynamic>(key));
+  }
+
+  String get _defaultSort =>
+      widget.initialSort ??
+      (widget.kind == 'readlists' || widget.kind == 'collections'
+          ? 'name,asc'
+          : widget.condition?['seriesId'] != null
+          ? 'metadata.numberSort,asc'
+          : 'metadata.titleSort,asc');
+
+  String _preferredSort(Json preferences) {
+    final online = _availableSort(
+      text(preferences['sort'], _defaultSort),
+      offline: false,
+    );
+    return _offline ? text(preferences['offlineSort'], online) : online;
+  }
+
+  String _availableSort(String value, {required bool offline}) =>
+      !offline && value.startsWith('downloadAt,') ? _defaultSort : value;
+
+  void _restorePreferences() {
+    final preferences = _preferences;
+    _sort = _preferredSort(preferences);
+    _advanced =
+        widget.initialFilter ??
+        CatalogFilter.fromJson(object(preferences['filter']));
+    _readStatus = text(preferences['readStatus']);
+    _list = preferences['list'] == true;
+  }
+
+  void _savePreferences({bool sortChanged = false}) {
+    final key = _preferenceKey;
+    if (key == null) return;
+    final values = _preferences;
+    widget.repository.store.setSetting(key, {
+      ...values,
+      if (sortChanged) (_offline ? 'offlineSort' : 'sort'): _sort,
+      'filter': _advanced.toJson(),
+      'readStatus': _readStatus,
+      'list': _list,
+    });
+  }
+
   void _browseChanged() {
     final ignores = widget.repository.browse[BrowseOption.ignoreSearchFilters];
     if (_ignoresSearchFilters != ignores && _query.isNotEmpty) {
@@ -146,8 +284,10 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     final offline = widget.repository.offline;
     if (_offline != offline) {
       _offline = offline;
-      if (!offline && _sort.startsWith('downloadAt,')) {
-        _sort = widget.initialSort ?? 'metadata.titleSort,asc';
+      if (_preferenceKey != null) {
+        _sort = _preferredSort(_preferences);
+      } else if (!offline && _sort.startsWith('downloadAt,')) {
+        _sort = _defaultSort;
       }
     }
     final progressChanged =
@@ -180,14 +320,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     _progressRevision = widget.repository.progressRevision;
     _offline = widget.repository.offline;
     widget.repository.catalogChanges.addListener(_repositoryChanged);
-    if (widget.kind == 'readlists' || widget.kind == 'collections') {
-      _sort = 'name,asc';
-    }
-    if (widget.condition?['seriesId'] != null) {
-      _sort = 'metadata.numberSort,asc';
-    }
-    if (widget.initialSort != null) _sort = widget.initialSort!;
-    _advanced = widget.initialFilter ?? CatalogFilter();
+    _restorePreferences();
     _query = widget.initialSearch ?? '';
     _search.text = _query;
     _selecting = widget.onPicked != null;
@@ -213,9 +346,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
       old.repository.catalogChanges.removeListener(_repositoryChanged);
       widget.repository.catalogChanges.addListener(_repositoryChanged);
       _offline = widget.repository.offline;
-      if (!_offline && _sort.startsWith('downloadAt,')) {
-        _sort = widget.initialSort ?? 'metadata.titleSort,asc';
-      }
+      _restorePreferences();
     }
     if (old.repository != widget.repository ||
         old.kind != widget.kind ||
@@ -360,10 +491,11 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     );
     if (result == null || !mounted) return;
     _advanced = result.filter;
-    _query = result.search;
-    _sort = result.sort;
+    if (widget.searchEnabled) _query = result.search;
+    _sort = _availableSort(result.sort, offline: _offline);
     _search.text = _query;
     _readStatus = '';
+    _savePreferences(sortChanged: true);
     _load(reset: true, clear: true);
   }
 
@@ -387,9 +519,10 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     final preset = values.firstWhere((p) => p.id == selected);
     _advanced = preset.filter;
     _readStatus = '';
-    _query = preset.search;
-    _sort = preset.sort;
+    if (widget.searchEnabled) _query = preset.search;
+    _sort = _availableSort(preset.sort, offline: _offline);
     _search.text = _query;
+    _savePreferences(sortChanged: true);
     _load(reset: true, clear: true);
   }
 
@@ -482,6 +615,10 @@ class _CatalogPageViewState extends State<CatalogPageView> {
     });
     try {
       final condition = _effectiveCondition;
+      final found = <String, CatalogItem>{};
+      final sort = _sort.startsWith('random,')
+          ? 'metadata.titleSort,asc'
+          : _sort;
       for (var page = 0; ; page++) {
         if (!mounted ||
             repository.closed ||
@@ -497,7 +634,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
           libraryId: widget.libraryId,
           libraryIds: widget.libraryIds,
           search: _query,
-          sort: _sort,
+          sort: sort,
           condition: condition,
         );
         if (!mounted ||
@@ -506,13 +643,28 @@ class _CatalogPageViewState extends State<CatalogPageView> {
             generation != _generation) {
           return;
         }
-        setState(
-          () => _selection.addAll({
-            for (final item in chunk.items) item.id: item,
-          }),
-        );
-        if (chunk.last || chunk.items.isEmpty) break;
+        if (chunk.items.isEmpty && !chunk.last) {
+          throw const ApiFailure(
+            'The catalog changed during selection. Try again.',
+          );
+        }
+        for (final item in chunk.items) {
+          found[item.id] = CatalogItem(
+            item.kind,
+            item.json,
+            readListId: widget.readListId,
+          );
+        }
+        if (chunk.last) {
+          if (found.length != chunk.total) {
+            throw const ApiFailure(
+              'The catalog changed during selection. Try again.',
+            );
+          }
+          break;
+        }
       }
+      setState(() => _selection.addAll(found));
     } catch (error) {
       if (mounted) showError(context, error);
     } finally {
@@ -690,13 +842,14 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                             )
                             .join('|')
                       : v;
+                  _savePreferences(sortChanged: true);
                   _load(reset: true, clear: true);
                 },
                 itemBuilder: (_) => [
                   for (final choice
                       in (widget.kind == 'collections' ||
                                   widget.kind == 'readlists'
-                              ? {'name,asc': 'Title', 'name,desc': 'Descending'}
+                              ? {'name,asc': 'Title'}
                               : {
                                   'metadata.titleSort,asc': 'Title',
                                   if (widget.kind == 'books')
@@ -772,6 +925,7 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                     return;
                   }
                   _readStatus = v;
+                  _savePreferences();
                   _load(reset: true, clear: true);
                 },
                 itemBuilder: (_) => [
@@ -808,7 +962,10 @@ class _CatalogPageViewState extends State<CatalogPageView> {
               ),
             IconButton(
               tooltip: tr(context, 'Layout'),
-              onPressed: () => setState(() => _list = !_list),
+              onPressed: () => setState(() {
+                _list = !_list;
+                _savePreferences();
+              }),
               icon: Icon(
                 _list
                     ? CupertinoIcons.square_grid_2x2
@@ -819,150 +976,138 @@ class _CatalogPageViewState extends State<CatalogPageView> {
         ),
       ),
       Expanded(
-        child: _items.isEmpty && _busy
-            ? const Center(child: CircularProgressIndicator.adaptive())
-            : _items.isEmpty && _error != null
-            ? FailureView(error: _error!, retry: () => _load(reset: true))
-            : _items.isEmpty
-            ? RefreshIndicator(
-                onRefresh: () => _load(reset: true, force: true),
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 120),
-                    EmptyView(
-                      title: 'No Results',
-                      message: 'Try another search or add content to your Komga library.',
-                    ),
-                  ],
-                ).withWheelScrolling(),
-              )
-            : RefreshIndicator(
-                onRefresh: () => _load(reset: true, force: true),
-                child: CustomScrollView(
-                  controller: _scroll,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    if (_list)
-                      SliverList.builder(
-                        itemCount: _items.length,
-                        itemBuilder: (context, i) {
-                          final item = _items[i];
-                          return ListTile(
-                            selected: _selection.containsKey(item.id),
-                            onLongPress: () => _begin(item),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 6,
-                            ),
-                            leading: SizedBox(
-                              width: 38,
-                              height: 56,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Cover(
-                                  repository: widget.repository,
-                                  path: item.thumbnail,
-                                ),
-                              ),
-                            ),
-                            title: Text(
-                              item.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(item.subtitle),
-                            trailing: _selecting
-                                ? Checkbox(
-                                    value: _selection.containsKey(item.id),
-                                    onChanged: (_) => _choose(item),
-                                  )
-                                : const Icon(
-                                    CupertinoIcons.chevron_right,
-                                    size: 16,
-                                  ),
-                            onTap: () => _choose(item),
-                          );
-                        },
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.all(16),
-                        sliver: SliverLayoutBuilder(
-                          builder: (context, constraints) {
-                            final width = constraints.crossAxisExtent > 800
-                                ? 128.0
-                                : 160.0;
-                            final count =
-                                (constraints.crossAxisExtent / (width + 16))
-                                    .floor()
-                                    .clamp(2, 12);
-                            return SliverGrid.builder(
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: count,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 20,
-                                    childAspectRatio:
-                                        widget.repository.browse.hidesText ||
-                                            widget
-                                                .repository
-                                                .browse
-                                                .overlaysText
-                                        ? .68
-                                        : .53,
-                                  ),
-                              itemCount: _items.length,
-                              itemBuilder: (context, index) => Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  BookCard(
-                                    repository: widget.repository,
-                                    item: _items[index],
-                                    onTap: () => _choose(_items[index]),
-                                    onLongPress: () => _begin(_items[index]),
-                                  ),
-                                  if (_selecting)
-                                    Positioned(
-                                      top: 4,
-                                      right: 4,
-                                      child: Material(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .surface,
-                                        shape: const CircleBorder(),
-                                        child: Checkbox(
-                                          value: _selection.containsKey(
-                                            _items[index].id,
-                                          ),
-                                          onChanged: (_) =>
-                                              _choose(_items[index]),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          },
+        child: RefreshIndicator(
+          onRefresh: () => _load(reset: true, force: true),
+          child: CustomScrollView(
+            controller: _scroll,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              if (widget.header case final header?)
+                SliverToBoxAdapter(child: header),
+              if (_items.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _busy
+                      ? const Center(
+                          child: CircularProgressIndicator.adaptive(),
+                        )
+                      : _error != null
+                      ? FailureView(
+                          error: _error!,
+                          retry: () => _load(reset: true),
+                        )
+                      : const EmptyView(
+                          title: 'No Results',
+                          message: 'Try another search or add content to your Komga library.',
                         ),
+                )
+              else if (_list)
+                SliverList.builder(
+                  itemCount: _items.length,
+                  itemBuilder: (context, i) {
+                    final item = _items[i];
+                    return ListTile(
+                      selected: _selection.containsKey(item.id),
+                      onLongPress: () => _begin(item),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 6,
                       ),
-                    if (_busy)
-                      const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Center(
-                            child: CircularProgressIndicator.adaptive(),
+                      leading: SizedBox(
+                        width: 38,
+                        height: 56,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Cover(
+                            repository: widget.repository,
+                            path: item.thumbnail,
                           ),
                         ),
                       ),
-                    if (_error != null)
-                      SliverToBoxAdapter(
-                        child: FailureView(error: _error!, retry: _load),
+                      title: Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 28)),
-                  ],
+                      subtitle: Text(item.subtitle),
+                      trailing: _selecting
+                          ? Checkbox(
+                              value: _selection.containsKey(item.id),
+                              onChanged: (_) => _choose(item),
+                            )
+                          : const Icon(CupertinoIcons.chevron_right, size: 16),
+                      onTap: () => _choose(item),
+                    );
+                  },
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverLayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.crossAxisExtent > 800
+                          ? 128.0
+                          : 160.0;
+                      final count = (constraints.crossAxisExtent / (width + 16))
+                          .floor()
+                          .clamp(2, 12);
+                      return SliverGrid.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: count,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 20,
+                          childAspectRatio:
+                              widget.repository.browse.hidesText ||
+                                  widget.repository.browse.overlaysText
+                              ? .68
+                              : .53,
+                        ),
+                        itemCount: _items.length,
+                        itemBuilder: (context, index) => Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            BookCard(
+                              repository: widget.repository,
+                              item: _items[index],
+                              onTap: () => _choose(_items[index]),
+                              onLongPress: () => _begin(_items[index]),
+                            ),
+                            if (_selecting)
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: Material(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  shape: const CircleBorder(),
+                                  child: Checkbox(
+                                    value: _selection.containsKey(
+                                      _items[index].id,
+                                    ),
+                                    onChanged: (_) => _choose(_items[index]),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
+              if (_busy && _items.isNotEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator.adaptive()),
+                  ),
+                ),
+              if (_error != null && _items.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: FailureView(error: _error!, retry: _load),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 28)),
+            ],
+          ),
+        ),
       ),
     ],
   );

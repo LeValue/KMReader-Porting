@@ -84,7 +84,18 @@ class PdfRasterPages implements RasterPages {
 
   Future<Uint8List> _render(int number) async {
     if (_closed) throw StateError('PDF reader closed.');
-    final page = document.pages[number - 1];
+    final bytes = await renderPage(
+      document.pages[number - 1],
+      quality: quality,
+    );
+    if (!_closed) _cache.put(number, bytes);
+    return bytes;
+  }
+
+  static Future<Uint8List> renderPage(
+    PdfPage page, {
+    required PdfRasterQuality quality,
+  }) async {
     if (!page.width.isFinite ||
         !page.height.isFinite ||
         page.width <= 0 ||
@@ -105,17 +116,11 @@ class PdfRasterPages implements RasterPages {
     );
     if (rendered == null) throw StateError('PDF page rendering failed.');
     try {
-      if (_closed) throw StateError('PDF reader closed.');
       final image = await rendered.createImage();
       try {
         final data = await image.toByteData(format: ui.ImageByteFormat.png);
         if (data == null) throw StateError('PDF page rendering failed.');
-        final bytes = data.buffer.asUint8List(
-          data.offsetInBytes,
-          data.lengthInBytes,
-        );
-        if (!_closed) _cache.put(number, bytes);
-        return bytes;
+        return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       } finally {
         image.dispose();
       }

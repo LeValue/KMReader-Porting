@@ -1,4 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import 'strings.dart';
+
+bool readerControlHasFocus() {
+  final target = FocusManager.instance.primaryFocus?.context;
+  return target != null &&
+      target.mounted &&
+      target.findAncestorWidgetOfExactType<ReaderCapsule>() != null;
+}
+
+String readingPageLabel(BuildContext context, int page, int total) {
+  final number = NumberFormat.decimalPattern(
+    Localizations.localeOf(context).toLanguageTag(),
+  );
+  return tr(context, 'Page {page} of {total}', {
+    'page': number.format(page),
+    'total': number.format(total),
+  });
+}
 
 Color readerInk(Color page) =>
     page.computeLuminance() > .179 ? Colors.black : Colors.white;

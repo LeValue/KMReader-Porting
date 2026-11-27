@@ -85,6 +85,17 @@ class DashboardQuery {
   }
 }
 
+List<String> dashboardLibraryIds(Repository repository) {
+  final scope = object(
+    repository.store.setting<dynamic>(
+      'dashboardLibrary:${repository.profile.id}',
+    ),
+  );
+  return scope['ids'] is List
+      ? (scope['ids'] as List).whereType<String>().toList()
+      : [if (text(scope['id']).isNotEmpty) text(scope['id'])];
+}
+
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key, required this.repository});
   final Repository repository;
@@ -176,9 +187,7 @@ class _DashboardState extends State<Dashboard> {
           'dashboardLibrary:${repository.profile.id}',
         ),
       );
-      final libraries = scope['ids'] is List
-          ? (scope['ids'] as List).whereType<String>().toList()
-          : [if (text(scope['id']).isNotEmpty) text(scope['id'])];
+      final libraries = dashboardLibraryIds(repository);
       final names = scope['names'] is List
           ? (scope['names'] as List).whereType<String>().toList()
           : [if (text(scope['name']).isNotEmpty) text(scope['name'])];
