@@ -176,7 +176,6 @@ void main() {
     'compact large-text navigation retains all accessible destinations',
     (tester) async {
       final semantics = tester.ensureSemantics();
-      addTearDown(semantics.dispose);
       await tester.binding.setSurfaceSize(const Size(320, 568));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -215,6 +214,7 @@ void main() {
         NavigationDestinationLabelBehavior.onlyShowSelected,
       );
       expect(tester.takeException(), isNull);
+      semantics.dispose();
     },
   );
 
