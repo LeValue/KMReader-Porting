@@ -626,6 +626,7 @@ class _PdfReaderState extends State<PdfReader> {
           );
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       showDragHandle: true,
       builder: (context) => nodes.isEmpty
           ? const EmptyView(title: 'No Table of Contents')

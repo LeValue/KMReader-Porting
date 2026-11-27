@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../core/page_motion.dart';
 import '../features/settings/settings_style.dart';
 import 'common.dart';
+import 'reader_chrome.dart';
 import 'strings.dart';
 import 'wheel_scroll.dart';
 
@@ -41,6 +42,7 @@ Future<void> showReaderOptions(BuildContext context, WidgetBuilder builder) {
   }
   return showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: readerSheetAnimation(context),
     showDragHandle: false,
     isScrollControlled: true,
     constraints: const BoxConstraints(maxWidth: 640),

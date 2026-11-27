@@ -18,6 +18,7 @@ import 'package:kmreader/core/models.dart';
 import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/main.dart';
 import 'package:kmreader/ui/strings.dart';
+import 'package:kmreader/ui/theme.dart';
 import 'package:kmreader/features/settings/settings_page.dart';
 import 'package:kmreader/features/settings/api_keys_page.dart';
 
@@ -113,6 +114,86 @@ void main() {
     app.store.close();
     directory.deleteSync(recursive: true);
   });
+  testWidgets(
+    'the dark catalog uses the same palette on Windows and Android',
+    (tester) async {
+      tester.view.physicalSize = const Size(1280, 889);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const profile = ServerProfile(
+        id: 'catalog-theme',
+        name: 'My Library',
+        url: 'https://example.invalid',
+        email: 'reader@example.invalid',
+        authentication: Authentication.apiKey,
+      );
+      app.repository = FixtureRepository(
+        profile: profile,
+        store: app.store,
+        directory: directory,
+        api: KomgaApi(
+          Uri.parse(profile.url),
+          authentication: profile.authentication,
+          credential: 'synthetic',
+          client: MockClient(
+            (request) async => http.Response(
+              request.url.path.endsWith('/libraries')
+                  ? '[]'
+                  : '{"content":[],"last":true,"totalElements":0}',
+              200,
+            ),
+          ),
+        ),
+      );
+      app.setTheme(ThemeMode.dark);
+      await tester.pumpWidget(KMReaderApp(app: app));
+      await tester.pumpAndSettle();
+
+      final original = appTheme(Brightness.dark);
+      final library = find.widgetWithText(ListTile, 'Library');
+      final sidebar = tester.widget<Material>(
+        find.ancestor(of: library, matching: find.byType(Material)).first,
+      );
+      expect(sidebar.color, const Color(0xff19191b));
+      await tester.tap(library);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<ListTile>(library).selectedTileColor,
+        const Color(0xff2c2c2f),
+      );
+      final catalog = Theme.of(tester.element(find.byType(TextField).first));
+      expect(catalog.scaffoldBackgroundColor, const Color(0xff1c1c1e));
+      expect(
+        catalog.inputDecorationTheme.fillColor,
+        original.inputDecorationTheme.fillColor,
+      );
+
+      await tester.tap(find.widgetWithText(ListTile, 'Settings'));
+      await tester.pumpAndSettle();
+      final settings = Theme.of(tester.element(find.text('Appearance')));
+      expect(settings.scaffoldBackgroundColor, Colors.black);
+      expect(
+        settings.inputDecorationTheme.fillColor,
+        original.inputDecorationTheme.fillColor,
+      );
+
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      final navigation = NavigationBarTheme.of(
+        tester.element(find.byType(NavigationBar)),
+      );
+      expect(
+        navigation.backgroundColor,
+        original.navigationBarTheme.backgroundColor,
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.windows,
+      TargetPlatform.android,
+    }),
+  );
   testWidgets('revoking is disabled when the current API key is unknown', (
     tester,
   ) async {

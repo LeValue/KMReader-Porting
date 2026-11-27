@@ -476,6 +476,7 @@ class _ReaderPageState extends State<ReaderPage>
     final count = _split ? 1 : _session.visiblePages(_session.itemIndex);
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       showDragHandle: true,
       builder: (sheet) => ReaderSafeArea(
         child: SingleChildScrollView(

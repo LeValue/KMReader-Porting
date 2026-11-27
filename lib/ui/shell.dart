@@ -36,6 +36,12 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  static const _navigationSurface = Color(0xff19191b);
+  static const _selectedDestination = Color(0xff2c2c2f);
+  static const _navigationDivider = BorderDirectional(
+    end: BorderSide(color: Color(0xff29292c)),
+  );
+
   int _index = 0;
   final _visited = <int, Widget>{};
   var _settings = GlobalKey<SettingsPageState>();
@@ -217,6 +223,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = colors.brightness == Brightness.dark;
     final wide =
         MediaQuery.sizeOf(context).width >= 900 &&
         widget.app.store.setting<bool>('useClassicPadNavigation') != false;
@@ -276,7 +284,8 @@ class _AppShellState extends State<AppShell> {
               SizedBox(
                 width: MediaQuery.sizeOf(context).width >= 1100 ? 304 : 260,
                 child: Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  color: dark ? _navigationSurface : colors.surfaceContainerLow,
+                  shape: dark ? _navigationDivider : null,
                   child: Column(
                     children: [
                       Padding(
@@ -315,12 +324,10 @@ class _AppShellState extends State<AppShell> {
                                   ),
                                   minTileHeight: 44,
                                   selected: _index == i,
-                                  selectedTileColor: Theme.of(context)
-                                      .colorScheme
-                                      .secondaryContainer,
-                                  selectedColor: Theme.of(context)
-                                      .colorScheme
-                                      .onSecondaryContainer,
+                                  selectedTileColor: dark
+                                      ? _selectedDestination
+                                      : colors.secondaryContainer,
+                                  selectedColor: colors.onSecondaryContainer,
                                   leading: Icon(_icons[i], size: 21),
                                   title: Text(tr(context, _labels[i])),
                                   onTap: () => setState(() => _index = i),

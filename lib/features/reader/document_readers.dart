@@ -9,6 +9,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
+import '../../ui/reader_chrome.dart';
 import '../../ui/strings.dart';
 import 'epub_document.dart';
 import 'pdf_reader.dart';
@@ -438,6 +439,7 @@ class _EpubReaderState extends State<_EpubReader> {
           );
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       showDragHandle: true,
       builder: (_) => ReaderSafeArea(
         child: ListView(children: doc.tableOfContents.map(node).toList())
@@ -459,6 +461,7 @@ class _EpubReaderState extends State<_EpubReader> {
     var draftSize = _fontSize;
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       showDragHandle: true,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => ReaderSafeArea(

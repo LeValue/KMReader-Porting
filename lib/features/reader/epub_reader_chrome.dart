@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../ui/reader_chrome.dart';
 import '../../ui/strings.dart';
 
 class EpubToolbarLayout extends StatelessWidget {
@@ -38,6 +39,132 @@ class EpubToolbarLayout extends StatelessWidget {
         ),
       ],
     ),
+  );
+}
+
+class EpubMobilePanels extends StatefulWidget {
+  const EpubMobilePanels({
+    super.key,
+    required this.reader,
+    required this.panel,
+    required this.visible,
+    required this.onDismissed,
+    this.atTop = false,
+  });
+
+  final Widget reader;
+  final Widget Function(BuildContext, BoxConstraints, double)? panel;
+  final bool visible, atTop;
+  final VoidCallback onDismissed;
+
+  @override
+  State<EpubMobilePanels> createState() => _EpubMobilePanelsState();
+}
+
+class _EpubMobilePanelsState extends State<EpubMobilePanels>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _motion;
+  bool _reducedMotion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _motion = AnimationController(
+      vsync: this,
+      duration: readerSheetMotion.duration,
+      reverseDuration: readerSheetMotion.reverseDuration,
+    )..addStatusListener(_statusChanged);
+  }
+
+  void _statusChanged(AnimationStatus status) {
+    if (status != AnimationStatus.dismissed || widget.visible) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !widget.visible && _motion.isDismissed) {
+        widget.onDismissed();
+      }
+    });
+  }
+
+  void _updateMotion() {
+    if (widget.panel == null) return;
+    if (_reducedMotion) {
+      if (!widget.visible && _motion.isDismissed) {
+        _statusChanged(_motion.status);
+      } else {
+        _motion.value = widget.visible ? 1 : 0;
+      }
+    } else if (widget.visible) {
+      _motion.forward();
+    } else if (_motion.isDismissed) {
+      _statusChanged(_motion.status);
+    } else {
+      _motion.reverse();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reducedMotion = MediaQuery.disableAnimationsOf(context);
+    _updateMotion();
+  }
+
+  @override
+  void didUpdateWidget(EpubMobilePanels oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visible != widget.visible) _updateMotion();
+  }
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      widget.reader,
+      if (widget.panel case final panel?)
+        LayoutBuilder(
+          builder: (context, bounds) {
+            final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+            final atTop = widget.atTop;
+            return Padding(
+              padding: EdgeInsets.only(bottom: atTop ? 0 : keyboard),
+              child: ClipRect(
+                child: Align(
+                  alignment: atTop
+                      ? Alignment.topCenter
+                      : Alignment.bottomCenter,
+                  child: SlideTransition(
+                    position:
+                        Tween(
+                              begin: Offset(0, atTop ? -1 : 1),
+                              end: Offset.zero,
+                            )
+                            .chain(CurveTween(curve: Curves.easeOutCubic))
+                            .animate(_motion),
+                    child: IgnorePointer(
+                      ignoring: !widget.visible,
+                      child: ExcludeFocus(
+                        excluding: !widget.visible,
+                        child: ExcludeSemantics(
+                          excluding: !widget.visible,
+                          child: RepaintBoundary(
+                            child: panel(context, bounds, keyboard),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+    ],
   );
 }
 
@@ -226,9 +353,8 @@ class EpubSelectionMenu extends StatelessWidget {
   final bool touch;
 
   @override
-  Widget build(BuildContext context) => CustomSingleChildLayout(
-    delegate: _SelectionPosition(anchor, touch),
-    child: Semantics(
+  Widget build(BuildContext context) {
+    final menu = Semantics(
       container: true,
       explicitChildNodes: true,
       label: tr(context, 'Selected text actions'),
@@ -265,8 +391,21 @@ class EpubSelectionMenu extends StatelessWidget {
           ),
         ),
       ),
-    ),
-  );
+    );
+    return CustomSingleChildLayout(
+      delegate: _SelectionPosition(anchor, touch),
+      child: touch && !MediaQuery.disableAnimationsOf(context)
+          ? TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 130),
+              curve: Curves.easeOut,
+              builder: (_, opacity, child) =>
+                  Opacity(opacity: opacity, child: child),
+              child: menu,
+            )
+          : menu,
+    );
+  }
 }
 
 class EpubAnnotationTile extends StatelessWidget {

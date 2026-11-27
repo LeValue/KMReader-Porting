@@ -93,6 +93,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   WidgetBuilder? _sidePanel;
   Completer<void>? _sidePanelClosed;
   String? _sidePanelTitle;
+  bool _sidePanelClosing = false;
   bool _searchPanelCompact = false;
   bool _searchPanelAtTop = false;
   int _searchGeneration = 0;
@@ -312,6 +313,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     if (MediaQuery.sizeOf(context).width < 600) {
       return showModalBottomSheet<bool>(
         context: context,
+        sheetAnimationStyle: readerSheetAnimation(context),
         useSafeArea: true,
         isScrollControlled: true,
         showDragHandle: true,
@@ -624,7 +626,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       case 'searchVisible':
         if (!Platform.isWindows &&
             _sidePanelTitle == 'Search' &&
-            event['query'] == _activeSearchQuery) {
+            !_sidePanelClosing &&
+            event['query'] == _activeSearchQuery &&
+            (!_searchPanelCompact ||
+                _searchPanelAtTop != (event['lower'] == true))) {
           FocusManager.instance.primaryFocus?.unfocus();
           setState(() {
             _searchPanelCompact = true;
@@ -777,6 +782,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     // The sheet closes before the browser receives navigation, preserving focus.
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) => ReaderSafeArea(
@@ -801,10 +807,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<List<Json>> _searchBook(String query) async {
-    if (!Platform.isWindows && _sidePanelTitle == 'Search') {
-      setState(() => _activeSearchQuery = query);
-    } else {
-      _activeSearchQuery = query;
+    final wasEmpty = _activeSearchQuery.isEmpty;
+    _activeSearchQuery = query;
+    if (!Platform.isWindows && _sidePanelTitle == 'Search' && wasEmpty) {
+      setState(() {});
     }
     final value = await _call('search', query);
     final decoded = value is String ? jsonDecode(value) : value;
@@ -959,81 +965,71 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     );
   }
 
-  Widget _readerLayout(Widget Function(Widget?) reader) {
-    if (!Platform.isWindows) {
-      final panel = _sidePanel;
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          reader(null),
-          if (panel != null)
-            LayoutBuilder(
-              builder: (context, bounds) {
-                final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-                final top = _searchPanelCompact && _searchPanelAtTop;
-                final search = _sidePanelTitle == 'Search';
-                final height = search
-                    ? _searchPanelCompact
-                          ? 48.0
-                          : _activeSearchQuery.isEmpty || keyboard > 0
-                          ? 62.0
-                          : bounds.maxHeight * .56
-                    : bounds.maxHeight * .50;
-                return Align(
-                  alignment: top ? Alignment.topCenter : Alignment.bottomCenter,
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: top ? 0 : keyboard),
-                    child: Semantics(
-                      container: true,
-                      label: tr(context, _sidePanelTitle ?? 'Reading controls'),
-                      child: SizedBox(
-                        width: min(620, bounds.maxWidth),
-                        height: min(
-                          height,
-                          max(0.0, bounds.maxHeight - keyboard),
-                        ),
-                        child: Material(
-                          elevation: 6,
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(top ? 0 : 16),
-                            bottom: Radius.circular(top ? 16 : 0),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: _searchPanelCompact
-                              ? Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextButton.icon(
-                                        onPressed: () => setState(
-                                          () => _searchPanelCompact = false,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.search,
-                                          size: 18,
-                                        ),
-                                        label: Text(tr(context, 'Search')),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: tr(context, 'Close'),
-                                      onPressed: _closeSidePanel,
-                                      icon: const Icon(Icons.close, size: 20),
-                                    ),
-                                  ],
-                                )
-                              : Builder(
-                                  key: ValueKey(_sidePanelTitle),
-                                  builder: panel,
-                                ),
+  Widget _mobilePanel(
+    BuildContext context,
+    BoxConstraints bounds,
+    double keyboard,
+  ) {
+    final top = _searchPanelCompact && _searchPanelAtTop;
+    final search = _sidePanelTitle == 'Search';
+    final height = search
+        ? _searchPanelCompact
+              ? 48.0
+              : _activeSearchQuery.isEmpty || keyboard > 0
+              ? 62.0
+              : bounds.maxHeight * .56
+        : bounds.maxHeight * .50;
+    return Semantics(
+      container: true,
+      label: tr(context, _sidePanelTitle ?? 'Reading controls'),
+      child: Focus(
+        focusNode: _panelFocus,
+        child: SizedBox(
+          width: min(620, bounds.maxWidth),
+          height: min(height, max(0.0, bounds.maxHeight - keyboard)),
+          child: Material(
+            elevation: 6,
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: top
+                ? const BorderRadius.vertical(bottom: Radius.circular(16))
+                : const BorderRadius.vertical(top: Radius.circular(16)),
+            clipBehavior: Clip.antiAlias,
+            child: _searchPanelCompact
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () =>
+                              setState(() => _searchPanelCompact = false),
+                          icon: const Icon(Icons.search, size: 18),
+                          label: Text(tr(context, 'Search')),
                         ),
                       ),
-                    ),
+                      IconButton(
+                        tooltip: tr(context, 'Close'),
+                        onPressed: _closeSidePanel,
+                        icon: const Icon(Icons.close, size: 20),
+                      ),
+                    ],
+                  )
+                : Builder(
+                    key: ObjectKey(_sidePanelClosed),
+                    builder: _sidePanel!,
                   ),
-                );
-              },
-            ),
-        ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _readerLayout(Widget Function(Widget?) reader) {
+    if (!Platform.isWindows) {
+      return EpubMobilePanels(
+        reader: reader(null),
+        panel: _sidePanel == null ? null : _mobilePanel,
+        visible: _sidePanel != null && !_sidePanelClosing,
+        atTop: _searchPanelCompact && _searchPanelAtTop,
+        onDismissed: _finishClosingSidePanel,
       );
     }
     return EpubDesktopPanels(
@@ -1067,30 +1063,39 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     );
   }
 
-  void _closeSidePanel() {
-    final closed = _sidePanelClosed;
-    if (closed == null) return;
+  void _removeSidePanel() {
     if (_sidePanelTitle == 'Search') _activeSearchQuery = '';
-    _panelFocus.unfocus();
-    setState(() {
-      _sidePanel = null;
-      _sidePanelTitle = null;
-      _sidePanelClosed = null;
-      _searchPanelCompact = false;
-      _searchPanelAtTop = false;
-    });
-    closed.complete();
+    _sidePanelClosed?.complete();
+    _sidePanel = null;
+    _sidePanelTitle = null;
+    _sidePanelClosed = null;
+    _sidePanelClosing = false;
+    _searchPanelCompact = false;
+    _searchPanelAtTop = false;
+  }
+
+  void _finishClosingSidePanel() {
+    if (!_sidePanelClosing) return;
+    setState(_removeSidePanel);
     _scheduleControlsHide();
+  }
+
+  void _closeSidePanel() {
+    if (_sidePanel == null || _sidePanelClosing) return;
+    if (_panelFocus.hasFocus) _panelFocus.unfocus();
+    if (Platform.isWindows) {
+      setState(_removeSidePanel);
+      _scheduleControlsHide();
+    } else {
+      setState(() => _sidePanelClosing = true);
+    }
   }
 
   Future<void> _showReaderPanel(
     String title,
     Widget Function(BuildContext panel, VoidCallback close) content, {
-    double heightFraction = .65,
     bool dedicated = false,
-    bool keyboard = false,
     bool withHeader = true,
-    bool inline = false,
   }) async {
     if (!mounted) return;
     final theme = Theme.of(context);
@@ -1108,15 +1113,16 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             : content(context, close),
       ),
     );
-    if (Platform.isWindows || inline) {
+    if (Platform.isWindows || !dedicated) {
       if (_sidePanelTitle == title) {
         _closeSidePanel();
         return;
       }
-      _closeSidePanel();
+      if (_panelFocus.hasFocus) _panelFocus.unfocus();
       final closed = Completer<void>();
       _chromeTimer?.cancel();
       setState(() {
+        _removeSidePanel();
         _sidePanelTitle = title;
         _sidePanelClosed = closed;
         _sidePanel = (context) => panel(context, _closeSidePanel);
@@ -1125,39 +1131,12 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
       await closed.future;
       return;
     }
-    if (dedicated) {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (page) => Scaffold(
-            body: ReaderSafeArea(child: panel(page, () => Navigator.pop(page))),
-          ),
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (page) => Scaffold(
+          body: ReaderSafeArea(child: panel(page, () => Navigator.pop(page))),
         ),
-      );
-      return;
-    }
-    await showModalBottomSheet<void>(
-      context: context,
-      constraints: const BoxConstraints(maxWidth: 620),
-      barrierColor: withHeader ? null : Colors.transparent,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: theme.colorScheme.surface,
-      builder: (sheet) {
-        final size = MediaQuery.sizeOf(sheet);
-        final inset = MediaQuery.viewInsetsOf(sheet).bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: keyboard ? inset : 0),
-          child: SizedBox(
-            height: min(
-              size.height * heightFraction,
-              max(80, size.height - inset - 56),
-            ),
-            child: ReaderSafeArea(
-              child: panel(sheet, () => Navigator.pop(sheet)),
-            ),
-          ),
-        );
-      },
+      ),
     );
   }
 
@@ -1275,6 +1254,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                         if (matches.isEmpty) {
                           return Center(child: Text(tr(context, 'No results')));
                         }
+                        final pattern = RegExp(
+                          RegExp.escape(submitted),
+                          caseSensitive: false,
+                        );
                         return ListView.separated(
                           itemCount: matches.length + 1,
                           separatorBuilder: (_, _) =>
@@ -1295,10 +1278,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                             final excerpt = text(hit['excerpt']);
                             final parts = <TextSpan>[];
                             var start = 0;
-                            final pattern = RegExp(
-                              RegExp.escape(submitted),
-                              caseSensitive: false,
-                            );
                             for (final match in pattern.allMatches(excerpt)) {
                               parts.add(
                                 TextSpan(
@@ -1369,7 +1348,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         },
       ),
       withHeader: desktop,
-      inline: true,
     );
     await WidgetsBinding.instance.endOfFrame;
     input.dispose();
@@ -1456,6 +1434,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         : lookupDictionary(word, language);
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       showDragHandle: true,
       builder: (sheet) => ReaderSafeArea(
         child: SizedBox(
@@ -1634,6 +1613,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     String? action;
     final target = await showModalBottomSheet<double>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       showDragHandle: true,
       isScrollControlled: true,
       constraints: const BoxConstraints(maxWidth: 520),
@@ -2574,7 +2554,6 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             );
           },
         ),
-        inline: true,
         withHeader: false,
       );
     } finally {

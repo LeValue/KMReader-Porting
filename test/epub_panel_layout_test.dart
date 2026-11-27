@@ -6,6 +6,109 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kmreader/features/reader/epub_reader_chrome.dart';
 
 void main() {
+  testWidgets('mobile menus slide without resizing or rebuilding the page', (
+    tester,
+  ) async {
+    const pageKey = ValueKey('mobile-page');
+    const menuKey = ValueKey('mobile-menu');
+    final state = ValueNotifier((false, false, 0.0));
+    addTearDown(state.dispose);
+    var builds = 0;
+    var dismissals = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ValueListenableBuilder(
+          valueListenable: state,
+          child: const SizedBox.expand(key: pageKey),
+          builder: (context, value, page) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(viewInsets: EdgeInsets.only(bottom: value.$3)),
+            child: EpubMobilePanels(
+              reader: page!,
+              visible: value.$1,
+              panel: value.$2
+                  ? (_, _, _) {
+                      builds++;
+                      return const SizedBox(
+                        width: 300,
+                        height: 160,
+                        key: menuKey,
+                      );
+                    }
+                  : null,
+              onDismissed: () {
+                dismissals++;
+                state.value = (false, false, state.value.$3);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    final page = find.byKey(pageKey);
+    final menu = find.byKey(menuKey);
+    final originalPage = tester.getRect(page);
+    final pageElement = tester.element(page);
+    state.value = (true, true, 0);
+    await tester.pump();
+    expect(tester.getTopLeft(menu).dy, originalPage.bottom);
+    final initialBuilds = builds;
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.getTopLeft(menu).dy, lessThan(originalPage.bottom));
+    expect(tester.getBottomLeft(menu).dy, greaterThan(originalPage.bottom));
+    await tester.pumpAndSettle();
+    expect(builds, initialBuilds);
+    expect(tester.getBottomLeft(menu).dy, originalPage.bottom);
+
+    state.value = (true, true, 230);
+    await tester.pump();
+    expect(tester.getBottomLeft(menu).dy, originalPage.bottom - 230);
+    expect(tester.getRect(page), originalPage);
+
+    state.value = (false, true, 230);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(menu, findsOneWidget);
+    expect(
+      tester.getBottomLeft(menu).dy,
+      greaterThan(originalPage.bottom - 230),
+    );
+    expect(dismissals, 0);
+    await tester.pumpAndSettle();
+    expect(menu, findsNothing);
+    expect(dismissals, 1);
+    expect(tester.getRect(page), originalPage);
+    expect(tester.element(page), same(pageElement));
+  });
+
+  testWidgets('mobile menus respect the setting to reduce motion', (
+    tester,
+  ) async {
+    const menuKey = ValueKey('reduced-motion-menu');
+    var dismissals = 0;
+    Future<void> show(bool visible) => tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: EpubMobilePanels(
+            reader: const SizedBox.expand(),
+            visible: visible,
+            panel: (_, _, _) =>
+                const SizedBox(width: 300, height: 80, key: menuKey),
+            onDismissed: () => dismissals++,
+          ),
+        ),
+      ),
+    );
+    await show(true);
+    final menu = find.byKey(menuKey);
+    final bottom = tester.getRect(find.byType(EpubMobilePanels)).bottom;
+    expect(tester.getBottomLeft(menu).dy, bottom);
+    await show(false);
+    expect(tester.getTopLeft(menu).dy, bottom);
+    expect(dismissals, 1);
+  });
+
   testWidgets('the EPUB toolbar centers progress between unequal controls', (
     tester,
   ) async {

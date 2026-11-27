@@ -3,6 +3,16 @@ import 'package:intl/intl.dart';
 
 import 'strings.dart';
 
+const readerSheetMotion = AnimationStyle(
+  duration: Duration(milliseconds: 260),
+  reverseDuration: Duration(milliseconds: 190),
+);
+
+AnimationStyle readerSheetAnimation(BuildContext context) =>
+    MediaQuery.disableAnimationsOf(context)
+    ? AnimationStyle.noAnimation
+    : readerSheetMotion;
+
 bool readerControlHasFocus() {
   final target = FocusManager.instance.primaryFocus?.context;
   return target != null &&

@@ -1127,7 +1127,10 @@ class KMReaderPageSnapshot {
     changed = changed && start.cfi !== anchor;
     if (changed) {
       anchor = start.cfi;
-      if (preferences.flow === 'scrolled') userMoveUntil = Date.now() + 2000;
+      // Keep tracking native scroll momentum only after a real input event.
+      // An explicit turn has already committed the exact visible locator.
+      const now = Date.now();
+      if (preferences.flow === 'scrolled' && now < userMoveUntil) userMoveUntil = now + 2000;
     }
     const report = {cfi: start.cfi, href: start.href, page: displayed.page, pages: displayed.total,
       progression: progression(start, displayed),

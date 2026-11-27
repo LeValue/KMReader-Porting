@@ -7,6 +7,7 @@ import 'package:pdfrx/pdfrx.dart';
 import '../../core/models.dart';
 import '../../core/repository.dart';
 import '../../ui/common.dart';
+import '../../ui/reader_chrome.dart';
 import '../../ui/strings.dart';
 import 'pdf_raster_pages.dart';
 import 'pdf_preferences.dart';
@@ -109,6 +110,7 @@ class _PdfRasterReaderState extends State<PdfRasterReader> {
     if (!context.mounted) return null;
     return showModalBottomSheet<int>(
       context: context,
+      sheetAnimationStyle: readerSheetAnimation(context),
       isScrollControlled: true,
       constraints: const BoxConstraints(maxWidth: 640),
       builder: (sheet) {
@@ -232,6 +234,7 @@ class _PdfRasterReaderState extends State<PdfRasterReader> {
         documentNavigation: (
           search: (context) => showModalBottomSheet<int>(
             context: context,
+            sheetAnimationStyle: readerSheetAnimation(context),
             isScrollControlled: true,
             constraints: const BoxConstraints(maxWidth: 640),
             builder: (_) => _PdfSearchSheet(source: source),
