@@ -150,7 +150,7 @@ jobs:
       - *ndk_install
       - *download_android_wheels
       - name: Build the standalone production APK
-        run: flutter build apk --release --no-pub --target-platform ${{ matrix.platform }}
+        run: flutter build apk --release --target-platform ${{ matrix.platform }}
         env:
           # The stable Android release uses this application ID for in-place updates.
           ORG_GRADLE_PROJECT_kmreaderPreview: 'true'
