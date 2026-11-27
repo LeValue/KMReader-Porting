@@ -9,16 +9,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:archive/archive_io.dart';
+import 'package:kmreader/core/app_version.dart';
 import 'package:kmreader/core/updates/app_updates.dart';
+
+const _candidateBuild = appBuildNumber + 1;
+const _candidateTag = 'v$appVersion-candidate.9';
 
 Map<String, dynamic> manifest(List<int> bytes) => {
   'schema': 1,
-  'version': '1.0.0',
-  'build': 999,
+  'version': appVersion,
+  'build': _candidateBuild,
   'source': 'a' * 40,
   'packages': {
     'android': {
-      'url': '${updateOrigin}v1.0.0-candidate.9/app.apk',
+      'url': '$updateOrigin$_candidateTag/app.apk',
       'sha256': sha256.convert(bytes).toString(),
       'size': bytes.length,
     },
@@ -27,9 +31,10 @@ Map<String, dynamic> manifest(List<int> bytes) => {
 void main() {
   test('update metadata rejects wrong hosts, downgrades and invalid integrity fields', () {
     final valid = manifest([1, 2, 3]);
-    expect(AppUpdate.parse(valid, 'android').build, 999);
+    expect(AppUpdate.parse(valid, 'android').build, _candidateBuild);
     for (final change in [
       {'build': 1},
+      {'version': '0.0.1'},
       {'source': 'wrong'},
       {'schema': 2},
     ]) {
@@ -59,12 +64,12 @@ void main() {
             jsonEncode([
               {
                 'draft': false,
-                'tag_name': 'v1.0.0-candidate.9',
+                'tag_name': _candidateTag,
                 'assets': [
                   {
                     'name': 'kmreader-update.json',
                     'browser_download_url':
-                        '${updateOrigin}v1.0.0-candidate.9/kmreader-update.json',
+                        '$updateOrigin$_candidateTag/kmreader-update.json',
                   },
                 ],
               },
@@ -76,7 +81,7 @@ void main() {
       }),
     );
     addTearDown(service.close);
-    expect((await service.check('android'))?.build, 999);
+    expect((await service.check('android'))?.build, _candidateBuild);
   });
   test(
     'verified downloads stream to a temporary file and reject corrupt bytes',
