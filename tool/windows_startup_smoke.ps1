@@ -32,10 +32,31 @@ using System;
 using System.Runtime.InteropServices;
 public static class KMReaderSmokeWindow {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
+  [StructLayout(LayoutKind.Sequential)] private struct MinMaxInfo {
+    public Point Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize;
+  }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr handle, out Rect rect);
+  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr handle);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr handle);
+  [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")]
+  private static extern IntPtr SendMessageTimeout(IntPtr handle, uint message,
+    UIntPtr wParam, ref MinMaxInfo limits, uint flags, uint timeout, out IntPtr result);
+  public static bool GetMinimumSize(IntPtr handle, out Point size) {
+    var limits = new MinMaxInfo();
+    IntPtr result;
+    var sent = SendMessageTimeout(handle, 0x0024, UIntPtr.Zero, ref limits, 2, 5000, out result);
+    size = limits.MinTrackSize;
+    return sent != IntPtr.Zero;
+  }
 }
 '@
+  $minimum = [KMReaderSmokeWindow+Point]::new()
+  if (-not [KMReaderSmokeWindow]::GetMinimumSize($process.MainWindowHandle, [ref]$minimum)) { throw 'Cannot query the minimum app window size.' }
+  $dpiScale = [KMReaderSmokeWindow]::GetDpiForWindow($process.MainWindowHandle) / 96.0
+  $minimumWidth = [Math]::Round(720 * $dpiScale, [MidpointRounding]::AwayFromZero)
+  $minimumHeight = [Math]::Round(520 * $dpiScale, [MidpointRounding]::AwayFromZero)
+  if ($dpiScale -le 0 -or $minimum.X -ne $minimumWidth -or $minimum.Y -ne $minimumHeight) { throw "Unexpected minimum app window size: $($minimum.X) x $($minimum.Y)." }
   $rect = [KMReaderSmokeWindow+Rect]::new()
   if (-not [KMReaderSmokeWindow]::GetWindowRect($process.MainWindowHandle, [ref]$rect)) { throw 'Cannot read the app window bounds.' }
   $width = $rect.Right - $rect.Left
@@ -48,7 +69,7 @@ public static class KMReaderSmokeWindow {
     $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
     $bitmap.Save((Join-Path $OutputDirectory 'windows-startup.png'), [System.Drawing.Imaging.ImageFormat]::Png)
   } finally { $graphics.Dispose(); $bitmap.Dispose() }
-  Write-Host "Native Windows startup passed: $width x $height, window '$($process.MainWindowTitle)'."
+  Write-Host "Native Windows startup passed: $width x $height, minimum $minimumWidth x $minimumHeight."
 } finally {
   if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit() }
   $errorOutput.GetAwaiter().GetResult() | Set-Content (Join-Path $OutputDirectory 'stderr.txt')

@@ -17,6 +17,8 @@ namespace {
 #endif
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+constexpr int kMinimumWindowWidth = 720;
+constexpr int kMinimumWindowHeight = 520;
 
 /// Registry key for app theme preference.
 ///
@@ -186,6 +188,16 @@ Win32Window::MessageHandler(HWND hwnd,
         PostQuitMessage(0);
       }
       return 0;
+
+    case WM_GETMINMAXINFO: {
+      auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
+      const UINT dpi = GetDpiForWindow(hwnd);
+      limits->ptMinTrackSize.x =
+          MulDiv(kMinimumWindowWidth, dpi, USER_DEFAULT_SCREEN_DPI);
+      limits->ptMinTrackSize.y =
+          MulDiv(kMinimumWindowHeight, dpi, USER_DEFAULT_SCREEN_DPI);
+      return 0;
+    }
 
     case WM_DPICHANGED: {
       auto newRectSize = reinterpret_cast<RECT*>(lparam);
