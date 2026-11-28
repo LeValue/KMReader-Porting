@@ -43,6 +43,7 @@ void main() {
   // that create/terminate WebView and background-engine graphics contexts.
   verifyNativeKindleWorker();
   verifyNativeComicSheets();
+  if (Platform.isWindows) verifyNativeEpubPerformance();
   testWidgets('Kindle offers a newer location and follows it only with consent', (
     tester,
   ) async {
@@ -186,7 +187,7 @@ void main() {
   verifyNativeBackgroundDownloads();
   verifyNativeScrolling(binding);
   verifyNativeWindowsWheel();
-  verifyNativeEpubPerformance();
+  if (!Platform.isWindows) verifyNativeEpubPerformance();
   verifyNativeEpubRecovery();
   verifyNativeLocalLibrary();
   testWidgets('Android export rejects files outside app-private storage', (

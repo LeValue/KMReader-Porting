@@ -497,7 +497,7 @@ void verifyNativeEpubPerformance() {
       await visibleText();
       // Exercise the real WebView GPU/texture path, not only headless Chrome.
       expect(
-        await js("""
+        await jsWhilePresenting("""
           // Emulator accessibility disables animation. Exercise actual GPU
           // pixels in this scoped branch, then restore the media query.
           window.nativeMedia=window.matchMedia;
@@ -508,7 +508,7 @@ void verifyNativeEpubPerformance() {
           KMReaderSheetEffect.prototype.animateTo=function(){return new Promise(()=>{});};
           await reader.turn({delta:1,style:'curl'});
           if(!window.nativeCurl)throw Error('GPU effect did not start: supported='+KMReaderSheetEffect.supported('curl')+', reduced='+matchMedia('(prefers-reduced-motion: reduce)').matches);
-          if(!nativeCurl.surface||!document.getElementById('page-curl-surface'))throw Error('Native GPU curl unavailable');
+          if(!nativeCurl.surface||!document.getElementById('page-curl-surface'))throw Error('Native GPU curl unavailable: '+JSON.stringify({surface:!!nativeCurl.surface,ready:nativeCurl.ready,stopped:nativeCurl.stopped,failed:nativeCurl.failed,supported:KMReaderSheetEffect.supported('curl')}));
           nativeCurl.update(.5,{x:innerWidth*.5,y:innerHeight*.25});
           return nativeCurl.surface.canvas.width>=innerWidth && nativeCurl.surface.shadowTargets.length===2 && nativeCurl.surface.gl.getError()===0;
         """),

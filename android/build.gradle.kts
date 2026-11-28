@@ -1,7 +1,8 @@
 allprojects {
     repositories {
-        google()
-        mavenCentral()
+        // The Flutter Gradle plugin adds the engine's own Maven repository.
+        google { content { excludeGroup("io.flutter") } }
+        mavenCentral { content { excludeGroup("io.flutter") } }
     }
 }
 
