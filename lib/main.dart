@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:kmreader/core/background_downloads.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -66,6 +68,9 @@ Future<void> main(List<String> arguments) async {
       }
     }
     runApp(KMReaderApp(app: app, launch: launch));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(app.startBackgroundServices());
+    });
   } catch (error) {
     runApp(
       MaterialApp(

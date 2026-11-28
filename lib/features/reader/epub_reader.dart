@@ -94,6 +94,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   Completer<void>? _sidePanelClosed;
   String? _sidePanelTitle;
   bool _sidePanelClosing = false;
+  bool _contentsOpen = false;
   bool _searchPanelCompact = false;
   bool _searchPanelAtTop = false;
   int _searchGeneration = 0;
@@ -566,6 +567,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     final event = object(value);
     switch (event['type']) {
       case 'ready':
+        if (_sidePanel != null || _contentsOpen) _updatePreviewBudget();
         if (_activeSearchQuery.isNotEmpty) {
           unawaited(_call('showSearch', _activeSearchQuery));
         }
@@ -635,6 +637,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
             _searchPanelCompact = true;
             _searchPanelAtTop = event['lower'] == true;
           });
+          _updatePreviewBudget();
         }
         return;
       case 'fullscreen':
@@ -761,39 +764,79 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
   }
 
   Future<void> _contents() async {
-    final session = _session!;
-    Widget node(EpubNavigationEntry entry) => entry.children.isNotEmpty
-        ? ExpansionTile(
-            initiallyExpanded: true,
-            title: Text(entry.title),
-            trailing: entry.location == null
-                ? null
-                : IconButton(
-                    tooltip: tr(context, 'Go to section'),
-                    icon: const Icon(CupertinoIcons.arrow_right_circle),
-                    onPressed: () => go(entry.location!),
-                  ),
-            children: entry.children.map(node).toList(),
-          )
-        : ListTile(
-            title: Text(entry.title),
-            onTap: entry.location == null ? null : () => go(entry.location!),
-          );
-    // The sheet closes before the browser receives navigation, preserving focus.
-    await showModalBottomSheet<void>(
-      context: context,
-      sheetAnimationStyle: readerSheetAnimation(context),
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => ReaderSafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .75,
-          child: ListView(
-            children: session.document.tableOfContents.map(node).toList(),
-          ).withWheelScrolling(),
+    final entries = _session!.document.tableOfContents;
+    final collapsed = <EpubNavigationEntry>{};
+    List<(EpubNavigationEntry, int)> visibleEntries(
+      List<EpubNavigationEntry> nodes, [
+      int depth = 0,
+    ]) => [
+      for (final node in nodes) ...[
+        (node, depth),
+        if (!collapsed.contains(node))
+          ...visibleEntries(node.children, depth + 1),
+      ],
+    ];
+    var rows = visibleEntries(entries);
+    _contentsOpen = true;
+    _updatePreviewBudget();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        sheetAnimationStyle: readerSheetAnimation(context),
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (context) => ReaderSafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .75,
+            child: StatefulBuilder(
+              builder: (context, update) => ListView.builder(
+                itemCount: rows.length,
+                itemBuilder: (context, index) {
+                  final (entry, depth) = rows[index];
+                  final location = entry.location;
+                  final expandable = entry.children.isNotEmpty;
+                  final collapsedEntry = collapsed.contains(entry);
+                  return ListTile(
+                    contentPadding: EdgeInsetsDirectional.fromSTEB(
+                      16 + min(depth, 6) * 14.0,
+                      0,
+                      16,
+                      0,
+                    ),
+                    leading: expandable
+                        ? Icon(
+                            collapsedEntry
+                                ? Icons.chevron_right
+                                : Icons.expand_more,
+                          )
+                        : null,
+                    title: Text(entry.title),
+                    trailing: expandable && location != null
+                        ? IconButton(
+                            tooltip: tr(context, 'Go to section'),
+                            icon: const Icon(CupertinoIcons.arrow_right_circle),
+                            onPressed: () => go(location),
+                          )
+                        : null,
+                    onTap: expandable
+                        ? () => update(() {
+                            if (!collapsed.remove(entry)) collapsed.add(entry);
+                            rows = visibleEntries(entries);
+                          })
+                        : location == null
+                        ? null
+                        : () => go(location),
+                  );
+                },
+              ).withWheelScrolling(),
+            ),
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _contentsOpen = false;
+      _updatePreviewBudget();
+    }
   }
 
   void go(EpubLocation location) {
@@ -999,8 +1042,10 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                     children: [
                       Expanded(
                         child: TextButton.icon(
-                          onPressed: () =>
-                              setState(() => _searchPanelCompact = false),
+                          onPressed: () {
+                            setState(() => _searchPanelCompact = false);
+                            _updatePreviewBudget();
+                          },
                           icon: const Icon(Icons.search, size: 18),
                           label: Text(tr(context, 'Search')),
                         ),
@@ -1074,9 +1119,20 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
     _searchPanelAtTop = false;
   }
 
+  void _updatePreviewBudget() {
+    if (!mounted || !(Platform.isAndroid || Platform.isIOS)) return;
+    unawaited(
+      _call(
+        'setReaderPanelOpen',
+        _contentsOpen || _sidePanel != null && !_searchPanelCompact,
+      ),
+    );
+  }
+
   void _finishClosingSidePanel() {
     if (!_sidePanelClosing) return;
     setState(_removeSidePanel);
+    _updatePreviewBudget();
     _scheduleControlsHide();
   }
 
@@ -1128,6 +1184,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
         _sidePanel = (context) => panel(context, _closeSidePanel);
         _controls = true;
       });
+      _updatePreviewBudget();
       await closed.future;
       return;
     }
@@ -1309,6 +1366,7 @@ class _BrowserEpubReaderState extends State<BrowserEpubReader> {
                                   FocusScope.of(context).unfocus();
                                   if (!Platform.isWindows && mounted) {
                                     setState(() => _searchPanelCompact = true);
+                                    _updatePreviewBudget();
                                   }
                                   unawaited(_call('jumpToSearchResult', hit));
                                 },

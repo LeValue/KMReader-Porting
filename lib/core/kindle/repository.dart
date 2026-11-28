@@ -85,7 +85,7 @@ class KindleRepository extends Repository {
                 book.id,
                 text(mark['type']).split('.').last,
                 mark['kindleStart'],
-                mark['kindleEnd'],
+                mark['kindleRecordEnd'] ?? mark['kindleEnd'],
               ),
             ) &&
             !hidden.containsKey(text(mark['id'])))
@@ -161,6 +161,14 @@ class KindleRepository extends Repository {
         !mapping.matches(sidecar)) {
       return;
     }
+    final localRanges = {
+      for (final mark
+          in (store.cached(profile.id, 'epubBookmarks:$id') as List? ?? []).map(
+            object,
+          ))
+        if (mark['type'] == 'kindle.highlight')
+          (mark['kindleStart'], mark['kindleEnd']),
+    };
     final values = <Json>[];
     for (final record in (sidecar['records'] as List? ?? []).map(object)) {
       final type = text(record['type']);
@@ -175,7 +183,19 @@ class KindleRepository extends Repository {
       if (position == null || text(record['annotationId']).isEmpty) continue;
       final locator = mapping.locator(position);
       if (locator == null) continue;
-      final end = int.tryParse('${record['endPosition']}');
+      final wireEnd = int.tryParse('${record['endPosition']}');
+      var end = kindleAnnotationEnd(record);
+      // Releases that wrote an exclusive highlight endpoint can still match
+      // the original local CFI without drawing one extra character.
+      if (type == 'kindle.highlight' &&
+          ((!localRanges.contains((position, end)) &&
+                  localRanges.contains((position, wireEnd))) ||
+              wireEnd != null &&
+                  wireEnd > position &&
+                  mapping.locator(wireEnd) == null &&
+                  mapping.locator(wireEnd - 1) != null)) {
+        end = wireEnd;
+      }
       final note = kindleNoteText(record);
       final endLocator = end != null && end > position
           ? mapping.locator(end - 1)
@@ -188,10 +208,8 @@ class KindleRepository extends Repository {
         'locator': locator,
         'kindleStart': position,
         'kindleEnd': ?end,
-        'color':
-            ?(annotationColor(record['color']) ??
-            annotationColor(record['highlightColor']) ??
-            annotationColor(record['style'])),
+        'kindleRecordEnd': ?wireEnd,
+        'color': ?kindleHighlightColor(record),
         if (type == 'kindle.highlight' && note.isNotEmpty) 'excerpt': note,
         if (endLocator != null)
           'endLocator': {
@@ -206,7 +224,9 @@ class KindleRepository extends Repository {
                 _ => 'Segnalibro Kindle',
               },
         'created': record['creationTime'],
-        'modified': record['lastModificationTime'],
+        'modified': kindleTimestamp(
+          record['lastModificationTime'] ?? record['creationTime'],
+        )?.toIso8601String(),
       });
     }
     final key = 'kindle:annotations:$id';
@@ -247,15 +267,32 @@ class KindleRepository extends Repository {
 
   @override
   void documentAnnotation(Book book, Json annotation, {required bool present}) {
-    final mark = _editableMark(annotation);
+    final remote =
+        (!present || annotation['type'] == 'kindle.highlight') &&
+            annotation['source'] != 'kindle'
+        ? documentAnnotations(book)
+              .where(
+                (record) =>
+                    record['type'] == annotation['type'] &&
+                    record['kindleStart'] == annotation['kindleStart'] &&
+                    record['kindleEnd'] == annotation['kindleEnd'],
+              )
+              .firstOrNull
+        : null;
+    final resolved = remote == null
+        ? annotation
+        : present
+        ? {...remote, 'color': annotation['color']}
+        : remote;
+    final mark = _editableMark(resolved);
     if (mark != null) {
+      final end = resolved['kindleEnd'];
       _queueAnnotation(
         book,
         mark,
         present,
-        cloudId: annotation['source'] == 'kindle'
-            ? text(annotation['id'])
-            : null,
+        cloudId: resolved['source'] == 'kindle' ? text(resolved['id']) : null,
+        rangeEnd: end is int ? end : null,
       );
     }
   }
@@ -270,8 +307,15 @@ class KindleRepository extends Repository {
     return KindleMark(
       type.substring('kindle.'.length),
       start,
-      end: end as int?,
+      end: annotation['source'] == 'kindle'
+          ? (annotation['kindleRecordEnd'] ?? end) as int?
+          : type == 'kindle.highlight'
+          ? (end as int) - 1
+          : end as int?,
       note: type == 'kindle.note' ? text(annotation['label']) : null,
+      color: type == 'kindle.highlight'
+          ? annotationColor(annotation['color'])
+          : null,
     );
   }
 
@@ -290,8 +334,10 @@ class KindleRepository extends Repository {
     KindleMark mark,
     bool present, {
     String? cloudId,
+    int? rangeEnd,
   }) {
     final mapping = _mapping;
+    final end = rangeEnd ?? mark.rangeEnd;
     if (closed ||
         !kindleAnnotationsEnabled ||
         book.json['kindleType'] != 'PDOC' ||
@@ -299,9 +345,7 @@ class KindleRepository extends Repository {
         mapping == null ||
         !(present ? mark.valid : mark.deletable) ||
         mapping.locator(mark.start) == null ||
-        mark.end != null &&
-            mark.end! > mark.start &&
-            mapping.locator(mark.end! - 1) == null) {
+        end != null && end > mark.start && mapping.locator(end - 1) == null) {
       return;
     }
     final key = _annotationKey(book.id, mark.type, mark.start, mark.end);
@@ -315,7 +359,11 @@ class KindleRepository extends Repository {
       changed();
       return;
     }
-    if (present && existing['submitted'] == true) return;
+    if (present &&
+        existing['submitted'] == true &&
+        existing['color'] == mark.color) {
+      return;
+    }
     final erase = !present;
     final known = documentAnnotations(book)
         .where(
@@ -324,7 +372,7 @@ class KindleRepository extends Repository {
                 book.id,
                 text(cached['type']).split('.').last,
                 cached['kindleStart'],
-                cached['kindleEnd'],
+                cached['kindleRecordEnd'] ?? cached['kindleEnd'],
               ) ==
               key,
         )
@@ -338,6 +386,7 @@ class KindleRepository extends Repository {
       'start': mark.start,
       'end': ?mark.end,
       if (present) 'note': ?mark.note,
+      if (present) 'color': ?mark.color,
       'edition': mapping.primary,
       'acrs': mapping.acrs.toList(),
       'revision': DateTime.now().microsecondsSinceEpoch,
@@ -388,6 +437,7 @@ class KindleRepository extends Repository {
           integer(current['start'], -1),
           end: current['end'] is int ? current['end'] as int : null,
           note: current['note'] as String?,
+          color: annotationColor(current['color']),
         );
         final erase = current['erase'] == true;
         if (!(erase ? mark.deletable : mark.valid)) {
@@ -471,9 +521,17 @@ class KindleRepository extends Repository {
           }
         } else if (!records.any(mark.matches)) {
           if (current['submitted'] == true) continue;
-          if (matches.isEmpty) {
+          final existing = matches.firstOrNull;
+          if (existing == null || mark.color != null) {
             _setAnnotationEdit(entry.key, {...current, 'submitted': true});
-            sidecar = await library.client.pushAnnotation(item, guid, mark);
+            sidecar = await library.client.pushAnnotation(
+              item,
+              guid,
+              mark,
+              annotationId: existing == null
+                  ? null
+                  : text(existing['annotationId']),
+            );
           }
         }
         if (closed) return;

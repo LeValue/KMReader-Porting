@@ -19,7 +19,7 @@ from verify_preview_ci import REQUIRED
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_PATHS = ['lib', 'assets', 'android', 'windows', 'third_party', 'pubspec.yaml',
                  'pubspec.lock', 'tool/prepare_build_metadata.py', 'tool/preview_metadata.py',
-                 'tool/preview-certificate.sha256', 'tool/install_android_ndk.sh', 'tool/android_python',
+                 'tool/preview-certificate.sha256', 'tool/install_android_ndk.sh', 'tool/android_python', 'tool/build_windows_installer.ps1',
                  'tool/kindle_personal', 'tool/komga_admin', 'tool/kindle_android', 'tool/build_kindle_worker.ps1']
 
 
@@ -200,6 +200,15 @@ def main():
     manifest = output / 'kmreader-update.json'
     manifest.write_text(json.dumps(update_manifest(repository, release['tag_name'], source, version, build, files), indent=2) + '\n')
     files.append(manifest)
+    installer_directory = output / 'windows-installer'
+    subprocess.check_call(['gh', 'run', 'download', production_run or requested, '--repo', repository,
+                           '--name', 'windows-installer', '--dir', str(installer_directory)])
+    installer = installer_directory / f'KMReader-{version}-windows-x64-setup.exe'
+    if not installer.is_file():
+        raise ValueError('Missing Windows installer for this version')
+    if suffix:
+        installer = installer.rename(installer.with_stem(installer.stem + suffix))
+    files.append(installer)
     sums = output / 'SHA256SUMS.txt'
     sums.write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.name + '\n' for p in files))
     files.append(sums)

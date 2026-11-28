@@ -1,12 +1,14 @@
 # Install and start reading
 
-Download the Android APK or Windows ZIP from [GitHub Releases](https://github.com/LeValue/KMReader-Porting/releases).
+Download KMReader from [GitHub Releases](https://github.com/LeValue/KMReader-Porting/releases).
 
 - **Android 7 or later** — choose the APK for your architecture (`arm64`,
   `armv7` or `x64`), open it and confirm installation. Most current phones use
   `arm64`. KMReader selects the matching APK for in-app updates.
-- **Windows 10 or 11 x64** — extract the full ZIP into a writable folder and
-  run `KMReader/kmreader.exe`. EPUB reading uses the
+- **Windows 10 or 11 x64** — if the release includes a setup executable, run it
+  and choose the install location, install scope, Start menu shortcut and optional desktop shortcut.
+  For portable use, extract the full ZIP into a writable folder and run
+  `KMReader/kmreader.exe`. EPUB reading uses the
   [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
   Windows packages include the MSVC runtime and are distributed without an
   Authenticode signature.
@@ -20,8 +22,10 @@ Open **Settings → About → App updates**. Android asks for confirmation in th
 system installer. Windows backs up the application files, applies the update
 and reopens the app.
 
-To upgrade manually, install the official APK over the existing Android app,
-or close KMReader and extract the complete Windows ZIP. The Android release
+To upgrade manually, install the official APK or Windows setup over the
+existing app. For a portable Windows install, close KMReader and extract the
+complete ZIP. Use the setup executable to update an all-users installation in
+a protected directory. The Android release
 keeps the package ID and signing certificate of KMReader Preview, so Android
 can update it in place. The Windows app stores library data separately from
 the installation folder.

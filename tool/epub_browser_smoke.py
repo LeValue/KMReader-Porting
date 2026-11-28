@@ -69,8 +69,11 @@ with sync_playwright() as playwright:
     page.set_viewport_size({'width': 1100, 'height': 650})
     page.wait_for_timeout(400)
     page.evaluate('(value)=>window.reader.preferences(value)', {**preferences, 'columns': 2})
+    before_search = page.evaluate('reader.position().start.cfi')
+    assert page.evaluate('reader.setReaderPanelOpen(true)')
     matches = page.evaluate("window.reader.search('Paragraph 40')")
     assert matches and matches[0]['cfi'].startswith('epubcfi('), matches
+    assert page.evaluate('reader.position().start.cfi') == before_search
     page.evaluate('hit=>window.reader.jumpToSearchResult(hit)', matches[0])
     searched = page.evaluate("readerMessages.filter(m=>m.type==='position').at(-1)")
     assert searched['changed'] is True
@@ -84,6 +87,8 @@ with sync_playwright() as playwright:
     assert page.evaluate(await_term)
     page.evaluate('reader.clearSearch()')
     assert page.evaluate(highlight_count) == 0
+    assert page.evaluate('reader.setReaderPanelOpen(false)')
+    assert page.evaluate('reader.position().start.cfi') == searched['cfi']
     page.evaluate('(value)=>window.reader.preferences(value)', {**preferences, 'flow': 'scrolled'})
     page.evaluate('readerMessages.length=0')
     page.mouse.move(250, 250)

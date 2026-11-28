@@ -1006,37 +1006,43 @@ class _CatalogPageViewState extends State<CatalogPageView> {
                   itemCount: _items.length,
                   itemBuilder: (context, i) {
                     final item = _items[i];
-                    return ListTile(
-                      selected: _selection.containsKey(item.id),
-                      onLongPress: () => _begin(item),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 6,
-                      ),
-                      leading: SizedBox(
-                        width: 38,
-                        height: 56,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Cover(
-                            repository: widget.repository,
-                            path: item.thumbnail,
+                    return Material(
+                      type: MaterialType.transparency,
+                      child: ListTile(
+                        selected: _selection.containsKey(item.id),
+                        onLongPress: () => _begin(item),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 6,
+                        ),
+                        leading: SizedBox(
+                          width: 38,
+                          height: 56,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Cover(
+                              repository: widget.repository,
+                              path: item.thumbnail,
+                            ),
                           ),
                         ),
+                        title: Text(
+                          item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(item.subtitle),
+                        trailing: _selecting
+                            ? Checkbox(
+                                value: _selection.containsKey(item.id),
+                                onChanged: (_) => _choose(item),
+                              )
+                            : const Icon(
+                                CupertinoIcons.chevron_right,
+                                size: 16,
+                              ),
+                        onTap: () => _choose(item),
                       ),
-                      title: Text(
-                        item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(item.subtitle),
-                      trailing: _selecting
-                          ? Checkbox(
-                              value: _selection.containsKey(item.id),
-                              onChanged: (_) => _choose(item),
-                            )
-                          : const Icon(CupertinoIcons.chevron_right, size: 16),
-                      onTap: () => _choose(item),
                     );
                   },
                 )
@@ -1132,39 +1138,42 @@ class BookCard extends StatelessWidget {
       return Semantics(
         button: true,
         label: item.title,
-        child: InkWell(
-          onTap: onTap ?? () => openItem(context, repository, item),
-          onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(8),
-          child: CatalogCard(
-            preferences: repository.browse,
-            coverBuilder: (frame) => Cover(
-              repository: repository,
-              path: item.thumbnail,
-              frameBuilder: (context, image, _, _) => frame(image),
-              fit:
-                  repository.browse[BrowseOption.preserveAspectRatio] &&
-                      !repository.browse.overlaysText
-                  ? BoxFit.contain
-                  : BoxFit.cover,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap ?? () => openItem(context, repository, item),
+            onLongPress: onLongPress,
+            borderRadius: BorderRadius.circular(8),
+            child: CatalogCard(
+              preferences: repository.browse,
+              coverBuilder: (frame) => Cover(
+                repository: repository,
+                path: item.thumbnail,
+                frameBuilder: (context, image, _, _) => frame(image),
+                fit:
+                    repository.browse[BrowseOption.preserveAspectRatio] &&
+                        !repository.browse.overlaysText
+                    ? BoxFit.contain
+                    : BoxFit.cover,
+              ),
+              title: item.title,
+              subtitle: book == null ? null : item.subtitle,
+              detail: book == null
+                  ? '${item.subtitle} ${tr(context, item.kind == 'collections' ? 'Series' : 'Books')}'
+                  : book.pages > 0
+                  ? '${book.pageCountLabel} ${tr(context, 'Pages')}'
+                  : '',
+              unread: book == null
+                  ? item.kind == 'series' &&
+                        integer(item.json['booksReadCount']) == 0 &&
+                        integer(item.json['booksInProgressCount']) == 0
+                  : !book.completed && book.page == 0,
+              unreadCount: item.kind == 'series'
+                  ? integer(item.json['booksUnreadCount'])
+                  : 0,
+              completed: book?.completed ?? false,
+              progress: book?.fraction ?? 0,
             ),
-            title: item.title,
-            subtitle: book == null ? null : item.subtitle,
-            detail: book == null
-                ? '${item.subtitle} ${tr(context, item.kind == 'collections' ? 'Series' : 'Books')}'
-                : book.pages > 0
-                ? '${book.pageCountLabel} ${tr(context, 'Pages')}'
-                : '',
-            unread: book == null
-                ? item.kind == 'series' &&
-                      integer(item.json['booksReadCount']) == 0 &&
-                      integer(item.json['booksInProgressCount']) == 0
-                : !book.completed && book.page == 0,
-            unreadCount: item.kind == 'series'
-                ? integer(item.json['booksUnreadCount'])
-                : 0,
-            completed: book?.completed ?? false,
-            progress: book?.fraction ?? 0,
           ),
         ),
       );

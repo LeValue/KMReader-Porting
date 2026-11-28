@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:http/http.dart' as http;
 
+import '../annotation_colors.dart';
 import '../models.dart';
 import 'client.dart';
 import 'import.dart';
@@ -841,6 +842,7 @@ class KindleDocumentManager {
                 'start': mark.start,
                 'end': mark.end,
                 'note': ?mark.note,
+                'color': ?mark.color,
               },
           ],
           'local_bookmarks': localMarks,
@@ -1044,6 +1046,7 @@ List<KindleMark> _plannedAnnotations(Json plan) => [
       value['start'] as int,
       end: value['end'] as int?,
       note: value['note'] as String?,
+      color: annotationColor(value['color']),
     ),
 ];
 

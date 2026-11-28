@@ -124,8 +124,13 @@ void main() {
                           'type': 'kindle.$type',
                           'annotationId': '${old ? 'old' : 'new'}-$type',
                           'startPosition': old ? 11 : 101,
-                          'endPosition': old ? 14 : 104,
+                          'endPosition': old
+                              ? 14
+                              : type == 'highlight'
+                              ? 103
+                              : 104,
                           if (type == 'note') 'noteText': 'Retain this note 🦆',
+                          if (type == 'highlight') 'highlightColor': 'orange',
                         },
                   ],
                 },
@@ -159,7 +164,8 @@ void main() {
               final highlight = xml.findAllElements('highlight').single;
               final note = xml.findAllElements('note').single;
               expect(highlight.getAttribute('begin'), '101');
-              expect(highlight.getAttribute('end'), '104');
+              expect(highlight.getAttribute('end'), '103');
+              expect(highlight.getAttribute('color'), 'orange');
               expect(note.innerText, 'Retain this note 🦆');
             }
             if (interrupted) {

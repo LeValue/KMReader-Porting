@@ -68,6 +68,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
   Future<void> _serial = Future.value();
   bool _disposed = false;
   bool _initialized = false;
+  bool _conditionsReady = false;
   bool _reset = false;
   int? _externalRevision;
   String? failure;
@@ -86,16 +87,21 @@ class BackgroundDownloads with WidgetsBindingObserver {
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
     WidgetsBinding.instance.addObserver(this);
-    if (Platform.isAndroid) {
-      await Workmanager().initialize(downloadCallbackDispatcher);
-    }
-    channel.setMethodCallHandler((call) async {
-      if (call.method == 'conditions') {
-        _conditions = TransferConditions.parse(object(call.arguments));
-        _applyConditions();
+    try {
+      if (Platform.isAndroid) {
+        await Workmanager().initialize(downloadCallbackDispatcher);
       }
-    });
-    await _readConditions();
+      channel.setMethodCallHandler((call) async {
+        if (call.method == 'conditions') {
+          _conditions = TransferConditions.parse(object(call.arguments));
+          _applyConditions();
+        }
+      });
+      await _readConditions();
+    } finally {
+      _conditionsReady = true;
+      _applyConditions();
+    }
     // Also notices another engine's persisted fractions/completion/cancellation.
     _externalRevision = store.externalRevision;
     _configurePoll();
@@ -137,8 +143,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
     repository?.setForeground(_foreground);
     if (repository != null) {
       repository.onDownloadQueueChanged = refresh;
-      repository.canTransfer = () =>
-          (_foreground || policy.background) && policy.permits(_conditions);
+      repository.canTransfer = _canTransfer;
       _applyConditions();
     }
     refresh();
@@ -151,13 +156,16 @@ class BackgroundDownloads with WidgetsBindingObserver {
     refresh();
   }
 
+  bool _canTransfer() =>
+      (!supported || _conditionsReady) &&
+      (_foreground || policy.background) &&
+      policy.permits(_conditions);
+
   void _applyConditions() {
     if (_disposed) return;
     final repository = _repository;
     if (repository == null) return;
-    if ((_foreground || policy.background) &&
-        policy.permits(_conditions) &&
-        !repository.offline) {
+    if (_canTransfer() && !repository.offline) {
       repository.resumeDownloads();
     } else {
       repository.pauseDownloads();
@@ -186,7 +194,7 @@ class BackgroundDownloads with WidgetsBindingObserver {
   }
 
   void refresh() {
-    if (_disposed || !supported || !_initialized) return;
+    if (_disposed || !supported || !_conditionsReady) return;
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), () {
       _serial = _serial.then((_) => _reconcile()).catchError((Object error) {

@@ -317,6 +317,25 @@ jobs:
       - name: Launch the native Windows app in an isolated profile
         shell: pwsh
         run: ./tool/windows_startup_smoke.ps1 -Executable build/windows/x64/runner/Release/kmreader.exe -OutputDirectory "${{ runner.temp }}/windows-startup"
+      - name: Build and verify the Windows installer
+        shell: pwsh
+        run: |
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            $compilerSetup = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.4.exe'
+            Invoke-WebRequest -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe' -OutFile $compilerSetup
+            if ((Get-FileHash -Algorithm SHA256 $compilerSetup).Hash -ne 'a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c') {
+              throw 'Inno Setup checksum mismatch.'
+            }
+            $process = Start-Process -FilePath $compilerSetup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS' -PassThru -Wait
+            if ($process.ExitCode -ne 0) { throw 'Inno Setup installation failed.' }
+          }
+          ./tool/build_windows_installer.ps1 -Bundle build/windows/x64/runner/Release -OutputDirectory artifacts/windows-installer
+          ./tool/windows_installer_smoke.ps1 -Installer (Get-ChildItem artifacts/windows-installer/*-setup.exe).FullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: artifacts/windows-installer/*-setup.exe
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:

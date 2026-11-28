@@ -235,7 +235,13 @@ class KindleEditionMigration {
   KindleMark cloudAnnotation(Json record) {
     final type = text(record['type']);
     final start = int.tryParse('${record['startPosition']}');
-    final end = int.tryParse('${record['endPosition']}');
+    var end = kindleAnnotationEnd(record);
+    if (type == 'kindle.highlight' &&
+        end != null &&
+        oldMap.locator(end - 1) == null &&
+        oldMap.locator(end - 2) != null) {
+      end--;
+    }
     if (start == null ||
         end == null ||
         start < 0 ||
@@ -247,8 +253,9 @@ class KindleEditionMigration {
     final mark = KindleMark(
       type.substring(7),
       mapped,
-      end: mapped + end - start,
+      end: mapped + end - start - (type == 'kindle.highlight' ? 1 : 0),
       note: type == 'kindle.note' ? kindleNoteText(record) : null,
+      color: type == 'kindle.highlight' ? kindleHighlightColor(record) : null,
     );
     if (!mark.valid) {
       throw const KindleFailure('management_annotation_migration');
@@ -275,11 +282,11 @@ class KindleEditionMigration {
       final mapped = cloudAnnotation({
         'type': type,
         'startPosition': start,
-        'endPosition': end,
+        'endPosition': end - (type == 'kindle.highlight' ? 1 : 0),
         'noteText': mark['label'],
       });
       final from = newMap.locator(mapped.start),
-          to = newMap.locator(mapped.end! - 1);
+          to = newMap.locator(mapped.rangeEnd! - 1);
       if (from == null || to == null || from['href'] != to['href']) {
         throw const KindleFailure('management_annotation_migration');
       }
@@ -291,7 +298,7 @@ class KindleEditionMigration {
         'locator': from,
         'endLocator': {...to, 'offset': integer(to['offset']) + 1},
         'kindleStart': mapped.start,
-        'kindleEnd': mapped.end,
+        'kindleEnd': mapped.rangeEnd,
       };
     }
     if (type != 'kindle.bookmark') {

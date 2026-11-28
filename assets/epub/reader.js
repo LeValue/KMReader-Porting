@@ -2069,6 +2069,7 @@ class KMReaderPageSnapshot {
     while(boundaryPreviews.size>2)boundaryPreviews.delete(boundaryPreviews.keys().next().value);
     return task;
   }
+  let readerPanelOpen = false;
   function warmCurl(){
     cancelCurlWarm();
     // Direct navigation is also used inside an effect's capture callback.
@@ -2077,7 +2078,7 @@ class KMReaderPageSnapshot {
     const gpu=curlConfigured();
     const slideConfigured=()=>preferences?.flow==='paged'&&preferences.transition==='slide'&&motionAllowed('slide')&&KMReaderSheetEffect.supported('slide');
     if(!gpu&&!slideConfigured()){releaseCurl();return;}
-    const eligible=()=>!disposed&&!document.hidden&&!inputSuspended&&rendition?.manager?.settings.axis==='horizontal'&&(gpu?curlConfigured():slideConfigured());
+    const eligible=()=>!disposed&&!document.hidden&&!inputSuspended&&!readerPanelOpen&&rendition?.manager?.settings.axis==='horizontal'&&(gpu?curlConfigured():slideConfigured());
     if(!eligible())return;
     const revision=captureWarmRevision,publication=captureRevision;
     const valid=()=>revision===captureWarmRevision&&publication===captureRevision&&eligible()&&!gesture&&!sheetEffect;
@@ -2548,8 +2549,13 @@ class KMReaderPageSnapshot {
       }
     }
     const matches = [];
+    let sliceStarted = performance.now();
     for (const section of book.spine.spineItems) {
       if (section.linear === 'no') continue;
+      if (performance.now() - sliceStarted > 8) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        sliceStarted = performance.now();
+      }
       if (disposed || generation !== searchGeneration) return [];
       const contents = rendition.getContents().find(c => c.sectionIndex === section.index);
       // Searching an offscreen section must not unload a live view or share
@@ -2608,6 +2614,13 @@ class KMReaderPageSnapshot {
     annotations: updateKindleAnnotations,
     turn: value => enqueue(() => turn(value)), display: (target, changed) => enqueue(() => display(target, changed)),
     preferences: setPreferences, search, showSearch: setSearchTerm, clearSearch: () => setSearchTerm(''),
+    setReaderPanelOpen: value => {
+      if (readerPanelOpen === value) return true;
+      readerPanelOpen = value;
+      if (readerPanelOpen) cancelCurlWarm();
+      else warmCurl();
+      return true;
+    },
     openAuxiliary: value => enqueue(() => openAuxiliary(value)), closeAuxiliary: () => enqueue(closeAuxiliary),
     suspendInput: value => {
       inputSuspended=!!value;cancelCurlWarm();cancelGesture();cancelTurnAnimation();

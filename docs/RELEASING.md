@@ -6,8 +6,8 @@ number for every distributed update. GitHub CI embeds the exact source commit in
 both platform builds. Update the notes in [releases](releases/).
 
 Run **Build and test** on the release source. It builds the unsigned Android
-APK and portable Windows bundle, including the Kindle worker, matching source
-and notices. Use the artifacts from that run.
+APK, Windows installer and portable Windows bundle, including the Kindle
+worker, matching source and notices. Use the artifacts from that run.
 
 For a build without publication, dispatch **Build and test** with
 `final_build=true` after verification. It builds an unsigned APK for each ABI
@@ -43,8 +43,8 @@ locally using the distribution key and the alignment and signature checks below.
    the chosen draft tag, the verified run, `apk_deltas=true` and the blobs and
    checksums from the staging output.
    Delivery verifies source, signature, package IDs and artifact checksums.
-5. Download the draft APKs, Windows ZIP, `kmreader-update.json` and
-   `SHA256SUMS.txt`. Check the downloaded hashes, package contents and
+5. Download the draft APKs, Windows installer and ZIP, `kmreader-update.json`
+   and `SHA256SUMS.txt`. Check the downloaded hashes, package contents and
    manifest URLs before publishing.
 
 The Android signing key, account data and machine diagnostics belong in

@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:pointycastle/export.dart' as pc;
 import 'package:xml/xml.dart';
 
+import '../annotation_colors.dart';
 import '../models.dart';
 import 'catalog_filter.dart';
 import 'positions.dart';
@@ -40,19 +41,31 @@ class KindleFailure implements Exception {
 String kindleNoteText(Json record) =>
     text(record['noteText'], text(record['text'], text(record['note'])));
 
+String? kindleHighlightColor(Json record) =>
+    annotationColor(record['color']) ??
+    annotationColor(record['highlightColor']) ??
+    annotationColor(record['style']) ??
+    annotationColor(object(record['style'])['color']);
+
+int? kindleAnnotationEnd(Json record) {
+  final end = int.tryParse('${record['endPosition']}');
+  return end == null || record['type'] != 'kindle.highlight' ? end : end + 1;
+}
+
 final class KindleMark {
-  const KindleMark(this.type, this.start, {this.end, this.note});
+  const KindleMark(this.type, this.start, {this.end, this.note, this.color});
 
   final String type;
   final int start;
   final int? end;
-  final String? note;
+  final String? note, color;
+  int? get rangeEnd => end == null || type != 'highlight' ? end : end! + 1;
 
   bool get deletable =>
       start >= 0 &&
       switch (type) {
         'bookmark' => end == null,
-        'highlight' => end != null && end! > start,
+        'highlight' => end != null && end! >= start,
         'note' => end == null || end! >= start,
         _ => false,
       };
@@ -67,7 +80,7 @@ final class KindleMark {
       start >= 0 &&
       switch (type) {
         'bookmark' => end == null && note == null,
-        'highlight' => end != null && end! > start && note == null,
+        'highlight' => end != null && end! >= start && note == null,
         'note' => end != null && end! > start && hasValidNote,
         _ => false,
       };
@@ -78,7 +91,10 @@ final class KindleMark {
       (end == null || num.tryParse('${record['endPosition']}') == end);
 
   bool matches(Json record) =>
-      sameRange(record) && (note == null || kindleNoteText(record) == note);
+      sameRange(record) &&
+      (note == null || kindleNoteText(record) == note) &&
+      (color == null ||
+          (kindleHighlightColor(record) ?? defaultAnnotationColor) == color);
 
   void append(
     XmlBuilder xml,
@@ -93,9 +109,20 @@ final class KindleMark {
       if (end != null) 'end': '$end',
       'timestamp': timestamp,
       'id': ?annotationId,
+      if (!erase && type == 'highlight' && color != null)
+        'color': (_kindleColorName(color) ?? color)!,
     },
     nest: erase && annotationId == null ? null : note,
   );
+}
+
+String? _kindleColorName(String? color) {
+  for (final entry in annotationColors.entries) {
+    if (entry.value == color) {
+      return entry.key == 'Aqua' ? 'blue' : entry.key.toLowerCase();
+    }
+  }
+  return null;
 }
 
 String kindleRandom([int count = 32]) => base64UrlEncode(
@@ -763,10 +790,11 @@ class KindleClient {
     String? annotationId,
   }) async {
     final addressedNote = erase && mark.type == 'note';
+    final recoloring = !erase && mark.type == 'highlight' && mark.color != null;
     if (!(erase ? mark.deletable : mark.valid) ||
         (addressedNote
             ? annotationId?.isNotEmpty != true || !mark.hasValidNote
-            : annotationId != null)) {
+            : annotationId != null && (!recoloring || annotationId.isEmpty))) {
       throw const KindleFailure('annotation_invalid');
     }
     await _postReadingState(
@@ -803,7 +831,10 @@ class KindleClient {
                             mark.sameRange(record) &&
                             (annotationId == null ||
                                 record['annotationId'] == annotationId)
-                      : mark.matches,
+                      : (record) =>
+                            mark.matches(record) &&
+                            (annotationId == null ||
+                                record['annotationId'] == annotationId),
                 ) ==
             erase) {
       throw const KindleFailure('annotation_not_confirmed');

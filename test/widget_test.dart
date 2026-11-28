@@ -19,6 +19,7 @@ import 'package:kmreader/core/repository.dart';
 import 'package:kmreader/main.dart';
 import 'package:kmreader/ui/strings.dart';
 import 'package:kmreader/ui/theme.dart';
+import 'package:kmreader/features/catalog/catalog_page.dart';
 import 'package:kmreader/features/settings/settings_page.dart';
 import 'package:kmreader/features/settings/api_keys_page.dart';
 
@@ -350,6 +351,19 @@ void main() {
         const Duration(seconds: 10),
       );
       expect(tester.takeException(), isNull);
+      final cardInk = find.descendant(
+        of: find.byType(BookCard).first,
+        matching: find.byType(InkWell),
+      );
+      final cardMaterial = find.ancestor(
+        of: cardInk.first,
+        matching: find.byType(Material),
+      );
+      expect(
+        tester.widget<Material>(cardMaterial.first).type,
+        MaterialType.transparency,
+        reason: 'Card hover and focus must paint inside the scroll viewport',
+      );
       expect(
         requests.where(
           (r) =>

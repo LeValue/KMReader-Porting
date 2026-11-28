@@ -36,14 +36,17 @@ class EpubAnnotationLinks {
       final chapter = chapterOf(note);
       var highlight = byRange[(chapter, EpubSession.markRange(note))];
       final start = note['kindleStart'], end = note['kindleEnd'];
-      // Kindle may store a note as a point inside a separate highlight.
-      if (highlight == null && start is int && (end == null || end == start)) {
+      // Kindle can anchor a note to a single character in a separate highlight.
+      if (highlight == null &&
+          start is int &&
+          (end == null || end is int && end <= start + 1)) {
         final candidates = (byChapter[chapter] ?? []).where(
           (mark) =>
               mark['kindleStart'] is int &&
               mark['kindleEnd'] is int &&
               start >= (mark['kindleStart'] as int) &&
-              start < (mark['kindleEnd'] as int),
+              start <= (mark['kindleEnd'] as int) &&
+              (end is! int || end <= (mark['kindleEnd'] as int)),
         );
         final exact = candidates.where((mark) => mark['kindleStart'] == start);
         highlight = exact.length == 1
@@ -366,6 +369,7 @@ class EpubSession extends ChangeNotifier {
   List<Json> get bookmarks {
     if (incognito) return [];
     final local = _localAnnotations;
+    final cloud = repository.documentAnnotations(book);
     final matching = {
       for (final mark in local)
         if (mark['kindlePosition'] is int)
@@ -373,9 +377,27 @@ class EpubSession extends ChangeNotifier {
         else if (mark['kindleStart'] is int && mark['kindleEnd'] is int)
           (mark['type'], mark['kindleStart'], mark['kindleEnd']),
     };
+    final cloudHighlights = {
+      for (final mark in cloud)
+        if (mark['type'] == 'kindle.highlight' && mark['color'] is String)
+          markRange(mark): mark,
+    };
+    Json withSyncedColor(Json mark) {
+      if (mark['type'] != 'kindle.highlight') return mark;
+      final remote = cloudHighlights[markRange(mark)];
+      if (remote == null) return mark;
+      final localTime = DateTime.tryParse(text(mark['created']));
+      final cloudTime = DateTime.tryParse(text(remote['modified']));
+      return mark['color'] == null ||
+              cloudTime != null &&
+                  (localTime == null || !cloudTime.isBefore(localTime))
+          ? {...mark, 'color': remote['color']}
+          : mark;
+    }
+
     return [
-      ...local,
-      for (final mark in repository.documentAnnotations(book))
+      ...local.map(withSyncedColor),
+      for (final mark in cloud)
         if (!matching.contains((
           mark['type'],
           mark['kindleStart'],
@@ -405,9 +427,9 @@ class EpubSession extends ChangeNotifier {
             if (links.notesFor(mark).firstOrNull case final Json note)
               {
                 ...note,
-                'rangeCfi': ?mark['rangeCfi'],
-                'locator': ?mark['locator'],
-                'endLocator': ?mark['endLocator'],
+                'rangeCfi': mark['rangeCfi'],
+                'locator': mark['locator'],
+                'endLocator': mark['endLocator'],
                 'color': links.colorFor(mark),
               }
             else

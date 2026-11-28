@@ -205,11 +205,20 @@ void main() {
                             record['annotationId'] == annotationId),
                   );
                 } else {
+                  final annotationId = mark.getAttribute('id');
+                  if (annotationId != null) {
+                    expect(type, 'kindle.highlight');
+                    annotations.removeWhere(
+                      (record) => record['annotationId'] == annotationId,
+                    );
+                  }
                   annotations.add({
                     'type': type,
-                    'annotationId': 'generated-${mark.localName}-$sent',
+                    'annotationId':
+                        annotationId ?? 'generated-${mark.localName}-$sent',
                     'startPosition': '$sent',
                     'endPosition': ?end,
+                    'highlightColor': ?mark.getAttribute('color'),
                     if (mark.localName == 'note') 'text': mark.innerText,
                   });
                 }
@@ -882,7 +891,7 @@ void main() {
       'kindleEnd': 15,
     };
     missingSidecar = true;
-    expect(session.saveAnnotation(selection), isTrue);
+    expect(session.saveAnnotation(selection, color: '#e05c98'), isTrue);
     expect(session.saveAnnotation(selection, note: 'Note <&>'), isTrue);
     await repo.sync();
     expect(repo.pendingCount, 0, reason: '${repo.syncFailure} $annotations');
@@ -894,18 +903,35 @@ void main() {
     ]);
     expect(annotations.last, containsPair('text', 'Note <&>'));
     expect(annotations.last, containsPair('endPosition', '15'));
+    expect(annotations.first, containsPair('endPosition', '14'));
+    expect(annotations.first, containsPair('highlightColor', 'pink'));
     expect(repo.documentAnnotations(book), hasLength(2));
+    expect(
+      repo.documentAnnotations(book).first,
+      containsPair('color', '#e05c98'),
+    );
     expect(session.readerAnnotations.single['type'], 'kindle.note');
+    expect(session.saveAnnotation(selection, color: '#3db98a'), isTrue);
+    await repo.sync();
+    expect(repo.pendingCount, 0);
+    expect(
+      annotations
+          .where((record) => record['type'] == 'kindle.highlight')
+          .single,
+      containsPair('highlightColor', 'green'),
+    );
+    expect(session.readerAnnotations.single['color'], '#3db98a');
     await session.close();
   });
 
   test(
-    'an imported point note deletes only its linked colored highlight',
+    'an imported one-character note deletes only its linked colored highlight',
     () async {
       final note = <String, dynamic>{
         'type': 'kindle.note',
         'annotationId': 'note-to-delete',
-        'startPosition': '13',
+        'startPosition': '15',
+        'endPosition': '16',
         'text': 'Synthetic note',
       };
       final linked = {
@@ -936,7 +962,7 @@ void main() {
         );
         expect(renderedNote['color'], '#f09546');
         expect(renderedNote['locator']['offset'], 2);
-        expect(renderedNote['endLocator']['offset'], 5);
+        expect(renderedNote['endLocator']['offset'], 6);
         confirm = false;
         session.removeAnnotation(cloud);
         expect(session.readerAnnotations.single['id'], 'kindle:keep-highlight');
@@ -953,6 +979,34 @@ void main() {
           repo.documentAnnotations(book).single['id'],
           'kindle:keep-highlight',
         );
+      } finally {
+        await session.close();
+      }
+    },
+  );
+
+  test(
+    'a legacy highlight at the end of a mapped span is still deletable',
+    () async {
+      annotations = [
+        {
+          'type': 'kindle.highlight',
+          'annotationId': 'legacy-boundary',
+          'startPosition': '203',
+          'endPosition': '210',
+        },
+      ];
+      final session = await EpubSession.open(repo, book, publication);
+      try {
+        final highlight = session.bookmarks.single;
+        expect(highlight['endLocator']['offset'], 200);
+        expect(session.canRemoveAnnotation(highlight), isTrue);
+        session.removeAnnotation(highlight);
+        expect(repo.pendingCount, 1);
+        await repo.sync();
+        expect(writes, 1, reason: repo.syncFailure);
+        expect(repo.pendingCount, 0);
+        expect(annotations, isEmpty);
       } finally {
         await session.close();
       }
@@ -1013,7 +1067,8 @@ void main() {
     final marks = repo.documentAnnotations(book);
     expect(marks, hasLength(3));
     expect(marks.first['locator']['offset'], 32);
-    expect(marks[1]['endLocator']['offset'], 60);
+    expect(marks[1]['endLocator']['offset'], 61);
+    expect(marks[1]['kindleEnd'], 71);
     expect(marks.last['label'], 'Synthetic note');
     annotations = [];
     await repo.externalDocumentPosition(book, publication);

@@ -125,17 +125,6 @@ class AppController extends ChangeNotifier {
     );
     initializeReaderDefaults(controller.store);
     if (standaloneReader) return controller;
-    if (controller.store
-            .setting<List<dynamic>>('localImportFolders')
-            ?.isNotEmpty ==
-        true) {
-      controller.localFolders.start();
-    }
-    try {
-      await controller.backgroundDownloads.initialize();
-    } catch (error) {
-      controller.backgroundDownloads.failure = error.toString();
-    }
     final last = controller.store.setting<String>('activeServer');
     final profile = controller.servers.where((s) => s.id == last).firstOrNull;
     if (profile != null && !profile.isProtected) {
@@ -145,18 +134,31 @@ class AppController extends ChangeNotifier {
         controller.startupError = e.toString();
       }
     }
-    final savedIcon = controller.store.setting<dynamic>('appIcon');
+    return controller;
+  }
+
+  Future<void> startBackgroundServices() async {
+    if (standaloneReader) return;
+    if (store.setting<List<dynamic>>('localImportFolders')?.isNotEmpty ==
+        true) {
+      localFolders.start();
+    }
+    final savedIcon = store.setting<dynamic>('appIcon');
     if (Platform.isWindows &&
         const ['default', 'classic', 'legacy'].contains(savedIcon)) {
       try {
-        await controller.setAppIcon(savedIcon as String);
+        await setAppIcon(savedIcon as String);
       } on PlatformException {
         /* Keep the system icon if unavailable. */
       } on MissingPluginException {
         /* Older native hosts use the default icon. */
       }
     }
-    return controller;
+    try {
+      await backgroundDownloads.initialize();
+    } catch (error) {
+      backgroundDownloads.failure = error.toString();
+    }
   }
 
   Future<ServerProfile> login({

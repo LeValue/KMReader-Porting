@@ -11,6 +11,7 @@ $start.UseShellExecute = $false
 $start.RedirectStandardError = $true
 $start.RedirectStandardOutput = $true
 $start.Environment['KMREADER_DATA_DIR'] = $isolated
+$startup = [System.Diagnostics.Stopwatch]::StartNew()
 $process = [System.Diagnostics.Process]::Start($start)
 $errorOutput = $process.StandardError.ReadToEndAsync()
 $standardOutput = $process.StandardOutput.ReadToEndAsync()
@@ -22,6 +23,8 @@ try {
     if ($process.HasExited) { throw "KMReader exited before creating a window (code $($process.ExitCode))." }
   } until ($process.MainWindowHandle -ne [IntPtr]::Zero -or [DateTime]::UtcNow -ge $deadline)
   if ($process.MainWindowHandle -eq [IntPtr]::Zero) { throw 'KMReader did not create a native Windows window.' }
+  $startup.Stop()
+  Write-Host "First native window after $($startup.ElapsedMilliseconds) ms."
   if ($process.MainWindowTitle -notmatch 'KMReader') { throw "Unexpected window title: $($process.MainWindowTitle)" }
   Start-Sleep -Seconds 5
   $process.Refresh()
